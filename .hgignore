@@ -1,0 +1,4 @@
+syntax: glob
+systemf/.cache
+systemf/.classpath
+systemf/.project
