@@ -26,13 +26,27 @@ object RecF {
   }
   
   // terms
-  abstract class Term extends FExpr
-  case class TermVar(x: Idn) extends Term
-  case class TermFApp(m: Term, n: Term) extends Term
-  case class TermRec(y: Term, yType: Type, x: Term, xType: Type, m: Term) extends Term
-  case class TermTypeApp(m: Term, a: Type) extends Term
-  case class TermCapLambda(x: TypeVar, m: Term) extends Term // type abstraction
-  
+  abstract class Term extends FExpr {
+    // explicit typing
+    val tau: Type
+  }
+  case class TermVar(x: Idn) extends Term {
+    val tau = TypeVar(x)
+  }
+  case class TermFApp(m: Term, n: Term) extends Term {
+    val tau = n.tau
+  }
+  case class TermRec(y: Term, yType: Type, x: Term, xType: Type, m: Term) extends Term {
+    val tau = yType
+  }
+  case class TermTypeApp(m: Term, a: Type) extends Term {
+    val tau = m.tau match {
+        case TypeForAll(x, b) => substitute(a, x, b)
+    }
+  }
+  case class TermCapLambda(x: TypeVar, m: Term) extends Term { // type abstraction
+	val tau = TypeForAll(x, m.tau)
+  }
   // values
   type Value = Either[TermRec, TermCapLambda]
 

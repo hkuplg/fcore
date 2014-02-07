@@ -29,23 +29,23 @@ object Translation {
     namePrefix + nameCounter
   }
   
-  def translateTerms(t: Term, env: Environment, arg: Boolean = false): Tuple2[String, ClassDef] = {
+  def translateTerms(t: Term, arg: Boolean = false): Tuple2[String, ClassDef] = {
     t match {
       case TermVar(x: Idn) => {
-        val tType = env._2(t)
+        val tType = t.tau
         tType match {
           case TypeFun(_, _) => ("this", Map())
           case TypeVar(_) => if (arg) (x, Map()) else ("this." + x, Map())
         }
       }
       case TermFApp(m: Term, n: Term) => {
-        val (e, d) = translateTerms(m, env)
-        val (eP, dP) = translateTerms(n, env, true)
+        val (e, d) = translateTerms(m)
+        val (eP, dP) = translateTerms(n, true)
         
         (e + ".app(" + eP + ")", d ++ dP)
       }
       case TermRec(y: Term, yType: Type, x: Term, xType: Type, m: Term) => {
-        val tType = env._2(t)
+        val tType = t.tau
         tType match {
           case TypeFun(a, b) => {
             val newName = generateName
@@ -53,35 +53,36 @@ object Translation {
             val fType = translateTypes(tType)
             val aType = translateTypes(a)
             val bType = translateTypes(b)
-            val (e, d) = translateTerms(m, env)
+            val (e, d) = translateTerms(m)
             
             val classDef = "class " + newName + "<???> extends " + fType + 
             	" {\n FREEVAR??? x;\n" + "public " + newName + "(FREEVAR??? x) { this.x = x;}" +
             	"public override " + bType + "app(" + aType + "x) { return " + e + "; } \n }"
             	
             ("new " + newName + "<FREEVAR??>(e???)", d + (newName -> classDef))
-          } 
+          }
+          case TypeVar(x) => ("RECURSION?", Map())
         }
       }
       case TermTypeApp(m: Term, a: Type) => {
-        val mType = env._2(m)
+        val mType = m.tau
         mType match {
           case TypeForAll(x, b) => {
-            val (e, d) = translateTerms(m, env)
+            val (e, d) = translateTerms(m)
             val cast = translateTypes(substitute(a, x, b))
             ("(" + cast + ")" + e + ".tyapp()", d)
           }
         }
       }
       case TermCapLambda(x: TypeVar, m: Term) => {
-        val tType = env._2(t)
+        val tType = t.tau
         tType match {
           case TypeForAll(x, a) => {
             val newName = generateName
             
             val fType = translateTypes(tType)
             val aType = translateTypes(a)
-            val (e, d) = translateTerms(m, env)
+            val (e, d) = translateTerms(m)
             
             val classDef = "class " + newName + "<???> extends " + fType + 
             	" {\n FREEVAR??? x;\n" + "public " + newName + "(FREEVAR??? x) { this.x = x;}" +
@@ -94,13 +95,11 @@ object Translation {
     }
   }
   
-  def getEnvironment(exp: FExpr): Environment = (Set(), Map())
-  
   def translate(exp: FExpr): Tuple2[String, ClassDef] = {
     if (exp.isInstanceOf[Type]) {
       (translateTypes(exp.asInstanceOf[Type]), Map())
     } else {
-      translateTerms(exp.asInstanceOf[Term], getEnvironment(exp))
+      translateTerms(exp.asInstanceOf[Term])
     }
   }
   
