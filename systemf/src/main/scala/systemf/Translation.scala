@@ -34,32 +34,42 @@ object Translation {
       case TermVar(x: Idn) => {
         val tType = t.tau
         tType match {
-          case TypeFun(_, _) => ("this", Map())
+          case TypeFun(_, _) => if (arg) (x, Map()) else ("this", Map())
           case TypeVar(_) => if (arg) (x, Map()) else ("this." + x, Map())
         }
       }
       case TermFApp(m: Term, n: Term) => {
-        val (e, d) = translateTerms(m)
-        val (eP, dP) = translateTerms(n, true)
+        val (e, d) = translateTerms(m, true)
+        val (eP, dP) = translateTerms(n)
         
         (e + ".app(" + eP + ")", d ++ dP)
       }
       case TermRec(y: Term, yType: Type, x: Term, xType: Type, m: Term) => {
+        def generateConstructor(name: String, fv: Set[String]): String = {
+          if (fv.isEmpty) ""
+          else {
+            "public " + name + "(" + fv.reduce((x, y) => x + "," + y) + ") { " + 
+            t.FV.map(x => "this." + x.toString + " = " + x + ";").reduce((x,y) => " " ) + " }"
+          }
+        }
         val tType = t.tau
         tType match {
           case TypeFun(a, b) => {
             val newName = generateName
-            
+
             val fType = translateTypes(tType)
             val aType = translateTypes(a)
             val bType = translateTypes(b)
-            val (e, d) = translateTerms(m)
+            val (e, d) = translateTerms(m, true)
             
-            val classDef = "class " + newName + "<???> extends " + fType + 
-            	" {\n FREEVAR??? x;\n" + "public " + newName + "(FREEVAR??? x) { this.x = x;}" +
-            	"public override " + bType + "app(" + aType + "x) { return " + e + "; } \n }"
-            	
-            ("new " + newName + "<FREEVAR??>(e???)", d + (newName -> classDef))
+            val freeTypeVars = setToString(tType.FTV)
+            val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
+            
+            val classDef = "class " + newName + "<" + freeTypeVars +"> extends " + fType +       
+            	" { " + freeVars.map(x => x + "; ").reduce((x, y) => x + y)  + generateConstructor(newName, freeVars) +
+            	" public override " + bType + " app(" + aType + " " + x.toString + ") { return " + e + "; }}"
+
+            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV) + ")", d + (newName -> classDef))
           }
           case TypeVar(x) => ("RECURSION?", Map())
         }

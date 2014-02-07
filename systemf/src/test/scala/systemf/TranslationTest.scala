@@ -11,18 +11,15 @@ class TranslationTest extends AssertionsForJUnit {
     
     // \x: Y -> X . x y with y: Y
     // == rec NEW(x: Y -> X): (Y -> X) -> X . x y
-    
-    val body = TermFApp(TermVar("x"), TermVar("y"))
+
     val xtype = TypeFun(TypeVar("Y"), TypeVar("X"))
-    val t = TypeFun(xtype, TypeVar("Y"))
+    val body = TermFApp(TermVar("x"), TermVar("y"))
+
+    val t = TypeFun(xtype, TypeVar("X"))
     val exp = TermRec(TermVar(""), t, TermVar("x"), TypeFun(TypeVar("Y"), TypeVar("X")), body)
     
     val translated = "new C0<X,Y>(y)"
-    val classdef = """class C0<X,Y> extends Arrow<Arrow<Y,X>,X> {
-      Y y;
-      public C0(Y y) { this.y = y; }
-      public override X app(Arrow<Y,X> x) { return x.app(this.y); }
-  }"""
+    val classdef = """class C0<X,Y> extends Arrow<Arrow<Y,X>,X> { Y y; public C0(Y y) { this.y = y; } public override X app(Arrow<Y,X> x) { return x.app(this.y); }}"""
       val (tr, cd) = Translation.translate(exp)
     assert(translated === tr)
     assert(cd("C0") === classdef)
