@@ -6,6 +6,11 @@ import systemf.Translation
 
 class TranslationTest extends AssertionsForJUnit {
   
+  @Before
+  def reset() {
+    Translation.resetCounter
+  }
+  
   @Test
   def freeVariableTest() {
     
@@ -19,7 +24,7 @@ class TranslationTest extends AssertionsForJUnit {
     val exp = TermRec(TermVar(""), t, TermVar("x"), TypeFun(TypeVar("Y"), TypeVar("X")), body)
     
     val translated = "new C0<X,Y>(y)"
-    val classdef = """class C0<X,Y> extends Arrow<Arrow<Y,X>,X> { Y y; public C0(Y y) { this.y = y; } public override X app(Arrow<Y,X> x) { return x.app(this.y); }}"""
+    val classdef = """class C0<X,Y> extends Arrow<Arrow<Y,X>,X> {Y y; public C0(Y y) { this.y = y; } public override X app(Arrow<Y,X> x) { return x.app(this.y); }}"""
       val (tr, cd) = Translation.translate(exp)
     assert(translated === tr)
     assert(cd("C0") === classdef)
@@ -32,9 +37,7 @@ class TranslationTest extends AssertionsForJUnit {
     val exp = TermRec(TermVar("y"), TypeVar("X"), TermVar("x"), TypeVar("X"), body)
     
     val translated = "new C0<X>()"
-    val classdef = """class C0<X> extends Arrow<X,X> {
-      public override X app(X x) { return x.app(x); }
-  }"""
+    val classdef = """class C0<X> extends Arrow<X,X> { public override X app(X x) { return x.app(x); }}"""
       val (tr, cd) = Translation.translate(exp)
     assert(translated === tr)
     assert(cd("C0") === classdef)    

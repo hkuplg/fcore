@@ -39,7 +39,7 @@ object RecF {
     }
   }
   
-  def setToString[A](s: Set[A]): String = s.map(x => x.toString).toList.sorted.reduce((x, y) => x + "," + y)
+  def setToString[A](s: Set[A]): String = if (s.isEmpty) "" else s.map(x => x.toString).toList.sorted.reduce((x, y) => x + "," + y)
 
   // terms
   abstract class Term extends FExpr {
