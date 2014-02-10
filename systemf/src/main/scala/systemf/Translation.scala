@@ -9,7 +9,7 @@ object Translation {
   case class Arrow(x: Type, y: Type) extends Global //interface Arrow<X, Y> { public Y app(X x); }
 
   case class All(x: Type, t: Type) extends Global // interface All_X_XtoFREEVARS(T)-X<FREEVARS(T)-X> { public T tyapp<X>();}
-  // public interface All<X> { public Object tyapp();}
+  // public interface All { public <X> Object tyapp();}
 
   def translateTypes(t: Type): String = {
     t match {
@@ -33,6 +33,14 @@ object Translation {
 
   def generateFields(in: Set[String]): String = if (in.isEmpty) "" else in.map(x => x + "; ").reduce((x, y) => x + y)
 
+  def generateConstructor(name: String, fv: Set[String], t: Term): String = {
+    if (fv.isEmpty) ""
+    else {
+      "public " + name + "(" + fv.reduce((x, y) => x + "," + y) + ") { " +
+        t.FV.map(x => "this." + x.toString + " = " + x + ";").reduce((x, y) => " ") + " }"
+    }
+  }
+
   def translateTerms(t: Term, arg: Boolean = false): Tuple2[String, ClassDef] = {
     t match {
       case TermVar(x: Idn) => {
@@ -49,13 +57,6 @@ object Translation {
 
       }
       case TermRec(y: Term, yType: Type, x: Term, xType: Type, m: Term) => {
-        def generateConstructor(name: String, fv: Set[String]): String = {
-          if (fv.isEmpty) ""
-          else {
-            "public " + name + "(" + fv.reduce((x, y) => x + "," + y) + ") { " +
-              t.FV.map(x => "this." + x.toString + " = " + x + ";").reduce((x, y) => " ") + " }"
-          }
-        }
         val tType = t.tau
         tType match {
           case TypeFun(a, b) => {
@@ -70,7 +71,7 @@ object Translation {
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
 
             val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
-              " {" + generateFields(freeVars) + generateConstructor(newName, freeVars) +
+              " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
               " public " + bType + " app(" + aType + " " + x.toString + ") { return " + e + "; }}"
 
             ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV) + ")", d + (newName -> classDef))
@@ -80,19 +81,19 @@ object Translation {
 
             val freeTypeVars = setToString(tType.FTV)
             val fType = translateTypes(TypeFun(tType, tType))
-            val (e, d) = 
+            val (e, d) =
               m match {
                 case TermFApp(mP: Term, n: Term) => {
-	                val (ePP, dPP) = translateTerms(m, true)
-	                val (eP, dP) = translateTerms(n, true)
-	                (eP + ".app(" + eP + ")", dPP ++ dP)                  
+                  val (ePP, dPP) = translateTerms(m, true)
+                  val (eP, dP) = translateTerms(n, true)
+                  (eP + ".app(" + eP + ")", dPP ++ dP)
                 }
               }
-            
+
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
 
             val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
-              " {" + generateFields(freeVars) + generateConstructor(newName, freeVars) +
+              " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
               " public " + tType + " app(" + tType + " " + x.toString + ") { return " + e + "; }}"
 
             ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV) + ")", d + (newName -> classDef))
@@ -110,6 +111,14 @@ object Translation {
         }
       }
       case TermCapLambda(x: TypeVar, m: Term) => {
+        def generateBound(a: Set[TypeVar], b: Set[TypeVar]): String = {
+          val diff = a -- b
+          if (diff.isEmpty) ""
+          else {
+            "<" + setToString(diff) + "> "
+          }
+        }
+        
         val tType = t.tau
         tType match {
           case TypeForAll(x, a) => {
@@ -117,13 +126,16 @@ object Translation {
 
             val fType = translateTypes(tType)
             val aType = translateTypes(a)
-            val (e, d) = translateTerms(m)
+            val (e, d) = translateTerms(m, true)
 
-            val classDef = "class " + newName + "<???> implements " + fType +
-              " {\n FREEVAR??? x;\n" + "public " + newName + "(FREEVAR??? x) { this.x = x;}" +
-              "public " + aType + "tyapp() { return " + e + "; } \n }"
+            val freeTypeVars = setToString(tType.FTV)
+            val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
+            
+            val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
+              " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
+              "public " + generateBound(a.FTV, tType.FTV) + aType + " tyapp() { return " + e + "; } }"
 
-            ("new " + newName + "<FREEVAR??>(e???)", d + (newName -> classDef))
+            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV) + ")", d + (newName -> classDef))
           }
         }
       }

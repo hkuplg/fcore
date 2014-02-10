@@ -87,26 +87,21 @@ class TranslationTest extends AssertionsForJUnit {
   }"""
     
     // partial preserving
-    val classdef1 = """class C0<Y> implements All {
-      Y y;
-      public C0(Y y) { this.y = y; }
-      public <X> Arrow<X,Y> tyapp() { return new C1<X,Y>(this.y); }
-  }"""
-    val classdef2 = """class C1<X,Y> implements Arrow<X,Y> {
-      Y y;
-      public C1(Y y) { this.y = y; }
-      public Y app(X x) { return y; }
-  }"""      
+    //original: return new C1<X,Y>(this.y); ???
+    val classdef1 = """class C0<Y> implements All {Y y; public C0(Y y) { this.y = y; }public <X> Arrow<X,Y> tyapp() { return new C1<X,Y>(y); } }"""
+    val classdef2 = """class C1<X,Y> implements Arrow<X,Y> {Y y; public C1(Y y) { this.y = y; } public Y app(X x) { return y; }}"""      
  
       
       // /\X . \x:X . y with y:Y
       // :: Y -> (X -> Y) -> Y ????
      val translated = "new C0<Y>(y)"
-    val fun = TermRec(TermVar(""), TypeFun(TypeVar("X"), TypeVar("Y")), TermVar("y"), TypeVar("Y"), TermVar("y"))    
+    val fun = TermRec(TermVar(""), TypeFun(TypeVar("X"), TypeVar("Y")), TermVar("x"), TypeVar("Y"), TermVar("y"))    
     
     val exp = TermCapLambda(TypeVar("X"), fun)
     val (tr, cd) = Translation.translate(exp)
-    assert(translated === tr)    
+    assert(translated === tr)
+    assert(cd("C0") === classdef1) 
+    assert(cd("C1") === classdef2)    
   }    
 
   @Test
