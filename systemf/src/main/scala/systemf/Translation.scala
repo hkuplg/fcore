@@ -69,9 +69,9 @@ object Translation {
             val freeTypeVars = setToString(tType.FTV)
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
 
-            val classDef = "class " + newName + "<" + freeTypeVars + "> extends " + fType +
+            val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars) +
-              " public override " + bType + " app(" + aType + " " + x.toString + ") { return " + e + "; }}"
+              " public " + bType + " app(" + aType + " " + x.toString + ") { return " + e + "; }}"
 
             ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV) + ")", d + (newName -> classDef))
           }
@@ -91,9 +91,9 @@ object Translation {
             
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
 
-            val classDef = "class " + newName + "<" + freeTypeVars + "> extends " + fType +
+            val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars) +
-              " public override " + tType + " app(" + tType + " " + x.toString + ") { return " + e + "; }}"
+              " public " + tType + " app(" + tType + " " + x.toString + ") { return " + e + "; }}"
 
             ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV) + ")", d + (newName -> classDef))
           }
@@ -119,9 +119,9 @@ object Translation {
             val aType = translateTypes(a)
             val (e, d) = translateTerms(m)
 
-            val classDef = "class " + newName + "<???> extends " + fType +
+            val classDef = "class " + newName + "<???> implements " + fType +
               " {\n FREEVAR??? x;\n" + "public " + newName + "(FREEVAR??? x) { this.x = x;}" +
-              "public override " + aType + "tyapp() { return " + e + "; } \n }"
+              "public " + aType + "tyapp() { return " + e + "; } \n }"
 
             ("new " + newName + "<FREEVAR??>(e???)", d + (newName -> classDef))
           }
