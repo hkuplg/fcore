@@ -27,20 +27,6 @@ object RecF {
     override def FTV = tauA.FTV - x
   }
 
-  def substitute(what: Type, forwhat: Type, in: Type): Type = {
-    if (forwhat == in) {
-      what
-    } else {
-      in match {
-        case TypeVar(_) => in
-        case TypeFun(a, b) => TypeFun(substitute(what, forwhat, a), substitute(what, forwhat, b))
-        case TypeForAll(x, a) => TypeForAll(x, substitute(what, forwhat, a))
-      }
-    }
-  }
-  
-  def setToString[A](s: Set[A]): String = if (s.isEmpty) "" else s.map(x => x.toString).toList.sorted.reduce((x, y) => x + "," + y)
-
   // terms
   abstract class Term extends FExpr {
     // explicit typing
@@ -77,12 +63,20 @@ object RecF {
     override def FV = m.FV
     override def FTV = m.FTV
   }
-  // values
-  type Value = Either[TermRec, TermCapLambda]
 
-  // typing environment - gamma
-  type TypeContext = Set[Type]
-  type ValueContext = Map[Term, Type]
-  type Environment = Tuple2[TypeContext, ValueContext]
-
+  // helper functions
+  def substitute(what: Type, forwhat: Type, in: Type): Type = {
+    if (forwhat == in) {
+      what
+    } else {
+      in match {
+        case TypeVar(_) => in
+        case TypeFun(a, b) => TypeFun(substitute(what, forwhat, a), substitute(what, forwhat, b))
+        case TypeForAll(x, a) => TypeForAll(x, substitute(what, forwhat, a))
+      }
+    }
+  }
+  
+  def setToString[A](s: Set[A]): String = if (s.isEmpty) "" else s.map(x => x.toString).toList.sorted.reduce((x, y) => x + "," + y)
+  
 }
