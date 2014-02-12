@@ -230,13 +230,13 @@ createCU (J.Block bs,e,t) = (cu,t) where
    cu = J.CompilationUnit Nothing [] [closureClass, classDecl]
    field name = J.MemberDecl (J.FieldDecl [] (J.RefType (refType "Object")) [
               J.VarDecl (J.VarId (J.Ident name)) Nothing])
-   app b = J.MemberDecl (J.MethodDecl [J.Abstract] [] Nothing (J.Ident "apply") [] [] (J.MethodBody b))
+   app mod b = J.MemberDecl (J.MethodDecl mod [] Nothing (J.Ident "apply") [] [] (J.MethodBody b))
    closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
-                  J.ClassBody [field "x",field "out",app Nothing]))
+                  J.ClassBody [field "x",field "out",app [J.Abstract] Nothing]))
    body = Just (J.Block (bs ++ [ass]))
    ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA e))
    refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-   classDecl = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "MyClosure") [] (Just (refType "Closure")) [] (J.ClassBody [app body]))
+   classDecl = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "MyClosure") [] (Just (refType "Closure")) [] (J.ClassBody [app [] body]))
 
 
 translate2 :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
