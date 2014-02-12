@@ -1,8 +1,10 @@
-{-# OPTIONS -XRankNTypes #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances #-}
 
 module SystemFJava where
 
 import Prelude hiding (init)
+import Debug.Trace
+import Unsafe.Coerce
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
@@ -20,89 +22,201 @@ data PFExp t e =
 
 -- Closure F syntax
 
-data Scope b fv t e = Body b | Kind (t -> Scope b fv t e) | Typ (PCTyp fv t e) (e -> Scope b fv t e) 
+data Scope b t e = Body b | Kind (t -> Scope b t e) | Typ (PCTyp t e) (e -> Scope b t e) 
 
 data Void = Void (forall a . a)
 
-type TScope fv t e = Scope (PCTyp fv t e) fv t e
+type TScope t e = Scope (PCTyp t e) t e
 
-type EScope fv t e = Scope (PCExp fv t e) fv t e
+type EScope t e = Scope (PCExp t e) t e
 
-data PCTyp fv t e = CTFVar fv | CTVar t | CForall (TScope fv t e)
+data PCTyp t e = CTFVar Int | CTVar t | CForall (TScope t e)
 
-data PCExp fv t e = 
+data PCExp t e = 
      CVar e 
-   | CLam (EScope fv t e)  
-   | CApp (PCExp fv t e) (PCExp fv t e)
-   | CTApp (PCExp fv t e) (PCTyp fv t e)
+   | CFVar Int
+   | CLam (EScope t e)  
+   | CApp (PCExp t e) (PCExp t e)
+   | CTApp (PCExp t e) (PCTyp t e)
 
-ftyp2scope :: PFTyp t -> TScope fv t e
+-- Pretty printing
+
+data Iso a b = Iso {from :: a -> b, to :: b -> a}
+
+showPCTyp2 = gshowPCTyp
+
+-- showPCTyp3 = gshowPCTyp (Iso IT unIT)
+
+gshowPCTyp :: PCTyp Typ Typ -> Int -> String
+gshowPCTyp (CTFVar i) n = "a" ++ show i
+gshowPCTyp (CTVar t) n = gshowPCTyp (unT t) n
+gshowPCTyp (CForall s) n = "(forall " ++ showScope2 gshowPCTyp  s n ++ ")"
+
+showScope2 showF (Body t) n = ". " ++ showF t n
+showScope2 showF (Kind f) n = "a" ++ show n ++ " " ++ showScope2 showF (f (T (CTFVar n))) (n+1)
+showScope2 showF (Typ t f) n = 
+   "(x" ++ show n ++ " : " ++ gshowPCTyp  t n ++ ") " ++ showScope2 showF (f (T (CTFVar n))) (n+1)
+
+gshowPCTyp3 :: PCTyp ITyp (Int,ITyp) -> Int -> String
+gshowPCTyp3 (CTFVar i) n = "a" ++ show i
+gshowPCTyp3 (CTVar t) n = gshowPCTyp3 (unIT t) n
+gshowPCTyp3 (CForall s) n = "(forall " ++ showScope3 gshowPCTyp3  s n ++ ")"
+
+showScope3 showF (Body t) n = ". " ++ showF t n
+showScope3 showF (Kind f) n = "a" ++ show n ++ " " ++ showScope3 showF (f (IT (CTFVar n))) (n+1)
+showScope3 showF (Typ t f) n = 
+   "(x" ++ show n ++ " : " ++ gshowPCTyp3  t n ++ ") " ++ showScope3 showF (f (n,IT (CTFVar n))) (n+1)
+
+
+showPCTyp :: PCTyp Int Int -> Int -> String
+showPCTyp (CTFVar i) n = "y" ++ show i
+showPCTyp (CTVar i) n = "a" ++ show i
+showPCTyp (CForall s) n = "(forall " ++ showScope showPCTyp s n ++ ")"
+
+showScope showF (Body t) n = ". " ++ showF t n
+showScope showF (Kind f) n = "a" ++ show n ++ " " ++ showScope showF (f n) (n+1)
+showScope showF (Typ t f) n = "(x" ++ show n ++ " : " ++ showPCTyp t n ++ ") " ++ showScope showF (f n) (n+1)
+
+showPCExp (CVar x) n      = "x" ++ show x
+showPCExp (CLam s) n      = "(\\" ++ showScope showPCExp s n ++ ")"
+showPCExp (CApp e1 e2) n  = showPCExp e1 n ++ " " ++ showPCExp e2 n
+showPCExp (CTApp e t) n   = showPCExp e n ++ " " ++ showPCTyp t n
+
+instance Show (PCTyp Int Int) where
+   show e = showPCTyp e 0
+
+instance Show (TScope Int Int) where
+   show e = showScope showPCTyp e 0
+
+instance Show (EScope Int Int) where
+   show e = showScope showPCExp e 0
+
+instance Show (PCExp Int Int) where
+   show e = showPCExp e 0
+
+-- System F to Closure F
+
+ftyp2scope :: PFTyp t -> TScope t e
 ftyp2scope (FTVar x)     = Body (CTVar x)
 ftyp2scope (FForall f)   = Kind (\a -> ftyp2scope (f a))
 ftyp2scope (FFun t1 t2)  = Typ (ftyp2ctyp t1) (\x -> ftyp2scope t2)
 
-ftyp2ctyp :: PFTyp t -> PCTyp fv t e
+ftyp2ctyp :: PFTyp t -> PCTyp t e
 ftyp2ctyp (FTVar x) = CTVar x
 ftyp2ctyp t         = CForall (ftyp2scope t)
 
-fexp2cexp :: PFExp t e -> PCExp fv t e
+fexp2cexp :: PFExp t e -> PCExp t e
 fexp2cexp (FVar x)      = CVar x
 fexp2cexp (FApp e1 e2)  = CApp (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp e             = CLam (groupLambda e)
 
-groupLambda :: PFExp t e -> EScope fv t e
+groupLambda :: PFExp t e -> EScope t e
 groupLambda (FBLam f)  = Kind (\a -> groupLambda (f a))
 groupLambda (FLam t f) = Typ (ftyp2ctyp t) (\x -> groupLambda (f x))
 groupLambda e          = Body (fexp2cexp e)
 
 -- type inference for Closure F
 
-infer = joinPCTyp . infer'
+newtype Typ = T {unT :: PCTyp Typ Typ}
 
-infer' :: PCExp fv (PCTyp fv t e) (PCTyp fv t e) -> PCTyp fv (PCTyp fv t e) (PCTyp fv t e)
-infer' (CVar t) = CTVar t
-infer' (CLam s) = CForall (inferScope s)
-infer' (CTApp e t) = 
-   case infer' e of
-      (CForall (Kind f)) -> scope2ctyp (f (joinPCTyp t))
-infer' (CApp e1 e2) = 
-   case (infer' e1, infer' e2) of 
-      (CForall (Typ t1 f), t3) -> scope2ctyp (f (joinPCTyp t1)) -- need to check whether t1 and t3 are compatible 
+newtype ITyp = IT {unIT :: PCTyp ITyp (Int,ITyp)}
 
-scope2ctyp :: TScope fv t e -> PCTyp fv t e
+infer :: PCExp Typ Typ -> PCTyp Typ Typ
+infer (CVar t) = unT t
+infer (CTApp e t) = 
+  case infer e of 
+     (CForall (Kind f)) -> scope2ctyp (f (T t))
+infer (CApp e1 e2) = 
+  case (infer e1, infer e2) of 
+     (CForall (Typ t1 f),t3) -> scope2ctyp (f (T t1))
+infer (CLam s) = CForall (inferScope s)
+
+inferScope :: EScope Typ Typ -> TScope Typ Typ
+inferScope (Body e)   = Body (infer e)
+inferScope (Kind f)   = Kind (\a -> inferScope (f a))
+inferScope (Typ t f)  = Typ t (\_ -> inferScope (f (T t)))
+
+scope2ctyp :: TScope t e -> PCTyp t e
 scope2ctyp (Body t)  = t
 scope2ctyp s         = CForall s
 
-inferScope :: EScope fv (PCTyp fv t e) (PCTyp fv t e) -> TScope fv (PCTyp fv t e) (PCTyp fv t e)
-inferScope (Body e) = Body (infer' e)
-inferScope (Kind f) = Kind (\a -> inferScope (f a))
-inferScope (Typ t f) = Typ t (\_ -> inferScope (f (joinPCTyp t)))
+inferPretty ::  PFExp Typ Typ -> IO ()
+inferPretty e = putStrLn (showPCTyp2 (infer (fexp2cexp e)) 0) 
 
-joinPCTyp :: PCTyp fv (PCTyp fv t e) (PCTyp fv t e) -> PCTyp fv t e
-joinPCTyp (CTVar t) = t
-joinPCTyp (CForall s) = CForall (joinScope s)
+-- Some test terms
 
-joinScope :: TScope fv (PCTyp fv t e) (PCTyp fv t e) -> TScope fv t e
-joinScope (Body t) = Body (joinPCTyp t)
-joinScope (Kind f) = Kind (\a -> joinScope (f (CTVar a)))
-joinScope (Typ t f) = let t' = joinPCTyp t in Typ t' (\_ -> joinScope (f t'))
+idF = FBLam (\a -> FLam (FTVar a) (\x -> FVar x))
+
+-- /\a . (\(f : a -> a) . \(x : a) . f x) (idF a)
+
+idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) (\x -> FApp (FVar f) (FVar x)))) (FTApp idF (FTVar a)))
+
+-- /\a . \(x:a) . (idF a) x
+
+idF3 = FBLam (\a -> FLam (FTVar a) (\x -> FApp (FTApp idF (FTVar a)) (FVar x) ))
 
 -- Closure F to Java
 
 var x = J.ExpName (J.Name [J.Ident x])
 
-translate :: PCExp Int (PCTyp Int t e) (Int, PCTyp Int t e) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp Int (PCTyp Int t e) (Int,PCTyp Int t e))
-translate (CVar (i,t)) n = ([],var ("x" ++ show i),CTVar t)
+jbody = Just (J.Block [])
+
+init = [J.InitDecl False (J.Block [])]
+
+jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] 
+       (Just (J.ClassBody (init ++  [
+          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body))
+       ])))
+
+
+closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
+
+translateScope (Body t) m n = 
+   case translate t n of
+      (s,je, t1) -> (s,je, Body t1)
+{-
+translateScope (Body t) (Just _) n = -- what to do with _? Anything 
+   case translate t (n+2) of
+      (s,je, t2) -> ([cvar],J.ExpName (J.Name [f]), Body t2)
+        where
+          f    = J.Ident ("x" ++ show n) -- use a fresh variable
+          self = J.Ident ("me" ++ show (n+1))
+          ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA je))
+          selfRef = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId self) (Just (J.InitExp J.This))]
+          cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (jexp [selfRef] (Just (J.Block (s ++ [ass]))))))])
+-}
+translateScope (Kind f) m n = 
+    case translateScope (f (T (CTFVar n))) m (n+1) of
+      (s,je,t1) -> (s,je, Kind (\a -> substScope n a t1))
+translateScope (Typ t f) m n = 
+   case translateScope (f $ T t) (Just t) (n+2) of
+       (s,je,t1) -> ([cvar],J.ExpName (J.Name [f]),Typ t (\_ -> t1))
+         where
+          f    = J.Ident ("x" ++ show n) -- use a fresh variable
+          self = J.Ident ("me" ++ show (n+1))
+          ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA je))
+          selfRef = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId self) (Just (J.InitExp J.This))]
+          cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (jexp [selfRef] (Just (J.Block (s ++ [ass]))))))])
+
+computeClosure s je n = ([cvar], J.ExpName (J.Name [f])) where
+    f    = J.Ident ("x" ++ show n) -- use a fresh variable
+    self = J.Ident ("me" ++ show (n+1))
+    ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA je))
+    selfRef = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId self) (Just (J.InitExp J.This))]
+    cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (jexp [selfRef] (Just (J.Block (s ++ [ass]))))))])
+
+translate :: PCExp Typ Typ -> Int -> ([J.BlockStmt], J.Exp,  PCTyp Typ Typ)
+translate (CVar t) n = ([],var ("x"),unT t) -- need environment here?
 translate (CTApp e t) n = 
    case translate e n of
-      (s,je,CForall (Kind f)) -> (s,je,scope2ctyp (f (joinPCTyp2 t)))
+      (s,je,CForall (Kind f)) -> (s,je,scope2ctyp (f (T t)))
 translate (CLam s) n = 
    case translateScope s Nothing n of 
       (s,je, t) -> (s,je, CForall t)
 translate (CApp e1 e2) n = 
    case (translate e1 (n+1), translate e2 (n+1)) of 
-      ((s1,j1,CForall (Typ t1 g)),(s2,j2,t2)) -> (s1 ++ s2 ++ s3, j3, scope2ctyp (g (n+1,joinPCTyp2 t1))) -- need to check t1 == t2
+      ((s1,j1,CForall (Typ t1 g)),(s2,j2,t2)) -> (s1 ++ s2 ++ s3, j3, scope2ctyp (g (T t1))) -- need to check t1 == t2
         where
            f    = J.Ident ("x" ++ show n) -- use a fresh variable
            cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
@@ -110,33 +224,62 @@ translate (CApp e1 e2) n =
            apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
            s3 = [cvar,ass,apply]
            j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-     
-closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 
-translateScope (Body t) Nothing n = 
-   case translate t n of
-      (s,je, t1) -> (s,je, Body t1)
-translateScope (Body t) (Just _) n = -- what to do with _? Anything 
-   case translate t (n+1) of
-      (s,je, t2) -> ([cvar],J.ExpName (J.Name [f]), Body t2)
+createCU :: (J.Block, J.Exp,  PCTyp ITyp (Int,ITyp)) -> (J.CompilationUnit, PCTyp ITyp (Int,ITyp))
+createCU (J.Block bs,e,t) = (cu,t) where
+   cu = J.CompilationUnit Nothing [] [closureClass, classDecl]
+   field name = J.MemberDecl (J.FieldDecl [] (J.RefType (refType "Object")) [
+              J.VarDecl (J.VarId (J.Ident name)) Nothing])
+   app b = J.MemberDecl (J.MethodDecl [J.Abstract] [] Nothing (J.Ident "apply") [] [] (J.MethodBody b))
+   closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
+                  J.ClassBody [field "x",field "out",app Nothing]))
+   body = Just (J.Block (bs ++ [ass]))
+   ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA e))
+   refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
+   classDecl = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "MyClosure") [] (Just (refType "Closure")) [] (J.ClassBody [app body]))
+
+
+translate2 :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
+translate2 (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack! 
+translate2 (CTApp e t) n = 
+   case translate2 e n of
+      (s,je,CForall (Kind f)) -> (s,je,scope2ctyp (f (IT t)))
+translate2 (CLam s) n = 
+   case translateScope2 s Nothing n of 
+      (s,je, t) -> (s,je, CForall t)
+translate2 (CApp e1 e2) n = 
+   case (translate2 e1 (n+1), translate2 e2 (n+1)) of 
+      ((s1,j1,CForall (Typ t1 g)),(s2,j2,t2)) -> (s1 ++ s2 ++ s3, j3, scope2ctyp (g (n,IT t1))) -- need to check t1 == t2
         where
-          f    = J.Ident ("x" ++ show n) -- use a fresh variable
-          ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA je))
-          cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (jexp [] (Just (J.Block (s ++ [ass]))))))])
-translateScope (Kind f) m n = 
-   case translateScope (f (CTFVar n)) m (n+1) of
-      (s,je,t1) -> (s,je, Kind (\a -> substScope n a t1))
-translateScope (Typ t f) m n = 
-   case translateScope (f (n, joinPCTyp2 t)) (Just t) (n+1) of
-       (s,je,t1) -> (s,je,Typ t (\_ -> t1)) -- wrong: here we actually spit some java
+           f    = J.Ident ("x" ++ show n) -- use a fresh variable
+           cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
+           ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
+           apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
+           s3 = [cvar,ass,apply]
+           j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
 
+translateScope2 (Body t) m n = 
+   case translate2 t n of
+      (s,je, t1) -> (s,je, Body t1)
+translateScope2 (Kind f) m n = 
+    case translateScope2 (f (IT (CTFVar n))) m (n+1) of
+      (s,je,t1) -> (s,je, Kind (\a -> substScope n a t1))
+translateScope2 (Typ t f) m n = 
+   case translateScope2 (f (n+1,IT t)) (Just t) (n+2) of
+       (s,je,t1) -> ([cvar],J.ExpName (J.Name [f]),Typ t (\_ -> t1))
+         where
+          f    = J.Ident ("x" ++ show n) -- use a fresh variable
+          self = J.Ident ("x" ++ show (n+1))
+          ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA je))
+          selfRef = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId self) (Just (J.InitExp J.This))]
+          cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (jexp [selfRef] (Just (J.Block (s ++ [ass]))))))])
 
 -- Free variable substitution
 
 substScope :: Int -> 
-              PCTyp Int t e -> 
-              TScope Int (PCTyp Int t e) (Int,PCTyp Int t e) -> 
-              TScope Int (PCTyp Int t e) (Int,PCTyp Int t e)
+              t -> 
+              TScope t e -> 
+              TScope t e
 substScope n t (Body t1) = Body (substType n t t1)
 substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
 substScope n t (Typ t1 f) = Typ (substType n t t1) (\x -> substScope n t (f x))
@@ -147,40 +290,26 @@ substType n t (CTFVar x)
 substType n t (CTVar x) = CTVar x
 substType n t (CForall s) = CForall (substScope n t s)
 
-joinPCTyp2 :: PCTyp Int (PCTyp Int t e) (Int,PCTyp Int t e) -> PCTyp Int t e
-joinPCTyp2 (CTVar t) = t
-joinPCTyp2 (CForall s) = CForall (joinScope2 s)
-
-joinScope2 :: TScope Int (PCTyp Int t e) (Int,PCTyp Int t e) -> TScope Int t e
-joinScope2 (Body t) = Body (joinPCTyp2 t)
-joinScope2 (Kind f) = Kind (\a -> joinScope2 (f (CTVar a)))
-joinScope2 (Typ t f) = let t' = joinPCTyp2 t in Typ t' (\_ -> joinScope2 (f (0,t')))
-
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
 jthree = J.Lit (J.Int 3)
 
-jbody = Just (J.Block [])
-
-init = [J.InitDecl False (J.Block [])]
-
-jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] 
-       (Just (J.ClassBody (init ++ [
-          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body))
-       ])))
-
 e1 = jexp init jbody
 
 compile e = 
   case translate (fexp2cexp e) 0 of
-      (ss,exp,_) -> (J.Block ss,exp)
+      (ss,exp,t) -> (J.Block ss,exp, t)
 
-compilePretty e = let (b,exp) = compile e in (prettyJ b >> prettyJ exp)
+compilePretty ::  PFExp Typ Typ -> IO ()
+compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (showPCTyp2 t 0))
 
-idF = FBLam (\a -> FLam (FTVar a) (\x -> FVar x))
+compile2 e = 
+  case translate2 (fexp2cexp e) 0 of
+      (ss,exp,t) -> (J.Block ss,exp, t)
 
-idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) (\x -> FApp (FVar f) (FVar x)))) (FTApp idF (FTVar a)))
+compilePretty2 ::  PFExp ITyp (Int,ITyp) -> IO ()
+compilePretty2 e = let (b,exp,t) = compile2 e in (prettyJ b >> prettyJ exp >> putStrLn (gshowPCTyp3 t 0))
 
-
-idF3 = FBLam (\a -> FLam (FTVar a) (\x -> FApp (FTApp idF (FTVar a)) (FVar x) ))
+compileCU ::  PFExp ITyp (Int,ITyp) -> IO ()
+compileCU e = let (cu,t) = createCU $ compile2 e in (prettyJ cu >> putStrLn (gshowPCTyp3 t 0))
