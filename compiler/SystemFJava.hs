@@ -172,19 +172,6 @@ jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) []
 
 closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 
-translateScope (Kind f) m n = 
-    case translateScope (f (T (CTFVar n))) m (n+1) of
-      (s,je,t1) -> (s,je, Kind (\a -> substScope n a t1))
-translateScope (Typ t f) m n = 
-   case translateScope (f $ T t) (Just t) (n+2) of
-       (s,je,t1) -> ([cvar],J.ExpName (J.Name [f]),Typ t (\_ -> t1))
-         where
-          f    = J.Ident ("x" ++ show n) -- use a fresh variable
-          self = J.Ident ("me" ++ show (n+1))
-          ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA je))
-          selfRef = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId self) (Just (J.InitExp J.This))]
-          cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (jexp [selfRef] (Just (J.Block (s ++ [ass]))))))])
-
 computeClosure s je n = ([cvar], J.ExpName (J.Name [f])) where
     f    = J.Ident ("x" ++ show n) -- use a fresh variable
     self = J.Ident ("me" ++ show (n+1))
@@ -206,16 +193,16 @@ createCU (J.Block bs,e,t) = (cu,t) where
    classDecl = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "MyClosure") [] (Just (refType "Closure")) [] (J.ClassBody [app [] body]))
 
 
-translate2 :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
-translate2 (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack! 
-translate2 (CTApp e t) n = 
-   case translate2 e n of
+translate :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
+translate (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack! 
+translate (CTApp e t) n = 
+   case translate e n of
       (s,je,CForall (Kind f)) -> (s,je,scope2ctyp (f (IT t)))
-translate2 (CLam s) n = 
-   case translateScope2 s Nothing n of 
+translate (CLam s) n = 
+   case translateScope s Nothing n of 
       (s,je, t) -> (s,je, CForall t)
-translate2 (CApp e1 e2) n = 
-   case (translate2 e1 (n+1), translate2 e2 (n+1)) of 
+translate (CApp e1 e2) n = 
+   case (translate e1 (n+1), translate e2 (n+1)) of 
       ((s1,j1,CForall (Typ t1 g)),(s2,j2,t2)) -> (s1 ++ s2 ++ s3, j3, scope2ctyp (g (n,IT t1))) -- need to check t1 == t2
         where
            f    = J.Ident ("x" ++ show n) -- use a fresh variable
@@ -225,14 +212,14 @@ translate2 (CApp e1 e2) n =
            s3 = [cvar,ass,apply]
            j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
 
-translateScope2 (Body t) m n = 
-   case translate2 t n of
+translateScope (Body t) m n = 
+   case translate t n of
       (s,je, t1) -> (s,je, Body t1)
-translateScope2 (Kind f) m n = 
-    case translateScope2 (f (IT (CTFVar n))) m (n+1) of
+translateScope (Kind f) m n = 
+    case translateScope (f (IT (CTFVar n))) m (n+1) of
       (s,je,t1) -> (s,je, Kind (\a -> substScope n a t1))
-translateScope2 (Typ t f) m n = 
-   case translateScope2 (f (n+1,IT t)) (Just t) (n+2) of
+translateScope (Typ t f) m n = 
+   case translateScope (f (n+1,IT t)) (Just t) (n+2) of
        (s,je,t1) -> ([cvar],J.ExpName (J.Name [f]),Typ t (\_ -> t1))
          where
           f    = J.Ident ("x" ++ show n) -- use a fresh variable
@@ -264,12 +251,12 @@ jthree = J.Lit (J.Int 3)
 
 e1 = jexp init jbody
 
-compile2 e = 
-  case translate2 (fexp2cexp e) 0 of
+compile e = 
+  case translate (fexp2cexp e) 0 of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
-compilePretty2 ::  PFExp ITyp (Int,ITyp) -> IO ()
-compilePretty2 e = let (b,exp,t) = compile2 e in (prettyJ b >> prettyJ exp >> putStrLn (gshowPCTyp3 t 0))
+compilePretty ::  PFExp ITyp (Int,ITyp) -> IO ()
+compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (gshowPCTyp3 t 0))
 
 compileCU ::  PFExp ITyp (Int,ITyp) -> IO ()
-compileCU e = let (cu,t) = createCU $ compile2 e in (prettyJ cu >> putStrLn (gshowPCTyp3 t 0))
+compileCU e = let (cu,t) = createCU $ compile e in (prettyJ cu >> putStrLn (gshowPCTyp3 t 0))
