@@ -77,6 +77,6 @@ object RecF {
     }
   }
   
-  def setToString[A](s: Set[A]): String = if (s.isEmpty) "" else s.map(x => x.toString).toList.sorted.reduce((x, y) => x + "," + y)
+  def setToString[A](s: Set[A], mapper: A => String = {x: A => x.toString}): String = if (s.isEmpty) "" else s.map(mapper).toList.sorted.reduce((x, y) => x + "," + y)
   
 }

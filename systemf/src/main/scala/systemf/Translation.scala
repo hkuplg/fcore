@@ -65,7 +65,7 @@ object Translation {
             val fType = translateTypes(tType)
             val aType = translateTypes(a)
             val bType = translateTypes(b)
-            val (e, d) = translateTerms(m, true)
+            val (e, d) = translateTerms(m, false)
 
             val freeTypeVars = setToString(tType.FTV)
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
@@ -74,7 +74,7 @@ object Translation {
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
               " public " + bType + " app(" + aType + " " + x.toString + ") { return " + e + "; }}"
 
-            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV) + ")", d + (newName -> classDef))
+            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV, {x: TermVar => "this." + x.toString}) + ")", d + (newName -> classDef))
           }
           case TypeVar(xTau) => {
             val newName = generateName
@@ -96,7 +96,7 @@ object Translation {
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
               " public " + tType + " app(" + tType + " " + x.toString + ") { return " + e + "; }}"
 
-            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV) + ")", d + (newName -> classDef))
+            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV, {x: TermVar => "this." + x.toString}) + ")", d + (newName -> classDef))
           }
         }
       }
@@ -135,7 +135,7 @@ object Translation {
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
               "public " + generateBound(a.FTV, tType.FTV) + aType + " tyapp() { return " + e + "; } }"
 
-            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV) + ")", d + (newName -> classDef))
+            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV, {x: TermVar => "this." + x.toString}) + ")", d + (newName -> classDef))
           }
         }
       }
