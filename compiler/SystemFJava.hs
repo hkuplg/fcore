@@ -169,15 +169,7 @@ jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) []
           J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body))
        ])))
 
-
 closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
-
-computeClosure s je n = ([cvar], J.ExpName (J.Name [f])) where
-    f    = J.Ident ("x" ++ show n) -- use a fresh variable
-    self = J.Ident ("me" ++ show (n+1))
-    ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA je))
-    selfRef = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId self) (Just (J.InitExp J.This))]
-    cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (jexp [selfRef] (Just (J.Block (s ++ [ass]))))))])
 
 createCU :: (J.Block, J.Exp,  PCTyp ITyp (Int,ITyp)) -> (J.CompilationUnit, PCTyp ITyp (Int,ITyp))
 createCU (J.Block bs,e,t) = (cu,t) where
@@ -224,9 +216,19 @@ translateScope (Typ t f) m n =
          where
           f    = J.Ident ("x" ++ show n) -- use a fresh variable
           self = J.Ident ("x" ++ show (n+1))
-          ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA je))
-          selfRef = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId self) (Just (J.InitExp J.This))]
-          cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (jexp [selfRef] (Just (J.Block (s ++ [ass]))))))])
+          cvar = refactoredScopeTranslationBit (je) (self) (s) (f)
+
+-- seperating (hopefully) the important bit
+refactoredScopeTranslationBit :: J.Exp -> J.Ident -> [J.BlockStmt] -> J.Ident -> J.BlockStmt
+refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA idNextName = completeClosure
+    where
+        outputAssignment = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
+        currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
+        completeClosure = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
+                                                (Just (J.InitExp 
+                                                    (jexp [currentInitialDeclaration] (Just (J.Block (statementsBeforeOA ++ [outputAssignment]))))
+                                                    )
+                                                )]
 
 -- Free variable substitution
 
