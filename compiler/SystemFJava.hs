@@ -227,13 +227,17 @@ jexpOutside init = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) 
           J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody Nothing))
        ])))             
 
+pullupClosure [J.LocalVars [] rf vd] = case vd of
+                                [J.VarDecl variableId (Just(J.InitExp exp))] -> exp
+
 -- seperating (hopefully) the important bit
+
 refactoredScopeTranslationBit :: J.Exp -> J.Ident -> [J.BlockStmt] -> J.Ident -> J.BlockStmt
 refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA idNextName = completeClosure
     where
         outputAssignment = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
         fullAssignment = J.InitDecl False (J.Block [(J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA
-                                                    (jexp [] (Just (J.Block (statementsBeforeOA)))))))])
+                                                    (pullupClosure statementsBeforeOA))))])
                                                     
         currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
         completeClosure | checkExp javaExpression  = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
