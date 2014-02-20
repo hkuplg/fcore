@@ -201,7 +201,9 @@ translate (CApp e1 e2) n =
            cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
            ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
            apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
-           s3 = [cvar,ass,apply]
+           s3 = case (g (n,IT t1)) of -- checking the type whether to generate the apply() call
+               Body _ -> [cvar,ass,apply]
+               _ -> [cvar,ass]
            j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
 
 translateScope (Body t) m n = 
