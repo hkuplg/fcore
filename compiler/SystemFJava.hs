@@ -218,14 +218,14 @@ translateScope (Typ t f) m n =
           self = J.Ident ("x" ++ show (n+1))
           cvar = refactoredScopeTranslationBit (je) (self) (s) (f)
 
-checkExp :: J.Exp -> Bool    
+checkExp :: J.Exp -> Bool
 checkExp (J.ExpName (J.Name [J.Ident f])) = '.' `elem` f
 checkExp x = True
 
 jexpOutside init = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] 
        (Just (J.ClassBody (init ++  [
-          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody Nothing))
-       ])))             
+          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just(J.Block $ [J.BlockStmt $ J.Empty]))))
+       ])))
 
 pullupClosure [J.LocalVars [] rf vd] = case vd of
                                 [J.VarDecl variableId (Just(J.InitExp exp))] -> exp
@@ -238,7 +238,6 @@ refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA id
         outputAssignment = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
         fullAssignment = J.InitDecl False (J.Block [(J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA
                                                     (pullupClosure statementsBeforeOA))))])
-                                                    
         currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
         completeClosure | checkExp javaExpression  = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
                                                 (Just (J.InitExp 
@@ -250,7 +249,6 @@ refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA id
                                                     (jexpOutside [currentInitialDeclaration,fullAssignment]
                                                     )
                                                 ))]
-
 -- Free variable substitution
 
 substScope :: Int -> 
