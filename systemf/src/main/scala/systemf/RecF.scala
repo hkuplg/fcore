@@ -26,6 +26,11 @@ object RecF {
   case class TypeForAll(x: TypeVar, tauA: Type) extends Type {
     override def FTV = tauA.FTV - x
   }
+  object TypeInt extends TypeVar("INT")
+  
+  case class TypeTuple(taus: List[Type]) extends Type {
+    override def FTV = taus.flatMap(x => x.FTV).toSet
+  }
 
   // terms
   abstract class Term extends FExpr {
@@ -46,10 +51,13 @@ object RecF {
     override def FV = m.FV ++ n.FV
     override def FTV = m.FTV ++ n.FTV
   }
-  case class TermRec(y: TermVar, yType: Type, x: TermVar, xType: Type, m: Term) extends Term {
-    val tau = yType
-    override def FV = (m.FV - x) - y
-    override def FTV = (m.FTV -- xType.FTV) -- yType.FTV
+    
+  // notation used in System F -> C# paper: y: TermVar, yType: Type, x: TermVar, xType: Type, m: Term
+  // in Morrisett: fix x (x1: tau1): tau2 . e
+  case class TermRec(x: TermVar, tau2: Type, x1: TermVar, tau1: Type, e: Term) extends Term {
+    val tau = TypeFun(tau1, tau2)
+    override def FV = (e.FV - x) - x
+    override def FTV = (e.FTV -- tau1.FTV) -- tau2.FTV
   }
   case class TermTypeApp(m: Term, a: Type) extends Term {
     val tau = m.tau match {
@@ -63,7 +71,36 @@ object RecF {
     override def FV = m.FV
     override def FTV = m.FTV
   }
+  case class TermInt(x: Integer) extends Term {
+    // no inference yet
+    val tau: TypeVar = TypeInt
 
+    override def FV = Set[TermVar]()
+    override def FTV = Set[TypeVar](tau)
+  }
+  case class TermTuple(es: List[Term]) extends Term {
+    val tau: TypeTuple = TypeTuple(es.map(e => e.tau))
+
+    override def FV = es.flatMap(e => e.FV).toSet
+    override def FTV = es.flatMap(e => e.FTV).toSet 
+  }
+  // pi
+  case class TermProjection(index: Integer, e: Term) extends Term {
+    val tau: Type = e.tau match {case TypeTuple(taus) => taus(index)}
+    override def FV = e.FV
+    override def FTV = e.FTV    
+  }
+  case class TermPrimitiveOperation(e1: Term, e2: Term) extends Term {
+    val tau: TypeVar = TypeInt
+    override def FV = e1.FV ++ e2.FV
+    override def FTV = e2.FTV ++ e2.FTV
+  }
+  case class TermIF0(e1: Term, e2: Term, e3: Term) extends Term {
+    val tau = e2.tau
+    override def FV = e1.FV ++ e2.FV ++ e3.FV
+    override def FTV = e2.FTV ++ e2.FTV ++ e3.FTV
+  }
+  
   // helper functions
   def substitute(what: Type, forwhat: Type, in: Type): Type = {
     if (forwhat == in) {
