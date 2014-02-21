@@ -5,7 +5,13 @@ object RecF {
   // identifies
   type Idn = String
 
-  abstract class FExpr {
+  // operations
+  sealed trait PrimitiveOperation
+  case object Mult extends PrimitiveOperation
+  case object Plus extends PrimitiveOperation
+  case object Minus extends PrimitiveOperation  
+  
+  sealed abstract class FExpr {
     // free variables
     def FV: Set[TermVar]
     // free type variables
@@ -13,7 +19,7 @@ object RecF {
   }
 
   // types
-  abstract class Type extends FExpr {
+  sealed abstract class Type extends FExpr {
     override def FV = Set[TermVar]()
   }
   case class TypeVar(x: Idn) extends Type {
@@ -33,7 +39,7 @@ object RecF {
   }
 
   // terms
-  abstract class Term extends FExpr {
+  sealed abstract class Term extends FExpr {
     // explicit typing
     val tau: Type
   }
@@ -90,7 +96,7 @@ object RecF {
     override def FV = e.FV
     override def FTV = e.FTV    
   }
-  case class TermPrimitiveOperation(e1: Term, e2: Term) extends Term {
+  case class TermPrimitiveOperation(e1: Term, op: PrimitiveOperation, e2: Term) extends Term {
     val tau: TypeVar = TypeInt
     override def FV = e1.FV ++ e2.FV
     override def FTV = e2.FTV ++ e2.FTV

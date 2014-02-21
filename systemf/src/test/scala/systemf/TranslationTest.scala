@@ -123,7 +123,23 @@ class TranslationTest extends AssertionsForJUnit {
     val exp = TypeForAll(TypeVar("X"), TypeFun(TypeVar("X"), TypeForAll(TypeVar("Z"), TypeVar("Z"))))
     val (tr, cd) = Translation.translate(exp)
     assert("All" === tr)
-      
-  }    
+  }
+  
+  @Test
+  def factorialTest() {
+    //FIX f(n:INT):INT. IF0(n,1,n * f(n - 1)) 6
+    
+    val rec = TermPrimitiveOperation(TermVar("n"), Mult, TermFApp(TermVar("f"),TermPrimitiveOperation(TermVar("n"),Minus,TermInt(1))))
+    val body = TermIF0(TermVar("n"), TermInt(1), rec)
+    val fun = TermRec(TermVar("f"), TypeInt, TermVar("n"), TypeInt, body)
+    val exp = TermFApp(fun, TermInt(6))
+    
+    val translated = "(new C0<X>()).apply(6)"
+    val classdef = """class C0 implements Arrow<Integer,Integer> { public Integer app(Integer n) { if (n == 0) {return 0;} else {return n * this.app(n-1);} }}"""
+    val (tr, cd) = Translation.translate(exp)
+    assert(translated === tr)
+    assert(cd("C0") === classdef)    
+    
+  }
   
 }
