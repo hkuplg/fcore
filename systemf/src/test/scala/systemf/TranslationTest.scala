@@ -16,7 +16,13 @@ class TranslationTest extends AssertionsForJUnit {
     
     // \x: Y -> X . x y with y: Y
     // == rec NEW(x: Y -> X): (Y -> X) -> X . x y
+    
+    // FIX NEW(x1: Y -> X): (Y -> X) -> X . x1 y
 
+  // notation used in System F -> C# paper: y: TermVar, yType: Type, x: TermVar, xType: Type, m: Term
+  // in Morrisett: fix x (x1: tau1): tau2 . e
+  //case class TermRec(x: TermVar, tau2: Type, x1: TermVar, tau1: Type, e: Term) extends Term {    
+    
     val xtype = TypeFun(TypeVar("Y"), TypeVar("X"))
     val body = TermFApp(TermVar("x"), TermVar("y"))
 

@@ -55,8 +55,8 @@ object RecF {
   // notation used in System F -> C# paper: y: TermVar, yType: Type, x: TermVar, xType: Type, m: Term
   // in Morrisett: fix x (x1: tau1): tau2 . e
   case class TermRec(x: TermVar, tau2: Type, x1: TermVar, tau1: Type, e: Term) extends Term {
-    val tau = TypeFun(tau1, tau2)
-    override def FV = (e.FV - x) - x
+    val tau = tau2
+    override def FV = (e.FV - x1) - x
     override def FTV = (e.FTV -- tau1.FTV) -- tau2.FTV
   }
   case class TermTypeApp(m: Term, a: Type) extends Term {
