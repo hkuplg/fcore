@@ -144,18 +144,6 @@ scope2ctyp s         = CForall s
 inferPretty ::  PFExp Typ Typ -> IO ()
 inferPretty e = putStrLn (showPCTyp2 (infer (fexp2cexp e)) 0) 
 
--- Some test terms
-
-idF = FBLam (\a -> FLam (FTVar a) (\x -> FVar x))
-
--- /\a . (\(f : a -> a) . \(x : a) . f x) (idF a)
-
-idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) (\x -> FApp (FVar f) (FVar x)))) (FTApp idF (FTVar a)))
-
--- /\a . \(x:a) . (idF a) x
-
-idF3 = FBLam (\a -> FLam (FTVar a) (\x -> FApp (FTApp idF (FTVar a)) (FVar x) ))
-
 -- Closure F to Java
 
 var x = J.ExpName (J.Name [J.Ident x])
@@ -218,7 +206,8 @@ translateScope (Typ t f) m n =
          where
           f    = J.Ident ("x" ++ show n) -- use a fresh variable
           self = J.Ident ("x" ++ show (n+1))
-          cvar = refactoredScopeTranslationBit (je) (self) (s) (f)
+          cvar = refactoredScopeTranslationBit je self s f
+
 
 checkExp :: J.Exp -> Bool
 checkExp (J.ExpName (J.Name [J.Ident f])) = '.' `elem` f
@@ -251,6 +240,7 @@ refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA id
                                                     (jexpOutside [currentInitialDeclaration,fullAssignment]
                                                     )
                                                 ))]
+
 -- Free variable substitution
 
 substScope :: Int -> 
