@@ -43,6 +43,33 @@ object Translation {
 
   def translateTerms(t: Term, arg: Boolean = false): Tuple2[String, ClassDef] = {
     t match {
+      
+      case TermProjection(_, _) => error("not implemented yet")
+
+      case TermTuple(_) => error("not implemented yet")
+      
+      case TermInt(x) => (x.toString, Map())
+      
+      case TermPrimitiveOperation(x, op, y) => {
+        val (trX, d1) = translateTerms(x, arg)
+        val (trY, d2) = translateTerms(y, arg)
+        val defs = d1 ++ d2
+        op match {
+          case Mult => (trX + " * " + trY, defs)
+          case Plus => (trX + " + " + trY, defs)
+          case Minus => (trX + " - " + trY, defs)
+        }
+      }
+      
+      case TermIF0(e1: Term, e2: Term, e3: Term) => {
+        val (tr1, d1) = translateTerms(e1, arg)
+        val (tr2, d2) = translateTerms(e2, arg)        
+        val (tr3, d3) = translateTerms(e3, arg)                
+        val defs = d1 ++ d2 ++ d3
+        val result = "if (" + tr1 + " == 0) { return " + tr2 + " } else { return " + tr3 + " }"
+        (result, defs)
+      }      
+      
       case TermVar(x: Idn) => {
         val tType = t.tau
         tType match {
@@ -52,7 +79,7 @@ object Translation {
       }
       case TermFApp(m: Term, n: Term) => {
         val (e, d) = translateTerms(m, true)
-        val (eP, dP) = translateTerms(n)
+        val (eP, dP) = translateTerms(n, arg)
         (e + ".app(" + eP + ")", d ++ dP)
 
       }
@@ -88,6 +115,7 @@ object Translation {
                   val (eP, dP) = translateTerms(n, true)
                   (eP + ".app(" + eP + ")", dPP ++ dP)
                 }
+                case _ => translateTerms(m, true)
               }
 
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
