@@ -26,7 +26,7 @@ object RecF {
   }
   case class TypeVar(x: Idn) extends Type {
     override def FTV = Set[TypeVar](this)
-    override def toString() = x
+    override def toString() = if (x == intToken) "Integer" else x
   }
   case class TypeFun(tauA: Type, tauB: Type) extends Type {
     override def FTV = tauA.FTV ++ tauB.FTV
@@ -122,7 +122,7 @@ object RecF {
     }
   }
   
-  val globalDefs = Set(intToken)
+  val globalDefs = Set("Integer")
   
   def setToString[A](s: Set[A], wrap: String => String, mapper: A => String = {x: A => x.toString}, wrapEmpty: Boolean = false): String = {
     val mapped = s.map(mapper) -- globalDefs
