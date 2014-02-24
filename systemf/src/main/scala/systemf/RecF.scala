@@ -11,6 +11,8 @@ object RecF {
   case object Plus extends PrimitiveOperation
   case object Minus extends PrimitiveOperation  
   
+  val intToken = "INT"
+  
   sealed abstract class FExpr {
     // free variables
     def FV: Set[TermVar]
@@ -32,7 +34,7 @@ object RecF {
   case class TypeForAll(x: TypeVar, tauA: Type) extends Type {
     override def FTV = tauA.FTV - x
   }
-  object TypeInt extends TypeVar("INT")
+  object TypeInt extends TypeVar(intToken)
   
   case class TypeTuple(taus: List[Type]) extends Type {
     override def FTV = taus.flatMap(x => x.FTV).toSet
@@ -120,6 +122,15 @@ object RecF {
     }
   }
   
-  def setToString[A](s: Set[A], mapper: A => String = {x: A => x.toString}): String = if (s.isEmpty) "" else s.map(mapper).toList.sorted.reduce((x, y) => x + "," + y)
+  val globalDefs = Set(intToken)
+  
+  def setToString[A](s: Set[A], wrap: String => String, mapper: A => String = {x: A => x.toString}, wrapEmpty: Boolean = false): String = {
+    val mapped = s.map(mapper) -- globalDefs
+    if (mapped.isEmpty) {
+      if (wrapEmpty) wrap("") else ""
+    } else {
+      wrap(mapped.toList.sorted.reduce((x, y) => x + "," + y))
+    }
+  }
   
 }

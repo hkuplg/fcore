@@ -42,9 +42,9 @@ class TranslationTest extends AssertionsForJUnit {
     val body = TermFApp(TermVar("y"), TermVar("x"))
     val exp = TermRec(TermVar("y"), TypeVar("X"), TermVar("x"), TypeVar("X"), body)
     
-    val translated = "new C0<X>()"
+    val translated = "(new C0<X>())"
     val classdef = """class C0<X> implements Arrow<X,X> { public X app(X x) { return x.app(x); }}"""
-      val (tr, cd) = Translation.translate(exp)
+    val (tr, cd) = Translation.translate(exp)
     assert(translated === tr)
     assert(cd("C0") === classdef)    
     
@@ -134,7 +134,7 @@ class TranslationTest extends AssertionsForJUnit {
     val fun = TermRec(TermVar("f"), TypeInt, TermVar("n"), TypeInt, body)
     val exp = TermFApp(fun, TermInt(6))
     
-    val translated = "(new C0()).apply(6)"
+    val translated = "(new C0()).app(6)"
     val classdef = """class C0 implements Arrow<Integer,Integer> { public Integer app(Integer n) { if (n == 0) {return 1;} else {return n * this.app(n-1);} }}"""
     val (tr, cd) = Translation.translate(exp)
     assert(translated === tr)

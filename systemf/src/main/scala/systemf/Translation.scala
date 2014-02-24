@@ -40,6 +40,10 @@ object Translation {
         t.FV.map(x => "this." + x.toString + " = " + x + ";").reduce((x, y) => " ") + " }"
     }
   }
+  
+  def wrapAngle(x: String) = "<" + x + ">"
+  def wrapParam(x: String) = "(" + x + ")"
+  def genInit = {x: TermVar => "this." + x.toString}
 
   def translateTerms(t: Term, arg: Boolean = false): Tuple2[String, ClassDef] = {
     t match {
@@ -94,19 +98,20 @@ object Translation {
             val bType = translateTypes(b)
             val (e, d) = translateTerms(m, false)
 
-            val freeTypeVars = setToString(tType.FTV)
+            val freeTypeVars = setToString(tType.FTV, wrapAngle)
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
 
-            val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
+            val classDef = "class " + newName + freeTypeVars + " implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
               " public " + bType + " app(" + aType + " " + x.toString + ") { return " + e + "; }}"
 
-            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV, {x: TermVar => "this." + x.toString}) + ")", d + (newName -> classDef))
+            val consParam = setToString(t.FV, wrapParam, genInit, true)
+            ("new " + newName + freeTypeVars + consParam, d + (newName -> classDef))
           }
           case TypeVar(xTau) => {
             val newName = generateName
 
-            val freeTypeVars = setToString(tType.FTV)
+            val freeTypeVars = setToString(tType.FTV, wrapAngle)
             val fType = translateTypes(TypeFun(tType, tType))
             val (e, d) =
               m match {
@@ -120,11 +125,12 @@ object Translation {
 
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
 
-            val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
+            val classDef = "class " + newName + freeTypeVars + " implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
               " public " + tType + " app(" + tType + " " + x.toString + ") { return " + e + "; }}"
 
-            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV, {x: TermVar => "this." + x.toString}) + ")", d + (newName -> classDef))
+            val consParam = setToString(t.FV, wrapParam, genInit, true)
+            (wrapParam("new " + newName + freeTypeVars + consParam), d + (newName -> classDef))
           }
         }
       }
@@ -141,10 +147,7 @@ object Translation {
       case TermCapLambda(x: TypeVar, m: Term) => {
         def generateBound(a: Set[TypeVar], b: Set[TypeVar]): String = {
           val diff = a -- b
-          if (diff.isEmpty) ""
-          else {
-            "<" + setToString(diff) + "> "
-          }
+          setToString(diff, wrapAngle)
         }
         
         val tType = t.tau
@@ -156,14 +159,15 @@ object Translation {
             val aType = translateTypes(a)
             val (e, d) = translateTerms(m, true)
 
-            val freeTypeVars = setToString(tType.FTV)
+            val freeTypeVars = setToString(tType.FTV, wrapAngle)
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
             
-            val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
+            val classDef = "class " + newName + freeTypeVars + " implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
-              "public " + generateBound(a.FTV, tType.FTV) + aType + " tyapp() { return " + e + "; } }"
+              "public " + generateBound(a.FTV, tType.FTV) + " " + aType + " tyapp() { return " + e + "; } }"
 
-            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV, {x: TermVar => "this." + x.toString}) + ")", d + (newName -> classDef))
+            val consParam = setToString(t.FV, wrapParam, genInit, true)              
+            ("new " + newName + freeTypeVars + consParam, d + (newName -> classDef))
           }
         }
       }
