@@ -45,7 +45,7 @@ object Translation {
   
   def generateReturn(exp: Term, trans: String): String = {
     exp match {
-      case TermIF0(_, _, _) => trans + ";"
+      case TermIF0(_, _, _) => trans
       case _ => "return " + trans + ";"
     }
   }
