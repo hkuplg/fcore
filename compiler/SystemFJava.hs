@@ -206,6 +206,12 @@ translate (CApp e1 e2) n =
                _ -> [cvar,ass]
            j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
 
+-- /\a. \(y : a) . \(z : a) . (\(x : a) . x) y
+
+test = FBLam (\a -> FLam (FTVar a) (\y -> FLam (FTVar a) (\z -> FApp (FLam (FTVar a) (\x ->  FVar x)) (FVar y))))
+
+test2 = FBLam (\a -> FLam (FTVar a) (\x -> FLam (FTVar a) (\y -> FLam (FTVar a) (\z -> FVar x))))
+
 translateScope (Body t) m n = 
    case translate t n of
       (s,je, t1) -> (s,je, Body t1)
