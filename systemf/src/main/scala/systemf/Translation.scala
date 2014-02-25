@@ -13,6 +13,8 @@ object Translation {
 
   def translateTypes(t: Type): String = {
     t match {
+      case TypeInt => "Integer"
+      case TypeTuple(_) => error("not implemented yet") 
       case TypeVar(x) => x
       case TypeFun(tauA, tauB) => "Arrow<" + translateTypes(tauA) + "," + translateTypes(tauB) + ">"
       case TypeForAll(x, a) => "All" // non-preserving
@@ -40,19 +42,64 @@ object Translation {
         t.FV.map(x => "this." + x.toString + " = " + x + ";").reduce((x, y) => " ") + " }"
     }
   }
+  
+  def generateReturn(exp: Term, trans: String): String = {
+    exp match {
+      case TermIF0(_, _, _) => trans + ";"
+      case _ => "return " + trans + ";"
+    }
+  }
+  
+  def wrapAngle(x: String) = "<" + x + ">"
+  def wrapParam(x: String) = "(" + x + ")"
+  def genInit = {x: TermVar => "this." + x.toString}
 
-  def translateTerms(t: Term, arg: Boolean = false): Tuple2[String, ClassDef] = {
+  def translateTerms(t: Term, fixed: Option[Term], arg: Boolean = false): Tuple2[String, ClassDef] = {
     t match {
-      case TermVar(x: Idn) => {
-        val tType = t.tau
-        tType match {
-          case TypeFun(_, _) => if (arg) (x, Map()) else ("this", Map())
-          case TypeVar(_) => if (arg) (x, Map()) else ("this." + x, Map())
+      
+      case TermProjection(_, _) => error("not implemented yet")
+
+      case TermTuple(_) => error("not implemented yet")
+      
+      case TermInt(x) => (x.toString, Map())
+      
+      case TermPrimitiveOperation(x, op, y) => {
+        val (trX, d1) = translateTerms(x, fixed, arg)
+        val (trY, d2) = translateTerms(y, fixed, arg)
+        val defs = d1 ++ d2
+        op match {
+          case Mult => (trX + " * " + trY, defs)
+          case Plus => (trX + " + " + trY, defs)
+          case Minus => (trX + " - " + trY, defs)
         }
       }
+      
+      case TermIF0(e1: Term, e2: Term, e3: Term) => {
+        val (tr1, d1) = translateTerms(e1, fixed, arg)
+        val (tr2, d2) = translateTerms(e2, fixed, arg)        
+        val (tr3, d3) = translateTerms(e3, fixed, arg)                
+        val defs = d1 ++ d2 ++ d3
+        val result = "if (" + tr1 + " == 0) { " + generateReturn(e2, tr2) + " } else { " + generateReturn(e3, tr3) + " }"
+        (result, defs)
+      }      
+      
+      case TermVar(x: Idn) => {
+        def allElse = {
+	        val tType = t.tau
+	        tType match {
+	          case TypeFun(_, _) => if (arg) (x, Map(): ClassDef) else ("this", Map(): ClassDef)
+	          case TypeVar(_) => if (arg) (x, Map(): ClassDef) else ("this." + x, Map(): ClassDef)
+	        }
+        }
+        fixed match {
+          case None => allElse
+          case Some(tt) => if ((tt == t) && arg) ("this", Map()) else allElse
+        }
+        
+      }
       case TermFApp(m: Term, n: Term) => {
-        val (e, d) = translateTerms(m, true)
-        val (eP, dP) = translateTerms(n)
+        val (e, d) = translateTerms(m, fixed, true)
+        val (eP, dP) = translateTerms(n, fixed, arg)
         (e + ".app(" + eP + ")", d ++ dP)
 
       }
@@ -65,38 +112,41 @@ object Translation {
             val fType = translateTypes(tType)
             val aType = translateTypes(a)
             val bType = translateTypes(b)
-            val (e, d) = translateTerms(m, false)
+            val (e, d) = translateTerms(m, Some(y), false)
 
-            val freeTypeVars = setToString(tType.FTV)
+            val freeTypeVars = setToString(tType.FTV, wrapAngle)
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
 
-            val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
+            val classDef = "class " + newName + freeTypeVars + " implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
-              " public " + bType + " app(" + aType + " " + x.toString + ") { return " + e + "; }}"
+              " public " + bType + " app(" + aType + " " + x.toString + ") { " + generateReturn(m, e) + " }}"
 
-            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV, {x: TermVar => "this." + x.toString}) + ")", d + (newName -> classDef))
+            val consParam = setToString(t.FV, wrapParam, genInit, true)
+            ("new " + newName + freeTypeVars + consParam, d + (newName -> classDef))
           }
           case TypeVar(xTau) => {
             val newName = generateName
 
-            val freeTypeVars = setToString(tType.FTV)
+            val freeTypeVars = setToString(tType.FTV, wrapAngle)
             val fType = translateTypes(TypeFun(tType, tType))
             val (e, d) =
               m match {
                 case TermFApp(mP: Term, n: Term) => {
-                  val (ePP, dPP) = translateTerms(m, true)
-                  val (eP, dP) = translateTerms(n, true)
+                  val (ePP, dPP) = translateTerms(m, Some(y), true)
+                  val (eP, dP) = translateTerms(n, Some(y), true)
                   (eP + ".app(" + eP + ")", dPP ++ dP)
                 }
+                case _ => translateTerms(m, Some(y), true)
               }
 
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
 
-            val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
+            val classDef = "class " + newName + freeTypeVars + " implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
-              " public " + tType + " app(" + tType + " " + x.toString + ") { return " + e + "; }}"
+              " public " + tType + " app(" + tType + " " + x.toString + ") { " + generateReturn(m, e) + " }}"
 
-            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV, {x: TermVar => "this." + x.toString}) + ")", d + (newName -> classDef))
+            val consParam = setToString(t.FV, wrapParam, genInit, true)
+            (wrapParam("new " + newName + freeTypeVars + consParam), d + (newName -> classDef))
           }
         }
       }
@@ -104,7 +154,7 @@ object Translation {
         val mType = m.tau
         mType match {
           case TypeForAll(x, b) => {
-            val (e, d) = translateTerms(m)
+            val (e, d) = translateTerms(m, fixed)
             val cast = translateTypes(substitute(a, x, b))
             ("(" + cast + ")" + e + ".tyapp()", d)
           }
@@ -113,10 +163,7 @@ object Translation {
       case TermCapLambda(x: TypeVar, m: Term) => {
         def generateBound(a: Set[TypeVar], b: Set[TypeVar]): String = {
           val diff = a -- b
-          if (diff.isEmpty) ""
-          else {
-            "<" + setToString(diff) + "> "
-          }
+          setToString(diff, wrapAngle)
         }
         
         val tType = t.tau
@@ -126,16 +173,17 @@ object Translation {
 
             val fType = translateTypes(tType)
             val aType = translateTypes(a)
-            val (e, d) = translateTerms(m, true)
+            val (e, d) = translateTerms(m, fixed, true)
 
-            val freeTypeVars = setToString(tType.FTV)
+            val freeTypeVars = setToString(tType.FTV, wrapAngle)
             val freeVars = t.FV.map(x => x.tau.toString + " " + x.toString)
             
-            val classDef = "class " + newName + "<" + freeTypeVars + "> implements " + fType +
+            val classDef = "class " + newName + freeTypeVars + " implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
-              "public " + generateBound(a.FTV, tType.FTV) + aType + " tyapp() { return " + e + "; } }"
+              "public " + generateBound(a.FTV, tType.FTV) + " " + aType + " tyapp() { " + generateReturn(m, e) + " } }"
 
-            ("new " + newName + "<" + freeTypeVars + ">(" + setToString(t.FV, {x: TermVar => "this." + x.toString}) + ")", d + (newName -> classDef))
+            val consParam = setToString(t.FV, wrapParam, genInit, true)              
+            ("new " + newName + freeTypeVars + consParam, d + (newName -> classDef))
           }
         }
       }
@@ -146,7 +194,7 @@ object Translation {
     if (exp.isInstanceOf[Type]) {
       (translateTypes(exp.asInstanceOf[Type]), Map())
     } else {
-      translateTerms(exp.asInstanceOf[Term])
+      translateTerms(exp.asInstanceOf[Term], None)
     }
   }
 
