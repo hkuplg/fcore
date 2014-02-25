@@ -11,7 +11,9 @@ import Language.Java.Pretty
 
 -- System F syntax
 
-data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) 
+data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) | FTuple [PFTyp t]
+
+data PrimOp = Mult | Plus | Minus
 
 data PFExp t e = 
      FVar e 
@@ -19,6 +21,11 @@ data PFExp t e =
    | FLam (PFTyp t) (e -> PFExp t e) 
    | FApp (PFExp t e) (PFExp t e)
    | FTApp (PFExp t e) (PFTyp t)
+   | FTTuple [t -> PFExp t e]
+   | FProj Int (e -> PFExp t e)
+   | FPrimOp (e -> PFExp Int e) (PrimOp) (e -> PFExp Int e)
+   | Lit Int
+   | IF0 (e -> PFExp Int e) (t -> PFExp t e) (t -> PFExp t e)
 
 -- Closure F syntax
 
