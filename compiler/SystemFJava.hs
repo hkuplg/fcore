@@ -11,7 +11,7 @@ import Language.Java.Pretty
 
 -- System F syntax
 
-data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) -- | FTuple [PFTyp t] | PInt
+data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t)
 
 data PFExp t e = 
      FVar e 
@@ -19,10 +19,10 @@ data PFExp t e =
    | FLam (PFTyp t) (e -> PFExp t e) 
    | FApp (PFExp t e) (PFExp t e)
    | FTApp (PFExp t e) (PFTyp t)
-   | FPrimOp (PFExp ITyp e) (J.Op) (PFExp ITyp e) -- not sure whether to mix-in J.Op or to define own corresponding stuff
+   | FPrimOp (PFExp t e) (J.Op) (PFExp t e) -- not sure whether to mix-in J.Op or to define own corresponding stuff
    | Lit Integer 
---   | FTTuple [t -> PFExp t e]
---   | FProj Int (e -> PFExp t e)
+--   | FTTuple [PFExp t e]
+--   | FProj Int (PFExp t e)
 --   | IF0 (PFExp t e) (PFExp t e) (PFExp t e)
    
 -- Closure F syntax
@@ -43,7 +43,7 @@ data PCExp t e =
    | CLam (EScope t e)  
    | CApp (PCExp t e) (PCExp t e)
    | CTApp (PCExp t e) (PCTyp t e)
-   | CFPrimOp (PCExp ITyp e) (J.Op) (PCExp ITyp e)
+   | CFPrimOp (PCExp t e) (J.Op) (PCExp t e)
    | CLit Integer
 
 -- Pretty printing
