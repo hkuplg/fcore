@@ -19,11 +19,11 @@ data PFExp t e =
    | FLam (PFTyp t) (e -> PFExp t e) 
    | FApp (PFExp t e) (PFExp t e)
    | FTApp (PFExp t e) (PFTyp t)
-   | FPrimOp (PFExp t e) (J.Op) (PFExp t e) -- not sure whether to mix-in J.Op or to define own corresponding stuff
-   | Lit Integer 
+   | FPrimOp (PFExp t e) (J.Op) (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
+   | FLit Integer 
+   | Fif0 (PFExp t e) (PFExp t e) (PFExp t e)
 --   | FTTuple [PFExp t e]
 --   | FProj Int (PFExp t e)
---   | IF0 (PFExp t e) (PFExp t e) (PFExp t e)
    
 -- Closure F syntax
 
@@ -44,7 +44,8 @@ data PCExp t e =
    | CApp (PCExp t e) (PCExp t e)
    | CTApp (PCExp t e) (PCTyp t e)
    | CFPrimOp (PCExp t e) (J.Op) (PCExp t e)
-   | CLit Integer
+   | CFLit Integer
+   | CFif0 (PCExp t e) (PCExp t e) (PCExp t e)
 
 -- Pretty printing
 
@@ -118,7 +119,8 @@ fexp2cexp (FVar x)      = CVar x
 fexp2cexp (FApp e1 e2)  = CApp (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (FPrimOp e1 op e2) = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
-fexp2cexp (Lit e) = CLit e
+fexp2cexp (FLit e) = CFLit e
+fexp2cexp (Fif0 e1 e2 e3) = CFif0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp e             = CLam (groupLambda e)
 
 groupLambda :: PFExp t e -> EScope t e
@@ -169,6 +171,12 @@ jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) []
 
 closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 
+comparezero :: J.Exp -> J.Exp
+comparezero jexp = J.BinOp jexp J.Equal (J.Lit $ J.Int 0)
+
+ifBody :: J.Exp -> J.Exp -> J.Exp -> J.Exp
+ifBody j1 j2 j3 = J.Cond (comparezero j1) j2 j3
+
 createCU :: (J.Block, J.Exp,  PCTyp ITyp (Int,ITyp)) -> (J.CompilationUnit, PCTyp ITyp (Int,ITyp))
 createCU (J.Block bs,e,t) = (cu,t) where
    cu = J.CompilationUnit Nothing [] [closureClass, classDecl]
@@ -186,9 +194,13 @@ createCU (J.Block bs,e,t) = (cu,t) where
 translate :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
 translate (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack!
 
-translate (CLit e) n = ([],J.Lit $ J.Int e, CLitInt)
-translate (CFPrimOp (e1) (op) (e2)) n = case (translate e1 (n+1), translate e2 (n+1)) of ((s1,j1,t1),(s2,j2,t2)) -> (s1 ++ s2, J.BinOp j1 op j2, CLitInt)
-
+translate (CFLit e) n = ([],J.Lit $ J.Int e, CLitInt)
+translate (CFPrimOp (e1) (op) (e2)) n = 
+    case (translate e1 (n+1), translate e2 (n+1)) of ((s1,j1,t1),(s2,j2,t2)) 
+                                                        -> (s1 ++ s2, J.BinOp j1 op j2, t1)                                                                                 
+translate (CFif0 (e1) (e2) (e3)) n = 
+    case (translate e1 (n+1), translate e2 (n+1), translate e3 (n+1)) of ((s1,j1,t1),(s2,j2,t2),(s3,j3,t3)) 
+                                                                            -> (s1 ++ s2 ++ s3, ifBody j1 j2 j3, t2) -- need to check t2 == t3
 translate (CTApp e t) n = 
    case translate e n of
       (s,je,CForall (Kind f)) -> (s,je,scope2ctyp (f (IT t)))
