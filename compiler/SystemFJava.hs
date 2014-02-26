@@ -22,8 +22,8 @@ data PFExp t e =
    | FPrimOp (PFExp t e) (J.Op) (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
    | FLit Integer 
    | Fif0 (PFExp t e) (PFExp t e) (PFExp t e)
---   | FTTuple [PFExp t e]
---   | FProj Int (PFExp t e)
+   | FTuple [PFExp t e]
+   | FProj Int (PFExp t e)
    
 -- Closure F syntax
 
@@ -35,7 +35,7 @@ type TScope t e = Scope (PCTyp t e) t e
 
 type EScope t e = Scope (PCExp t e) t e
 
-data PCTyp t e = CTFVar Int | CTVar t | CForall (TScope t e) | CLitInt
+data PCTyp t e = CTFVar Int | CTVar t | CForall (TScope t e) | CLitInt | CTupleType [PCTyp ITyp (Int, ITyp)]
 
 data PCExp t e = 
      CVar e 
@@ -46,7 +46,9 @@ data PCExp t e =
    | CFPrimOp (PCExp t e) (J.Op) (PCExp t e)
    | CFLit Integer
    | CFif0 (PCExp t e) (PCExp t e) (PCExp t e)
-
+   | CFTuple [PCExp t e]
+   | CFProj Int (PCExp t e)
+   
 -- Pretty printing
 
 data Iso a b = Iso {from :: a -> b, to :: b -> a}
@@ -67,6 +69,7 @@ showScope2 showF (Typ t f) n =
 
 gshowPCTyp3 :: PCTyp ITyp (Int,ITyp) -> Int -> String
 gshowPCTyp3 (CLitInt) n = "Int"
+gshowPCTyp3 (CTupleType mt) n = "Tuple<" ++ (unwords $ (map ((flip gshowPCTyp3) n) mt)) ++ ">"
 gshowPCTyp3 (CTFVar i) n = "a" ++ show i
 gshowPCTyp3 (CTVar t) n = gshowPCTyp3 (unIT t) n
 gshowPCTyp3 (CForall s) n = "(forall " ++ showScope3 gshowPCTyp3  s n ++ ")"
@@ -121,6 +124,9 @@ fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (FPrimOp e1 op e2) = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
 fexp2cexp (FLit e) = CFLit e
 fexp2cexp (Fif0 e1 e2 e3) = CFif0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
+fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
+fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
+
 fexp2cexp e             = CLam (groupLambda e)
 
 groupLambda :: PFExp t e -> EScope t e
@@ -190,6 +196,13 @@ createCU (J.Block bs,e,t) = (cu,t) where
    refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
    classDecl = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "MyClosure") [] (Just (refType "Closure")) [] (J.ClassBody [app [] body]))
 
+reduceTTuples :: [([J.BlockStmt], J.Exp, PCTyp ITyp (Int, ITyp))] -> ([J.BlockStmt], J.Exp, PCTyp ITyp (Int, ITyp))
+reduceTTuples all = (merged, arrayAssignment, tupleType)
+    where
+        merged = concat $ map (\x -> case x of (a,b,c) -> a) all
+        arrayAssignment = J.ArrayCreateInit (J.RefType (refType "Object")) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
+        tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
+        refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
 
 translate :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
 translate (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack!
@@ -201,6 +214,9 @@ translate (CFPrimOp (e1) (op) (e2)) n =
 translate (CFif0 (e1) (e2) (e3)) n = 
     case (translate e1 (n+1), translate e2 (n+1), translate e3 (n+1)) of ((s1,j1,t1),(s2,j2,t2),(s3,j3,t3)) 
                                                                             -> (s1 ++ s2 ++ s3, ifBody j1 j2 j3, t2) -- need to check t2 == t3
+
+translate (CFTuple tuple) n = case (map ((flip translate) (n+1)) tuple) of (translated) -> reduceTTuples translated
+translate (CFProj i e) n = case e of (CFTuple tuple) -> case (translate (tuple!!i) (n+1)) of (s,je,t) -> (s,je,t)
 translate (CTApp e t) n = 
    case translate e n of
       (s,je,CForall (Kind f)) -> (s,je,scope2ctyp (f (IT t)))
