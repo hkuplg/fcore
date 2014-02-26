@@ -11,9 +11,7 @@ import Language.Java.Pretty
 
 -- System F syntax
 
-data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) | FTuple [PFTyp t]
-
-data PrimOp = Mult | Plus | Minus
+data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) -- | FTuple [PFTyp t] | PInt
 
 data PFExp t e = 
      FVar e 
@@ -21,12 +19,12 @@ data PFExp t e =
    | FLam (PFTyp t) (e -> PFExp t e) 
    | FApp (PFExp t e) (PFExp t e)
    | FTApp (PFExp t e) (PFTyp t)
-   | FTTuple [t -> PFExp t e]
-   | FProj Int (e -> PFExp t e)
-   | FPrimOp (e -> PFExp Int e) (PrimOp) (e -> PFExp Int e)
-   | Lit Int
-   | IF0 (e -> PFExp Int e) (t -> PFExp t e) (t -> PFExp t e)
-
+   | FPrimOp (PFExp ITyp e) (J.Op) (PFExp ITyp e) -- not sure whether to mix-in J.Op or to define own corresponding stuff
+   | Lit Integer 
+--   | FTTuple [t -> PFExp t e]
+--   | FProj Int (e -> PFExp t e)
+--   | IF0 (PFExp t e) (PFExp t e) (PFExp t e)
+   
 -- Closure F syntax
 
 data Scope b t e = Body b | Kind (t -> Scope b t e) | Typ (PCTyp t e) (e -> Scope b t e) 
@@ -37,7 +35,7 @@ type TScope t e = Scope (PCTyp t e) t e
 
 type EScope t e = Scope (PCExp t e) t e
 
-data PCTyp t e = CTFVar Int | CTVar t | CForall (TScope t e)
+data PCTyp t e = CTFVar Int | CTVar t | CForall (TScope t e) | CLitInt
 
 data PCExp t e = 
      CVar e 
@@ -45,6 +43,8 @@ data PCExp t e =
    | CLam (EScope t e)  
    | CApp (PCExp t e) (PCExp t e)
    | CTApp (PCExp t e) (PCTyp t e)
+   | CFPrimOp (PCExp ITyp e) (J.Op) (PCExp ITyp e)
+   | CLit Integer
 
 -- Pretty printing
 
@@ -65,6 +65,7 @@ showScope2 showF (Typ t f) n =
    "(x" ++ show n ++ " : " ++ gshowPCTyp  t n ++ ") " ++ showScope2 showF (f (T (CTFVar n))) (n+1)
 
 gshowPCTyp3 :: PCTyp ITyp (Int,ITyp) -> Int -> String
+gshowPCTyp3 (CLitInt) n = "Int"
 gshowPCTyp3 (CTFVar i) n = "a" ++ show i
 gshowPCTyp3 (CTVar t) n = gshowPCTyp3 (unIT t) n
 gshowPCTyp3 (CForall s) n = "(forall " ++ showScope3 gshowPCTyp3  s n ++ ")"
@@ -116,6 +117,8 @@ fexp2cexp :: PFExp t e -> PCExp t e
 fexp2cexp (FVar x)      = CVar x
 fexp2cexp (FApp e1 e2)  = CApp (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
+fexp2cexp (FPrimOp e1 op e2) = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
+fexp2cexp (Lit e) = CLit e
 fexp2cexp e             = CLam (groupLambda e)
 
 groupLambda :: PFExp t e -> EScope t e
@@ -181,7 +184,11 @@ createCU (J.Block bs,e,t) = (cu,t) where
 
 
 translate :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
-translate (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack! 
+translate (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack!
+
+translate (CLit e) n = ([],J.Lit $ J.Int e, CLitInt)
+translate (CFPrimOp (e1) (op) (e2)) n = case (translate e1 (n+1), translate e2 (n+1)) of ((s1,j1,t1),(s2,j2,t2)) -> (s1 ++ s2, J.BinOp j1 op j2, CLitInt)
+
 translate (CTApp e t) n = 
    case translate e n of
       (s,je,CForall (Kind f)) -> (s,je,scope2ctyp (f (IT t)))
@@ -200,12 +207,6 @@ translate (CApp e1 e2) n =
                Body _ -> [cvar,ass,apply]
                _ -> [cvar,ass]
            j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-
--- /\a. \(y : a) . \(z : a) . (\(x : a) . x) y
-
-test = FBLam (\a -> FLam (FTVar a) (\y -> FLam (FTVar a) (\z -> FApp (FLam (FTVar a) (\x ->  FVar x)) (FVar y))))
-
-test2 = FBLam (\a -> FLam (FTVar a) (\x -> FLam (FTVar a) (\y -> FLam (FTVar a) (\z -> FVar x))))
 
 translateScope (Body t) m n = 
    case translate t n of
@@ -272,8 +273,6 @@ substType n t (CForall s) = CForall (substScope n t s)
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
-
-jthree = J.Lit (J.Int 3)
 
 e1 = jexp init jbody
 
