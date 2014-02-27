@@ -50,9 +50,18 @@ object Translation {
   def translateTerms(t: Term, fixed: Option[Term], arg: Boolean = false): Tuple2[String, ClassDef] = {
     t match {
       
-      case TermProjection(_, _) => error("not implemented yet")
+      case TermProjection(index, e) => {
+        e match {
+          case TermTuple(items) => {
+            translateTerms(items(index), fixed)
+          }
+        }
+      }
 
-      case TermTuple(_) => error("not implemented yet")
+      case TermTuple(items) => {
+        val translated = items map (x => translateTerms(x, fixed)) reduce ((x, y) => (x._1 + ", " + y._1, x._2 ++ y._2))
+        ("new Object[] {" + translated._1 + "}", translated._2)
+      }
       
       case TermInt(x) => (x.toString, Map())
       
