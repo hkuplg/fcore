@@ -135,7 +135,7 @@ class TranslationTest extends AssertionsForJUnit {
     val exp = TermFApp(fun, TermInt(6))
     
     val translated = "(new C0()).app(6)"
-    val classdef = """class C0 implements Arrow<Integer,Integer> { public Integer app(Integer n) { return (n == 0) ? 1 : n * this.app(n - 1); }}"""
+    val classdef = """class C0 implements Arrow<Integer,Integer> { public Integer app(Integer n) { if (n == 0) { return 1; } else { return n * this.app(n - 1); } }}"""
     val (tr, cd) = Translation.translate(exp)
     assert(translated === tr)
     assert(cd("C0") === classdef)    

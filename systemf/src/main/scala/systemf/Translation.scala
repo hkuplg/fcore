@@ -43,6 +43,13 @@ object Translation {
     }
   }
   
+  def generateReturn(exp: Term, trans: String): String = {
+    exp match {
+      case TermIF0(_, _, _) => trans
+      case _ => "return " + trans + ";"
+    }
+  }
+  
   def wrapAngle(x: String) = "<" + x + ">"
   def wrapParam(x: String) = "(" + x + ")"
   def genInit = {x: TermVar => "this." + x.toString}
@@ -72,7 +79,7 @@ object Translation {
         val (tr2, d2) = translateTerms(e2, fixed, arg)        
         val (tr3, d3) = translateTerms(e3, fixed, arg)                
         val defs = d1 ++ d2 ++ d3
-        val result = "(" + tr1 + " == 0) ? " + tr2 + " : " + tr3
+        val result = "if (" + tr1 + " == 0) { " + generateReturn(e2, tr2) + " } else { " + generateReturn(e3, tr3) + " }"
         (result, defs)
       }      
       
@@ -112,7 +119,7 @@ object Translation {
 
             val classDef = "class " + newName + freeTypeVars + " implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
-              " public " + bType + " app(" + aType + " " + x.toString + ") { return " + e + "; }}"
+              " public " + bType + " app(" + aType + " " + x.toString + ") { " + generateReturn(m, e) + " }}"
 
             val consParam = setToString(t.FV, wrapParam, genInit, true)
             ("new " + newName + freeTypeVars + consParam, d + (newName -> classDef))
@@ -136,7 +143,7 @@ object Translation {
 
             val classDef = "class " + newName + freeTypeVars + " implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
-              " public " + tType + " app(" + tType + " " + x.toString + ") { return " + e + "; }}"
+              " public " + tType + " app(" + tType + " " + x.toString + ") { " + generateReturn(m, e) + " }}"
 
             val consParam = setToString(t.FV, wrapParam, genInit, true)
             (wrapParam("new " + newName + freeTypeVars + consParam), d + (newName -> classDef))
@@ -173,7 +180,7 @@ object Translation {
             
             val classDef = "class " + newName + freeTypeVars + " implements " + fType +
               " {" + generateFields(freeVars) + generateConstructor(newName, freeVars, t) +
-              "public " + generateBound(a.FTV, tType.FTV) + " " + aType + " tyapp() { return " + e + "; } }"
+              "public " + generateBound(a.FTV, tType.FTV) + " " + aType + " tyapp() { " + generateReturn(m, e) + " } }"
 
             val consParam = setToString(t.FV, wrapParam, genInit, true)              
             ("new " + newName + freeTypeVars + consParam, d + (newName -> classDef))
