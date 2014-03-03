@@ -180,11 +180,15 @@ closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 comparezero :: J.Exp -> J.Exp
 comparezero jexp = J.BinOp jexp J.Equal (J.Lit $ J.Int 0)
 
-ifBody :: J.Exp -> J.Exp -> J.Exp -> J.Exp
-ifBody j1 j2 j3 = J.Cond (comparezero j1) j2 j3
+ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, Either J.Exp J.Stmt, Either J.Exp J.Stmt) -> J.Stmt
+ifBody (s2, s3) (j1, j2, j3) = J.IfThenElse (comparezero j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)) where
+    j2Stmt = case j2 of Left e2 -> [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA e2))]
+                        Right stmt2 -> [J.BlockStmt stmt2]
+    j3Stmt = case j3 of Left e3 -> [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA e3))]
+                        Right stmt3 -> [J.BlockStmt stmt3]
 
-createCU :: (J.Block, J.Exp,  PCTyp ITyp (Int,ITyp)) -> (J.CompilationUnit, PCTyp ITyp (Int,ITyp))
-createCU (J.Block bs,e,t) = (cu,t) where
+createCU :: (J.Block, Either J.Exp J.Stmt,  PCTyp ITyp (Int,ITyp)) -> (J.CompilationUnit, PCTyp ITyp (Int,ITyp))
+createCU (J.Block bs,expOrSmt,t) = (cu,t) where
    cu = J.CompilationUnit Nothing [] [closureClass, classDecl]
    field name = J.MemberDecl (J.FieldDecl [] (J.RefType (refType "Object")) [
               J.VarDecl (J.VarId (J.Ident name)) Nothing])
@@ -192,28 +196,29 @@ createCU (J.Block bs,e,t) = (cu,t) where
    closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
                   J.ClassBody [field "x",field "out",app [J.Abstract] Nothing]))
    body = Just (J.Block (bs ++ [ass]))
-   ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA e))
+   ass  = case expOrSmt of Left e -> J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA e))
+                           Right stmt -> J.BlockStmt stmt
    refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
    classDecl = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "MyClosure") [] (Just (refType "Closure")) [] (J.ClassBody [app [] body]))
 
-reduceTTuples :: [([J.BlockStmt], J.Exp, PCTyp ITyp (Int, ITyp))] -> ([J.BlockStmt], J.Exp, PCTyp ITyp (Int, ITyp))
+reduceTTuples :: [([J.BlockStmt], Either J.Exp J.Stmt, PCTyp ITyp (Int, ITyp))] -> ([J.BlockStmt], Either J.Exp J.Stmt, PCTyp ITyp (Int, ITyp))
 reduceTTuples all = (merged, arrayAssignment, tupleType)
     where
         merged = concat $ map (\x -> case x of (a,b,c) -> a) all
-        arrayAssignment = J.ArrayCreateInit (J.RefType (refType "Object")) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
+        arrayAssignment = Left $ J.ArrayCreateInit (J.RefType (refType "Object")) 1 ((J.ArrayInit (map (\x -> case x of (a,Left b,c) -> J.InitExp b) all)))
         tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
 
-translate :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
-translate (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack!
+translate :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], Either J.Exp J.Stmt,  PCTyp ITyp (Int,ITyp))
+translate (CVar (i,t)) n = ([],Left $ var ("x" ++ show i ++ ".x"),unIT t) -- small hack!
 
-translate (CFLit e) n = ([],J.Lit $ J.Int e, CLitInt)
+translate (CFLit e) n = ([],Left $ J.Lit $ J.Int e, CLitInt)
 translate (CFPrimOp (e1) (op) (e2)) n = 
-    case (translate e1 (n+1), translate e2 (n+1)) of ((s1,j1,t1),(s2,j2,t2)) 
-                                                        -> (s1 ++ s2, J.BinOp j1 op j2, t1)                                                                                 
+    case (translate e1 (n+1), translate e2 (n+1)) of ((s1,Left j1,t1),(s2,Left j2,t2)) 
+                                                        -> (s1 ++ s2, Left $ (J.BinOp j1 op j2), t1)                                                                                 
 translate (CFif0 (e1) (e2) (e3)) n = 
-    case (translate e1 (n+1), translate e2 (n+1), translate e3 (n+1)) of ((s1,j1,t1),(s2,j2,t2),(s3,j3,t3)) 
-                                                                            -> (s1 ++ s2 ++ s3, ifBody j1 j2 j3, t2) -- need to check t2 == t3
+    case (translate e1 (n+1), translate e2 (n+1), translate e3 (n+1)) of ((s1,Left j1,t1),(s2,j2,t2),(s3,j3,t3)) 
+                                                                            -> (s1, Right $ (ifBody (s2, s3) (j1, j2, j3)), t2) -- need to check t2 == t3
 
 translate (CFTuple tuple) n = case (map ((flip translate) (n+1)) tuple) of (translated) -> reduceTTuples translated
 translate (CFProj i e) n = case e of (CFTuple tuple) -> case (translate (tuple!!i) (n+1)) of (s,je,t) -> (s,je,t)
@@ -225,11 +230,12 @@ translate (CLam s) n =
       (s,je, t) -> (s,je, CForall t)
 translate (CApp e1 e2) n = 
    case (translate e1 (n+1), translate e2 (n+1)) of 
-      ((s1,j1,CForall (Typ t1 g)),(s2,j2,t2)) -> (s1 ++ s2 ++ s3, j3, scope2ctyp (g (n,IT t1))) -- need to check t1 == t2
+      ((s1,Left j1,CForall (Typ t1 g)),(s2,j2,t2)) -> (s1 ++ s2 ++ s3, Left j3, scope2ctyp (g (n,IT t1))) -- need to check t1 == t2
         where
            f    = J.Ident ("x" ++ show n) -- use a fresh variable
            cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
-           ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
+           ass  = case j2 of Left nonIf -> J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA nonIf) ) 
+                             Right stmt -> J.BlockStmt $ stmt
            apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
            s3 = case (g (n,IT t1)) of -- checking the type whether to generate the apply() call
                Body _ -> [cvar,ass,apply]
@@ -244,7 +250,7 @@ translateScope (Kind f) m n =
       (s,je,t1) -> (s,je, Kind (\a -> substScope n a t1))
 translateScope (Typ t f) m n = 
    case translateScope (f (n+1,IT t)) (Just t) (n+2) of
-       (s,je,t1) -> ([cvar],J.ExpName (J.Name [f]),Typ t (\_ -> t1))
+       (s,je,t1) -> ([cvar],Left $ J.ExpName (J.Name [f]),Typ t (\_ -> t1))
          where
           f    = J.Ident ("x" ++ show n) -- use a fresh variable
           self = J.Ident ("x" ++ show (n+1))
@@ -265,10 +271,10 @@ pullupClosure [J.LocalVars [] rf vd] = case vd of
 
 -- seperating (hopefully) the important bit
 
-refactoredScopeTranslationBit :: J.Exp -> J.Ident -> [J.BlockStmt] -> J.Ident -> J.BlockStmt
-refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA idNextName = completeClosure
+refactoredScopeTranslationBit :: (Either J.Exp J.Stmt) -> J.Ident -> [J.BlockStmt] -> J.Ident -> J.BlockStmt
+refactoredScopeTranslationBit (Left javaExpression) idCurrentName statementsBeforeOA idNextName = completeClosure
     where
-        outputAssignment = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
+        outputAssignment = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA javaExpression))
         fullAssignment = J.InitDecl False (J.Block [(J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA
                                                     (pullupClosure statementsBeforeOA))))])
         currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
@@ -282,6 +288,16 @@ refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA id
                                                     (jexpOutside [currentInitialDeclaration,fullAssignment]
                                                     )
                                                 ))]
+refactoredScopeTranslationBit (Right javaStatement) idCurrentName statementsBeforeOA idNextName = completeClosure
+    where
+        outputAssignment = J.BlockStmt $ javaStatement
+        currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]        
+        completeClosure = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
+                        (Just (J.InitExp
+                            (jexp [currentInitialDeclaration] (Just (J.Block (statementsBeforeOA ++ [outputAssignment]))))
+                            )
+                        )]
+
 
 -- Free variable substitution
 
@@ -302,14 +318,12 @@ substType n t (CForall s) = CForall (substScope n t s)
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
-e1 = jexp init jbody
-
 compile e = 
   case translate (fexp2cexp e) 0 of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 compilePretty ::  PFExp ITyp (Int,ITyp) -> IO ()
-compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (gshowPCTyp3 t 0))
+compilePretty e = let (b,Left exp,t) = (compile e) in (prettyJ b >> prettyJ exp >> putStrLn (gshowPCTyp3 t 0))
 
 compileCU ::  PFExp ITyp (Int,ITyp) -> IO ()
 compileCU e = let (cu,t) = createCU $ compile e in (prettyJ cu >> putStrLn (gshowPCTyp3 t 0))
