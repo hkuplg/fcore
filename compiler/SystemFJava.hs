@@ -180,8 +180,14 @@ closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 comparezero :: J.Exp -> J.Exp
 comparezero jexp = J.BinOp jexp J.Equal (J.Lit $ J.Int 0)
 
-ifBody :: J.Exp -> J.Exp -> J.Exp -> J.Exp
-ifBody j1 j2 j3 = J.Cond (comparezero j1) j2 j3
+ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
+ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (comparezero j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
+    where
+        j2Stmt = [(J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j2)))]))]
+        j3Stmt = [(J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j3)))]))]
+        ifvarname = ("ifres" ++ show n)
+        refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
+        newvar = var ifvarname
 
 createCU :: (J.Block, J.Exp,  PCTyp ITyp (Int,ITyp)) -> (J.CompilationUnit, PCTyp ITyp (Int,ITyp))
 createCU (J.Block bs,e,t) = (cu,t) where
@@ -213,7 +219,9 @@ translate (CFPrimOp (e1) (op) (e2)) n =
                                                         -> (s1 ++ s2, J.BinOp j1 op j2, t1)                                                                                 
 translate (CFif0 (e1) (e2) (e3)) n = 
     case (translate e1 (n+1), translate e2 (n+1), translate e3 (n+1)) of ((s1,j1,t1),(s2,j2,t2),(s3,j3,t3)) 
-                                                                            -> (s1 ++ s2 ++ s3, ifBody j1 j2 j3, t2) -- need to check t2 == t3
+                                                                            -> (s1 ++ [ifstmt], ifexp, t2) -- need to check t2 == t3
+                                                                            where
+                                                                                (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) (n+1)
 
 translate (CFTuple tuple) n = case (map ((flip translate) (n+1)) tuple) of (translated) -> reduceTTuples translated
 translate (CFProj i e) n = case e of (CFTuple tuple) -> case (translate (tuple!!i) (n+1)) of (s,je,t) -> (s,je,t)
