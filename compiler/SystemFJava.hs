@@ -11,7 +11,7 @@ import Language.Java.Pretty
 
 -- System F syntax
 
-data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t)
+data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) | PFInt
 
 data PFExp t e = 
      FVar e 
@@ -20,7 +20,7 @@ data PFExp t e =
    | FApp (PFExp t e) (PFExp t e)
    | FTApp (PFExp t e) (PFTyp t)
    | FPrimOp (PFExp t e) (J.Op) (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
-   | FLit Integer 
+   | FLit t Integer 
    | Fif0 (PFExp t e) (PFExp t e) (PFExp t e)
    | FTuple [PFExp t e]
    | FProj Int (PFExp t e)
@@ -44,7 +44,7 @@ data PCExp t e =
    | CApp (PCExp t e) (PCExp t e)
    | CTApp (PCExp t e) (PCTyp t e)
    | CFPrimOp (PCExp t e) (J.Op) (PCExp t e)
-   | CFLit Integer
+   | CFLit t Integer
    | CFif0 (PCExp t e) (PCExp t e) (PCExp t e)
    | CFTuple [PCExp t e]
    | CFProj Int (PCExp t e)
@@ -108,21 +108,25 @@ instance Show (PCExp Int Int) where
 
 -- System F to Closure F
 
+
 ftyp2scope :: PFTyp t -> TScope t e
 ftyp2scope (FTVar x)     = Body (CTVar x)
 ftyp2scope (FForall f)   = Kind (\a -> ftyp2scope (f a))
 ftyp2scope (FFun t1 t2)  = Typ (ftyp2ctyp t1) (\x -> ftyp2scope t2)
+ftyp2scope PFInt = Body CLitInt
 
 ftyp2ctyp :: PFTyp t -> PCTyp t e
 ftyp2ctyp (FTVar x) = CTVar x
+ftyp2ctyp (PFInt)     = CLitInt
 ftyp2ctyp t         = CForall (ftyp2scope t)
+
 
 fexp2cexp :: PFExp t e -> PCExp t e
 fexp2cexp (FVar x)      = CVar x
 fexp2cexp (FApp e1 e2)  = CApp (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (FPrimOp e1 op e2) = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
-fexp2cexp (FLit e) = CFLit e
+fexp2cexp (FLit t e) = CFLit t e
 fexp2cexp (Fif0 e1 e2 e3) = CFif0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
 fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
@@ -213,7 +217,7 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
 translate :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
 translate (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack!
 
-translate (CFLit e) n = ([],J.Lit $ J.Int e, CLitInt)
+translate (CFLit t e) n = ([],J.Lit $ J.Int e, unIT t)
 translate (CFPrimOp (e1) (op) (e2)) n = 
     case (translate e1 (n+1), translate e2 (n+1)) of ((s1,j1,t1),(s2,j2,t2)) 
                                                         -> (s1 ++ s2, J.BinOp j1 op j2, t1)                                                                                 
@@ -228,6 +232,7 @@ translate (CFProj i e) n = case e of (CFTuple tuple) -> case (translate (tuple!!
 translate (CTApp e t) n = 
    case translate e n of
       (s,je,CForall (Kind f)) -> (s,je,scope2ctyp (f (IT t)))
+      (s,je, x) -> (s,je,x) -- for all other?
 translate (CLam s) n = 
    case translateScope s Nothing n of 
       (s,je, t) -> (s,je, CForall t)
