@@ -13,6 +13,8 @@ import Language.Java.Pretty
 
 data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) | PFInt
 
+type PrimLit = Integer -- later maybe Bool | Char
+
 data PFExp t e = 
      FVar e 
    | FBLam (t -> PFExp t e) 
@@ -20,7 +22,7 @@ data PFExp t e =
    | FApp (PFExp t e) (PFExp t e)
    | FTApp (PFExp t e) (PFTyp t)
    | FPrimOp (PFExp t e) (J.Op) (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
-   | FLit t Integer 
+   | FLit t PrimLit
    | Fif0 (PFExp t e) (PFExp t e) (PFExp t e)
    | FTuple [PFExp t e]
    | FProj Int (PFExp t e)
@@ -44,7 +46,7 @@ data PCExp t e =
    | CApp (PCExp t e) (PCExp t e)
    | CTApp (PCExp t e) (PCTyp t e)
    | CFPrimOp (PCExp t e) (J.Op) (PCExp t e)
-   | CFLit t Integer
+   | CFLit t PrimLit
    | CFif0 (PCExp t e) (PCExp t e) (PCExp t e)
    | CFTuple [PCExp t e]
    | CFProj Int (PCExp t e)
@@ -146,7 +148,7 @@ newtype ITyp = IT {unIT :: PCTyp ITyp (Int,ITyp)}
 
 infer :: PCExp Typ Typ -> PCTyp Typ Typ
 infer (CVar t) = unT t
-infer (CTApp e t) = 
+infer (CTApp e t) =
   case infer e of 
      (CForall (Kind f)) -> scope2ctyp (f (T t))
 infer (CApp e1 e2) = 
@@ -232,7 +234,7 @@ translate (CFProj i e) n = case e of (CFTuple tuple) -> case (translate (tuple!!
 translate (CTApp e t) n = 
    case translate e n of
       (s,je,CForall (Kind f)) -> (s,je,scope2ctyp (f (IT t)))
-      (s,je, x) -> (s,je,x) -- for all other?
+--      (s,je, x) -> (s,je,x) -- for all other?
 translate (CLam s) n = 
    case translateScope s Nothing n of 
       (s,je, t) -> (s,je, CForall t)
