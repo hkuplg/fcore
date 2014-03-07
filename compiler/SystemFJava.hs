@@ -273,7 +273,7 @@ checkExp x = True
 
 jexpOutside init = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] 
        (Just (J.ClassBody (init ++  [
-          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just(J.Block $ [J.BlockStmt $ J.Empty]))))
+          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just(J.Block $ []))))
        ])))
 
 pullupClosure [J.LocalVars [] rf vd] = case vd of
