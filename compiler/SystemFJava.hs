@@ -4,7 +4,8 @@ module SystemFJava where
 
 import Prelude hiding (init)
 import Debug.Trace
-import Unsafe.Coerce
+import Data.List hiding (init)
+
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
@@ -22,7 +23,7 @@ data PFExp t e =
    | FApp (PFExp t e) (PFExp t e)
    | FTApp (PFExp t e) (PFTyp t)
    | FPrimOp (PFExp t e) (J.Op) (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
-   | FLit t PrimLit
+   | FLit PrimLit
    | Fif0 (PFExp t e) (PFExp t e) (PFExp t e)
    | FTuple [PFExp t e]
    | FProj Int (PFExp t e)
@@ -37,7 +38,7 @@ type TScope t e = Scope (PCTyp t e) t e
 
 type EScope t e = Scope (PCExp t e) t e
 
-data PCTyp t e = CTFVar Int | CTVar t | CForall (TScope t e) | CLitInt | CTupleType [PCTyp ITyp (Int, ITyp)]
+data PCTyp t e = CTFVar Int | CTVar t | CForall (TScope t e) | CInt | CTupleType [PCTyp t e]
 
 data PCExp t e = 
      CVar e 
@@ -46,14 +47,12 @@ data PCExp t e =
    | CApp (PCExp t e) (PCExp t e)
    | CTApp (PCExp t e) (PCTyp t e)
    | CFPrimOp (PCExp t e) (J.Op) (PCExp t e)
-   | CFLit t PrimLit
+   | CFLit PrimLit
    | CFif0 (PCExp t e) (PCExp t e) (PCExp t e)
    | CFTuple [PCExp t e]
    | CFProj Int (PCExp t e)
    
 -- Pretty printing
-
-data Iso a b = Iso {from :: a -> b, to :: b -> a}
 
 showPCTyp2 = gshowPCTyp
 
@@ -63,6 +62,8 @@ gshowPCTyp :: PCTyp Typ Typ -> Int -> String
 gshowPCTyp (CTFVar i) n = "a" ++ show i
 gshowPCTyp (CTVar t) n = gshowPCTyp (unT t) n
 gshowPCTyp (CForall s) n = "(forall " ++ showScope2 gshowPCTyp  s n ++ ")"
+gshowPCTyp CInt n = "Int"
+gshowPCTyp (CTupleType es) n = "(" ++ (concat $ intersperse "," (map (flip gshowPCTyp n) es)) ++ ")"
 
 showScope2 showF (Body t) n = ". " ++ showF t n
 showScope2 showF (Kind f) n = "a" ++ show n ++ " " ++ showScope2 showF (f (T (CTFVar n))) (n+1)
@@ -70,7 +71,7 @@ showScope2 showF (Typ t f) n =
    "(x" ++ show n ++ " : " ++ gshowPCTyp  t n ++ ") " ++ showScope2 showF (f (T (CTFVar n))) (n+1)
 
 gshowPCTyp3 :: PCTyp ITyp (Int,ITyp) -> Int -> String
-gshowPCTyp3 (CLitInt) n = "Int"
+gshowPCTyp3 (CInt) n = "Int"
 gshowPCTyp3 (CTupleType mt) n = "Tuple<" ++ (unwords $ (map ((flip gshowPCTyp3) n) mt)) ++ ">"
 gshowPCTyp3 (CTFVar i) n = "a" ++ show i
 gshowPCTyp3 (CTVar t) n = gshowPCTyp3 (unIT t) n
@@ -110,16 +111,16 @@ instance Show (PCExp Int Int) where
 
 -- System F to Closure F
 
-
 ftyp2scope :: PFTyp t -> TScope t e
-ftyp2scope (FTVar x)     = Body (CTVar x)
 ftyp2scope (FForall f)   = Kind (\a -> ftyp2scope (f a))
 ftyp2scope (FFun t1 t2)  = Typ (ftyp2ctyp t1) (\x -> ftyp2scope t2)
-ftyp2scope PFInt = Body CLitInt
+ftyp2scope t             = Body (ftyp2ctyp t)
+--ftyp2scope PFInt         = Body CInt
+-- ftyp2scope (FTVar x)     = Body (CTVar x)
 
 ftyp2ctyp :: PFTyp t -> PCTyp t e
 ftyp2ctyp (FTVar x) = CTVar x
-ftyp2ctyp (PFInt)     = CLitInt
+ftyp2ctyp (PFInt)     = CInt
 ftyp2ctyp t         = CForall (ftyp2scope t)
 
 
@@ -128,7 +129,7 @@ fexp2cexp (FVar x)      = CVar x
 fexp2cexp (FApp e1 e2)  = CApp (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (FPrimOp e1 op e2) = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
-fexp2cexp (FLit t e) = CFLit t e
+fexp2cexp (FLit e) = CFLit e
 fexp2cexp (Fif0 e1 e2 e3) = CFif0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
 fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
@@ -219,7 +220,7 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
 translate :: PCExp ITyp (Int,ITyp) -> Int -> ([J.BlockStmt], J.Exp,  PCTyp ITyp (Int,ITyp))
 translate (CVar (i,t)) n = ([],var ("x" ++ show i ++ ".x"),unIT t) -- small hack!
 
-translate (CFLit t e) n = ([],J.Lit $ J.Int e, unIT t)
+translate (CFLit e) n = ([],J.Lit $ J.Int e, CInt)
 translate (CFPrimOp (e1) (op) (e2)) n = 
     case (translate e1 (n+1), translate e2 (n+1)) of ((s1,j1,t1),(s2,j2,t2)) 
                                                         -> (s1 ++ s2, J.BinOp j1 op j2, t1)                                                                                 
