@@ -251,7 +251,7 @@ translateScope (Typ t f) =
      put (n+2)
      (s,je,t1) <- translateScope (f (n+1,t))
      let f    = J.Ident ("x" ++ show n) -- use a fresh variable
-     let self = J.Ident ("x" ++ show (n+1))
+     let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable
      let cvar = refactoredScopeTranslationBit je self s f
      return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
