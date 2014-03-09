@@ -63,6 +63,6 @@ test3 = TestCase $ assertEqual
   "Should compile idF3" compiled3 ( let (cu,t) = createCU $ compile idF3 in (prettyPrint cu) )
 
 test4 = TestCase $ assertEqual
-  "Should infeer type of intapp" "(forall (x0 : Int) . Int)" ( let (cu, t) = createCU $ compile intapp in (gshowPCTyp3 t 0) )
+  "Should infeer type of intapp" "(forall (x0 : Int) . Int)" ( let (cu, t) = createCU $ compile intapp in (show t) )
 
 main = runTestTT $ TestList [test1, test2, test3, test4]
