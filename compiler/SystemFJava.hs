@@ -226,15 +226,16 @@ translate (CApp e1 e2) =
       put (n+1)
       (s1,j1,CForall (Typ t1 g)) <- translate e1
       (s2,j2,t2) <- translate e2
+      let t    = g ()
       let f    = J.Ident ("x" ++ show n) -- use a fresh variable
       let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
       let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
       let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
-      let s3 = case (g ()) of -- checking the type whether to generate the apply() call
+      let s3 = case t of -- checking the type whether to generate the apply() call
                Body _ -> [cvar,ass,apply]
                _ -> [cvar,ass]
       let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-      return (s1 ++ s2 ++ s3, j3, scope2ctyp (g ())) -- need to check t1 == t2
+      return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
 
 translateScope (Body t) =
    do  (s,je, t1) <- translate t
