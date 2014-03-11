@@ -1,4 +1,4 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XMultiParamTypeClasses #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances #-}
 
 module SystemFJava where
 
