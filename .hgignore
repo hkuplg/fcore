@@ -2,3 +2,7 @@ syntax: glob
 systemf/.cache
 systemf/.classpath
 systemf/.project
+compiler/SystemFLexer.hs
+compiler/SystemFParser.hs
+*.info
+*.swp

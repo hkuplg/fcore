@@ -1,7 +1,8 @@
 {
-module SystemFLexer where
+module SystemFLexer (systemFLex) where
 
 import SystemFTokens
+
 }
 
 %wrapper "basic"
@@ -14,17 +15,18 @@ $digit = [0-9]
 tokens :-
 
     $white+     ;
-    "--".*      ;
 
-    "/\\"       { \_ -> TokenTLambda }
-    "\\"        { \_ -> TokenLambda }
-    "->"        { \_ -> TokenArrow }
-    "."         { \_ -> TokenDot }
-    ":"         { \_ -> TokenColon }
-    "("         { \_ -> TokenParenL }
-    ")"         { \_ -> TokenParenR }
+    \/\\        { \_ -> TokenTLambda }
+    \\          { \_ -> TokenLambda }
+    \.          { \_ -> TokenDot }
+    \-\>        { \_ -> TokenArrow }
+    \:          { \_ -> TokenColon }
+    \(          { \_ -> TokenOParen }
+    \)          { \_ -> TokenCParen }
 
-    [$alpha] [$alpha $digit]* { \s -> TokenId s }
+    [$alpha] [$alpha $digit \_ \']* { \s -> TokenId s }
 
 {
+systemFLex :: String -> [SystemFToken]
+systemFLex = alexScanTokens
 }
