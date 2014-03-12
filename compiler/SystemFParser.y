@@ -54,7 +54,8 @@ parseError :: [SystemFToken] -> a
 parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
 systemFRead :: String -> PFExp t e
-systemFRead s = (systemFParse (systemFLex s)) ([], [])
+systemFRead = (\parser -> parser emptyEnvs) . systemFParse . systemFLex
+    where emptyEnvs = ([], [])
 
 test1 :: String
 test1 = "/\\a. \\(x:a) . x"
