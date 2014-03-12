@@ -225,9 +225,10 @@ translate (CLam s) =
 translate (CApp e1 e2) =
    do n <- get
       put (n+1)
-      (s1,j1,CForall (Typ t1 g)) <- translate e1
+      (s1,j1,t1) <- translate e1
       (s2,j2,t2) <- translate e2
-      let t    = g ()
+      let t    = case t1 of CForall (Typ t1' g1) -> g1 ()
+                            _ -> case t2 of CForall (Typ _ g2) -> g2 ()
       let f    = J.Ident ("x" ++ show n) -- use a fresh variable
       let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
       let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
