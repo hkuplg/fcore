@@ -9,10 +9,10 @@ SystemFLexer.hs : SystemFLexer.x
 SystemFParser.hs : SystemFParser.y
 	happy -i $<
 
-.PHONY : test_parsers
-test_parsers :
+.PHONY : test
+test :
 	make parsers
-	ghci SystemFParser.hs
+	ghci Main.hs
 
 .PHONY : clean
 clean :

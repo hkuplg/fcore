@@ -1,5 +1,6 @@
 module Main where
 
+import SystemFParser    (systemFRead)
 import SystemFJava2
 import Test.HUnit
 import Language.Java.Pretty
@@ -10,14 +11,17 @@ import Prelude hiding (const)
 
 -- /\a. \(x:a) . x
 
+idF1Str = "/\\a. \\(x:a) . x"
 idF = FBLam (\a -> FLam (FTVar a) (\x -> FVar x))
 
 -- /\a . (\(f : a -> a) . \(x : a) . f x) (idF a)
 
+idF2Str = "/\\a . (\\(f : a -> a) . \\(x : a) . f x) (idF a)"
 idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) (\x -> FApp (FVar f) (FVar x)))) (FTApp idF (FTVar a)))
 
 -- /\a . \(x:a) . (idF a) x
 
+idF3Str = "/\\a . \\(x:a) . (idF a) x"
 idF3 = FBLam (\a -> FLam (FTVar a) (\x -> FApp (FTApp idF (FTVar a)) (FVar x) ))
 
 -- /\a . \(f : a -> a -> a) . \(g : a -> a) . \(x : a) . f x (g x)

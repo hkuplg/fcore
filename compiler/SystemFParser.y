@@ -3,7 +3,7 @@ module SystemFParser where
 
 import SystemFTokens
 import SystemFLexer
-import SystemFJava
+import SystemFJava2
 
 import Data.Maybe       (fromJust)
 
@@ -56,14 +56,5 @@ parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 systemFRead :: String -> PFExp t e
 systemFRead = (\parser -> parser emptyEnvs) . systemFParse . systemFLex
     where emptyEnvs = ([], [])
-
-test1 :: String
-test1 = "/\\a. \\(x:a) . x"
-
-test2 :: String
-test2 = "/\\a . (\\(f : a -> a) . \\(x : a) . f x) (idF a)"
-
-test3 :: String
-test3 = "/\\a . \\(x:a) . (idF a) x"
 
 }
