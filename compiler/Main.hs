@@ -1,6 +1,6 @@
 module Main where
 
-import SystemFJava
+import SystemFJava2
 import Test.HUnit
 import Language.Java.Pretty
 
