@@ -171,6 +171,7 @@ substScope n t (Typ t1 f) = Typ (substType n t t1) (\x -> substScope n t (f x))
 
 substType n t (CTVar x) = subst n t x
 substType n t (CForall s) = CForall (substScope n t s)
+substType n t x = x
 
 class Subst t where
    subst :: Int -> PCTyp Int -> t -> PCTyp t
