@@ -7,5 +7,7 @@ data SystemFToken = TokenTLambda
                   | TokenColon
                   | TokenOParen
                   | TokenCParen
+                  | TokenForall
+                  | TokenInt
                   | TokenId String
                   deriving (Eq, Show)

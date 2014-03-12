@@ -23,6 +23,8 @@ tokens :-
     \:          { \_ -> TokenColon }
     \(          { \_ -> TokenOParen }
     \)          { \_ -> TokenCParen }
+    forall      { \_ -> TokenForall }
+    Int         { \_ -> TokenInt }
 
     [$alpha] [$alpha $digit \_ \']* { \s -> TokenId s }
 
