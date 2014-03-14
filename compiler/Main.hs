@@ -4,6 +4,7 @@ import SystemFParser    (readSF)
 import SystemFJava
 import Test.HUnit
 import Language.Java.Pretty
+import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
 
@@ -70,5 +71,15 @@ test3 = TestCase $ assertEqual
 
 test4 = TestCase $ assertEqual
   "Should infeer type of intapp" "(forall (_ : Int) . Int)" ( let (cu, t) = createCU $ compile intapp in (show t) )
+
+-- SystemF to Java
+sf2java :: String -> String
+sf2java src = let (cu, _) = createCU $ compile (readSF src) in prettyPrint cu
+
+-- SystemF file path to Java
+-- Example:
+--      loadsf2java "id.sf"
+loadsf2java :: FilePath -> IO String
+loadsf2java = readFile >=> (return . sf2java)
 
 main = runTestTT $ TestList [test1, test2, test3, test4]
