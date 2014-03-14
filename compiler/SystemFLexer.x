@@ -19,6 +19,9 @@ tokens :-
     \.          { \_ -> TokenDot }
     \-\>        { \_ -> TokenArrow }
     \:          { \_ -> TokenColon }
+    let         { \_ -> TokenLet }
+    \=          { \_ -> TokenEQ }
+    in          { \_ -> TokenIn }
     \(          { \_ -> TokenOParen }
     \)          { \_ -> TokenCParen }
     forall      { \_ -> TokenForall }
