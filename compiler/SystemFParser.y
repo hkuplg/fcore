@@ -24,8 +24,8 @@ import Data.Maybe       (fromJust)
 ")"    { TokenCParen }
 forall { TokenForall }
 Int    { TokenInt }
-id     { TokenId $$ }
-tvar   { TokenTVar $$ }
+var    { TokenLowId $$ }
+tvar   { TokenUpId $$ }
 
 %left TokenArrow
 
@@ -36,9 +36,9 @@ tvar   { TokenTVar $$ }
 --                | FLam (PFTyp t) (e -> PFExp t e)
 --                | FApp (PFExp t e) (PFExp t e)
 --                | FTApp (PFExp t e) (PFTyp t)
-Exp : id                                { \(_, env)    -> FVar (fromJust (lookup $1 env)) }
-    | "/\\" id "." Exp                  { \(tenv, env) -> FBLam (\a -> $4 (($2, a):tenv, env)) }
-    | "\\" "(" id ":" Typ ")" "." Exp   { \(tenv, env) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env)) }
+Exp : var                               { \(_, env)    -> FVar (fromJust (lookup $1 env)) }
+    | "/\\" var "." Exp                 { \(tenv, env) -> FBLam (\a -> $4 (($2, a):tenv, env)) }
+    | "\\" "(" var ":" Typ ")" "." Exp  { \(tenv, env) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env)) }
     | Exp Exp                           { \(tenv, env) -> FApp  ($1 (tenv, env)) ($2 (tenv, env)) }
     | Exp Typ                           { \(tenv, env) -> FTApp ($1 (tenv, env)) ($2 tenv) }
     | "(" Exp ")"                       { $2 }
