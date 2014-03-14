@@ -82,4 +82,11 @@ sf2java src = let (cu, _) = createCU $ compile (readSF src) in prettyPrint cu
 loadsf2java :: FilePath -> IO String
 loadsf2java = readFile >=> (return . sf2java)
 
+-- `compilesf2java srcPath outputPath` loads a SystemF file at `srcPath`,
+-- and writes the compiled Java code to `outputPath`.
+-- Example:
+--      compilesf2java "id.sf" "id.java"
+compilesf2java :: FilePath -> FilePath -> IO ()
+compilesf2java srcPath outputPath = loadsf2java srcPath >>= writeFile outputPath
+
 main = runTestTT $ TestList [test1, test2, test3, test4]
