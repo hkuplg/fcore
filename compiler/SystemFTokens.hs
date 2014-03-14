@@ -5,6 +5,9 @@ data SystemFToken = TokenTLambda
                   | TokenDot
                   | TokenArrow
                   | TokenColon
+                  | TokenLet
+                  | TokenEQ
+                  | TokenIn
                   | TokenOParen
                   | TokenCParen
                   | TokenForall

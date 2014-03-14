@@ -20,6 +20,9 @@ import Data.Maybe       (fromJust)
 "."    { TokenDot }
 "->"   { TokenArrow }
 ":"    { TokenColon }
+let    { TokenLet }
+"="    { TokenEQ }
+in     { TokenIn }
 "("    { TokenOParen }
 ")"    { TokenCParen }
 forall { TokenForall }
@@ -39,6 +42,11 @@ tvar   { TokenUpId $$ }
 Exp : var                               { \(_, env)    -> FVar (fromJust (lookup $1 env)) }
     | "/\\" tvar "." Exp                { \(tenv, env) -> FBLam (\a -> $4 (($2, a):tenv, env)) }
     | "\\" "(" var ":" Typ ")" "." Exp  { \(tenv, env) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env)) }
+    -- let x = e : T in f  ~>  (\(x : T) . f) e
+    | let var "=" Exp ":" Typ in Exp    { \(tenv, env) ->
+                                            let lambda = \(tenv, env) -> FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env)) in
+                                            FApp (lambda (tenv, env)) ($4 (tenv, env))
+                                        }
     | Exp Exp                           { \(tenv, env) -> FApp  ($1 (tenv, env)) ($2 (tenv, env)) }
     | Exp Typ                           { \(tenv, env) -> FTApp ($1 (tenv, env)) ($2 tenv) }
     | "(" Exp ")"                       { $2 }
