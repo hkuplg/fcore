@@ -25,6 +25,7 @@ import Data.Maybe       (fromJust)
 forall { TokenForall }
 Int    { TokenInt }
 id     { TokenId $$ }
+tvar   { TokenTVar $$ }
 
 %left TokenArrow
 
@@ -43,8 +44,8 @@ Exp : id                                { \(_, env)    -> FVar (fromJust (lookup
     | "(" Exp ")"                       { $2 }
 
 -- data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) | PFInt
-Typ : id                { \tenv -> FTVar (fromJust (lookup $1 tenv)) }
-    | forall id "." Typ { \tenv -> FForall (\a -> $4 (($2, a):tenv)) }
+Typ : tvar                 { \tenv -> FTVar (fromJust (lookup $1 tenv)) }
+    | forall tvar "." Typ  { \tenv -> FForall (\a -> $4 (($2, a):tenv)) }
     | Typ "->" Typ      { \tenv -> FFun ($1 tenv) ($3 tenv) }
     | Int               { \_    -> PFInt }
     | "(" Typ ")"       { $2 }

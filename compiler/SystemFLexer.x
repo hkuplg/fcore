@@ -26,7 +26,8 @@ tokens :-
     forall      { \_ -> TokenForall }
     Int         { \_ -> TokenInt }
 
-    [$alpha] [$alpha $digit \_ \']* { \s -> TokenId s }
+    [a-z] [$alpha $digit \_ \']*        { \s -> TokenId s }
+    [\'] [a-z] [$alpha $digit \_ \']*   { \s -> TokenTVar (drop 1 s) }
 
 {
 systemFLex :: String -> [SystemFToken]
