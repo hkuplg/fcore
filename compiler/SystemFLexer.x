@@ -1,5 +1,5 @@
 {
-module SystemFLexer (systemFLex) where
+module SystemFLexer (lexSF) where
 
 import SystemFTokens
 
@@ -30,6 +30,6 @@ tokens :-
     [\'] [a-z] [$alpha $digit \_ \']*   { \s -> TokenTVar (drop 1 s) }
 
 {
-systemFLex :: String -> [SystemFToken]
-systemFLex = alexScanTokens
+lexSF :: String -> [SystemFToken]
+lexSF = alexScanTokens
 }

@@ -9,7 +9,7 @@ import Data.Maybe       (fromJust)
 
 }
 
-%name systemFParse
+%name parseSF
 %tokentype  { SystemFToken }
 %error      { parseError }
 
@@ -54,8 +54,8 @@ Typ : tvar                 { \tenv -> FTVar (fromJust (lookup $1 tenv)) }
 parseError :: [SystemFToken] -> a
 parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
-systemFRead :: String -> PFExp t e
-systemFRead = (\parser -> parser emptyEnvs) . systemFParse . systemFLex
+readSF :: String -> PFExp t e
+readSF = (\parser -> parser emptyEnvs) . parseSF . lexSF
     where emptyEnvs = ([], [])
 
 }

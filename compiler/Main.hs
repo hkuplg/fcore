@@ -1,6 +1,6 @@
 module Main where
 
-import SystemFParser    (systemFRead)
+import SystemFParser    (readSF)
 import SystemFJava
 import Test.HUnit
 import Language.Java.Pretty
