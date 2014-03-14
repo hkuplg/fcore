@@ -9,6 +9,6 @@ data SystemFToken = TokenTLambda
                   | TokenCParen
                   | TokenForall
                   | TokenInt
-                  | TokenId String
-                  | TokenTVar String
+                  | TokenLowId String
+                  | TokenUpId String
                   deriving (Eq, Show)

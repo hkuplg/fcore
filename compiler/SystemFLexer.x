@@ -7,9 +7,7 @@ import SystemFTokens
 
 %wrapper "basic"
 
-$upperAlpha = [A-Z]
-$lowerAlpha = [a-z]
-$alpha = [$upperAlpha $lowerAlpha]
+$alpha = [A-Za-z]
 $digit = [0-9]
 
 tokens :-
@@ -26,8 +24,8 @@ tokens :-
     forall      { \_ -> TokenForall }
     Int         { \_ -> TokenInt }
 
-    [a-z] [$alpha $digit \_ \']*        { \s -> TokenId s }
-    [\'] [a-z] [$alpha $digit \_ \']*   { \s -> TokenTVar (drop 1 s) }
+    [a-z] [$alpha $digit \_ \']*  { \s -> TokenLowId s }
+    [A-Z] [$alpha $digit \_ \']*  { \s -> TokenUpId s }
 
 {
 lexSF :: String -> [SystemFToken]

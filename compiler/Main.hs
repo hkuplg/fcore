@@ -4,27 +4,28 @@ import SystemFParser    (readSF)
 import SystemFJava
 import Test.HUnit
 import Language.Java.Pretty
+import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
 
 -- Some test terms
 
--- /\a. \(x:a) . x
+-- /\A. \(x:A) . x
 
-idF1Str = "/\\a. \\(x:a) . x"
+idF1Str = "/\\A. \\(x:A) . x"
 idF = FBLam (\a -> FLam (FTVar a) (\x -> FVar x))
 
--- /\a . (\(f : a -> a) . \(x : a) . f x) (idF a)
+-- /\A . (\(f : A -> A) . \(x : A) . f x) (idF A)
 
-idF2Str = "/\\a . (\\(f : a -> a) . \\(x : a) . f x) (idF a)"
+idF2Str = "/\\A . (\\(f : A -> A) . \\(x : A) . f x) (idF A)"
 idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) (\x -> FApp (FVar f) (FVar x)))) (FTApp idF (FTVar a)))
 
--- /\a . \(x:a) . (idF a) x
+-- /\A . \(x:A) . (idF A) x
 
-idF3Str = "/\\a . \\(x:a) . (idF a) x"
+idF3Str = "/\\A . \\(x:A) . (idF A) x"
 idF3 = FBLam (\a -> FLam (FTVar a) (\x -> FApp (FTApp idF (FTVar a)) (FVar x) ))
 
--- /\a . \(f : a -> a -> a) . \(g : a -> a) . \(x : a) . f x (g x)
+-- /\A . \(f : A -> A -> A) . \(g : A -> A) . \(x : A) . f x (g x)
 notail =
   FBLam (\a ->
     FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
@@ -32,7 +33,7 @@ notail =
         FLam (FTVar a) (\x ->
           FApp (FApp (FVar f) (FVar x)) (FApp (FVar g) (FVar x)) ))))
 
--- /\ a . \(x : a) . \(y : a) . x
+-- /\A . \(x : A) . \(y : A) . x
 const =
   FBLam (\a ->
     FLam (FTVar a) (\x ->
@@ -42,7 +43,7 @@ const =
     )
   )
 
--- /\a . \(x : a) . notail a (const a) (idF a) x
+-- /\A . \(x : A) . notail A (const A) (idF A) x
 program1 =
   FBLam (\a ->
     FLam (FTVar a) (\x ->
@@ -70,5 +71,15 @@ test3 = TestCase $ assertEqual
 
 test4 = TestCase $ assertEqual
   "Should infeer type of intapp" "(forall (_ : Int) . Int)" ( let (cu, t) = createCU $ compile intapp in (show t) )
+
+-- SystemF to Java
+sf2java :: String -> String
+sf2java src = let (cu, _) = createCU $ compile (readSF src) in prettyPrint cu
+
+-- SystemF file path to Java
+-- Example:
+--      loadsf2java "id.sf"
+loadsf2java :: FilePath -> IO String
+loadsf2java = readFile >=> (return . sf2java)
 
 main = runTestTT $ TestList [test1, test2, test3, test4]
