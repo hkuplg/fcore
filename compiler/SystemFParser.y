@@ -3,7 +3,7 @@ module SystemFParser where
 
 import SystemFTokens
 import SystemFLexer
-import SystemFJava
+import SystemF
 
 import Data.Maybe       (fromJust)
 

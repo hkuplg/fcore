@@ -1,6 +1,8 @@
 module Main where
 
 import SystemFParser    (readSF)
+import SystemF
+import ClosureF
 import SystemFJava
 import Test.HUnit
 import Language.Java.Pretty
