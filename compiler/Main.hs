@@ -3,12 +3,26 @@ module Main where
 import SystemFParser    (readSF)
 import SystemF
 import ClosureF
-import TransCFJava
+import TransCFJava (createCU)
+import Control.Monad.State
+import Language.Java.Syntax as J
+import NaiveTransCFJava
 import Test.HUnit
 import Language.Java.Pretty
 import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
+
+prettyJ :: Pretty a => a -> IO ()
+prettyJ = putStrLn . prettyPrint
+
+compile e = 
+  case evalState (translate (fexp2cexp e)) 0 of
+      (ss,exp,t) -> (J.Block ss,exp, t)
+
+compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))
+
+compileCU e = let (cu,t) = createCU $ compile e in (prettyJ cu >> putStrLn (show t))
 
 -- Some test terms
 

@@ -147,13 +147,7 @@ trans this = T {
             return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
   }
 
--- Naive translation
 
-transNaive = new trans
-
-translate = translateM transNaive
-
-translateScope = translateM transNaive
 
 -- seperating (hopefully) the important bit
 
@@ -190,13 +184,4 @@ pullupClosure [J.LocalVars [] rf vd] = case vd of
 
 
 
-prettyJ :: Pretty a => a -> IO ()
-prettyJ = putStrLn . prettyPrint
 
-compile e = 
-  case evalState (translate (fexp2cexp e)) 0 of
-      (ss,exp,t) -> (J.Block ss,exp, t)
-
-compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))
-
-compileCU e = let (cu,t) = createCU $ compile e in (prettyJ cu >> putStrLn (show t))
