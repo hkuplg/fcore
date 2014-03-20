@@ -3,7 +3,7 @@ module Main where
 import SystemFParser    (readSF)
 import SystemF
 import ClosureF
-import SystemFJava
+import TransCFJava
 import Test.HUnit
 import Language.Java.Pretty
 import Control.Monad    ((>=>))

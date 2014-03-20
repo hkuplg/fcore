@@ -1,6 +1,6 @@
 {-# OPTIONS -XRankNTypes -XFlexibleInstances #-}
 
-module SystemFJava where
+module TransCFJava where
 
 import Prelude hiding (init)
 import Debug.Trace
@@ -188,37 +188,7 @@ pullupClosure [J.LocalVars [] rf vd] = case vd of
                                 [J.VarDecl variableId (Just(J.InitExp exp))] -> exp
 
 
--- Pretty Printing
 
-showPCTyp :: PCTyp Int -> Int -> String
-showPCTyp (CTVar i) n = "a" ++ show i
-showPCTyp (CForall s) n = "(forall " ++ showTScope s n ++ ")"
-showPCTyp CInt n = "Int"
-
-showTScope (Body t) n = ". " ++ showPCTyp t n
-showTScope (Kind f) n = "a" ++ show n ++ " " ++ showTScope (f n) (n+1)
-showTScope (Typ t f) n = "(_ : " ++ showPCTyp t n ++ ") " ++ showTScope (f ()) (n)
-
-showEScope (Body t) n = ". " ++ showPCExp t n
-showEScope (Kind f) n = "a" ++ show n ++ " " ++ showEScope (f n) (n+1)
-showEScope (Typ t f) n = "(x" ++ show n ++ " : " ++ showPCTyp t n ++ ") " ++ showEScope (f n) (n+1)
-
-showPCExp (CVar x) n      = "x" ++ show x
-showPCExp (CLam s) n      = "(\\" ++ showEScope s n ++ ")"
-showPCExp (CApp e1 e2) n  = showPCExp e1 n ++ " " ++ showPCExp e2 n
-showPCExp (CTApp e t) n   = showPCExp e n ++ " " ++ showPCTyp t n
-
-instance Show (PCTyp Int) where
-   show e = showPCTyp e 0
-
-instance Show (TScope Int) where
-   show e = showTScope e 0
-
-instance Show (EScope Int Int) where
-   show e = showEScope e 0
-
-instance Show (PCExp Int Int) where
-   show e = showPCExp e 0
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
