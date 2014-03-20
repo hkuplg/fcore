@@ -13,7 +13,7 @@ import Language.Java.Pretty
 import ClosureF
 import Mixins
 
-import TransCFJava hiding (trans)
+import TransCFJava 
 
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
@@ -35,8 +35,8 @@ push :: J.Exp -> J.BlockStmt
 push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [stack])) [] (J.Ident "push") [e])))
   where stack = (J.Ident "Stack")
 
-trans :: Open TranslateStack
-trans this = TS {
+transS :: Open TranslateStack
+transS this = TS {
   toT = T {
     translateM = \e -> case e of 
        CApp _ _ ->
@@ -47,29 +47,27 @@ trans this = TS {
     translateScopeM = translateScopeM (toT this)
     },
   
-  translateScheduleM = undefined 
+  translateScheduleM = \e -> case e of
+    CApp e1 e2  -> -- CJ-App-Sigma
+      do  n <- get
+          put (n+1)
+          (s1,j1,sig1,CForall (Typ t1 g)) <- translateScheduleM this e1
+          (s2,j2,sig2,t2) <- translateScheduleM this e2
+          let t    = g ()
+          let f    = J.Ident ("x" ++ show n) -- use a fresh variable
+          let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
+          let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
+          let p = push (J.ExpName (J.Name [f]))
+          let sig = case t of -- checking the type whether to generate the apply() call
+                      Body _ -> ([cvar,ass],[p])
+                      _ -> ([cvar,ass],[])
+          let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
+          return (s1 ++ s2, j3, sig : (sig2 ++ sig1), scope2ctyp t) -- need to check t1 == t2
+    otherwise ->
+         do  (s,j,t) <- translateM (toT this) e
+             return (s,j,[],t)
   }
              
-{-
+transStack = new (\this -> transS (TS (trans (toT this)) (translateScheduleM this)))
 
-translateSchedule (CApp e1 e2)  = -- CJ-App-Sigma
-  do  n <- get
-      put (n+1)
-      (s1,j1,sig1,CForall (Typ t1 g)) <- translateSchedule e1
-      (s2,j2,sig2,t2) <- translateSchedule e2
-      let t    = g ()
-      let f    = J.Ident ("x" ++ show n) -- use a fresh variable
-      let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
-      let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
-      let p = push (J.ExpName (J.Name [f]))
-      let sig = case t of -- checking the type whether to generate the apply() call
-               Body _ -> ([cvar,ass],[p])
-               _ -> ([cvar,ass],[])
-      let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-      return (s1 ++ s2, j3, sig : (sig2 ++ sig1), scope2ctyp t) -- need to check t1 == t2
-
-translateSchedule e             = -- CJ-Rest-Sigma
-  do (s,j,t) <- translate e
-     return (s,j,[],t)
-
--}
+--translate = translateM (toT transStack)
