@@ -10,6 +10,7 @@ import Control.Monad.State
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
+import Mixins
 
 -- System F syntax
 
@@ -185,78 +186,96 @@ instance Subst t => Subst (PCTyp t) where
    subst n t x = CTVar (substType n t x)
 
 -- main translation function
+data Translate = T {
+  translateM :: 
+     PCExp Int (Int, PCTyp Int) -> 
+     State Int ([J.BlockStmt], J.Exp, PCTyp Int),
+  translateScopeM :: 
+    Scope (PCExp Int (Int, PCTyp Int)) Int (Int, PCTyp Int) -> 
+    State Int ([J.BlockStmt], J.Exp, TScope Int)
+  }
 
-translate :: PCExp Int (Int, PCTyp Int) -> State Int ([J.BlockStmt], J.Exp, PCTyp Int)
+trans :: Open Translate
+trans this = T {
+  translateM = \e -> case e of 
+     CVar (i,t) -> 
+       return ([],var ("x" ++ show i ++ ".x"), t)
+     
+     CFLit e    -> 
+       return ([],J.Lit $ J.Int e, CInt)
+     
+     CFPrimOp e1 op e2 ->
+       do  (s1,j1,t1) <- translateM this e1
+           (s2,j2,t2) <- translateM this e2
+           return (s1 ++ s2, J.BinOp j1 op j2, t1)
+           
+     CFif0 e1 e2 e3 ->
+       do  n <- get
+           put (n+1)
+           (s1,j1,t1) <- translateM this e1
+           (s2,j2,t2) <- translateM this e2
+           (s3,j3,t3) <- translateM this e3
+           let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
+           return (s1 ++ [ifstmt], ifexp, t2)                     -- need to check t2 == t3
+           
+     CFTuple tuple ->
+       liftM reduceTTuples $ mapM (translateM this) tuple
+       
+     CFProj i (CFTuple tuple) ->
+       translateM this (tuple!!i)
+       
+     CTApp e t -> 
+       do  n <- get
+           (s,je, CForall (Kind f)) <- translateM this e
+           return (s,je, scope2ctyp (substScope n t (f n)))
+           
+     CLam s ->
+       do  (s,je, t) <- translateScopeM this s
+           return (s,je, CForall t)
+           
+     CApp e1 e2 ->
+       do  n <- get
+           put (n+1)
+           (s1,j1, CForall (Typ t1 g)) <- translateM this e1
+           (s2,j2,t2) <- translateM this e2
+           let t    = g ()
+           let f    = J.Ident ("x" ++ show n) -- use a fresh variable
+           let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
+           let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
+           let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
+           let s3 = case t of -- checking the type whether to generate the apply() call
+                       Body _ -> [cvar,ass,apply]
+                       _ -> [cvar,ass]
+           let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
+           return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
+  translateScopeM = \e -> case e of 
+      Body t ->
+        do  (s,je, t1) <- translateM this t
+            return (s,je, Body t1)
+          
+      Kind f -> 
+        do  n <- get
+            put (n+1) -- needed? 
+            (s,je,t1) <- translateScopeM this (f n)
+            return (s,je, Kind (\a -> substScope n (CTVar a) t1)) 
+            
+      Typ t f ->
+        do  n <- get
+            put (n+2)
+            (s,je,t1) <- translateScopeM this (f (n+1,t))
+            let f    = J.Ident ("x" ++ show n) -- use a fresh variable
+            let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable
+            let cvar = refactoredScopeTranslationBit je self s f
+            return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+  }
 
-translate (CVar (i,t)) = return ([],var ("x" ++ show i ++ ".x"), t) -- small hack!
+-- Naive translation
 
-translate (CFLit e) = return ([],J.Lit $ J.Int e, CInt)
+transNaive = new trans
 
-translate (CFPrimOp e1 op e2) =
-   do (s1,j1,t1) <- translate e1
-      (s2,j2,t2) <- translate e2
-      return (s1 ++ s2, J.BinOp j1 op j2, t1)
-               
-translate (CFif0 e1 e2 e3) = 
-   do  n <- get
-       put (n+1)
-       (s1,j1,t1) <- translate e1
-       (s2,j2,t2) <- translate e2
-       (s3,j3,t3) <- translate e3
-       let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
-       return (s1 ++ [ifstmt], ifexp, t2)                     -- need to check t2 == t3
+translate = translateM transNaive
 
-translate (CFTuple tuple) = 
-   liftM reduceTTuples $ mapM translate tuple
-
-translate (CFProj i e) = 
-   case e of 
-     (CFTuple tuple) -> translate (tuple!!i)
-
-translate (CTApp e t) = 
-   do n <- get
-      (s,je, CForall (Kind f)) <- translate e
-      return (s,je, scope2ctyp (substScope n t (f n)))
-
-translate (CLam s) =
-   do  (s,je, t) <- translateScope s
-       return (s,je, CForall t)
-
-translate (CApp e1 e2) =
-   do n <- get
-      put (n+1)
-      (s1,j1,t1) <- translate e1
-      (s2,j2,t2) <- translate e2
-      let t    = case t1 of CForall (Typ t1' g1) -> g1 ()
-                            _ -> case t2 of CForall (Typ _ g2) -> g2 ()
-      let f    = J.Ident ("x" ++ show n) -- use a fresh variable
-      let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
-      let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
-      let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
-      let s3 = case t of -- checking the type whether to generate the apply() call
-               Body _ -> [cvar,ass,apply]
-               _ -> [cvar,ass]
-      let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-      return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
-
-translateScope (Body t) =
-   do  (s,je, t1) <- translate t
-       return (s,je, Body t1)
-
-translateScope (Kind f) = 
-   do n <- get
-      put (n+1) -- needed? 
-      (s,je,t1) <- translateScope (f n)
-      return (s,je, Kind (\a -> substScope n (CTVar a) t1)) 
-
-translateScope (Typ t f) =
-  do n <- get
-     put (n+2)
-     (s,je,t1) <- translateScope (f (n+1,t))
-     let f    = J.Ident ("x" ++ show n) -- use a fresh variable
-     let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable
-     let cvar = refactoredScopeTranslationBit je self s f
-     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+translateScope = translateM transNaive
 
 -- seperating (hopefully) the important bit
 

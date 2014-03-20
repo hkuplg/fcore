@@ -15,6 +15,17 @@
 
 > term = "\\x.x"
 
-> parseExp :: String -> [(Char,e)] -> PExp e
-> parseExp ('\\' : 'x' : '.' : ss) env = Lam (\x -> parseExp ss (('x',x) : env) )
-> parseExp ('x' : ss) env = Var (fromJust (lookup 'x' env))
+> parseExp :: String -> [Char] -> Maybe (PExp Char, [Char])
+> parseExp ('\\' : name : '.' : ss) env = 
+>   do (e,env') <- parseExp ss (name : env)
+>      return (Lam (\a -> e), env')
+> parseExp (name : ss) env 
+>  | elem name env  = Just (Var name,env)
+>  | otherwise      = Nothing                         
+
+
+parseExp ss n
+  
+--Lam (\x -> parseExp ss (('x',x) : env) )
+
+> -- parseExp ('x' : ss) env = Var (fromJust (lookup 'x' env))
