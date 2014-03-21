@@ -1,6 +1,6 @@
 {-# OPTIONS -XRankNTypes -XFlexibleInstances #-}
 
-module TransCFJavaStack where
+module StackTransCFJava where
 
 import Prelude hiding (init)
 import Debug.Trace
@@ -67,7 +67,5 @@ transS this = TS {
          do  (s,j,t) <- translateM (toT this) e
              return (s,j,[],t)
   }
-             
-transStack = new (\this -> transS (TS (trans (toT this)) (translateScheduleM this)))
 
---translate = translateM (toT transStack)
+-- translate = translateM (toT transStack)

@@ -6,12 +6,15 @@ import ClosureF
 import TransCFJava (createCU)
 import Control.Monad.State
 import Language.Java.Syntax as J
-import NaiveTransCFJava
+import TransCFJava
+import Translations
 import Test.HUnit
 import Language.Java.Pretty
 import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
+
+translate = translateM naive
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
