@@ -3,6 +3,7 @@ module Translations where
 import Mixins
 import TransCFJava
 import StackTransCFJava
+import UberNaiveTransCFJava
 
 -- Naive translation
 
@@ -20,3 +21,10 @@ transMix this = TS (trans (toT this)) (translateScheduleM this)
 
 stack :: TranslateStack
 stack = new (transS . transMix)
+
+-- adaptor for the translation without apply() distinction - not sure whether really needed
+transMixN :: Open NaiveTranslate 
+transMixN this = NT (trans (toTr this))
+
+ubernaive :: NaiveTranslate
+ubernaive = new (transUN . transMixN)
