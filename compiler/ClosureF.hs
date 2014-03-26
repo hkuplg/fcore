@@ -26,6 +26,8 @@ data PCExp t e =
    | CFif0 (PCExp t e) (PCExp t e) (PCExp t e)
    | CFTuple [PCExp t e]
    | CFProj Int (PCExp t e)
+   -- fixpoints
+   | CFix (PCTyp t) (EScope t e) 
 
 -- System F to Closure F
 
@@ -50,31 +52,18 @@ fexp2cexp (FLit e) = CFLit e
 fexp2cexp (Fif0 e1 e2 e3) = CFif0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
 fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
+-- fexp2cexp (FFix t1 f t2) = CFix (ftyp2ctyp (FFun t1 t2)) (Typ (\e -> groupLambda (FLam t1 (f e))) -- correct ?
 fexp2cexp e             = CLam (groupLambda e)
+
+-- adjust :: PFTyp t -> EScope t e -> TScope t
+-- adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined))
 
 groupLambda :: PFExp t e -> EScope t e
 groupLambda (FBLam f)  = Kind (\a -> groupLambda (f a))
 groupLambda (FLam t f) = Typ (ftyp2ctyp t) (\x -> groupLambda (f x))
 groupLambda e          = Body (fexp2cexp e)
 
--- type inference for Closure F
-
-infer = joinPCTyp . inferExp
-
-inferExp :: PCExp (PCTyp t) (PCTyp t) -> PCTyp (PCTyp t)
-inferExp (CVar t) = CTVar t
-inferExp (CTApp e t) =
-  case inferExp e of 
-     (CForall (Kind f)) -> scope2ctyp (f (joinPCTyp t))
-inferExp (CApp e1 e2) = 
-  case (inferExp e1, inferExp e2) of 
-     (CForall (Typ t1 f),t3) -> scope2ctyp (f ())
-inferExp (CLam s) = CForall (inferScope s)
-
--- inferScope :: EScope (PCTyp t e) (PCTyp t e) -> TScope (PCTyp t e) (PCTyp t e)
-inferScope (Body e)   = Body (inferExp e)
-inferScope (Kind f)   = Kind (\a -> inferScope (f a))
-inferScope (Typ t f)  = Typ t (\_ -> inferScope (f (joinPCTyp t)))
+-- join
 
 scope2ctyp :: TScope t -> PCTyp t
 scope2ctyp (Body t)  = t
@@ -131,6 +120,7 @@ showPCExp (CVar x) n      = "x" ++ show x
 showPCExp (CLam s) n      = "(\\" ++ showEScope s n ++ ")"
 showPCExp (CApp e1 e2) n  = showPCExp e1 n ++ " " ++ showPCExp e2 n
 showPCExp (CTApp e t) n   = showPCExp e n ++ " " ++ showPCTyp t n
+showPCExp (CFix t f) n    = "TODO!"
 
 instance Show (PCTyp Int) where
    show e = showPCTyp e 0

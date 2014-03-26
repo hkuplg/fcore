@@ -19,3 +19,5 @@ data PFExp t e =
    | Fif0 (PFExp t e) (PFExp t e) (PFExp t e)
    | FTuple [PFExp t e]
    | FProj Int (PFExp t e)
+   -- fixpoints
+   | FFix (PFTyp t) (e -> e -> PFExp t e) (PFTyp t)  -- fix y . \(x : t1) . e : t2

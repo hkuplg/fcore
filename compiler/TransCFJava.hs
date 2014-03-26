@@ -110,6 +110,8 @@ trans this = T {
      CLam s ->
        do  (s,je, t) <- translateScopeM this s
            return (s,je, CForall t)
+     
+     CFix t f   -> undefined
            
      CApp e1 e2 ->
        do  n <- get
@@ -126,6 +128,7 @@ trans this = T {
                        _ -> [cvar,ass]
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
            return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
+  
   translateScopeM = \e -> case e of 
       Body t ->
         do  (s,je, t1) <- translateM this t
