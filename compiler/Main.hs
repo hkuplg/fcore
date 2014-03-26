@@ -6,6 +6,7 @@ import ClosureF
 import TransCFJava (createCU)
 import Control.Monad.State
 import Language.Java.Syntax as J
+import StackTransCFJava
 import TransCFJava
 import Translations
 import Test.HUnit
@@ -14,7 +15,7 @@ import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
 
-translate = translateM naive
+translate = translateM (toT stack)
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
