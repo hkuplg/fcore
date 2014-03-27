@@ -20,11 +20,11 @@ data NaiveTranslate = NT {
 transUN :: Open NaiveTranslate
 transUN this = NT { toTr = T {
   translateM = \e -> translateM (toTr this) e,
-  translateScopeM = \e -> case e of 
+  translateScopeM = \e m -> case e of 
       Typ t f ->
         do  n <- get
             put (n+2)
-            (s,je,t1) <- translateScopeM (toTr this) (f (n+1,t))
+            (s,je,t1) <- translateScopeM (toTr this) (f (Left (n+1),t)) m
             let f    = J.Ident ("x" ++ show n) -- use a fresh variable
             let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable
             let currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId self) (Just (J.InitExp J.This))]
@@ -36,6 +36,6 @@ transUN this = NT { toTr = T {
                                                 )]
             return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
-      otherwise -> translateScopeM (toTr this) e
+      otherwise -> translateScopeM (toTr this) e m
     }
    }

@@ -52,11 +52,15 @@ fexp2cexp (FLit e) = CFLit e
 fexp2cexp (Fif0 e1 e2 e3) = CFif0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
 fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
--- fexp2cexp (FFix t1 f t2) = CFix (ftyp2ctyp (FFun t1 t2)) (Typ (\e -> groupLambda (FLam t1 (f e))) -- correct ?
+fexp2cexp (FFix t1 f t2) = 
+  let  t = (Typ (ftyp2ctyp t1) (\e -> groupLambda (FLam t1 (f e)))) 
+  in   CFix (CForall (adjust (FFun t1 t2) t)) t
 fexp2cexp e             = CLam (groupLambda e)
 
--- adjust :: PFTyp t -> EScope t e -> TScope t
--- adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined))
+adjust :: PFTyp t -> EScope t e -> TScope t
+adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
+adjust (FForall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
+adjust t (Body b)               = Body (ftyp2ctyp t)
 
 groupLambda :: PFExp t e -> EScope t e
 groupLambda (FBLam f)  = Kind (\a -> groupLambda (f a))

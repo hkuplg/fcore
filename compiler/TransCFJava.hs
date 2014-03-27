@@ -61,23 +61,27 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
         tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
 
-
+type Var = Either Int Int -- left -> standard variable; right -> recursive variable
 
 -- main translation function
 data Translate = T {
   translateM :: 
-     PCExp Int (Int, PCTyp Int) -> 
+     PCExp Int (Var, PCTyp Int) -> 
      State Int ([J.BlockStmt], J.Exp, PCTyp Int),
   translateScopeM :: 
-    Scope (PCExp Int (Int, PCTyp Int)) Int (Int, PCTyp Int) -> 
+    Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) -> 
+    Maybe (Int,PCTyp Int) ->
     State Int ([J.BlockStmt], J.Exp, TScope Int)
   }
 
 trans :: Open Translate
 trans this = T {
   translateM = \e -> case e of 
-     CVar (i,t) -> 
+     CVar (Left i,t) -> -- non-recursive variable
        return ([],var ("x" ++ show i ++ ".x"), t)
+     
+     CVar (Right i, t) -> -- recursive variable
+       return ([],var ("x" ++ show i), t)
      
      CFLit e    -> 
        return ([],J.Lit $ J.Int e, CInt)
@@ -101,17 +105,21 @@ trans this = T {
        
      CFProj i (CFTuple tuple) ->
        translateM this (tuple!!i)
-       
+     
      CTApp e t -> 
        do  n <- get
            (s,je, CForall (Kind f)) <- translateM this e
            return (s,je, scope2ctyp (substScope n t (f n)))
-           
+     
      CLam s ->
-       do  (s,je, t) <- translateScopeM this s
+       do  (s,je, t) <- translateScopeM this s Nothing
            return (s,je, CForall t)
      
-     CFix t f   -> undefined
+     CFix t s   -> 
+       do  n <- get
+           put (n+1)
+           (s, je, t') <- translateScopeM this s (Just (n,t))
+           return (s,je, CForall t')
            
      CApp e1 e2 ->
        do  n <- get
@@ -129,7 +137,7 @@ trans this = T {
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
            return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
   
-  translateScopeM = \e -> case e of 
+  translateScopeM = \e m -> case e of 
       Body t ->
         do  (s,je, t1) <- translateM this t
             return (s,je, Body t1)
@@ -137,17 +145,25 @@ trans this = T {
       Kind f -> 
         do  n <- get
             put (n+1) -- needed? 
-            (s,je,t1) <- translateScopeM this (f n)
+            (s,je,t1) <- translateScopeM this (f n) m
             return (s,je, Kind (\a -> substScope n (CTVar a) t1)) 
-            
-      Typ t f ->
+          
+      Typ t g -> 
         do  n <- get
-            put (n+2)
-            (s,je,t1) <- translateScopeM this (f (n+1,t))
             let f    = J.Ident ("x" ++ show n) -- use a fresh variable
-            let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable
-            let cvar = refactoredScopeTranslationBit je self s f
-            return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+            case m of -- Consider refactoring later?
+              Nothing -> 
+                do  put (n+2)
+                    let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable              
+                    (s,je,t1) <- translateScopeM this (g (Left (n+1),t)) m
+                    let cvar = refactoredScopeTranslationBit je self s f
+                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+              Just (i,t') ->
+                do  put (n+1)
+                    let self = J.Ident ("x" ++ show i)
+                    (s,je,t1) <- translateScopeM this (g (Right i,t')) m
+                    let cvar = refactoredScopeTranslationBit je self s f
+                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
   }
 
 

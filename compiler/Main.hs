@@ -15,7 +15,7 @@ import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
 
-translate = translateM (toT stack)
+translate = translateM naive
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint

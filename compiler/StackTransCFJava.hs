@@ -19,7 +19,7 @@ type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
 data TranslateStack = TS {
   toT :: Translate,
-  translateScheduleM :: PCExp Int (Int, PCTyp Int) -> State Int ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
+  translateScheduleM :: PCExp Int (Var, PCTyp Int) -> State Int ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
   }
                       
 sstack :: Schedule -> [J.BlockStmt]
