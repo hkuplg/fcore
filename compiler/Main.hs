@@ -30,6 +30,9 @@ compileCU e = let (cu,t) = createCU $ compile e in (prettyJ cu >> putStrLn (show
 
 -- Some test terms
 
+-- mu fact . \(n : Int) . if0 n then 1 else n * fact (n-1)
+-- fact = FFix PFInt (\fact n -> Fif0 (FVar n) (FLit 1) (FPrimOp (FVar n) )) PFInt
+
 -- /\A. \(x:A) . x
 
 idF1Str = "/\\A. \\(x:A) . x"

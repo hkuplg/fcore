@@ -2,9 +2,9 @@
 
 module TransCFJava where
 
-import Prelude hiding (init)
+import Prelude hiding (init, last)
 import Debug.Trace
-import Data.List hiding (init)
+import Data.List hiding (init, last)
 
 import Control.Monad.State
 
@@ -152,21 +152,24 @@ trans this = T {
         do  n <- get
             let f    = J.Ident ("x" ++ show n) -- use a fresh variable
             case m of -- Consider refactoring later?
-              Nothing -> 
-                do  put (n+2)
-                    let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable              
-                    (s,je,t1) <- translateScopeM this (g (Left (n+1),t)) m
-                    let cvar = refactoredScopeTranslationBit je self s f
-                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
-              Just (i,t') ->
+              Just (i,t') | last (g (Right i,t')) ->
                 do  put (n+1)
                     let self = J.Ident ("x" ++ show i)
                     (s,je,t1) <- translateScopeM this (g (Right i,t')) m
                     let cvar = refactoredScopeTranslationBit je self s f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+              otherwise -> 
+                do  put (n+2)
+                    let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable              
+                    (s,je,t1) <- translateScopeM this (g (Left (n+1),t)) m
+                    let cvar = refactoredScopeTranslationBit je self s f
+                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+  
   }
 
-
+last (Typ _ _) = False
+last (Kind f)  = last (f 0)
+last (Body _)  = True
 
 -- seperating (hopefully) the important bit
 
