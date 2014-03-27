@@ -1,21 +1,22 @@
-.PHONY : parsers
-parsers : SystemFLexer.hs SystemFParser.hs
+languages = HM SystemF
+
+# Append "Lexer.hs" to language names
+lexers  = $(languages:%=%Lexer.hs)
+
+# Append "Parser.hs" to language names
+parsers = $(languages:%=%Parser.hs)
+
+.PHONY : all
+all : $(lexers) $(parsers)
 
 # When compiling a grammar with GHC, the -g switch causes an even faster and
 # smaller grammar to be generated.
-SystemFLexer.hs : SystemFLexer.x
+$(lexers) : %.hs : %.x
 	alex -g $<
 
-SystemFParser.hs : SystemFParser.y
+$(parsers) : %.hs : %.y
 	happy -i $<
-
-.PHONY : test
-test :
-	make parsers
-	ghci Main.hs
 
 .PHONY : clean
 clean :
-	rm -f SystemFLexer.hs
-	rm -f SystemFParser.hs
-	rm -f SystemFParser.info
+	rm -f $(lexers) $(parsers)
