@@ -118,19 +118,16 @@ trans this = T {
      CFix t s   -> 
        do  n <- get
            put (n+1)
-           (s, je, t') <- translateScopeM this s (Just (n,t))
+           (s, je, t') <- translateScopeM this (s (Right n,t)) (Just (n,t)) -- weird!
            return (s,je, CForall t')
            
      CApp e1 e2 ->
        do  n <- get
            put (n+1)
-           -- (s1,j1, CForall (Typ t1 g)) <- translateM this e1
+           (s1,j1, CForall (Typ t1 g)) <- translateM this e1
            -- DEBUG
-           (s1,j1, debug) <- translateM this e1
-           -- (CForall (Typ t1 g)) <- case debug of 
-           --   CInt -> return (CForall (Typ CInt (\_ -> Body CInt)))
-           --   _ -> return debug
-           (CForall (Typ t1 g)) <- trace ("C:" ++ show debug) (return debug)
+           -- (s1,j1, debug) <- translateM this e1
+           -- (CForall (Typ t1 g)) <- trace ("C:" ++ show debug) (return debug)
            -- END DEBUG
            (s2,j2,t2) <- translateM this e2
            let t    = g ()
@@ -162,7 +159,7 @@ trans this = T {
               Just (i,t') | last (g (Right i,t')) ->
                 do  put (n+1)
                     let self = J.Ident ("x" ++ show i)
-                    (s,je,t1) <- translateScopeM this (g (Right i,t')) m
+                    (s,je,t1) <- translateScopeM this (g (Left i,t)) m
                     let cvar = refactoredScopeTranslationBit je self s f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
