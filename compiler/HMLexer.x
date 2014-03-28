@@ -1,7 +1,7 @@
 {
 module HMLexer (lexHM) where
 
-import HM       (CompOp (..), BinOp (..))
+import HM       (UnOp (..), BinOp (..))
 import HMTokens
 
 }
@@ -27,18 +27,23 @@ tokens :-
     \(          { \_ -> TokenOParen }
     \)          { \_ -> TokenCParen }
 
+    \!          { \_ -> TokenUn Not }
+
     \+          { \_ -> TokenBin Add }
     \-          { \_ -> TokenBin Sub }
     \*          { \_ -> TokenBin Mul }
     \/          { \_ -> TokenBin Div }
     \%          { \_ -> TokenBin Mod }
 
-    \=\=        { \_ -> TokenComp Eq }
-    \/\=        { \_ -> TokenComp Ne }
-    \<          { \_ -> TokenComp Lt }
-    \>          { \_ -> TokenComp Gt }
-    \<=         { \_ -> TokenComp Le }
-    \>=         { \_ -> TokenComp Ge }
+    \=\=        { \_ -> TokenBin Eq }
+    \!\=        { \_ -> TokenBin Ne }
+    \<          { \_ -> TokenBin Lt }
+    \>          { \_ -> TokenBin Gt }
+    \<=         { \_ -> TokenBin Le }
+    \>=         { \_ -> TokenBin Ge }
+
+    \&\&        { \_ -> TokenBin And }
+    \|\|        { \_ -> TokenBin Or }
 
     if          { \_ -> TokenIf }
     then        { \_ -> TokenThen }

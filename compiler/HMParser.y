@@ -3,7 +3,7 @@ module HMParser where
 
 import HMTokens
 import HMLexer
-import HM       (Exp (..), BinOp (..), CompOp (..))
+import HM       (Exp (..), UnOp (..), BinOp (..))
 
 }
 
@@ -25,18 +25,23 @@ in      { TokenIn }
 "("     { TokenOParen }
 ")"     { TokenCParen }
 
+"!"     { TokenUn Not }
+
 "+"     { TokenBin Add }
 "-"     { TokenBin Sub }
 "*"     { TokenBin Mul }
 "/"     { TokenBin Div }
 "%"     { TokenBin Mod }
 
-"=="    { TokenComp Eq }
-"/="    { TokenComp Ne }
-"<"     { TokenComp Lt }
-">"     { TokenComp Gt }
-"<="    { TokenComp Le }
-">="    { TokenComp Ge }
+"=="    { TokenBin Eq }
+"/="    { TokenBin Ne }
+"<"     { TokenBin Lt }
+">"     { TokenBin Gt }
+"<="    { TokenBin Le }
+">="    { TokenBin Ge }
+
+"&&"    { TokenBin And }
+"||"    { TokenBin Or }
 
 if      { TokenIf }
 then    { TokenThen }
@@ -51,7 +56,12 @@ lowid   { TokenLowId $$ }
 
 %left "||"
 %left "&&"
-%left "==" "/=" "<" ">" "<=" ">="
+%left "==" "!=" "<" ">" "<=" ">="
+
+%left "+" "-"
+%left "*" "/" "%"
+
+%nonassoc UMINUS
 
 %%
 
@@ -62,18 +72,24 @@ Exp : "(" Exp ")"             { $2 }
     | let     var "=" Exp in Exp  { ELet    $2 $4 $6 }
     | let rec Bindings    in Exp  { ELetRec $3 $5 }
 
+    -- | "-" Exp %prec UMINUS  { EUn UMinus $2 }
+    | "!" Exp               { EUn Not $2 }
+
     | Exp "+" Exp  { EBin Add $1 $3 }
     | Exp "-" Exp  { EBin Sub $1 $3 }
     | Exp "*" Exp  { EBin Mul $1 $3 }
     | Exp "/" Exp  { EBin Div $1 $3 }
     | Exp "%" Exp  { EBin Mod $1 $3 }
 
-    | Exp "==" Exp  { EComp Eq $1 $3 }
-    | Exp "/=" Exp  { EComp Ne $1 $3 }
-    | Exp "<"  Exp  { EComp Lt $1 $3 }
-    | Exp ">"  Exp  { EComp Gt $1 $3 }
-    | Exp "<=" Exp  { EComp Le $1 $3 }
-    | Exp ">=" Exp  { EComp Ge $1 $3 }
+    | Exp "==" Exp  { EBin Eq $1 $3 }
+    | Exp "/=" Exp  { EBin Ne $1 $3 }
+    | Exp "<"  Exp  { EBin Lt $1 $3 }
+    | Exp ">"  Exp  { EBin Gt $1 $3 }
+    | Exp "<=" Exp  { EBin Le $1 $3 }
+    | Exp ">=" Exp  { EBin Ge $1 $3 }
+
+    | Exp "&&" Exp  { EBin And $1 $3 }
+    | Exp "||" Exp  { EBin Or  $1 $3 }
 
     | if Exp then Exp else Exp  { EIf $2 $4 $6 }
     | int  { EInt $1 }

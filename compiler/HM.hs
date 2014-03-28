@@ -17,15 +17,18 @@ data Exp = EVar Var
          | ELam Var Exp
          | ELet    Var Exp Exp
          | ELetRec [(Var, Exp)] Exp  -- let x1 = e1 and x2 = e2 and ... in e
-         | EBin  BinOp Exp Exp
-         | EComp CompOp Exp Exp
+         | EUn UnOp Exp
+         | EBin BinOp Exp Exp
          | EIf Exp Exp Exp
          | EInt Int
          deriving (Eq, Show)
 
-data CompOp = Eq | Ne | Lt | Gt | Le | Ge deriving (Eq, Show)
+data UnOp = UMinus | Not deriving (Eq, Show)
 
-data BinOp = Add | Sub | Mul | Div | Mod deriving (Eq, Show)
+data BinOp = Add | Sub | Mul | Div | Mod 
+           | Eq | Ne | Lt | Gt | Le | Ge 
+           | And | Or
+           deriving (Eq, Show)
 
 -- tau   ::= alpha | iota | tau -> tau
 -- sigma ::= tau | forall alpha . sigma
