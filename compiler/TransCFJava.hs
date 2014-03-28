@@ -29,13 +29,13 @@ jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) []
 closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 
 comparezero :: J.Exp -> J.Exp
-comparezero jexp = J.BinOp jexp J.Equal (J.Lit $ J.Int 0)
+comparezero jexp = genOp jexp J.Equal (J.Lit $ J.Int 0)
 
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
 ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (comparezero j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
     where
-        j2Stmt = [(J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j2)))]))]
-        j3Stmt = [(J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j3)))]))]
+        j2Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j2)))]))]
+        j3Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j3)))]))]
         ifvarname = ("ifres" ++ show n)
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
         newvar = var ifvarname
@@ -60,6 +60,16 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
         arrayAssignment = J.ArrayCreateInit (J.RefType (refType "Object")) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
         tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
+
+boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
+
+genOp :: J.Exp -> J.Op -> J.Exp -> J.Exp
+genOp j1 op j2 = J.BinOp maybeCasted1 op maybeCasted2
+    where
+        maybeCasted1 = case j1 of J.Lit e -> j1
+                                  _ -> J.Cast boxedIntType j1
+        maybeCasted2 = case j2 of J.Lit e -> j2
+                                  _ -> J.Cast boxedIntType j2
 
 type Var = Either Int Int -- left -> standard variable; right -> recursive variable
 
@@ -89,7 +99,7 @@ trans this = T {
      CFPrimOp e1 op e2 ->
        do  (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
-           return (s1 ++ s2, J.BinOp j1 op j2, t1)
+           return (s1 ++ s2, genOp j1 op j2, t1)
            
      CFif0 e1 e2 e3 ->
        do  n <- get
@@ -97,8 +107,11 @@ trans this = T {
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            (s3,j3,t3) <- translateM this e3
-           let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
-           return (s1 ++ [ifstmt], ifexp, t2)                     -- need to check t2 == t3
+           let ifvarname = ("ifres" ++ show n)
+           let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
+           let ifresdecl = J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
+           let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable        
+           return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)                     -- need to check t2 == t3
            
      CFTuple tuple ->
        liftM reduceTTuples $ mapM (translateM this) tuple
