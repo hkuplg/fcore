@@ -17,6 +17,7 @@ tokens :-
 
     let         { \_ -> TokenLet }
     rec         { \_ -> TokenRec }
+    and         { \_ -> TokenAnd }
     \=          { \_ -> TokenEQ }
     in          { \_ -> TokenIn }
 

@@ -16,8 +16,7 @@ data Exp = EVar Var
          | EApp Exp Exp
          | ELam Var Exp
          | ELet    Var Exp Exp
-         | ELetRec Var Exp Exp
-
+         | ELetRec [(Var, Exp)] Exp  -- let x1 = e1 and x2 = e2 and ... in e
          | EBin  BinOp Exp Exp
          | EComp CompOp Exp Exp
          | EIf Exp Exp Exp

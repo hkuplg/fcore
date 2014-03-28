@@ -15,6 +15,7 @@ import HM       (Exp (..), BinOp (..), CompOp (..))
 
 let     { TokenLet }
 rec     { TokenRec }
+and     { TokenAnd }
 "="     { TokenEQ }
 in      { TokenIn }
 
@@ -59,7 +60,7 @@ Exp : "(" Exp ")"             { $2 }
     | Exp Exp                 { EApp $1 $2 }
     | "\\" var "->" Exp       { ELam $2 $4 }
     | let     var "=" Exp in Exp  { ELet    $2 $4 $6 }
-    | let rec var "=" Exp in Exp  { ELetRec $3 $5 $7 }
+    | let rec Bindings    in Exp  { ELetRec $3 $5 }
 
     | Exp "+" Exp  { EBin Add $1 $3 }
     | Exp "-" Exp  { EBin Sub $1 $3 }
@@ -77,6 +78,11 @@ Exp : "(" Exp ")"             { $2 }
     | if Exp then Exp else Exp  { EIf $2 $4 $6 }
     | int  { EInt $1 }
 
+Binding : var "=" Exp   { ($1, $3) }
+
+Bindings : Binding               { [$1] }
+         | Bindings and Binding  { $1 ++ [$3] }
+
 var : lowid  { $1 }
 
 {
@@ -85,4 +91,8 @@ parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
 readHM :: String -> Exp
 readHM = parseHM . lexHM
+
+evenOdd :: String
+evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> n == 1 || even (n-1) in odd 10"
+
 }
