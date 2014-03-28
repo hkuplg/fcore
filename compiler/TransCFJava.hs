@@ -190,6 +190,14 @@ last (Body _)  = True
 
 -- seperating (hopefully) the important bit
 
+currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
+outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
+standardTranslation javaExpression statementsBeforeOA idCurrentName idNextName = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
+                                                (Just (J.InitExp 
+                                                    (jexp [currentInitialDeclaration idCurrentName] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))))
+                                                    )
+                                                )]
+
 refactoredScopeTranslationBit :: J.Exp -> J.Ident -> [J.BlockStmt] -> J.Ident -> J.BlockStmt
 refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA idNextName = completeClosure
     where
@@ -197,11 +205,7 @@ refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA id
         fullAssignment = J.InitDecl False (J.Block [(J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA
                                                     (pullupClosure statementsBeforeOA))))])
         currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
-        completeClosure | checkExp javaExpression  = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
-                                                (Just (J.InitExp 
-                                                    (jexp [currentInitialDeclaration] (Just (J.Block (statementsBeforeOA ++ [outputAssignment]))))
-                                                    )
-                                                )]
+        completeClosure | checkExp javaExpression  = standardTranslation javaExpression statementsBeforeOA idCurrentName idNextName
                         | otherwise = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
                                                 (Just (J.InitExp 
                                                     (jexpOutside [currentInitialDeclaration,fullAssignment]

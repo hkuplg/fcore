@@ -21,20 +21,22 @@ transUN :: Open NaiveTranslate
 transUN this = NT { toTr = T {
   translateM = \e -> translateM (toTr this) e,
   translateScopeM = \e m -> case e of 
-      Typ t f ->
+      Typ t g -> 
         do  n <- get
-            put (n+2)
-            (s,je,t1) <- translateScopeM (toTr this) (f (Left (n+1),t)) m
-            let f    = J.Ident ("x" ++ show n) -- use a fresh variable
-            let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable
-            let currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId self) (Just (J.InitExp J.This))]
-            let outputAssignment = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  je))
-            let cvar = J.LocalVars [] closureType [J.VarDecl (J.VarId f) 
-                                                (Just (J.InitExp 
-                                                    (jexp [currentInitialDeclaration] (Just (J.Block (s ++ [outputAssignment]))))
-                                                    )
-                                                )]
-            return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+            let f    = J.Ident ("x" ++ show n) -- use a fresh variable              
+            case m of -- Consider refactoring later?
+              Just (i,t') | TransCFJava.last (g (Right i,t')) ->
+                do  put (n+1)
+                    let self = J.Ident ("x" ++ show i)
+                    (s,je,t1) <- translateScopeM (toTr this) (g (Left i,t)) m
+                    let cvar = standardTranslation je s self f
+                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+              otherwise -> 
+                do  put (n+2)
+                    let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable              
+                    (s,je,t1) <- translateScopeM (toTr this) (g (Left (n+1),t)) m
+                    let cvar = standardTranslation je s self f
+                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
       otherwise -> translateScopeM (toTr this) e m
     }
