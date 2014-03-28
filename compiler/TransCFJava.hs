@@ -124,7 +124,14 @@ trans this = T {
      CApp e1 e2 ->
        do  n <- get
            put (n+1)
-           (s1,j1, CForall (Typ t1 g)) <- translateM this e1
+           -- (s1,j1, CForall (Typ t1 g)) <- translateM this e1
+           -- DEBUG
+           (s1,j1, debug) <- translateM this e1
+           -- (CForall (Typ t1 g)) <- case debug of 
+           --   CInt -> return (CForall (Typ CInt (\_ -> Body CInt)))
+           --   _ -> return debug
+           (CForall (Typ t1 g)) <- trace ("C:" ++ show debug) (return debug)
+           -- END DEBUG
            (s2,j2,t2) <- translateM this e2
            let t    = g ()
            let f    = J.Ident ("x" ++ show n) -- use a fresh variable
@@ -202,8 +209,8 @@ jexpOutside init = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) 
 
 pullupClosure [J.LocalVars [] rf vd] = case vd of
                                 [J.VarDecl variableId (Just(J.InitExp exp))] -> exp
-
-
+                                _ -> error ("B:" ++ show vd)
+pullupClosure m = error ("A: " ++ concatMap prettyPrint m)   
 
 
 

@@ -53,7 +53,7 @@ fexp2cexp (Fif0 e1 e2 e3) = CFif0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
 fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
 fexp2cexp (FFix t1 f t2) = 
-  let  t = (Typ (ftyp2ctyp t1) (\e -> groupLambda (FLam t1 (f e)))) 
+  let  t = (Typ (ftyp2ctyp t1) (\e -> groupLambda (FLam t1 (f e)))) -- is this right???? (BUG)
   in   CFix (CForall (adjust (FFun t1 t2) t)) t
 fexp2cexp e             = CLam (groupLambda e)
 
