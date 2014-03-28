@@ -4,5 +4,7 @@ systemf/.classpath
 systemf/.project
 compiler/SystemFLexer.hs
 compiler/SystemFParser.hs
+compiler/HMLexer.hs
+compiler/HMParser.hs
 *.info
 *.swp

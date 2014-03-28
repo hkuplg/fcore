@@ -15,8 +15,18 @@ type TVar = String
 data Exp = EVar Var
          | EApp Exp Exp
          | ELam Var Exp
-         | ELet Var Exp Exp
+         | ELet    Var Exp Exp
+         | ELetRec Var Exp Exp
+
+         | EBin  BinOp Exp Exp
+         | EComp CompOp Exp Exp
+         | EIf Exp Exp Exp
+         | EInt Int
          deriving (Eq, Show)
+
+data CompOp = Eq | Ne | Lt | Gt | Le | Ge deriving (Eq, Show)
+
+data BinOp = Add | Sub | Mul | Div | Mod deriving (Eq, Show)
 
 -- tau   ::= alpha | iota | tau -> tau
 -- sigma ::= tau | forall alpha . sigma
