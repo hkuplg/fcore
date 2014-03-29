@@ -109,6 +109,6 @@ readHM :: String -> Exp
 readHM = parseHM . lexHM
 
 evenOdd :: String
-evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> n == 1 || even (n-1) in odd 10"
+evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd 10"
 
 }
