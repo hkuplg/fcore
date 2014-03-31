@@ -12,8 +12,11 @@ import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
 import Mixins
+import Data.Char
 
 -- Closure F to Java
+
+localVarPrefs = ["ifres"]
 
 var x = J.ExpName (J.Name [J.Ident x])
 
@@ -36,7 +39,7 @@ ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (comparezero j1) (J
     where
         j2Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j2)))]))]
         j3Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j3)))]))]
-        ifvarname = ("ifres" ++ show n)
+        ifvarname = (localVarPrefs!!0 ++ show n)
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
         newvar = var ifvarname
 
@@ -107,7 +110,7 @@ trans this = T {
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            (s3,j3,t3) <- translateM this e3
-           let ifvarname = ("ifres" ++ show n)
+           let ifvarname = (localVarPrefs!!0 ++ show n)
            let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
            let ifresdecl = J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
            let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable        
@@ -213,7 +216,7 @@ refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA id
                                                 ))]
 
 checkExp :: J.Exp -> Bool
-checkExp (J.ExpName (J.Name [J.Ident f])) = '.' `elem` f
+checkExp (J.ExpName (J.Name [J.Ident f])) = ('.' `elem` f || ((filter (not . isDigit) f) `elem` localVarPrefs))
 checkExp x = True
 
 jexpOutside init = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] 
