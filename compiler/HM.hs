@@ -13,14 +13,14 @@ type TVar = String
 
 -- e ::= x | e e' | \x . e | let x = e in e'
 data Exp = EVar Var
+         | ELit Int
          | EApp Exp Exp
          | ELam Var Exp
-         | ELet    Var Exp Exp
+         | ELet Var Exp Exp
          | ELetRec [(Var, Exp)] Exp  -- let x1 = e1 and x2 = e2 and ... in e
          | EUn UnOp Exp
          | EBin BinOp Exp Exp
          | EIf Exp Exp Exp
-         | EInt Int
          deriving (Eq, Show)
 
 data UnOp = UMinus | Not deriving (Eq, Show)
@@ -153,6 +153,7 @@ example1 = ELet "bar" bar (EVar "bar")
 
 prettyExp :: Exp -> String
 prettyExp (EVar x) = x
+prettyExp (ELit i) = show i
 prettyExp (EApp e0 e1) = "(" ++ prettyExp e0 ++ " " ++ prettyExp e1 ++ ")"
 prettyExp (ELam x e) = "(\\" ++ x ++ " -> " ++ prettyExp e ++ ")"
 prettyExp (ELet x e0 e1) = "(let " ++ x ++ " = " ++ prettyExp e0 ++ " in " ++ prettyExp e1 ++ ")"
@@ -161,7 +162,6 @@ prettyExp (ELetRec bindings body) = "(let rec " ++ prettyBindings ++ " in " ++ p
 prettyExp (EUn  op e) = "(" ++ prettyUnOp op  ++ prettyExp e ++ ")"
 prettyExp (EBin op e1 e2) = "(" ++ prettyExp e1 ++ " " ++ prettyBinOp op ++ " " ++ prettyExp e2 ++ ")"
 prettyExp (EIf e0 e1 e2) = "(if " ++ prettyExp e0 ++ " then " ++ prettyExp e1 ++ " else " ++ prettyExp e2 ++ ")"
-prettyExp (EInt i) = show i
 
 prettyUnOp :: UnOp -> String
 prettyUnOp UMinus = "-"

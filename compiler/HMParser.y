@@ -92,7 +92,7 @@ Exp : "(" Exp ")"             { $2 }
     | Exp "||" Exp  { EBin Or  $1 $3 }
 
     | if Exp then Exp else Exp  { EIf $2 $4 $6 }
-    | int  { EInt $1 }
+    | int  { ELit $1 }
 
 Binding : var "=" Exp   { ($1, $3) }
 
