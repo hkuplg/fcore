@@ -6,7 +6,7 @@ module HM where
 
 import Prelude hiding (id)
 import Data.Maybe       (fromMaybe)
-import Data.List        (union, delete)
+import Data.List        (union, delete, intercalate)
 
 type Var = String
 type TVar = String
@@ -154,8 +154,35 @@ example1 = ELet "bar" bar (EVar "bar")
 prettyExp :: Exp -> String
 prettyExp (EVar x) = x
 prettyExp (EApp e0 e1) = "(" ++ prettyExp e0 ++ " " ++ prettyExp e1 ++ ")"
-prettyExp (ELam x e) = "(\\" ++ x ++ " . " ++ prettyExp e ++ ")"
+prettyExp (ELam x e) = "(\\" ++ x ++ " -> " ++ prettyExp e ++ ")"
 prettyExp (ELet x e0 e1) = "(let " ++ x ++ " = " ++ prettyExp e0 ++ " in " ++ prettyExp e1 ++ ")"
+prettyExp (ELetRec bindings body) = "(let rec " ++ prettyBindings ++ " in " ++ prettyExp body ++ ")"
+    where prettyBindings = intercalate " and " $ map (\(x, e) -> x ++ " = " ++ prettyExp e) bindings
+prettyExp (EUn  op e) = "(" ++ prettyUnOp op  ++ prettyExp e ++ ")"
+prettyExp (EBin op e1 e2) = "(" ++ prettyExp e1 ++ " " ++ prettyBinOp op ++ " " ++ prettyExp e2 ++ ")"
+prettyExp (EIf e0 e1 e2) = "(if " ++ prettyExp e0 ++ " then " ++ prettyExp e1 ++ " else " ++ prettyExp e2 ++ ")"
+prettyExp (EInt i) = show i
+
+prettyUnOp :: UnOp -> String
+prettyUnOp UMinus = "-"
+prettyUnOp Not    = "!"
+
+prettyBinOp :: BinOp -> String
+prettyBinOp Add = "+" 
+prettyBinOp Sub = "-" 
+prettyBinOp Mul = "*" 
+prettyBinOp Div = "/" 
+prettyBinOp Mod = "%"
+
+prettyBinOp Eq = "=="
+prettyBinOp Ne = "!="
+prettyBinOp Lt = "<"
+prettyBinOp Gt = ">"
+prettyBinOp Le = "<="
+prettyBinOp Ge = ">="
+
+prettyBinOp And = "&&"
+prettyBinOp Or = "||"
 
 prettyType :: Type -> String
 prettyType (TMono t) = prettyMono t
