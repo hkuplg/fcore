@@ -1,9 +1,8 @@
 {
 module HMLexer (lexHM) where
 
-import HM       (UnOp (..), BinOp (..))
+import HMSyntax
 import HMTokens
-
 }
 
 %wrapper "basic"

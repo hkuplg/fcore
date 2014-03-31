@@ -1,10 +1,9 @@
 {
 module HMParser where
 
+import HMSyntax
 import HMTokens
 import HMLexer
-import HM       (Exp (..), UnOp (..), BinOp (..))
-
 }
 
 %name parseHM
@@ -107,8 +106,4 @@ parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
 readHM :: String -> Exp
 readHM = parseHM . lexHM
-
-evenOdd :: String
-evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd 10"
-
 }

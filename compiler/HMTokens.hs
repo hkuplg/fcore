@@ -1,6 +1,6 @@
 module HMTokens where
 
-import HM
+import HMSyntax
 
 data HMToken = TokenLet | TokenRec | TokenAnd | TokenEQ | TokenIn
              | TokenLambda | TokenArrow

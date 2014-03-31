@@ -4,68 +4,15 @@
 -- http://web.cs.wpi.edu/~cs4536/c12/milner-damas_principal_types.pdf
 module HM where
 
+import HMSyntax
+import HMParser         (readHM)
+
 import Prelude hiding (id)
 import Data.Maybe       (fromMaybe)
 import Data.List        (union, delete, intercalate)
 
-type Var = String
-type TVar = String
-
--- e ::= x | e e' | \x . e | let x = e in e'
-data Exp = EVar Var
-         | ELit Int
-         | EApp Exp Exp
-         | ELam Var Exp
-         | ELet Var Exp Exp
-         | ELetRec [(Var, Exp)] Exp  -- let x1 = e1 and x2 = e2 and ... in e
-         | EUn UnOp Exp
-         | EBin BinOp Exp Exp
-         | EIf Exp Exp Exp
-         deriving (Eq, Show)
-
-data UnOp = UMinus | Not deriving (Eq, Show)
-
-data BinOp = Add | Sub | Mul | Div | Mod 
-           | Eq | Ne | Lt | Gt | Le | Ge 
-           | And | Or
-           deriving (Eq, Show)
-
--- tau   ::= alpha | iota | tau -> tau
--- sigma ::= tau | forall alpha . sigma
-data Type = TMono Mono
-          | TPoly Poly
-          deriving (Eq, Show)
-
--- Monotype tau
-data Mono = MVar TVar
-          | MPrim Prim  -- Primitive types
-          | MApp Mono Mono
-          deriving (Eq, Show)
-
-data Prim = Int | Bool deriving (Eq, Show)
-
--- Polytype sigma
-data Poly = PMono Mono
-          | PForall TVar Poly
-          deriving (Show)
-
--- Equality of monotypes is purely syntactical. But syntactically different
--- polytypes are equal w.r.t. renaming their quantified variables.
-instance Eq Poly where
-    PMono t1 == PMono t2           = t1 == t2
-    PMono _     == PForall _ _     = False
-    PForall _ _ == PMono _         = False
-    PForall a1 s1 == PForall a2 s2 = (a1 == a2 && s1 == s2) || eq [(a1,a2)] s1 s2
-        where
-            eq rs (PForall a1 s1) (PForall a2 s2) = eq ((a1,a2):rs) s1 s2
-            eq rs (PMono t1) (PMono t2)           = eqMono rs t1 t2
-                where 
-                    eqMono rs (MVar a1) (MVar a2)       = case lookup a1 rs of Nothing  -> a1  == a2
-                                                                               Just a1' -> a1' == a2
-                    eqMono rs (MPrim t1)   (MPrim t2)   = t1 == t2
-                    eqMono rs (MApp s1 t1) (MApp s2 t2) = eqMono rs s1 s2 && eqMono rs t1 t2
-                    eqMono rs _            _            = False
-            eq rs _ _                             = False
+evenOdd :: String
+evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd 10"
 
 true :: Poly
 true = PForall "a" (PForall "b" (PMono (MVar "a")))
@@ -197,3 +144,30 @@ prettyMono (MApp t0 t1) = "(" ++ prettyMono t0 ++ " -> " ++ prettyMono t1 ++ ")"
 prettyPoly :: Poly -> String
 prettyPoly (PMono t) = prettyMono t
 prettyPoly (PForall a s) = "(forall " ++ a ++ " . " ++ prettyPoly s ++ ")"
+
+-- Type constraints
+-- See http://cs.brown.edu/courses/cs173/2012/book/types.html 
+-- "15.3.2.1 Constraint Generation"
+type Constraint = (ConstraintTerm, ConstraintTerm) 
+
+-- A term in a type constraint
+data ConstraintTerm = CTExp Exp
+                    | CTVar Var
+                    | CTLit
+                    | CTArr ConstraintTerm ConstraintTerm
+                    deriving (Eq, Show)
+
+generateConstraints :: [Constraint] -> Exp -> [Constraint]
+generateConstraints c e = newConstraints e ++ c
+    where 
+        newConstraints e = 
+            case e of
+                EVar x -> [(CTExp e, CTVar x)]
+                ELit i -> [(CTExp e, CTLit)]
+                EApp f a -> [(CTExp f, CTArr (CTExp a) (CTExp e))]
+                ELam x body -> [(CTExp e, CTArr (CTVar x) (CTExp body))]
+                ELet x e0 body -> [(CTVar x, CTExp e0), (CTExp e, CTExp body)]
+                ELetRec bindings body -> map (\(x, e0) -> (CTVar x, CTExp e0)) bindings ++ [(CTExp e, CTExp body)]
+                EUn op e1     -> [(CTExp e1, CTLit), (CTExp e, CTLit)]
+                EBin op e1 e2 -> [(CTExp e1, CTLit), (CTExp e2, CTLit), (CTExp e, CTLit)]
+                EIf e0 e1 e2 -> [(CTExp e0, CTLit), (CTExp e1, CTExp e2), (CTExp e, CTExp e1)]
