@@ -12,6 +12,7 @@ import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
 import Mixins
+import qualified Data.Map as Map
 
 import TransCFJava 
 
@@ -37,11 +38,11 @@ push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.
 
 transS :: Open TranslateStack
 transS this = TS {
-  toT = T {
+  toT = T {    
     translateM = \e -> case e of 
-       CApp _ _ ->
-         do  (s1,je,sig,t) <- translateScheduleM this e 
-             return (s1 ++ sstack sig, je, t)
+       (CApp _ _, m) ->
+         do  (s1,je,sig,t) <- translateScheduleM this (fst e) 
+             return (s1 ++ sstack sig, je, t, m)
        
        otherwise -> translateM (toT this) e, 
     translateScopeM = translateScopeM (toT this)
@@ -64,7 +65,7 @@ transS this = TS {
           let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
           return (s1 ++ s2, j3, sig : (sig2 ++ sig1), scope2ctyp t) -- need to check t1 == t2
     otherwise ->
-         do  (s,j,t) <- translateM (toT this) e
+         do  (s,j,t,m) <- translateM (toT this) (e, Map.empty)
              return (s,j,[],t)
   }
 
