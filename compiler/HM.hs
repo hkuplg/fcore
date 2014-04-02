@@ -154,20 +154,23 @@ type Constraint = (ConstraintTerm, ConstraintTerm)
 data ConstraintTerm = CTExp Exp
                     | CTVar Var
                     | CTLit
-                    | CTArr ConstraintTerm ConstraintTerm
+                    | CTArr ConstraintTerm ConstraintTerm -- t1 -> t2
                     deriving (Eq, Show)
 
-generateConstraints :: [Constraint] -> Exp -> [Constraint]
-generateConstraints c e = newConstraints e ++ c
+generateConstraints :: Exp -> [Constraint]
+generateConstraints = go
     where 
-        newConstraints e = 
-            case e of
+        go e = case e of
                 EVar x -> [(CTExp e, CTVar x)]
                 ELit i -> [(CTExp e, CTLit)]
-                EApp f a -> [(CTExp f, CTArr (CTExp a) (CTExp e))]
-                ELam x body -> [(CTExp e, CTArr (CTVar x) (CTExp body))]
-                ELet x e0 body -> [(CTVar x, CTExp e0), (CTExp e, CTExp body)]
-                ELetRec bindings body -> map (\(x, e0) -> (CTVar x, CTExp e0)) bindings ++ [(CTExp e, CTExp body)]
-                EUn op e1     -> [(CTExp e1, CTLit), (CTExp e, CTLit)]
-                EBin op e1 e2 -> [(CTExp e1, CTLit), (CTExp e2, CTLit), (CTExp e, CTLit)]
-                EIf e0 e1 e2 -> [(CTExp e0, CTLit), (CTExp e1, CTExp e2), (CTExp e, CTExp e1)]
+                EApp f a -> [(CTExp f, CTArr (CTExp a) (CTExp e))] ++ go f ++ go a
+                ELam x body -> [(CTExp e, CTArr (CTVar x) (CTExp body))] ++ go body
+                ELet x e0 body -> [(CTVar x, CTExp e0), (CTExp e, CTExp body)] ++ go e0 ++ go body
+                ELetRec bindings body -> concatMap (\(x, e0) -> (CTVar x, CTExp e0) : (go e0)) bindings ++ [(CTExp e, CTExp body)] ++ go body
+                EUn op e1 -> [(CTExp e1, CTLit), (CTExp e, CTLit)] ++ go e1
+                EBin op e1 e2 -> [(CTExp e1, CTLit), (CTExp e2, CTLit), (CTExp e, CTLit)] ++ go e1 ++ go e2
+                EIf e0 e1 e2 -> [(CTExp e0, CTLit), (CTExp e1, CTExp e2), (CTExp e, CTExp e1)] ++ go e0 ++ go e1 ++ go e2
+
+-- HM expression to constraints listed one per line
+testGenerateConstraints :: String -> String
+testGenerateConstraints = intercalate "\n" . map show . generateConstraints . readHM 
