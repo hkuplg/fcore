@@ -7,9 +7,10 @@ module HM where
 import HMSyntax
 import HMParser         (readHM)
 
-import Prelude hiding (id)
-import Data.Maybe       (fromMaybe)
+import Prelude hiding   (id)
+import Control.Monad.State
 import Data.List        (union, delete, intercalate)
+import Data.Maybe       (fromMaybe)
 
 evenOdd :: String
 evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd 10"
@@ -145,32 +146,61 @@ prettyPoly :: Poly -> String
 prettyPoly (PMono t) = prettyMono t
 prettyPoly (PForall a s) = "(forall " ++ a ++ " . " ++ prettyPoly s ++ ")"
 
--- Type constraints
--- See http://cs.brown.edu/courses/cs173/2012/book/types.html 
--- "15.3.2.1 Constraint Generation"
-type Constraint = (ConstraintTerm, ConstraintTerm) 
+-- Constraint-based typing (TaPL, Figure 22-1)
 
--- A term in a type constraint
-data ConstraintTerm = CTExp Exp
-                    | CTVar Var
-                    | CTLit
-                    | CTArr ConstraintTerm ConstraintTerm -- t1 -> t2
-                    deriving (Eq, Show)
+type Constraint = (CType, CType) 
 
-generateConstraints :: Exp -> [Constraint]
-generateConstraints = go
-    where 
-        go e = case e of
-                EVar x -> [(CTExp e, CTVar x)]
-                ELit i -> [(CTExp e, CTLit)]
-                EApp f a -> [(CTExp f, CTArr (CTExp a) (CTExp e))] ++ go f ++ go a
-                ELam x body -> [(CTExp e, CTArr (CTVar x) (CTExp body))] ++ go body
-                ELet x e0 body -> [(CTVar x, CTExp e0), (CTExp e, CTExp body)] ++ go e0 ++ go body
-                ELetRec bindings body -> concatMap (\(x, e0) -> (CTVar x, CTExp e0) : (go e0)) bindings ++ [(CTExp e, CTExp body)] ++ go body
-                EUn op e1 -> [(CTExp e1, CTLit), (CTExp e, CTLit)] ++ go e1
-                EBin op e1 e2 -> [(CTExp e1, CTLit), (CTExp e2, CTLit), (CTExp e, CTLit)] ++ go e1 ++ go e2
-                EIf e0 e1 e2 -> [(CTExp e0, CTLit), (CTExp e1, CTExp e2), (CTExp e, CTExp e1)] ++ go e0 ++ go e1 ++ go e2
+-- Types used in constraints, different from `Type`
+data CType = CTLit
+           | CTVar Var
+           | CTArr CType CType -- t1 -> t2
+           deriving (Eq, Show)
+
+type Context = [(Var, CType)]
+
+type TcMonad = State Int
+ 
+-- Generate a fresh type variable.
+uvargen :: TcMonad CType
+uvargen = do n <- get
+             put $ n + 1
+             return $ CTVar ("a" ++ show n)
+
+ctype :: Context -> Exp -> TcMonad ([Constraint], CType)
+ctype ctx (EVar x) = 
+    case lookup x ctx of 
+        Nothing -> return $ error ("Unbound variable: " ++ x)
+        Just t -> return ([], t)
+
+ctype ctx (ELit i) = return ([], CTLit)
+
+ctype ctx (EApp e1 e2) = 
+    do (c1, t1) <- ctype ctx e1 
+       (c2, t2) <- ctype ctx e2
+       x <- uvargen
+       return (c1 ++ c2 ++ [(t1, CTArr t2 x)], x)
+
+ctype ctx (ELam x e2) = 
+    do t1 <- uvargen -- annotate x with some fresh type variable t1
+       (c2, t2) <- ctype (ctx ++ [(x, t1)]) e2
+       return (c2, CTArr t1 t2)
+
+ctype ctx (EUn op e1) = ctype ctx e1
+
+ctype ctx (EBin op e1 e2) = 
+    do (c1, t1) <- ctype ctx e1
+       (c2, t2) <- ctype ctx e2
+       return (c1 ++ c2 ++ [(t1, t2)], t1)
+
+ctype ctx (EIf e1 e2 e3) = 
+    do (c1, t1) <- ctype ctx e1
+       (c2, t2) <- ctype ctx e2
+       (c3, t3) <- ctype ctx e3
+       return (c1 ++ c2 ++ c3 ++ [(t1, CTLit), (t2, t3)], t2)
 
 -- HM expression to constraints listed one per line
-testGenerateConstraints :: String -> String
-testGenerateConstraints = intercalate "\n" . map show . generateConstraints . readHM 
+testctype :: String -> IO ()
+testctype s = 
+    let e = readHM s in
+    let (c, _t) = evalState (ctype [] e) 0 in
+    putStrLn $ intercalate "\n" $ map show $ c
