@@ -9,7 +9,7 @@ import HMParser         (readHM)
 
 import Prelude hiding   (id)
 import Control.Monad.State
-import Data.List        (union, delete, intercalate)
+import Data.List        (union, delete, intercalate, nub)
 import Data.Maybe       (fromMaybe)
 
 evenOdd :: String
@@ -204,3 +204,29 @@ testctype s =
     let e = readHM s in
     let (c, _t) = evalState (ctype [] e) 0 in
     putStrLn $ intercalate "\n" $ map show $ c
+
+type Substitution = (Var, CType)
+
+fv :: CType -> [Var]
+fv CTLit = []
+fv (CTVar x) = [x]
+fv (CTArr t1 t2) = nub $ (fv t1) ++ (fv t2)
+
+-- Composition of substitution s1 and s2
+composeS :: [Substitution] -> [Substitution] -> [Substitution]
+composeS s1 s2 = error "todo"
+
+substC :: [Substitution] -> [Constraint] -> [Constraint]
+substC s c = error "todo"
+
+unify :: [Constraint] -> [Substitution]
+unify [] = []
+unify c@((s, t):c')
+    | s == t = unify c'
+    | otherwise = case (s, t) of
+        (CTVar x, _) -> if x `elem` fv t then raise else unify (substC [(x, t)] c') `composeS` [(x, t)] 
+        (_, CTVar x) -> if x `elem` fv t then raise else unify (substC [(x, s)] c') `composeS` [(x, s)] 
+        (CTArr s1 s2, CTArr t1 t2) -> unify $ c' ++ [(s1, t1), (s2, t2)]
+        _ -> raise
+    where 
+        raise = error $ "Cannot unify " ++ show s ++ " and " ++ show t ++ " given constraints:\n" ++ show c
