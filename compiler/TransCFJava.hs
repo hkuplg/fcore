@@ -1,4 +1,4 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts #-}
 
 module TransCFJava where
 
@@ -77,17 +77,17 @@ genOp j1 op j2 = J.BinOp maybeCasted1 op maybeCasted2
 type Var = Either Int Int -- left -> standard variable; right -> recursive variable
 
 -- main translation function
-data Translate = T {
+data Translate m = T {
   translateM :: 
      PCExp Int (Var, PCTyp Int) -> 
-     State Int ([J.BlockStmt], J.Exp, PCTyp Int),
+     m ([J.BlockStmt], J.Exp, PCTyp Int),
   translateScopeM :: 
     Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) -> 
     Maybe (Int,PCTyp Int) ->
-    State Int ([J.BlockStmt], J.Exp, TScope Int)
+    m ([J.BlockStmt], J.Exp, TScope Int)
   }
 
-trans :: Open Translate
+trans :: MonadState Int m => Open (Translate m)
 trans this = T {
   translateM = \e -> case e of 
      CVar (Left i,t) -> -- non-recursive variable
@@ -186,6 +186,7 @@ trans this = T {
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
   
   }
+
 
 last (Typ _ _) = False
 last (Kind f)  = last (f 0)

@@ -39,6 +39,8 @@ fact = FFix PFInt (\fact n ->
          (FLit 1) 
          (FPrimOp (FVar n) J.Mult (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))))) PFInt
 
+fact_app = FApp fact (FLit 10)
+
 -- /\A. \(x:A) . x
 
 idF1Str = "/\\A. \\(x:A) . x"

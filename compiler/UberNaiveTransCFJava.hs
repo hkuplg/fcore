@@ -1,3 +1,5 @@
+{-# OPTIONS -XFlexibleContexts #-}
+
 module UberNaiveTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures 
 import Prelude hiding (init)
@@ -13,11 +15,11 @@ import Mixins
 
 import TransCFJava 
 
-data NaiveTranslate = NT {
-  toTr :: Translate
+data NaiveTranslate m = NT {
+  toTr :: Translate m
   }
 
-transUN :: Open NaiveTranslate
+transUN :: MonadState Int m => Open (NaiveTranslate m)
 transUN this = NT { toTr = T {
   translateM = \e -> translateM (toTr this) e,
   translateScopeM = \e m -> case e of 

@@ -1,4 +1,4 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts #-}
 
 module StackTransCFJava where
 
@@ -17,9 +17,9 @@ import TransCFJava
 
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
-data TranslateStack = TS {
-  toT :: Translate,
-  translateScheduleM :: PCExp Int (Var, PCTyp Int) -> State Int ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
+data TranslateStack m = TS {
+  toT :: Translate m,
+  translateScheduleM :: PCExp Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
   }
                       
 sstack :: Schedule -> [J.BlockStmt]
@@ -35,7 +35,7 @@ push :: J.Exp -> J.BlockStmt
 push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [stack])) [] (J.Ident "push") [e])))
   where stack = (J.Ident "Stack")
 
-transS :: Open TranslateStack
+transS :: MonadState Int m => Open (TranslateStack m)
 transS this = TS {
   toT = T {
     translateM = \e -> case e of 
