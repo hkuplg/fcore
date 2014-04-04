@@ -7,6 +7,7 @@ import Debug.Trace
 import Data.List hiding (init)
 
 import Control.Monad.State
+import Control.Monad.Writer
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
@@ -19,7 +20,7 @@ data NaiveTranslate m = NT {
   toTr :: Translate m
   }
 
-transUN :: MonadState Int m => Open (NaiveTranslate m)
+transUN :: (MonadState Int m, MonadWriter Bool m) => Open (NaiveTranslate m)
 transUN this = NT { toTr = T {
   translateM = \e -> translateM (toTr this) e,
   translateScopeM = \e m -> case e of 

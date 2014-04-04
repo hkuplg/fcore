@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS -XMultiParamTypeClasses #-}
 module Main where
 
 import SystemFParser    (readSF)
@@ -5,6 +7,8 @@ import SystemF
 import ClosureF
 import TransCFJava (createCU)
 import Control.Monad.State
+import Control.Monad.Writer
+import Control.Monad.Identity
 import Language.Java.Syntax as J
 import StackTransCFJava
 import TransCFJava
@@ -15,13 +19,13 @@ import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
 
-translate = translateM naive
+translate e = translateM (naive) e
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
 compile e = 
-  case evalState (translate (fexp2cexp e)) 0 of
+  case evalState (liftM fst $ runWriterT $ translate (fexp2cexp e)) 0 of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))

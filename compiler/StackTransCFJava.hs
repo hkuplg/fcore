@@ -7,6 +7,7 @@ import Debug.Trace
 import Data.List hiding (init)
 
 import Control.Monad.State
+import Control.Monad.Writer
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
@@ -35,7 +36,7 @@ push :: J.Exp -> J.BlockStmt
 push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [stack])) [] (J.Ident "push") [e])))
   where stack = (J.Ident "Stack")
 
-transS :: MonadState Int m => Open (TranslateStack m)
+transS :: (MonadState Int m, MonadWriter Bool m) => Open (TranslateStack m)
 transS this = TS {
   toT = T {
     translateM = \e -> case e of 
