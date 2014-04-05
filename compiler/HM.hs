@@ -99,53 +99,6 @@ bar = ELam "x" (ELet "foo" foo (EVar "foo"))
 example1 :: Exp
 example1 = ELet "bar" bar (EVar "bar")
 
-prettyExp :: Exp -> String
-prettyExp (EVar x) = x
-prettyExp (ELit i) = show i
-prettyExp (EApp e0 e1) = "(" ++ prettyExp e0 ++ " " ++ prettyExp e1 ++ ")"
-prettyExp (ELam x e) = "(\\" ++ x ++ " -> " ++ prettyExp e ++ ")"
-prettyExp (ELet x e0 e1) = "(let " ++ x ++ " = " ++ prettyExp e0 ++ " in " ++ prettyExp e1 ++ ")"
-prettyExp (ELetRec bindings body) = "(let rec " ++ prettyBindings ++ " in " ++ prettyExp body ++ ")"
-    where prettyBindings = intercalate " and " $ map (\(x, e) -> x ++ " = " ++ prettyExp e) bindings
-prettyExp (EUn  op e) = "(" ++ prettyUnOp op  ++ prettyExp e ++ ")"
-prettyExp (EBin op e1 e2) = "(" ++ prettyExp e1 ++ " " ++ prettyBinOp op ++ " " ++ prettyExp e2 ++ ")"
-prettyExp (EIf e0 e1 e2) = "(if " ++ prettyExp e0 ++ " then " ++ prettyExp e1 ++ " else " ++ prettyExp e2 ++ ")"
-
-prettyUnOp :: UnOp -> String
-prettyUnOp UMinus = "-"
-prettyUnOp Not    = "!"
-
-prettyBinOp :: BinOp -> String
-prettyBinOp Add = "+" 
-prettyBinOp Sub = "-" 
-prettyBinOp Mul = "*" 
-prettyBinOp Div = "/" 
-prettyBinOp Mod = "%"
-
-prettyBinOp Eq = "=="
-prettyBinOp Ne = "!="
-prettyBinOp Lt = "<"
-prettyBinOp Gt = ">"
-prettyBinOp Le = "<="
-prettyBinOp Ge = ">="
-
-prettyBinOp And = "&&"
-prettyBinOp Or = "||"
-
-prettyType :: Type -> String
-prettyType (TMono t) = prettyMono t
-prettyType (TPoly s) = prettyPoly s
-
-prettyMono :: Mono -> String
-prettyMono (MVar a) = a
-prettyMono (MPrim Int) = "int"
-prettyMono (MPrim Bool) = "bool"
-prettyMono (MApp t0 t1) = "(" ++ prettyMono t0 ++ " -> " ++ prettyMono t1 ++ ")"
-
-prettyPoly :: Poly -> String
-prettyPoly (PMono t) = prettyMono t
-prettyPoly (PForall a s) = "(forall " ++ a ++ " . " ++ prettyPoly s ++ ")"
-
 -- Constraint-based typing (TaPL, Figure 22-1)
 
 type Constraint = (CType, CType) 
@@ -199,19 +152,6 @@ ctype ctx (EIf e1 e2 e3) =
        (c3, t3) <- ctype ctx e3
        return (c1 `union` c2 `union` c3 `union` [(t1, CTLit), (t2, t3)], t2)
 
-class Pretty a where 
-    pretty :: a -> String
-
-instance Pretty CType where
-    pretty CTLit = "lit"
-    pretty (CTVar x) = x
-    pretty (CTArr t1 t2) = 
-        case t1 of 
-            CTArr _ _ -> paren (pretty t1) ++ arrow ++ pretty t2
-            _         -> pretty t1 ++ arrow ++ pretty t2
-            where arrow = " -> "
-                  paren s = "(" ++ s ++ ")"
-
 infer :: Exp -> CType
 infer e = 
     let (c, t) = evalState (ctype [] e) 0 in 
@@ -261,3 +201,63 @@ unify c@((s, t):c')
 -- Similar to the ":t" in GHCi
 t :: String -> IO ()
 t = putStrLn . pretty . infer . readHM 
+
+class Pretty a where 
+    pretty :: a -> String
+
+instance Pretty CType where
+    pretty CTLit = "lit"
+    pretty (CTVar x) = x
+    pretty (CTArr t1 t2) = 
+        case t1 of 
+            CTArr _ _ -> paren (pretty t1) ++ arrow ++ pretty t2
+            _         -> pretty t1 ++ arrow ++ pretty t2
+            where arrow = " -> "
+                  paren s = "(" ++ s ++ ")"
+
+instance Pretty Exp where
+    pretty (EVar x) = x
+    pretty (ELit i) = show i
+    pretty (EApp e0 e1) = "(" ++ pretty e0 ++ " " ++ pretty e1 ++ ")"
+    pretty (ELam x e) = "(\\" ++ x ++ " -> " ++ pretty e ++ ")"
+    pretty (ELet x e0 e1) = "(let " ++ x ++ " = " ++ pretty e0 ++ " in " ++ pretty e1 ++ ")"
+    pretty (ELetRec bindings body) = "(let rec " ++ prettyBindings ++ " in " ++ pretty body ++ ")"
+        where prettyBindings = intercalate " and " $ map (\(x, e) -> x ++ " = " ++ pretty e) bindings
+    pretty (EUn  op e) = "(" ++ pretty op  ++ pretty e ++ ")"
+    pretty (EBin op e1 e2) = "(" ++ pretty e1 ++ " " ++ pretty op ++ " " ++ pretty e2 ++ ")"
+    pretty (EIf e0 e1 e2) = "(if " ++ pretty e0 ++ " then " ++ pretty e1 ++ " else " ++ pretty e2 ++ ")"
+
+instance Pretty UnOp where
+    pretty UMinus = "-"
+    pretty Not    = "!"
+
+instance Pretty BinOp where
+    pretty Add = "+" 
+    pretty Sub = "-" 
+    pretty Mul = "*" 
+    pretty Div = "/" 
+    pretty Mod = "%"
+
+    pretty Eq = "=="
+    pretty Ne = "!="
+    pretty Lt = "<"
+    pretty Gt = ">"
+    pretty Le = "<="
+    pretty Ge = ">="
+
+    pretty And = "&&"
+    pretty Or = "||"
+
+instance Pretty Type where
+    pretty (TMono t) = pretty t
+    pretty (TPoly s) = pretty s
+
+instance Pretty Mono where
+    pretty (MVar a) = a
+    pretty (MPrim Int) = "int"
+    pretty (MPrim Bool) = "bool"
+    pretty (MApp t0 t1) = "(" ++ pretty t0 ++ " -> " ++ pretty t1 ++ ")"
+
+instance Pretty Poly where
+    pretty (PMono t) = pretty t
+    pretty (PForall a s) = "(forall " ++ a ++ " . " ++ pretty s ++ ")"
