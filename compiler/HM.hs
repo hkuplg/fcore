@@ -199,13 +199,24 @@ ctype ctx (EIf e1 e2 e3) =
        (c3, t3) <- ctype ctx e3
        return (c1 `union` c2 `union` c3 `union` [(t1, CTLit), (t2, t3)], t2)
 
--- HM expression to constraints
-testctype :: String -> [Constraint]
-testctype s = 
-    let e = readHM s in
-    let (c, _t) = evalState (ctype [] e) 0 in
-    c
-    -- putStrLn $ intercalate "\n" $ map show $ c
+class Pretty a where 
+    pretty :: a -> String
+
+instance Pretty CType where
+    pretty CTLit = "lit"
+    pretty (CTVar x) = x
+    pretty (CTArr t1 t2) = 
+        case t1 of 
+            CTArr _ _ -> paren (pretty t1) ++ arrow ++ pretty t2
+            _         -> pretty t1 ++ arrow ++ pretty t2
+            where arrow = " -> "
+                  paren s = "(" ++ s ++ ")"
+
+infer :: Exp -> CType
+infer e = 
+    let (c, t) = evalState (ctype [] e) 0 in 
+    let s = unify c in
+    subst s t
 
 type Substitution = (Var, CType)
 
@@ -246,3 +257,7 @@ unify c@((s, t):c')
         _ -> raise
     where 
         raise = error $ "Cannot unify " ++ show s ++ " and " ++ show t ++ " given constraints:\n" ++ show c
+
+-- Similar to the ":t" in GHCi
+t :: String -> IO ()
+t = putStrLn . pretty . infer . readHM 
