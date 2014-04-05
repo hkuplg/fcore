@@ -43,8 +43,8 @@ type TSubst = [(TVar, Mono)]
 dom :: [(a, b)] -> [a]
 dom = map fst
 
-range :: [(a, b)] -> [b]
-range = map snd
+rng :: [(a, b)] -> [b]
+rng = map snd
 
 -- TaPL, p. 318; Damas & Milner '82, p. 3
 tsubstMono :: TSubst -> Mono -> Mono
@@ -158,18 +158,19 @@ data CType = CTLit
 
 type Context = [(Var, CType)]
 
-type TcMonad = State Int
+-- The type reconstruction monad
+type TR = State Int
  
 -- Generate a fresh type variable.
-uvargen :: TcMonad CType
+uvargen :: TR CType
 uvargen = do n <- get
              put $ n + 1
              return $ CTVar ("a" ++ show n)
 
-ctype :: Context -> Exp -> TcMonad ([Constraint], CType)
+ctype :: Context -> Exp -> TR ([Constraint], CType)
 ctype ctx (EVar x) = 
     case lookup x ctx of 
-        Nothing -> return $ error ("Unbound variable: " ++ x)
+        Nothing -> error ("Unbound variable: " ++ x)
         Just t -> return ([], t)
 
 ctype ctx (ELit i) = return ([], CTLit)
@@ -178,11 +179,11 @@ ctype ctx (EApp e1 e2) =
     do (c1, t1) <- ctype ctx e1 
        (c2, t2) <- ctype ctx e2
        x <- uvargen
-       return (c1 ++ c2 ++ [(t1, CTArr t2 x)], x)
+       return (c1 `union` c2 `union` [(t1, CTArr t2 x)], x)
 
 ctype ctx (ELam x e2) = 
     do t1 <- uvargen -- annotate x with some fresh type variable t1
-       (c2, t2) <- ctype (ctx ++ [(x, t1)]) e2
+       (c2, t2) <- ctype (ctx `union` [(x, t1)]) e2
        return (c2, CTArr t1 t2)
 
 ctype ctx (EUn op e1) = ctype ctx e1
@@ -190,20 +191,21 @@ ctype ctx (EUn op e1) = ctype ctx e1
 ctype ctx (EBin op e1 e2) = 
     do (c1, t1) <- ctype ctx e1
        (c2, t2) <- ctype ctx e2
-       return (c1 ++ c2 ++ [(t1, t2)], t1)
+       return (c1 `union` c2 `union` [(t1, t2)], t1)
 
 ctype ctx (EIf e1 e2 e3) = 
     do (c1, t1) <- ctype ctx e1
        (c2, t2) <- ctype ctx e2
        (c3, t3) <- ctype ctx e3
-       return (c1 ++ c2 ++ c3 ++ [(t1, CTLit), (t2, t3)], t2)
+       return (c1 `union` c2 `union` c3 `union` [(t1, CTLit), (t2, t3)], t2)
 
--- HM expression to constraints listed one per line
-testctype :: String -> IO ()
+-- HM expression to constraints
+testctype :: String -> [Constraint]
 testctype s = 
     let e = readHM s in
     let (c, _t) = evalState (ctype [] e) 0 in
-    putStrLn $ intercalate "\n" $ map show $ c
+    c
+    -- putStrLn $ intercalate "\n" $ map show $ c
 
 type Substitution = (Var, CType)
 
@@ -212,12 +214,26 @@ fv CTLit = []
 fv (CTVar x) = [x]
 fv (CTArr t1 t2) = nub $ (fv t1) ++ (fv t2)
 
+class Subst a where
+    subst :: [Substitution] -> a -> a
+
+instance Subst CType where
+    subst _s CTLit = CTLit
+    subst s (CTVar x) = fromMaybe (CTVar x) (lookup x s)
+    subst s (CTArr t1 t2) = CTArr (subst s t1) (subst s t2)
+
 -- Composition of substitution s1 and s2
 composeS :: [Substitution] -> [Substitution] -> [Substitution]
-composeS s1 s2 = error "todo"
+composeS s1 s2 = mapping1 ++ mapping2
+    where mapping1 = map (\(x, t) -> (x, subst s1 t)) s2
+          mapping2 = map (\x -> x) (filter (\(x, t) -> not (x `elem` dom s2)) s1)
 
 substC :: [Substitution] -> [Constraint] -> [Constraint]
-substC s c = error "todo"
+substC s c = map (substC0 s) c
+    where substC0 s (t1, t2) = (subst s t1, subst s t2)
+
+double :: String
+double = "\\f -> (\\x -> f(f(x)))"
 
 unify :: [Constraint] -> [Substitution]
 unify [] = []
@@ -225,7 +241,7 @@ unify c@((s, t):c')
     | s == t = unify c'
     | otherwise = case (s, t) of
         (CTVar x, _) -> if x `elem` fv t then raise else unify (substC [(x, t)] c') `composeS` [(x, t)] 
-        (_, CTVar x) -> if x `elem` fv t then raise else unify (substC [(x, s)] c') `composeS` [(x, s)] 
+        (_, CTVar x) -> if x `elem` fv s then raise else unify (substC [(x, s)] c') `composeS` [(x, s)] 
         (CTArr s1 s2, CTArr t1 t2) -> unify $ c' ++ [(s1, t1), (s2, t2)]
         _ -> raise
     where 
