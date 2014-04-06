@@ -5,13 +5,14 @@ module Main where
 import SystemFParser    (readSF)
 import SystemF
 import ClosureF
-import TransCFJava (createCU)
+import BaseTransCFJava (createCU)
 import Control.Monad.State
 import Control.Monad.Writer
 import Control.Monad.Identity
 import Language.Java.Syntax as J
 import StackTransCFJava
-import TransCFJava
+import ApplyTransCFJava
+import BaseTransCFJava
 import Translations
 import Test.HUnit
 import Language.Java.Pretty
@@ -19,7 +20,7 @@ import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
 
-translate e = translateM (naive) e
+translate e = translateM (toT applyopt) e
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint

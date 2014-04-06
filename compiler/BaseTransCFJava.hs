@@ -1,21 +1,18 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts #-}
+{-# OPTIONS -XFlexibleContexts #-}
 
-module TransCFJava where
-
+module BaseTransCFJava where
+-- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures 
 import Prelude hiding (init, last)
 import Debug.Trace
 import Data.List hiding (init, last)
 
 import Control.Monad.State
 import Control.Monad.Writer
-import Control.Monad.Identity
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
 import Mixins
-import Data.Char
 
 -- Closure F to Java
 
@@ -79,7 +76,18 @@ genOp j1 op j2 = J.BinOp maybeCasted1 op maybeCasted2
 
 type Var = Either Int Int -- left -> standard variable; right -> recursive variable
 
--- main translation function
+last (Typ _ _) = False
+last (Kind f)  = last (f 0)
+last (Body _)  = True
+
+currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
+outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
+standardTranslation javaExpression statementsBeforeOA idCurrentName idNextName = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
+                                                (Just (J.InitExp 
+                                                    (jexp [currentInitialDeclaration idCurrentName] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))))
+                                                    )
+                                                )]
+  
 data Translate m = T {
   translateM :: 
      PCExp Int (Var, PCTyp Int) -> 
@@ -171,8 +179,9 @@ trans this = T {
                        _ -> [cvar,ass]
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
            return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
-  
+           
   translateScopeM = \e m -> case e of 
+
       Body t ->
         do  tell True
             (s,je, t1) <- translateM this t
@@ -184,63 +193,22 @@ trans this = T {
             tell True
             (s,je,t1) <- translateScopeM this (f n) m
             return (s,je, Kind (\a -> substScope n (CTVar a) t1)) 
-          
+                
       Typ t g -> 
         do  n <- get
-            let f    = J.Ident ("x" ++ show n) -- use a fresh variable
+            let f    = J.Ident ("x" ++ show n) -- use a fresh variable              
             case m of -- Consider refactoring later?
               Just (i,t') | last (g (Right i,t')) ->
                 do  put (n+1)
                     let self = J.Ident ("x" ++ show i)
-                    tell True
-                    ((s,je,t1), closureCheck) <- listen $ translateScopeM this (g (Left i,t)) m
-                    let cvar = refactoredScopeTranslationBit je self s f closureCheck
+                    (s,je,t1) <- translateScopeM (this) (g (Left i,t)) m
+                    let cvar = standardTranslation je s self f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
-                    let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable
-                    tell True
-                    ((s,je,t1), closureCheck) <- listen $ translateScopeM this (g (Left (n+1),t)) m
-                    let cvar = refactoredScopeTranslationBit je self s f closureCheck
+                    let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable              
+                    (s,je,t1) <- translateScopeM (this) (g (Left (n+1),t)) m
+                    let cvar = standardTranslation je s self f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
-  
-  }
 
-
-last (Typ _ _) = False
-last (Kind f)  = last (f 0)
-last (Body _)  = True
-
--- seperating (hopefully) the important bit
-
-currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
-outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-standardTranslation javaExpression statementsBeforeOA idCurrentName idNextName = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
-                                                (Just (J.InitExp 
-                                                    (jexp [currentInitialDeclaration idCurrentName] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))))
-                                                    )
-                                                )]
-
-refactoredScopeTranslationBit :: J.Exp -> J.Ident -> [J.BlockStmt] -> J.Ident -> Bool -> J.BlockStmt
-refactoredScopeTranslationBit javaExpression idCurrentName statementsBeforeOA idNextName closureCheck = completeClosure
-    where
-        outputAssignment = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-        fullAssignment = J.InitDecl False (J.Block [(J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA
-                                                    (pullupClosure statementsBeforeOA))))])
-        currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
-        completeClosure | closureCheck  = standardTranslation javaExpression statementsBeforeOA idCurrentName idNextName
-                        | otherwise = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
-                                                (Just (J.InitExp 
-                                                    (jexpOutside [currentInitialDeclaration,fullAssignment]
-                                                    )
-                                                ))]
-
-jexpOutside init = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] 
-       (Just (J.ClassBody (init ++  [
-          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just(J.Block $ []))))
-       ])))
-
-pullupClosure [J.LocalVars [] rf vd] = case vd of
-                                [J.VarDecl variableId (Just(J.InitExp exp))] -> exp
-                                _ -> error ("B:" ++ show vd)
-pullupClosure m = error ("A: " ++ concatMap prettyPrint m)   
+    }

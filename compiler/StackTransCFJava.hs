@@ -14,12 +14,13 @@ import Language.Java.Pretty
 import ClosureF
 import Mixins
 
-import TransCFJava 
+import ApplyTransCFJava 
+import BaseTransCFJava
 
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
 data TranslateStack m = TS {
-  toT :: Translate m,
+  toTS :: ApplyOptTranslate m,
   translateScheduleM :: PCExp Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
   }
                       
@@ -38,15 +39,15 @@ push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.
 
 transS :: (MonadState Int m, MonadWriter Bool m) => Open (TranslateStack m)
 transS this = TS {
-  toT = T {
+  toTS = NT { toT = T {
     translateM = \e -> case e of 
        CApp _ _ ->
          do  (s1,je,sig,t) <- translateScheduleM this e 
              return (s1 ++ sstack sig, je, t)
        
-       otherwise -> translateM (toT this) e, 
-    translateScopeM = translateScopeM (toT this)
-    },
+       otherwise -> translateM (toT $ toTS this) e, 
+    translateScopeM = translateScopeM (toT $ toTS this)
+    }},
   
   translateScheduleM = \e -> case e of
     CApp e1 e2  -> -- CJ-App-Sigma
@@ -65,7 +66,7 @@ transS this = TS {
           let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
           return (s1 ++ s2, j3, sig : (sig2 ++ sig1), scope2ctyp t) -- need to check t1 == t2
     otherwise ->
-         do  (s,j,t) <- translateM (toT this) e
+         do  (s,j,t) <- translateM (toT $ toTS this) e
              return (s,j,[],t)
   }
 
