@@ -12,7 +12,7 @@ import Control.Monad.Writer
 
 -- Naive translation
 
-naive :: (MonadState Int m, MonadWriter Bool m) => Translate m
+naive :: (MonadState Int m) => Translate m
 naive = new trans
 
 -- apply() distinction 

@@ -25,7 +25,16 @@ data ApplyOptTranslate m = NT {
 -- main translation function
 transApply :: (MonadState Int m, MonadWriter Bool m) => Open (ApplyOptTranslate m)
 transApply this = NT { toT = T {
-  translateM = \e -> translateM (toT this) e,
+  translateM = \e -> case e of 
+       CLam s ->
+           do  tell False
+               result <- translateM (toT this) e
+               return result
+
+       otherwise -> 
+            do  tell True
+                result <- translateM (toT this) e
+                return result,
   
   translateScopeM = \e m -> case e of 
       Typ t g -> 
@@ -35,19 +44,22 @@ transApply this = NT { toT = T {
               Just (i,t') | last (g (Right i,t')) ->
                 do  put (n+1)
                     let self = J.Ident ("x" ++ show i)
-                    tell True
+                    tell False
                     ((s,je,t1), closureCheck) <- listen $ translateScopeM (toT this) (g (Left i,t)) m
                     let cvar = refactoredScopeTranslationBit je self s f closureCheck
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
                     let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable
-                    tell True
+                    tell False
                     ((s,je,t1), closureCheck) <- listen $ translateScopeM (toT this) (g (Left (n+1),t)) m
                     let cvar = refactoredScopeTranslationBit je self s f closureCheck
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
-      otherwise -> translateScopeM (toT this) e m
+      otherwise ->
+          do tell False
+             result <- translateScopeM (toT this) e m
+             return result
   }
   }
 

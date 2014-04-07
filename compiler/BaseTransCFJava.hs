@@ -102,30 +102,26 @@ instance Monoid Bool where
     mempty = False  
     mappend a b = a  
 
-trans :: (MonadState Int m, MonadWriter Bool m) => Open (Translate m)
+trans :: (MonadState Int m) => Open (Translate m)
 trans this = T {
   translateM = \e -> case e of 
      CVar (Left i,t) -> 
-        do tell False -- non-recursive variable
-           return ([],var ("x" ++ show i ++ ".x"), t)
+        do return ([],var ("x" ++ show i ++ ".x"), t)
      
      CVar (Right i, t) ->
-       do tell False -- recursive variable
-          return ([],var ("x" ++ show i), t)
+       do return ([],var ("x" ++ show i), t)
      
      CFLit e    ->
        return ([],J.Lit $ J.Int e, CInt)
      
      CFPrimOp e1 op e2 ->
-       do  tell False
-           (s1,j1,t1) <- translateM this e1
+       do  (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            return (s1 ++ s2, genOp j1 op j2, t1)
            
      CFif0 e1 e2 e3 ->
        do  n <- get
            put (n+1)
-           tell False
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            (s3,j3,t3) <- translateM this e3
@@ -143,26 +139,22 @@ trans this = T {
      
      CTApp e t -> 
        do  n <- get
-           tell False
            (s,je, CForall (Kind f)) <- translateM this e
            return (s,je, scope2ctyp (substScope n t (f n)))
      
      CLam s ->
-       do  tell True
-           (s,je, t) <- translateScopeM this s Nothing
+       do  (s,je, t) <- translateScopeM this s Nothing
            return (s,je, CForall t)
      
      CFix t s   -> 
        do  n <- get
            put (n+1)
-           tell False
            (s, je, t') <- translateScopeM this (s (Right n,t)) (Just (n,t)) -- weird!
            return (s,je, CForall t')
            
      CApp e1 e2 ->
        do  n <- get
            put (n+1)
-           tell False
            (s1,j1, CForall (Typ t1 g)) <- translateM this e1
            -- DEBUG
            -- (s1,j1, debug) <- translateM this e1
@@ -183,14 +175,12 @@ trans this = T {
   translateScopeM = \e m -> case e of 
 
       Body t ->
-        do  tell True
-            (s,je, t1) <- translateM this t
+        do  (s,je, t1) <- translateM this t
             return (s,je, Body t1)
           
       Kind f -> 
         do  n <- get
             put (n+1) -- needed?
-            tell True
             (s,je,t1) <- translateScopeM this (f n) m
             return (s,je, Kind (\a -> substScope n (CTVar a) t1)) 
                 
