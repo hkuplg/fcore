@@ -33,3 +33,15 @@ transMix this = TS (applyopt) (translateScheduleM this)
 
 stack :: (MonadState Int m, MonadWriter Bool m) => TranslateStack m
 stack = new (transS . transMix)
+
+class ToTranslate f where
+   to :: f m -> Translate m
+
+instance ToTranslate Translate where
+   to = id
+
+instance ToTranslate ApplyOptTranslate where
+   to = toT
+
+instance ToTranslate TranslateStack where
+   to = toT . toTS
