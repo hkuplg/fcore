@@ -13,11 +13,10 @@ import Language.Java.Pretty
 import ClosureF
 import Mixins
 import Data.Char
-import qualified Data.Map as Map
 
 -- Closure F to Java
 
-localVarPrefs = ["ifres", "inttemp"]
+localVarPrefs = ["ifres"]
 
 var x = J.ExpName (J.Name [J.Ident x])
 
@@ -32,9 +31,11 @@ jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) []
 
 closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 
+comparezero :: J.Exp -> J.Exp
+comparezero jexp = genOp jexp J.Equal (J.Lit $ J.Int 0)
 
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
-ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
+ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (comparezero j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
     where
         j2Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j2)))]))]
         j3Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j3)))]))]
@@ -65,27 +66,21 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
 
 boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
 
-genOp :: J.Exp -> J.Op -> J.Exp -> Map.Map J.Exp J.Exp -> [Char] -> [Char] -> ([J.BlockStmt], J.Exp, Map.Map J.Exp J.Exp)
-genOp j1 op j2 m temp1 temp2 = (casts1 ++ casts2, J.BinOp maybeCasted1 op maybeCasted2, Map.union mf1 mf2)
+genOp :: J.Exp -> J.Op -> J.Exp -> J.Exp
+genOp j1 op j2 = J.BinOp maybeCasted1 op maybeCasted2
     where
-        (c1, exp1, m1) = case (Map.lookup j1 m) of Just e -> ([], e, m)
-                                                   Nothing -> ([defV1], (var temp1), Map.insert j1 (var temp1) m)
-        defV1 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident temp1) (Just (J.InitExp $ J.Cast boxedIntType j1))])
-        (c2, exp2, m2) = case (Map.lookup j2 m1) of Just e -> ([], e, m)
-                                                    Nothing -> ([defV2], (var temp2), Map.insert j2 (var temp2) m1)
-        defV2 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident temp2) (Just (J.InitExp $ J.Cast boxedIntType j2))])        
-        (casts1, maybeCasted1, mf1) = case j1 of J.Lit e -> ([], j1, m)
-                                                 _ -> (c1, exp1, m1)
-        (casts2, maybeCasted2, mf2) = case j2 of J.Lit e -> ([], j2, m)
-                                                 _ -> (c2, exp2, m2)
+        maybeCasted1 = case j1 of J.Lit e -> j1
+                                  _ -> J.Cast boxedIntType j1
+        maybeCasted2 = case j2 of J.Lit e -> j2
+                                  _ -> J.Cast boxedIntType j2
 
 type Var = Either Int Int -- left -> standard variable; right -> recursive variable
 
 -- main translation function
 data Translate = T {
   translateM :: 
-     (PCExp Int (Var, PCTyp Int), Map.Map J.Exp J.Exp) ->
-     State Int ([J.BlockStmt], J.Exp, PCTyp Int, Map.Map J.Exp J.Exp),
+     PCExp Int (Var, PCTyp Int) -> 
+     State Int ([J.BlockStmt], J.Exp, PCTyp Int),
   translateScopeM :: 
     Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) -> 
     Maybe (Int,PCTyp Int) ->
@@ -94,69 +89,63 @@ data Translate = T {
 
 trans :: Open Translate
 trans this = T {
-           
   translateM = \e -> case e of 
-     (CVar (Left i,t), m) -> -- non-recursive variable
-       return ([],var ("x" ++ show i ++ ".x"), t, m)
+     CVar (Left i,t) -> -- non-recursive variable
+       return ([],var ("x" ++ show i ++ ".x"), t)
      
-     (CVar (Right i, t), m) -> -- recursive variable
-       return ([],var ("x" ++ show i), t, m)
+     CVar (Right i, t) -> -- recursive variable
+       return ([],var ("x" ++ show i), t)
      
-     (CFLit e, m)    -> 
-       return ([],J.Lit $ J.Int e, CInt, m)
+     CFLit e    -> 
+       return ([],J.Lit $ J.Int e, CInt)
      
-     (CFPrimOp e1 op e2, m) ->
-       do  n <- get
-           put (n+2)
-           (s1,j1,t1, m1) <- translateM this (e1, m)
-           (s2,j2,t2, m2) <- translateM this (e2, m1)
-           let temp1 = localVarPrefs!!1 ++ show (n+1)
-           let temp2 = localVarPrefs!!1 ++ show (n+2)    
-           let (s, j, mf) = genOp j1 op j2 m2 temp1 temp2
-           return (s1 ++ s2 ++ s, j, t1, mf)
+     CFPrimOp e1 op e2 ->
+       do  (s1,j1,t1) <- translateM this e1
+           (s2,j2,t2) <- translateM this e2
+           return (s1 ++ s2, genOp j1 op j2, t1)
            
-     (CFif0 e1 e2 e3, m) ->
+     CFif0 e1 e2 e3 ->
        do  n <- get
            put (n+1)
-           (s1,j1,t1, m1) <- translateM this ((CFPrimOp e1 J.Equal (CFLit 0)), m)
-           (s2,j2,t2, m2) <- translateM this (e2, m1)
-           (s3,j3,t3, m3) <- translateM this (e3, m2)
+           (s1,j1,t1) <- translateM this e1
+           (s2,j2,t2) <- translateM this e2
+           (s3,j3,t3) <- translateM this e3
            let ifvarname = (localVarPrefs!!0 ++ show n)
            let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
            let ifresdecl = J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
            let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable        
-           return (s1 ++ [ifresdecl,ifstmt], ifexp, t2, Map.empty)   
+           return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)                     -- need to check t2 == t3
            
-     (CFTuple tuple, m) ->
-       error("not working")--(liftM reduceTTuples $ mapM (translateM this) tuple, m)
+     CFTuple tuple ->
+       liftM reduceTTuples $ mapM (translateM this) tuple
        
-     (CFProj i (CFTuple tuple), m) ->
-       translateM this (tuple!!i, m)
+     CFProj i (CFTuple tuple) ->
+       translateM this (tuple!!i)
      
-     (CTApp e t, m) -> 
+     CTApp e t -> 
        do  n <- get
-           (s,je, CForall (Kind f), m1) <- translateM this (e, m)
-           return (s,je, scope2ctyp (substScope n t (f n)), m1)
+           (s,je, CForall (Kind f)) <- translateM this e
+           return (s,je, scope2ctyp (substScope n t (f n)))
      
-     (CLam s, m) ->
+     CLam s ->
        do  (s,je, t) <- translateScopeM this s Nothing
-           return (s,je, CForall t, m)
+           return (s,je, CForall t)
      
-     (CFix t s, m)   -> 
+     CFix t s   -> 
        do  n <- get
            put (n+1)
            (s, je, t') <- translateScopeM this (s (Right n,t)) (Just (n,t)) -- weird!
-           return (s,je, CForall t', m)
+           return (s,je, CForall t')
            
-     (CApp e1 e2, m) ->
+     CApp e1 e2 ->
        do  n <- get
            put (n+1)
-           (s1,j1, CForall (Typ t1 g), m1) <- translateM this (e1, m)
+           (s1,j1, CForall (Typ t1 g)) <- translateM this e1
            -- DEBUG
            -- (s1,j1, debug) <- translateM this e1
            -- (CForall (Typ t1 g)) <- trace ("C:" ++ show debug) (return debug)
            -- END DEBUG
-           (s2,j2,t2, m2) <- translateM this (e2, m1)
+           (s2,j2,t2) <- translateM this e2
            let t    = g ()
            let f    = J.Ident ("x" ++ show n) -- use a fresh variable
            let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
@@ -166,11 +155,11 @@ trans this = T {
                        Body _ -> [cvar,ass,apply]
                        _ -> [cvar,ass]
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           return (s1 ++ s2 ++ s3, j3, scope2ctyp t, m2), -- need to check t1 == t2
+           return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
   
   translateScopeM = \e m -> case e of 
       Body t ->
-        do  (s,je, t1, m1) <- translateM this (t, Map.empty)
+        do  (s,je, t1) <- translateM this t
             return (s,je, Body t1)
           
       Kind f -> 
@@ -239,3 +228,6 @@ pullupClosure [J.LocalVars [] rf vd] = case vd of
                                 [J.VarDecl variableId (Just(J.InitExp exp))] -> exp
                                 _ -> error ("B:" ++ show vd)
 pullupClosure m = error ("A: " ++ concatMap prettyPrint m)   
+
+
+

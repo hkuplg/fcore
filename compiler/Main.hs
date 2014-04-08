@@ -12,7 +12,6 @@ import Translations
 import Test.HUnit
 import Language.Java.Pretty
 import Control.Monad    ((>=>))
-import qualified Data.Map as Map
 
 import Prelude hiding (const)
 
@@ -22,8 +21,8 @@ prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
 compile e = 
-  case evalState (translate (fexp2cexp e, Map.empty)) 0 of
-      (ss,exp,t,m) -> (J.Block ss,exp, t)
+  case evalState (translate (fexp2cexp e)) 0 of
+      (ss,exp,t) -> (J.Block ss,exp, t)
 
 compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))
 
