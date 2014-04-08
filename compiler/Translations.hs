@@ -27,7 +27,7 @@ applyopt = new (transApply . transMixA)
 -- Adaptor mixin for trans
 
 transMix :: (MonadState Int m, MonadWriter Bool m) => Open (TranslateStack m)
-transMix this = TS (applyopt) (translateScheduleM this)
+transMix this = TS (transMixA (toTS this)) (translateScheduleM this)
              
 -- mixing in the new translation
 

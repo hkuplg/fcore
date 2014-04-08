@@ -28,13 +28,11 @@ transApply this = NT { toT = T {
   translateM = \e -> case e of 
        CLam s ->
            do  tell False
-               result <- translateM (toT this) e
-               return result
+               translateM (toT this) e
 
        otherwise -> 
             do  tell True
-                result <- translateM (toT this) e
-                return result,
+                translateM (toT this) e,
   
   translateScopeM = \e m -> case e of 
       Typ t g -> 
@@ -58,8 +56,7 @@ transApply this = NT { toT = T {
 
       otherwise ->
           do tell False
-             result <- translateScopeM (toT this) e m
-             return result
+             translateScopeM (toT this) e m
   }
   }
 

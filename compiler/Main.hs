@@ -20,7 +20,7 @@ import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
 
-translate e = translateM (to applyopt) e
+translate e = translateM (to stack) e
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint

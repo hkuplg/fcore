@@ -69,5 +69,3 @@ transS this = TS {
          do  (s,j,t) <- translateM (toT $ toTS this) e
              return (s,j,[],t)
   }
-
--- translate = translateM (toT transStack)
