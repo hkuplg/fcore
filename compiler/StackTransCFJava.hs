@@ -43,7 +43,7 @@ transS this = TS {
     translateM = \e -> case e of 
        CApp _ _ ->
          do  (s1,je,sig,t) <- translateScheduleM this e 
-             return (s1 ++ sstack sig, je, t)
+             return (s1 ++ (sstack sig), je, t)
        
        otherwise -> translateM (toT $ toTS this) e, 
     translateScopeM = translateScopeM (toT $ toTS this)
@@ -64,7 +64,7 @@ transS this = TS {
                       Body _ -> ([cvar,ass],[p])
                       _ -> ([cvar,ass],[])
           let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-          return (s1 ++ s2, j3, sig : (sig2 ++ sig1), scope2ctyp t) -- need to check t1 == t2
+          return (s1 ++ s2, j3, sig1 ++ (sig2 ++ [sig]), scope2ctyp t) -- need to check t1 == t2
     otherwise ->
          do  (s,j,t) <- translateM (toT $ toTS this) e
              return (s,j,[],t)
