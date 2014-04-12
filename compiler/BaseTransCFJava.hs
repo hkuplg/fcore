@@ -13,10 +13,9 @@ import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
 import Mixins
+import StringPrefixes
 
 -- Closure F to Java
-
-localVarPrefs = ["ifres"]
 
 var x = J.ExpName (J.Name [J.Ident x])
 
@@ -31,15 +30,12 @@ jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) []
 
 closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 
-comparezero :: J.Exp -> J.Exp
-comparezero jexp = genOp jexp J.Equal (J.Lit $ J.Int 0)
-
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
-ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (comparezero j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
+ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
     where
         j2Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j2)))]))]
         j3Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j3)))]))]
-        ifvarname = (localVarPrefs!!0 ++ show n)
+        ifvarname = (ifresultstr ++ show n)
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
         newvar = var ifvarname
 
@@ -50,7 +46,7 @@ createCU (J.Block bs,e,t) = (cu,t) where
               J.VarDecl (J.VarId (J.Ident name)) Nothing])
    app mod b = J.MemberDecl (J.MethodDecl mod [] Nothing (J.Ident "apply") [] [] (J.MethodBody b))
    closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
-                  J.ClassBody [field "x",field "out",app [J.Abstract] Nothing]))
+                  J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing]))
    body = Just (J.Block (bs ++ [ass]))
    ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA e))
    refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
@@ -106,10 +102,10 @@ trans :: (MonadState Int m) => Open (Translate m)
 trans this = T {
   translateM = \e -> case e of 
      CVar (Left i,t) -> 
-        do return ([],var ("x" ++ show i ++ ".x"), t)
+        do return ([],var (localvarstr ++ show i ++ "." ++ localvarstr), t)
      
      CVar (Right i, t) ->
-       do return ([],var ("x" ++ show i), t)
+       do return ([],var (localvarstr ++ show i), t)
      
      CFLit e    ->
        return ([],J.Lit $ J.Int e, CInt)
@@ -122,10 +118,10 @@ trans this = T {
      CFif0 e1 e2 e3 ->
        do  n <- get
            put (n+1)
-           (s1,j1,t1) <- translateM this e1
+           (s1,j1,t1) <- translateM this (CFPrimOp e1 J.Equal (CFLit 0))
            (s2,j2,t2) <- translateM this e2
            (s3,j3,t3) <- translateM this e3
-           let ifvarname = (localVarPrefs!!0 ++ show n)
+           let ifvarname = (ifresultstr ++ show n)
            let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
            let ifresdecl = J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
            let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable        
@@ -162,9 +158,9 @@ trans this = T {
            -- END DEBUG
            (s2,j2,t2) <- translateM this e2
            let t    = g ()
-           let f    = J.Ident ("x" ++ show n) -- use a fresh variable
+           let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
            let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
-           let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
+           let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) ) 
            let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
            let s3 = case t of -- checking the type whether to generate the apply() call
                        Body _ -> [cvar,ass,apply]
@@ -186,17 +182,17 @@ trans this = T {
                 
       Typ t g -> 
         do  n <- get
-            let f    = J.Ident ("x" ++ show n) -- use a fresh variable              
+            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable              
             case m of -- Consider refactoring later?
               Just (i,t') | last (g (Right i,t')) ->
                 do  put (n+1)
-                    let self = J.Ident ("x" ++ show i)
+                    let self = J.Ident (localvarstr ++ show i)
                     (s,je,t1) <- translateScopeM (this) (g (Left i,t)) m
                     let cvar = standardTranslation je s self f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
-                    let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable              
+                    let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable              
                     (s,je,t1) <- translateScopeM (this) (g (Left (n+1),t)) m
                     let cvar = standardTranslation je s self f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )

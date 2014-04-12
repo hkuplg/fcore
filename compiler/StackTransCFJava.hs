@@ -16,6 +16,7 @@ import Mixins
 
 import ApplyTransCFJava 
 import BaseTransCFJava
+import StringPrefixes
 
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
@@ -56,7 +57,7 @@ transS this = TS {
           (s1,j1,sig1,CForall (Typ t1 g)) <- translateScheduleM this e1
           (s2,j2,sig2,t2) <- translateScheduleM this e2
           let t    = g ()
-          let f    = J.Ident ("x" ++ show n) -- use a fresh variable
+          let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
           let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
           let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
           let p = push (J.ExpName (J.Name [f]))
