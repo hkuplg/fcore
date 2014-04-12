@@ -17,6 +17,7 @@ import ClosureF
 import Mixins
 import Data.Char
 import BaseTransCFJava
+import StringPrefixes
 
 data ApplyOptTranslate m = NT {
   toT :: Translate m
@@ -37,18 +38,18 @@ transApply this = NT { toT = T {
   translateScopeM = \e m -> case e of 
       Typ t g -> 
         do  n <- get
-            let f    = J.Ident ("x" ++ show n) -- use a fresh variable
+            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
             case m of -- Consider refactoring later?
               Just (i,t') | last (g (Right i,t')) ->
                 do  put (n+1)
-                    let self = J.Ident ("x" ++ show i)
+                    let self = J.Ident (localvarstr ++ show i)
                     tell False
                     ((s,je,t1), closureCheck) <- listen $ translateScopeM (toT this) (g (Left i,t)) m
                     let cvar = refactoredScopeTranslationBit je self s f closureCheck
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
-                    let self = J.Ident ("x" ++ show (n+1)) -- use another fresh variable
+                    let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable
                     tell False
                     ((s,je,t1), closureCheck) <- listen $ translateScopeM (toT this) (g (Left (n+1),t)) m
                     let cvar = refactoredScopeTranslationBit je self s f closureCheck
