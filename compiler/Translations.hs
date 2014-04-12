@@ -31,15 +31,27 @@ transMixS this = VNT (trans (toTST this)) (translateSubst this) (translateScopeS
 
 substopt :: (MonadState Int m, MonadReader (Map.Map J.Exp J.Exp) m) => SubstIntVarTranslate m
 substopt = new (transNewVar . transMixS)
---
+
 -- Stack-based translation 
 
 -- Adaptor mixin for trans
 
 transMix :: (MonadState Int m, MonadWriter Bool m) => Open (TranslateStack m)
-transMix this = TS (applyopt) (translateScheduleM this)
+transMix this = TS (transMixA (toTS this)) (translateScheduleM this)
              
 -- mixing in the new translation
 
 stack :: (MonadState Int m, MonadWriter Bool m) => TranslateStack m
 stack = new (transS . transMix)
+
+class ToTranslate f where
+   to :: f m -> Translate m
+
+instance ToTranslate Translate where
+   to = id
+
+instance ToTranslate ApplyOptTranslate where
+   to = toT
+
+instance ToTranslate TranslateStack where
+   to = toT . toTS

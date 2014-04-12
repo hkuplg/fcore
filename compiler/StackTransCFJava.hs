@@ -1,4 +1,4 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts #-}
 
 module StackTransCFJava where
 
@@ -7,19 +7,21 @@ import Debug.Trace
 import Data.List hiding (init)
 
 import Control.Monad.State
+import Control.Monad.Writer
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
 import Mixins
 
-import TransCFJava 
+import ApplyTransCFJava 
+import BaseTransCFJava
 
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
-data TranslateStack = TS {
-  toT :: Translate,
-  translateScheduleM :: PCExp Int (Var, PCTyp Int) -> State Int ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
+data TranslateStack m = TS {
+  toTS :: ApplyOptTranslate m,
+  translateScheduleM :: PCExp Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
   }
                       
 sstack :: Schedule -> [J.BlockStmt]
@@ -35,17 +37,17 @@ push :: J.Exp -> J.BlockStmt
 push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [stack])) [] (J.Ident "push") [e])))
   where stack = (J.Ident "Stack")
 
-transS :: Open TranslateStack
+transS :: (MonadState Int m, MonadWriter Bool m) => Open (TranslateStack m)
 transS this = TS {
-  toT = T {
+  toTS = NT { toT = T {
     translateM = \e -> case e of 
        CApp _ _ ->
          do  (s1,je,sig,t) <- translateScheduleM this e 
-             return (s1 ++ sstack sig, je, t)
+             return (s1 ++ (sstack sig), je, t)
        
-       otherwise -> translateM (toT this) e, 
-    translateScopeM = translateScopeM (toT this)
-    },
+       otherwise -> translateM (toT $ toTS this) e, 
+    translateScopeM = translateScopeM (toT $ toTS this)
+    }},
   
   translateScheduleM = \e -> case e of
     CApp e1 e2  -> -- CJ-App-Sigma
@@ -62,10 +64,8 @@ transS this = TS {
                       Body _ -> ([cvar,ass],[p])
                       _ -> ([cvar,ass],[])
           let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-          return (s1 ++ s2, j3, sig : (sig2 ++ sig1), scope2ctyp t) -- need to check t1 == t2
+          return (s1 ++ s2, j3, sig1 ++ (sig2 ++ [sig]), scope2ctyp t) -- need to check t1 == t2
     otherwise ->
-         do  (s,j,t) <- translateM (toT this) e
+         do  (s,j,t) <- translateM (toT $ toTS this) e
              return (s,j,[],t)
   }
-
--- translate = translateM (toT transStack)

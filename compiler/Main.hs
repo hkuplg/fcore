@@ -1,13 +1,18 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS -XMultiParamTypeClasses #-}
 module Main where
 
 import SystemFParser    (readSF)
 import SystemF
 import ClosureF
-import TransCFJava (createCU)
+import BaseTransCFJava (createCU)
 import Control.Monad.State
+import Control.Monad.Writer
+import Control.Monad.Identity
 import Language.Java.Syntax as J
 import StackTransCFJava
-import TransCFJava
+import ApplyTransCFJava
+import BaseTransCFJava
 import Translations
 import Test.HUnit
 import Language.Java.Pretty
@@ -15,13 +20,13 @@ import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
 
-translate = translateM naive
+translate e = translateM (to stack) e
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
 compile e = 
-  case evalState (translate (fexp2cexp e)) 0 of
+  case evalState (liftM fst $ runWriterT $ translate (fexp2cexp e)) 0 of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))
@@ -38,6 +43,8 @@ fact = FFix PFInt (\fact n ->
    Fif0  (FVar n) 
          (FLit 1) 
          (FPrimOp (FVar n) J.Mult (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))))) PFInt
+
+fact_app = FApp fact (FLit 10)
 
 -- /\A. \(x:A) . x
 
