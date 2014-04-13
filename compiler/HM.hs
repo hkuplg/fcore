@@ -12,9 +12,6 @@ import Control.Monad.State
 import Data.List        (union, delete, intercalate, nub)
 import Data.Maybe       (fromMaybe)
 
-evenOdd :: String
-evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
-
 true :: Poly
 true = PForall "a" (PForall "b" (PMono (MVar "a")))
 
@@ -213,10 +210,6 @@ unify c@((s, t):c')
         _ -> raise
     where 
         raise = error $ "Cannot unify " ++ show s ++ " and " ++ show t ++ " given constraints:\n" ++ show c
-
--- Similar to the ":t" in GHCi
-t :: String -> IO ()
-t = putStrLn . pretty . infer . readHM 
 
 class Pretty a where 
     pretty :: a -> String

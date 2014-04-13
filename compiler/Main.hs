@@ -2,6 +2,8 @@
 {-# OPTIONS -XMultiParamTypeClasses #-}
 module Main where
 
+import qualified HM
+import HMParser         (readHM)
 import SystemFParser    (readSF)
 import SystemF
 import ClosureF
@@ -124,5 +126,12 @@ loadsf2java = readFile >=> (return . sf2java)
 --      compilesf2java "id.sf" "id.java"
 compilesf2java :: FilePath -> FilePath -> IO ()
 compilesf2java srcPath outputPath = loadsf2java srcPath >>= writeFile outputPath
+
+-- Similar to the ":t" in GHCi
+inferHM :: String -> IO ()
+inferHM = putStrLn . HM.pretty . HM.infer . readHM 
+
+evenOdd :: String
+evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
 
 main = runTestTT $ TestList [test1, test2, test3, test4]
