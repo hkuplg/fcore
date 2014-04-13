@@ -144,7 +144,8 @@ ctype ctx (EUn op e1) = ctype ctx e1
 ctype ctx (EBin op e1 e2) = 
     do (c1, t1) <- ctype ctx e1
        (c2, t2) <- ctype ctx e2
-       return (c1 `union` c2 `union` [(t1, t2)], t1)
+       let c' = if isLitLitOp op then [(t1, CTLit), (t2, CTLit)] else [(t1, t2)]
+       return (c1 `union` c2 `union` c', t1)
 
 ctype ctx (EIf e1 e2 e3) = 
     do (c1, t1) <- ctype ctx e1

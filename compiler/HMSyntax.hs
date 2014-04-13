@@ -28,6 +28,9 @@ data BinOp = Add | Sub | Mul | Div | Mod
            | And | Or
            deriving (Eq, Show)
 
+isLitLitOp :: BinOp -> Bool
+isLitLitOp _ = True
+
 -- tau   ::= alpha | iota | tau -> tau
 -- sigma ::= tau | forall alpha . sigma
 data Type = TMono Mono
