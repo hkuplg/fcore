@@ -13,7 +13,7 @@ import Data.List        (union, delete, intercalate, nub)
 import Data.Maybe       (fromMaybe)
 
 evenOdd :: String
-evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd 10"
+evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
 
 true :: Poly
 true = PForall "a" (PForall "b" (PMono (MVar "a")))
@@ -152,6 +152,21 @@ ctype ctx (EIf e1 e2 e3) =
        (c2, t2) <- ctype ctx e2
        (c3, t3) <- ctype ctx e3
        return (c1 `union` c2 `union` c3 `union` [(t1, CTLit), (t2, t3)], t2)
+
+ctype ctx (ELet x e1 e2) = 
+    do (c1, t1) <- ctype ctx e1
+       (c2, t2) <- ctype ((x, t1):ctx) e2
+       return (c1 `union` c2, t2)
+
+ctype ctx (ELetRec bindings e1) = 
+    do let vars = map fst bindings
+       if length vars /= length (nub vars) 
+           then error "Duplicate variable names" 
+           else do freshTyVars <- replicateM (length bindings) uvargen
+                   let ctx' = zip vars freshTyVars ++ ctx
+                   (cs, ts) <- fmap unzip $ zipWithM (\ty (x0, e0) -> do { (c0, t0) <- ctype ctx' e0; return (c0 `union` [(t0, ty)], t0) }) freshTyVars bindings
+                   (c1, t1) <- ctype ctx' e1
+                   return (foldl union c1 cs, t1)
 
 infer :: Exp -> CType
 infer e = 
