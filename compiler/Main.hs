@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS -XMultiParamTypeClasses #-}
+{-# OPTIONS -XMultiParamTypeClasses -XRankNTypes -XFlexibleContexts #-}
 module Main where
 
 import qualified HM
@@ -22,7 +22,11 @@ import Control.Monad    ((>=>))
 
 import Prelude hiding (const)
 
-translate e = translateM (to stack) e
+st :: (MonadState Int m, MonadWriter Bool m) => TranslateStack (ApplyOptTranslate Translate) m
+st = stack
+
+translate e = translateM (to st) e
+
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint

@@ -21,3 +21,10 @@ data PFExp t e =
    | FProj Int (PFExp t e)
    -- fixpoints
    | FFix (PFTyp t) (e -> e -> PFExp t e) (PFTyp t)  -- fix y . \(x : t1) . e : t2
+
+
+-- fact n = if (n == 0) then 1 else n * fact (n-1)
+
+-- fact = \n -> if (n == 0) then 1 else n * fact (n-1)
+
+-- fact = fix fact . \(n : Int) . if (n == 0) then 1 else n * fact (n-1) : Int

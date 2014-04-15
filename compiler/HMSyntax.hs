@@ -27,6 +27,12 @@ data BinOp = Add | Sub | Mul | Div | Mod
            | Eq | Ne | Lt | Gt | Le | Ge 
            | And | Or
            deriving (Eq, Show)
+                    
+litlitOP :: [BinOp]
+litlitOP = [Add,Sub,Mul,Div,Mod]
+
+func op | op `elem` litlitOP = "here!"
+        | otherwise = "there!"
 
 isLitLitOp :: BinOp -> Bool
 isLitLitOp _ = True
@@ -40,7 +46,7 @@ data Type = TMono Mono
 -- Monotype tau
 data Mono = MVar TVar
           | MPrim Prim  -- Primitive types
-          | MApp Mono Mono
+          | MApp Mono Mono -- Function Arrow: t1 -> t2
           deriving (Eq, Show)
 
 data Prim = Int | Bool deriving (Eq, Show)

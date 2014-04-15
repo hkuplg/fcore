@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures -XConstraintKinds #-}
 
 module ApplyTransCFJava where
 
@@ -19,21 +19,23 @@ import Data.Char
 import BaseTransCFJava
 import StringPrefixes
 
-data ApplyOptTranslate m = NT {
-  toT :: Translate m
-  }
+data ApplyOptTranslate (f :: (* -> *) -> *) m = NT { toT :: f m}
+
+instance (f :< Translate) => (:<) (ApplyOptTranslate f) Translate where
+   to              = to . toT 
+   mapG f (NT fm)  = NT (mapG f fm) -- needed to do proper overriding of methods, when we only know we inherit from a subtype. If 
 
 -- main translation function
-transApply :: (MonadState Int m, MonadWriter Bool m) => Open (ApplyOptTranslate m)
-transApply this = NT { toT = T {
+transApply :: (MonadState Int m, MonadWriter Bool m, f :< Translate) => Open (ApplyOptTranslate f m)
+transApply this = NT { toT = mapG (\trans -> trans {
   translateM = \e -> case e of 
        CLam s ->
            do  tell False
-               translateM (toT this) e
+               translateM (to this) e
 
        otherwise -> 
             do  tell True
-                translateM (toT this) e,
+                translateM (to this) e,
   
   translateScopeM = \e m -> case e of 
       Typ t g -> 
@@ -44,21 +46,21 @@ transApply this = NT { toT = T {
                 do  put (n+1)
                     let self = J.Ident (localvarstr ++ show i)
                     tell False
-                    ((s,je,t1), closureCheck) <- listen $ translateScopeM (toT this) (g (Left i,t)) m
+                    ((s,je,t1), closureCheck) <- listen $ translateScopeM (to this) (g (Left i,t)) m
                     let cvar = refactoredScopeTranslationBit je self s f closureCheck
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
                     let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable
                     tell False
-                    ((s,je,t1), closureCheck) <- listen $ translateScopeM (toT this) (g (Left (n+1),t)) m
+                    ((s,je,t1), closureCheck) <- listen $ translateScopeM (to this) (g (Left (n+1),t)) m
                     let cvar = refactoredScopeTranslationBit je self s f closureCheck
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
       otherwise ->
           do tell False
-             translateScopeM (toT this) e m
-  }
+             translateScopeM (to this) e m
+  }) (toT this)
   }
 
 -- seperating (hopefully) the important bit

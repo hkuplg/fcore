@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators #-}
 
 module SubstIntVarTransCFJava where
     
@@ -20,9 +20,8 @@ import qualified Data.Map as Map
 import BaseTransCFJava
 import StringPrefixes
 
-
-data SubstIntVarTranslate m = VNT {
-  toTST :: Translate m,
+data SubstIntVarTranslate f m = VNT {
+  toTST :: f m,
   translateSubst :: PCExp Int (Var, PCTyp Int) -> 
      m (([J.BlockStmt], J.Exp, PCTyp Int), Map.Map J.Exp J.Exp),
   translateScopeSubst :: Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) -> 
@@ -30,15 +29,18 @@ data SubstIntVarTranslate m = VNT {
     m (([J.BlockStmt], J.Exp, TScope Int), Map.Map J.Exp J.Exp)
   }
 
-  
+instance (f :< Translate) => (SubstIntVarTranslate f) :< Translate where
+   to                       = to . toTST 
+   mapG f (VNT fm ts1 ts2)  = VNT (mapG f fm) ts1 ts2  
+
 -- translation that is substituting casts; TODO: replace with a State monad
-transNewVar :: (MonadState Int m, MonadReader (Map.Map J.Exp J.Exp) m) => Open (SubstIntVarTranslate m)
-transNewVar this = VNT { toTST = T {
+transNewVar :: (MonadState Int m, MonadReader (Map.Map J.Exp J.Exp) m, f :< Translate) => Open (SubstIntVarTranslate f m)
+transNewVar this = VNT { toTST = mapG (\trans -> trans {
   translateM = \e -> do result <- translateSubst this e 
                         return $ fst $ result,
   translateScopeM = \e m -> do result <- translateScopeSubst this e m
                                return $ fst $ result
-  },
+  }) (toTST this),
     translateSubst = \e -> case e of 
      CFPrimOp e1 op e2 ->
        do  ((s1,j1,t1), enva) <- translateSubst this e1
@@ -76,11 +78,10 @@ transNewVar this = VNT { toTST = T {
            let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable        
            return ((s1 ++ [ifresdecl,ifstmt], ifexp, t2), envc)                     -- need to check t2 == t3
 
-     otherwise -> do result <- translateM (toTST this) e
+     otherwise -> do result <- translateM (to this) e
                      env <- ask
                      return (result, env),
-    translateScopeSubst = \e m -> do result <- translateScopeM (toTST this) e m
+    translateScopeSubst = \e m -> do result <- translateScopeM (to this) e m
                                      env <- ask
                                      return (result, env)
   }
-

@@ -1,4 +1,4 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses  #-}
 
 module StackTransCFJava where
 
@@ -14,17 +14,22 @@ import Language.Java.Pretty
 import ClosureF
 import Mixins
 
-import ApplyTransCFJava 
+-- import ApplyTransCFJava 
 import BaseTransCFJava
 import StringPrefixes
 
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
-data TranslateStack m = TS {
-  toTS :: ApplyOptTranslate m,
+data TranslateStack f m = TS {
+  toTS :: f m, -- supertype is a subtype of Translate
   translateScheduleM :: PCExp Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
   }
                       
+instance (f :< Translate) => (:<) (TranslateStack f) Translate where
+   to              = to . toTS 
+   mapG f (TS fm ts)  = TS (mapG f fm) ts 
+
+
 sstack :: Schedule -> [J.BlockStmt]
 sstack []              = [] -- Sigma-Empty
 sstack ((s1,s2) : [])  = s1 ++ s2 -- Sigma-One
@@ -38,17 +43,17 @@ push :: J.Exp -> J.BlockStmt
 push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [stack])) [] (J.Ident "push") [e])))
   where stack = (J.Ident "Stack")
 
-transS :: (MonadState Int m, MonadWriter Bool m) => Open (TranslateStack m)
+transS :: (MonadState Int m, MonadWriter Bool m, f :< Translate) => Open (TranslateStack f m)
 transS this = TS {
-  toTS = NT { toT = T {
+  toTS = mapG (\trans -> trans {
     translateM = \e -> case e of 
        CApp _ _ ->
          do  (s1,je,sig,t) <- translateScheduleM this e 
              return (s1 ++ (sstack sig), je, t)
        
-       otherwise -> translateM (toT $ toTS this) e, 
-    translateScopeM = translateScopeM (toT $ toTS this)
-    }},
+       otherwise -> translateM (to this) e, 
+    translateScopeM = translateScopeM (to this)
+    }) (toTS this),
   
   translateScheduleM = \e -> case e of
     CApp e1 e2  -> -- CJ-App-Sigma
@@ -67,6 +72,6 @@ transS this = TS {
           let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
           return (s1 ++ s2, j3, sig1 ++ (sig2 ++ [sig]), scope2ctyp t) -- need to check t1 == t2
     otherwise ->
-         do  (s,j,t) <- translateM (toT $ toTS this) e
+         do  (s,j,t) <- translateM (to this) e
              return (s,j,[],t)
   }

@@ -50,7 +50,7 @@ tsubstMono s (MPrim t) = MPrim t
 tsubstMono s (MApp t1 t2) = MApp (tsubstMono s t1) (tsubstMono s t2)
 
 -- TODO: implement
-isLessSpecialThan :: Poly -> Poly -> Bool
+isLessSpecialThan :: Poly  -> Poly -> Bool
 isLessSpecialThan s1 s2 = error "isLessSpecialThan"
 
 -- Declarative Rule System
