@@ -17,11 +17,11 @@ import StringPrefixes
 
 class (:<) (f :: (* -> *) -> *) g  where
    to :: f m -> g m
-   mapG :: (g m -> g m) -> f m -> f m -- needed to do proper overriding of methods, when we only know we inherit from a subtype. When we know the exact type of the supertype, then this method is not needed.
+   override :: f m -> (g m -> g m) -> f m -- needed to do proper overriding of methods, when we only know we inherit from a subtype. When we know the exact type of the supertype, then this method is not needed.
    
 instance (:<) Translate Translate where
    to = id
-   mapG f = f 
+   override fm f = f fm
 
 -- Closure F to Java
 

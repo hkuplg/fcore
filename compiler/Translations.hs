@@ -21,13 +21,13 @@ naive = new trans
 
 -- apply() distinction 
 transMixA :: (MonadState Int m, MonadWriter Bool m, f :< Translate) => Open (ApplyOptTranslate f m)
-transMixA this = NT (mapG trans (toT this))
+transMixA this = NT (override (toT this) trans)
 
 applyopt :: (MonadState Int m, MonadWriter Bool m, f :< Translate) => ApplyOptTranslate f m
 applyopt = new (transApply . transMixA)
 
 transMixS :: (MonadState Int m, MonadReader (Map.Map J.Exp J.Exp) m, f :< Translate) => Open (SubstIntVarTranslate f m)
-transMixS this = VNT (mapG trans (toTST this)) (translateSubst this) (translateScopeSubst this)
+transMixS this = VNT (override (toTST this) trans) (translateSubst this) (translateScopeSubst this)
 
 substopt :: (MonadState Int m, MonadReader (Map.Map J.Exp J.Exp) m, f :< Translate) => SubstIntVarTranslate f m
 substopt = new (transNewVar . transMixS)

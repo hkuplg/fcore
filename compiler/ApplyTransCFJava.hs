@@ -23,11 +23,11 @@ data ApplyOptTranslate (f :: (* -> *) -> *) m = NT { toT :: f m}
 
 instance (f :< Translate) => (:<) (ApplyOptTranslate f) Translate where
    to              = to . toT 
-   mapG f (NT fm)  = NT (mapG f fm) -- needed to do proper overriding of methods, when we only know we inherit from a subtype. If 
+   override (NT fm) f  = NT (override fm f) -- needed to do proper overriding of methods, when we only know we inherit from a subtype. If 
 
 -- main translation function
 transApply :: (MonadState Int m, MonadWriter Bool m, f :< Translate) => Open (ApplyOptTranslate f m)
-transApply this = NT { toT = mapG (\trans -> trans {
+transApply this = override this (\trans -> trans {
   translateM = \e -> case e of 
        CLam s ->
            do  tell False
@@ -60,9 +60,8 @@ transApply this = NT { toT = mapG (\trans -> trans {
       otherwise ->
           do tell False
              translateScopeM (to this) e m
-  }) (toT this)
-  }
-
+  })
+ 
 -- seperating (hopefully) the important bit
 
 refactoredScopeTranslationBit :: J.Exp -> J.Ident -> [J.BlockStmt] -> J.Ident -> Bool -> J.BlockStmt

@@ -30,17 +30,17 @@ data SubstIntVarTranslate f m = VNT {
   }
 
 instance (f :< Translate) => (SubstIntVarTranslate f) :< Translate where
-   to                       = to . toTST 
-   mapG f (VNT fm ts1 ts2)  = VNT (mapG f fm) ts1 ts2  
+   to                           = to . toTST 
+   override (VNT fm ts1 ts2) f  = VNT (override fm f) ts1 ts2  
 
 -- translation that is substituting casts; TODO: replace with a State monad
 transNewVar :: (MonadState Int m, MonadReader (Map.Map J.Exp J.Exp) m, f :< Translate) => Open (SubstIntVarTranslate f m)
-transNewVar this = VNT { toTST = mapG (\trans -> trans {
+transNewVar this = VNT { toTST = override (toTST this) (\trans -> trans {
   translateM = \e -> do result <- translateSubst this e 
                         return $ fst $ result,
   translateScopeM = \e m -> do result <- translateScopeSubst this e m
                                return $ fst $ result
-  }) (toTST this),
+  }),
     translateSubst = \e -> case e of 
      CFPrimOp e1 op e2 ->
        do  ((s1,j1,t1), enva) <- translateSubst this e1

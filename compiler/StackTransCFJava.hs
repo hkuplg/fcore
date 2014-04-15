@@ -27,7 +27,7 @@ data TranslateStack f m = TS {
                       
 instance (f :< Translate) => (:<) (TranslateStack f) Translate where
    to              = to . toTS 
-   mapG f (TS fm ts)  = TS (mapG f fm) ts 
+   override (TS fm ts) f  = TS (override fm f) ts 
 
 
 sstack :: Schedule -> [J.BlockStmt]
@@ -45,7 +45,7 @@ push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.
 
 transS :: (MonadState Int m, MonadWriter Bool m, f :< Translate) => Open (TranslateStack f m)
 transS this = TS {
-  toTS = mapG (\trans -> trans {
+  toTS = override (toTS this) (\trans -> trans {
     translateM = \e -> case e of 
        CApp _ _ ->
          do  (s1,je,sig,t) <- translateScheduleM this e 
@@ -53,7 +53,7 @@ transS this = TS {
        
        otherwise -> translateM (to this) e, 
     translateScopeM = translateScopeM (to this)
-    }) (toTS this),
+    }),
   
   translateScheduleM = \e -> case e of
     CApp e1 e2  -> -- CJ-App-Sigma
@@ -74,4 +74,4 @@ transS this = TS {
     otherwise ->
          do  (s,j,t) <- translateM (to this) e
              return (s,j,[],t)
-  }
+  } 
