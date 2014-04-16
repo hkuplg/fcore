@@ -2,9 +2,9 @@
 
 module StackTransCFJava where
 
-import Prelude hiding (init)
+import Prelude
 import Debug.Trace
-import Data.List hiding (init)
+import Data.List
 
 import Control.Monad.State
 import Control.Monad.Writer
@@ -17,6 +17,7 @@ import Mixins
 -- import ApplyTransCFJava 
 import BaseTransCFJava
 import StringPrefixes
+
 
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
