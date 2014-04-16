@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XScopedTypeVariables #-}
 
 module SubstIntVarTransCFJava where
     
@@ -7,8 +7,6 @@ import Prelude hiding (init, last)
 import Debug.Trace
 import Data.List hiding (init, last)
 
-import Control.Monad.State
-import Control.Monad.Reader
 import Control.Monad.Identity
 
 import qualified Language.Java.Syntax as J
@@ -19,6 +17,7 @@ import Data.Char
 import qualified Data.Map as Map
 import BaseTransCFJava
 import StringPrefixes
+import MonadLib
 
 data SubstIntVarTranslate f m = VNT {
   toTST :: f m,
@@ -47,7 +46,7 @@ transNewVar this = VNT { toTST = override (toTST this) (\trans -> trans {
            env1 <- local (Map.union enva) ask
            (s3, jf1, env1') <- case j1 of J.Lit e -> return ([], j1,env1)
                                           _ -> case (Map.lookup j1 env1) of Just e -> return ([], e,env1)
-                                                                            Nothing -> do n <- get
+                                                                            Nothing -> do (n :: Int) <- get
                                                                                           put (n+1)
                                                                                           let temp1 = var (castedintstr ++ show n)
                                                                                           let x = Map.insert j1 temp1 env1
@@ -57,7 +56,7 @@ transNewVar this = VNT { toTST = override (toTST this) (\trans -> trans {
            env2 <- local (Map.union envb) ask
            (s4, jf2, env2') <- case j2 of J.Lit e -> return ([], j2,env2)
                                           _ -> case (Map.lookup j2 env2) of Just e -> return ([], e,env2)
-                                                                            Nothing -> do n <- get
+                                                                            Nothing -> do (n :: Int) <- get
                                                                                           put (n+1)
                                                                                           let temp2 = var (castedintstr ++ show n)
                                                                                           let x = Map.insert j2 temp2 env2

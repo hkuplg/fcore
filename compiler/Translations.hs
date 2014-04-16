@@ -8,11 +8,9 @@ import StackTransCFJava
 import BaseTransCFJava
 import SubstIntVarTransCFJava
 
-import Control.Monad.State
-import Control.Monad.Writer
-import Control.Monad.Reader
 import qualified Data.Map as Map
 import qualified Language.Java.Syntax as J
+import MonadLib
 
 -- Naive translation
 

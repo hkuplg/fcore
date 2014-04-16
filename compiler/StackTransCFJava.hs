@@ -1,13 +1,10 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses  #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses  -XScopedTypeVariables #-}
 
 module StackTransCFJava where
 
 import Prelude
 import Debug.Trace
 import Data.List
-
-import Control.Monad.State
-import Control.Monad.Writer
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
@@ -17,6 +14,7 @@ import Mixins
 -- import ApplyTransCFJava 
 import BaseTransCFJava
 import StringPrefixes
+import MonadLib
 
 
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
@@ -58,7 +56,7 @@ transS this = TS {
   
   translateScheduleM = \e -> case e of
     CApp e1 e2  -> -- CJ-App-Sigma
-      do  n <- get
+      do  (n :: Int) <- get
           put (n+1)
           (s1,j1,sig1,CForall (Typ t1 g)) <- translateScheduleM this e1
           (s2,j2,sig2,t2) <- translateScheduleM this e2

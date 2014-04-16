@@ -8,29 +8,31 @@ import SystemFParser    (readSF)
 import SystemF
 import ClosureF
 import BaseTransCFJava (createCU)
-import Control.Monad.State
-import Control.Monad.Writer
+
 import Control.Monad.Identity
 import Language.Java.Syntax as J
 import StackTransCFJava
 import ApplyTransCFJava
 import BaseTransCFJava
 import Translations
-import Test.HUnit
+import Test.HUnit hiding (State)
 import Language.Java.Pretty
-import Control.Monad    ((>=>))
+import MonadLib
 
 import Prelude hiding (const)
 
 st :: (MonadState Int m, MonadWriter Bool m) => TranslateStack (ApplyOptTranslate Translate) m
 st = stack
 
-translate e = translateM (to st) e
+type M a = WriterT Bool (State Int) a
 
+translate :: PCExp Int (Var, PCTyp Int) -> M ([BlockStmt], Exp, PCTyp Int)
+translate e = translateM (to st) e
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
+compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case evalState (liftM fst $ runWriterT $ translate (fexp2cexp e)) 0 of
       (ss,exp,t) -> (J.Block ss,exp, t)

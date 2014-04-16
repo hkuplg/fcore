@@ -1,4 +1,4 @@
-{-# OPTIONS -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures #-}
+{-# OPTIONS -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures -XScopedTypeVariables #-}
 
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures 
@@ -6,14 +6,15 @@ import Prelude hiding (init, last)
 import Debug.Trace
 import Data.List hiding (init, last)
 
-import Control.Monad.State
-import Control.Monad.Writer
+-- import Control.Monad.State
+-- import Control.Monad.Writer
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
 import Mixins
 import StringPrefixes
+import MonadLib
 
 class (:<) (f :: (* -> *) -> *) g  where
    to :: f m -> g m
@@ -151,13 +152,13 @@ trans this = T {
            return (s,je, CForall t)
      
      CFix t s   -> 
-       do  n <- get
+       do  (n :: Int) <- get
            put (n+1)
            (s, je, t') <- translateScopeM this (s (Right n,t)) (Just (n,t)) -- weird!
            return (s,je, CForall t')
            
      CApp e1 e2 ->
-       do  n <- get
+       do  (n :: Int) <- get
            put (n+1)
            (s1,j1, CForall (Typ t1 g)) <- translateM this e1
            -- DEBUG

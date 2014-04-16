@@ -7,10 +7,6 @@ import Prelude hiding (init, last)
 import Debug.Trace
 import Data.List hiding (init, last)
 
-import Control.Monad.State
-import Control.Monad.Writer
-import Control.Monad.Identity
-
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
@@ -18,6 +14,7 @@ import Mixins
 import Data.Char
 import BaseTransCFJava
 import StringPrefixes
+import MonadLib
 
 data ApplyOptTranslate (f :: (* -> *) -> *) m = NT { toT :: f m}
 
