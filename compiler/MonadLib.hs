@@ -1,4 +1,4 @@
-{-# OPTIONS -XMultiParamTypeClasses -XFlexibleInstances #-}
+{-# OPTIONS -XMultiParamTypeClasses -XFlexibleInstances -XRankNTypes -XTypeOperators #-}
 
 module MonadLib (module MonadLib, module Control.Monad, module Data.Monoid) where
 
@@ -34,10 +34,12 @@ class MonadTrans t where
 asks :: MonadReader r m => (r -> a) -> m a
 asks = reader
 
+{-
 instance MonadReader r ((->) r) where
     ask       = id
     local f m = m . f
     reader    = id
+-}
 
 newtype Reader r a = Reader {runReader :: r -> a}
 
@@ -282,3 +284,22 @@ instance (Monoid w, MonadReader r m) => MonadReader r (WriterT w m) where
 instance (Monoid w, MonadState s m) => MonadState s (WriterT w m) where
     get = lift get
     put = lift . put
+
+-- We need views to support multiple monads of the same type
+
+data n :-> m = View {
+  fromV :: forall a . n a -> m a,
+  toV :: forall a . m a -> n a
+  }
+               
+-- auxiliary definitions with views
+
+getV :: MonadState s n => (n :-> m) -> m s
+getV view = fromV view get
+
+putV :: MonadState s n => (n :-> m) -> s -> m ()
+putV view x = fromV view (put x)
+
+localV :: MonadReader r n => (n :-> m) -> (r -> r) -> m a -> m a
+localV view f ma = fromV view $ local f (toV view ma)
+

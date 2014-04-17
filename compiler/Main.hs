@@ -18,8 +18,18 @@ import Translations
 import Test.HUnit hiding (State)
 import Language.Java.Pretty
 import MonadLib
+import Data.Map
 
 import Prelude hiding (const)
+
+type M1 = StateT (Map Int String) (State Int)
+type M2 = StateT Int (State (Map Int String)) 
+
+-- to :: (a -> b -> ((c,b),a)) -> 
+-- to x y = ((
+
+--viewST :: M1 :-> M2
+--viewST = View {from = \st -> StateT $ \s1 -> (State $ \s2 -> runState (evalState st s1) s2 ,s1)}
 
 st :: (MonadState Int m, MonadWriter Bool m) => TranslateStack (ApplyOptTranslate Translate) m
 st = stack

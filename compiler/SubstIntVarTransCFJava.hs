@@ -29,28 +29,28 @@ instance (f :< Translate) => (SubstIntVarTranslate f) :< Translate where
    override (VNT fm) f  = VNT (override fm f)
 
 -- translation that is substituting casts; TODO: test
-transNewVar :: (MonadState Int m, MonadState (Map.Map String Int) m, f :< Translate) => Open (SubstIntVarTranslate f m)
-transNewVar this = override this (\trans -> trans {
+transNewVar :: (MonadState Int m, MonadState (Map.Map String Int) n, f :< Translate) => n :-> m -> Open (SubstIntVarTranslate f m)
+transNewVar view this = override this (\trans -> trans {
   translateM = \e -> case e of 
      CFPrimOp e1 op e2 ->
        do  (s1,j1,t1) <- translateM (to this) e1
-           (env1 :: Map.Map String Int) <- get
+           (env1 :: Map.Map String Int) <- getV view
            (s3, jf1) <- case j1 of J.Lit e -> return ([], j1)
                                    J.ExpName (J.Name [J.Ident x]) -> case (Map.lookup x env1) of Just e -> return ([], var (castedintstr ++ show e))
                                                                                                  Nothing -> do (n :: Int) <- get
                                                                                                                put (n+1)
                                                                                                                let temp1 = var (castedintstr ++ show n)
-                                                                                                               put(Map.insert x n env1)
+                                                                                                               putV view (Map.insert x n env1)
                                                                                                                let defV1 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j1))])
                                                                                                                return ([defV1], temp1)
            (s2,j2,t2) <- translateM (to this) e2
-           (env2 :: Map.Map String Int) <- get
+           (env2 :: Map.Map String Int) <- getV view
            (s4, jf2) <- case j2 of J.Lit e -> return ([], j2)
                                    J.ExpName (J.Name [J.Ident x]) -> case (Map.lookup x env2) of Just e -> return ([], var (castedintstr ++ show e))
                                                                                                  Nothing -> do (n :: Int) <- get
                                                                                                                put (n+1)
                                                                                                                let temp2 = var (castedintstr ++ show n)
-                                                                                                               put (Map.insert x n env2)
+                                                                                                               putV view (Map.insert x n env2)
                                                                                                                let defV2 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j2))])
                                                                                                                return ([defV2], temp2)                                                                                          
         
