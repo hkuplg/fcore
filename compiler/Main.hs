@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS -XMultiParamTypeClasses -XRankNTypes -XFlexibleContexts #-}
+{-# OPTIONS -XMultiParamTypeClasses -XRankNTypes -XFlexibleContexts -XTypeOperators #-}
 module Main where
 
 import qualified HM
@@ -22,15 +22,21 @@ import Data.Map
 
 import Prelude hiding (const)
 
-type M1 = StateT (Map Int String) (State Int)
-type M2 = StateT Int (State (Map Int String)) 
+-- Extra machinery needed to move between two views of the monad stack
 
--- to :: (a -> b -> ((c,b),a)) -> 
--- to x y = ((
+type M1 = StateT (Map String Int) (State Int)
+type M2 = StateT Int (State (Map String Int)) 
 
---viewST :: M1 :-> M2
---viewST = View {from = \st -> StateT $ \s1 -> (State $ \s2 -> runState (evalState st s1) s2 ,s1)}
+swapS :: ((a,b),c) -> ((a,c),b)
+swapS ((x,y),z) = ((x,z),y)
 
+convState :: StateT b (State c) a -> StateT c (State b) a
+convState st = StateT $ \s1 -> State $ \s2 -> swapS $ runState (runStateT st s2) s1
+
+viewST :: M1 :-> M2
+viewST = View {fromV = convState, toV = convState}
+
+{-
 st :: (MonadState Int m, MonadWriter Bool m) => TranslateStack (ApplyOptTranslate Translate) m
 st = stack
 
@@ -38,13 +44,19 @@ type M a = WriterT Bool (State Int) a
 
 translate :: PCExp Int (Var, PCTyp Int) -> M ([BlockStmt], Exp, PCTyp Int)
 translate e = translateM (to st) e
+-}
 
+sopt :: SubstIntVarTranslate Translate M2  -- instantiation; all coinstraints resolved
+sopt = substopt viewST
+
+translate e = translateM (to sopt) e
+ 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
-  case evalState (liftM fst $ runWriterT $ translate (fexp2cexp e)) 0 of
+  case evalState (evalStateT (translate (fexp2cexp e)) 0) empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))

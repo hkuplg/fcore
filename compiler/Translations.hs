@@ -1,6 +1,6 @@
 {-# OPTIONS -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures #-}
 
-module Translations where 
+module Translations (module Translations, module SubstIntVarTransCFJava) where 
 
 import Mixins
 import ApplyTransCFJava
