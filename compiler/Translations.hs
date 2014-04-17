@@ -24,10 +24,10 @@ transMixA this = NT (override (toT this) trans)
 applyopt :: (MonadState Int m, MonadWriter Bool m, f :< Translate) => ApplyOptTranslate f m
 applyopt = new (transApply . transMixA)
 
-transMixS :: (MonadState Int m, MonadReader (Map.Map J.Exp J.Exp) m, f :< Translate) => Open (SubstIntVarTranslate f m)
-transMixS this = VNT (override (toTST this) trans) (translateSubst this) (translateScopeSubst this)
+transMixS :: (MonadState Int m, MonadState (Map.Map String Int) m, f :< Translate) => Open (SubstIntVarTranslate f m)
+transMixS this = VNT (override (toTST this) trans)
 
-substopt :: (MonadState Int m, MonadReader (Map.Map J.Exp J.Exp) m, f :< Translate) => SubstIntVarTranslate f m
+substopt :: (MonadState Int m, MonadState (Map.Map String Int) m, f :< Translate) => SubstIntVarTranslate f m
 substopt = new (transNewVar . transMixS)
 
 -- Stack-based translation 

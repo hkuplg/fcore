@@ -1,3 +1,4 @@
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XScopedTypeVariables #-}
 
@@ -19,68 +20,55 @@ import BaseTransCFJava
 import StringPrefixes
 import MonadLib
 
-data SubstIntVarTranslate f m = VNT {
-  toTST :: f m,
-  translateSubst :: PCExp Int (Var, PCTyp Int) -> 
-     m (([J.BlockStmt], J.Exp, PCTyp Int), Map.Map J.Exp J.Exp),
-  translateScopeSubst :: Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) -> 
-    Maybe (Int,PCTyp Int) ->
-    m (([J.BlockStmt], J.Exp, TScope Int), Map.Map J.Exp J.Exp)
+data SubstIntVarTranslate (f :: (* -> *) -> *) m = VNT {
+  toTST :: f m
   }
 
 instance (f :< Translate) => (SubstIntVarTranslate f) :< Translate where
    to                           = to . toTST 
-   override (VNT fm ts1 ts2) f  = VNT (override fm f) ts1 ts2  
+   override (VNT fm) f  = VNT (override fm f)
 
--- translation that is substituting casts; TODO: replace with a State monad
-transNewVar :: (MonadState Int m, MonadReader (Map.Map J.Exp J.Exp) m, f :< Translate) => Open (SubstIntVarTranslate f m)
-transNewVar this = VNT { toTST = override (toTST this) (\trans -> trans {
-  translateM = \e -> do result <- translateSubst this e 
-                        return $ fst $ result,
-  translateScopeM = \e m -> do result <- translateScopeSubst this e m
-                               return $ fst $ result
-  }),
-    translateSubst = \e -> case e of 
+-- translation that is substituting casts; TODO: test
+transNewVar :: (MonadState Int m, MonadState (Map.Map String Int) m, f :< Translate) => Open (SubstIntVarTranslate f m)
+transNewVar this = override this (\trans -> trans {
+  translateM = \e -> case e of 
      CFPrimOp e1 op e2 ->
-       do  ((s1,j1,t1), enva) <- translateSubst this e1
-           env1 <- local (Map.union enva) ask
-           (s3, jf1, env1') <- case j1 of J.Lit e -> return ([], j1,env1)
-                                          _ -> case (Map.lookup j1 env1) of Just e -> return ([], e,env1)
-                                                                            Nothing -> do (n :: Int) <- get
-                                                                                          put (n+1)
-                                                                                          let temp1 = var (castedintstr ++ show n)
-                                                                                          let x = Map.insert j1 temp1 env1
-                                                                                          let defV1 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j1))])
-                                                                                          return ([defV1], temp1,x)
-           ((s2,j2,t2), envb) <- local (Map.union env1') (translateSubst this e2)
-           env2 <- local (Map.union envb) ask
-           (s4, jf2, env2') <- case j2 of J.Lit e -> return ([], j2,env2)
-                                          _ -> case (Map.lookup j2 env2) of Just e -> return ([], e,env2)
-                                                                            Nothing -> do (n :: Int) <- get
-                                                                                          put (n+1)
-                                                                                          let temp2 = var (castedintstr ++ show n)
-                                                                                          let x = Map.insert j2 temp2 env2
-                                                                                          let defV2 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j2))])
-                                                                                          return ([defV2], temp2,x)                                                                                          
+       do  (s1,j1,t1) <- translateM (to this) e1
+           (env1 :: Map.Map String Int) <- get
+           (s3, jf1) <- case j1 of J.Lit e -> return ([], j1)
+                                   J.ExpName (J.Name [J.Ident x]) -> case (Map.lookup x env1) of Just e -> return ([], var (castedintstr ++ show e))
+                                                                                                 Nothing -> do (n :: Int) <- get
+                                                                                                               put (n+1)
+                                                                                                               let temp1 = var (castedintstr ++ show n)
+                                                                                                               put(Map.insert x n env1)
+                                                                                                               let defV1 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j1))])
+                                                                                                               return ([defV1], temp1)
+           (s2,j2,t2) <- translateM (to this) e2
+           (env2 :: Map.Map String Int) <- get
+           (s4, jf2) <- case j2 of J.Lit e -> return ([], j2)
+                                   J.ExpName (J.Name [J.Ident x]) -> case (Map.lookup x env2) of Just e -> return ([], var (castedintstr ++ show e))
+                                                                                                 Nothing -> do (n :: Int) <- get
+                                                                                                               put (n+1)
+                                                                                                               let temp2 = var (castedintstr ++ show n)
+                                                                                                               put (Map.insert x n env2)
+                                                                                                               let defV2 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j2))])
+                                                                                                               return ([defV2], temp2)                                                                                          
         
-           return ((s1 ++ s2 ++ s3 ++ s4, J.BinOp jf1 op jf2, t1), env2')
+           return (s1 ++ s2 ++ s3 ++ s4, J.BinOp jf1 op jf2, t1)
            
      CFif0 e1 e2 e3 ->
        do  n <- get
            put (n+1)
-           ((s1,j1,t1), enva) <- translateSubst this (CFPrimOp e1 J.Equal (CFLit 0))
-           ((s2,j2,t2), envb) <- local (Map.union enva) (translateSubst this e2)
-           ((s3,j3,t3), envc) <- local (Map.union envb) (translateSubst this e3)
+           (s1,j1,t1) <- translateM (to this) (CFPrimOp e1 J.Equal (CFLit 0))
+           (s2,j2,t2) <- translateM (to this) e2
+           (s3,j3,t3) <- translateM (to this) e3
            let ifvarname = (ifresultstr ++ show n)
            let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
            let ifresdecl = J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
            let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable        
-           return ((s1 ++ [ifresdecl,ifstmt], ifexp, t2), envc)                     -- need to check t2 == t3
+           return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)                    -- need to check t2 == t3
 
-     otherwise -> do result <- translateM (to this) e
-                     env <- ask
-                     return (result, env),
-    translateScopeSubst = \e m -> do result <- translateScopeM (to this) e m
-                                     env <- ask
-                                     return (result, env)
-  }
+     otherwise -> translateM (to this) e,           
+  translateScopeM = \e m -> translateScopeM (to this) e m
+  })
+  
