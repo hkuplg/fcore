@@ -122,7 +122,7 @@ trans this = T {
      CFPrimOp e1 op e2 ->
        do  (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
-           return (s1 ++ s2, genOp j1 op j2, t1)
+           return (s1 ++ s2,  genOp j1 op j2, t1)
            
      CFif0 e1 e2 e3 ->
        do  n <- get
@@ -175,7 +175,7 @@ trans this = T {
                        Body _ -> [cvar,ass,apply]
                        _ -> [cvar,ass]
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
+           return (s1 ++ s2 ++ s3, trace "Hello!" $ j3, trace "Hello!" $ scope2ctyp t), -- need to check t1 == t2
            
   translateScopeM = \e m -> case e of 
 

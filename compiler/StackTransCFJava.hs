@@ -1,4 +1,4 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses  -XScopedTypeVariables #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses  -XScopedTypeVariables -XKindSignatures #-}
 
 module StackTransCFJava where
 
@@ -16,10 +16,9 @@ import BaseTransCFJava
 import StringPrefixes
 import MonadLib
 
-
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
-data TranslateStack f m = TS {
+data TranslateStack (f :: (* -> *) -> *) m = TS {
   toTS :: f m, -- supertype is a subtype of Translate
   translateScheduleM :: PCExp Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
   }

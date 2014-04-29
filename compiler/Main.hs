@@ -24,18 +24,33 @@ import Prelude hiding (const)
 
 type M1 = StateT (Map String Int) (State Int)
 type M2 = StateT Int (State (Map String Int)) 
+type M3 = StateT Int (Writer Bool) 
 
+{-
 sopt :: SubstIntVarTranslate Translate M2  -- instantiation; all coinstraints resolved
 sopt = substopt
 
 translate e = translateM (to sopt) e
+-}
  
+sopt :: TranslateStack (ApplyOptTranslate Translate) M3
+sopt = stack
+
+translate e = translateM (to sopt) e
+
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
+{-
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case evalState (evalStateT (translate (fexp2cexp e)) 0) empty of
+      (ss,exp,t) -> (J.Block ss,exp, t)
+-}
+
+compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
+compile e = 
+  case fst $ runWriter (evalStateT (translate (fexp2cexp e)) 0) of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))
