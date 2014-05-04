@@ -13,17 +13,20 @@ import qualified Data.Map as Map
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
-import Mixins
+-- import Mixins
+import Inheritance
 import StringPrefixes
 import MonadLib
 
+{-
 class (:<) (f :: (* -> *) -> *) g  where
    to :: f m -> g m
    override :: f m -> (g m -> g m) -> f m -- needed to do proper overriding of methods, when we only know we inherit from a subtype. When we know the exact type of the supertype, then this method is not needed.
-   
-instance (:<) Translate Translate where
-   to = id
-   override fm f = f fm
+-}
+ 
+instance (:<) (Translate m) (Translate m) where
+   up = id
+--   override fm f = f fm
 
 -- Closure F to Java
 
@@ -115,9 +118,10 @@ data Translate m = T {
 instance Monoid Bool where  
     mempty = False  
     mappend a b = a  
+    
 
-trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m) => Open (Translate m)
-trans this = T {
+trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, selfType :< Translate m) => Base selfType (Translate m)
+trans self = let this = up self in T {
   translateM = \e -> case e of 
      CVar (Left i,t) -> 
         do return ([],var (localvarstr ++ show i ++ "." ++ localvarstr), t)
@@ -129,7 +133,7 @@ trans this = T {
        return ([],J.Lit $ J.Int e, CInt)
      
      CFPrimOp e1 op e2 ->
-       do  (s1,j1,t1) <- translateM (to this) e1
+       do  (s1,j1,t1) <- translateM this e1
            --TODO: modulurize the duplicated steps into a function
            (env1 :: Map.Map J.Exp Int) <- get
            (s3, jf1) <- case j1 of J.Lit e -> return ([], j1)
@@ -141,7 +145,7 @@ trans this = T {
                                                                                    put (Map.insert j1 n env1)
                                                                                    let defV1 = initIntCast castedintstr n j1
                                                                                    return ([defV1], temp1)
-           (s2,j2,t2) <- translateM (to this) e2
+           (s2,j2,t2) <- translateM this e2
            (env2 :: Map.Map J.Exp Int) <- get
            (s4, jf2) <- case j2 of J.Lit e -> return ([], j2)
                                    _ -> case (Map.lookup j2 env2) of Just e -> return ([], var (castedintstr ++ show e))
@@ -157,9 +161,9 @@ trans this = T {
      CFif0 e1 e2 e3 ->
         do  n <- get
             put (n+1)
-            (s1,j1,t1) <- translateM (to this) (CFPrimOp e1 J.Equal (CFLit 0))
-            (s2,j2,t2) <- translateM (to this) e2
-            (s3,j3,t3) <- translateM (to this) e3
+            (s1,j1,t1) <- translateM this (CFPrimOp e1 J.Equal (CFLit 0))
+            (s2,j2,t2) <- translateM this e2
+            (s3,j3,t3) <- translateM this e3
             let ifvarname = (ifresultstr ++ show n)
             let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
             let ifresdecl = J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
@@ -239,13 +243,13 @@ trans this = T {
               Just (i,t') | last (g (Right i,t')) ->
                 do  put (n+1)
                     let self = J.Ident (localvarstr ++ show i)
-                    (s,je,t1) <- translateScopeM (this) (g (Left i,t)) m
+                    (s,je,t1) <- translateScopeM this (g (Left i,t)) m
                     let cvar = standardTranslation je s self f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
                     let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable              
-                    (s,je,t1) <- translateScopeM (this) (g (Left (n+1),t)) m
+                    (s,je,t1) <- translateScopeM this (g (Left (n+1),t)) m
                     let cvar = standardTranslation je s self f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 

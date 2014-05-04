@@ -19,6 +19,7 @@ import Test.HUnit hiding (State)
 import Language.Java.Pretty
 import MonadLib
 import Data.Map
+import Inheritance
 
 import Prelude hiding (const)
 
@@ -29,17 +30,24 @@ type M3 = StateT Int (Writer Bool)
 
 type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
 
+sopt :: TranslateStack MAOpt  -- instantiation; all coinstraints resolved
+sopt = stackNaive
+
+translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([BlockStmt], Exp, PCTyp Int)
+translate e = translateM (up sopt) e
+
 {-
-sopt :: Translate M2  -- instantiation; all coinstraints resolved
-sopt = naive
+sopt :: ApplyOptTranslate Translate MAOpt  -- instantiation; all coinstraints resolved
+sopt = applyopt
 
 translate e = translateM (to sopt) e
 -}
-
+{-
 sopt :: TranslateStack (ApplyOptTranslate Translate) MAOpt
 sopt = stack
 
 translate e = translateM (to sopt) e
+-}
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
@@ -48,6 +56,8 @@ compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case fst $ runWriter (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) of
       (ss,exp,t) -> (J.Block ss,exp, t)
+
+
 
 compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))
 
@@ -122,6 +132,13 @@ program1 =
 intapp = FTApp idF PFInt
 
 
+-- \(f : A -> A -> A) . \(x : A) . \(y : A) . f x (f y y)
+notail2 =
+  FBLam (\a ->
+    FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
+      FLam (FTVar a) (\x ->
+        FLam (FTVar a) (\y ->
+          FApp (FApp (FVar f) (FVar x)) (FApp (FApp (FVar f) (FVar y)) (FVar y)) ))))
 
 compiled1 = "abstract class Closure\n{\n  Object x;\n  Object out;\n  abstract void apply ()\n  ;\n}\nclass MyClosure extends Closure\n{\n  void apply ()\n  {\n    Closure x1 = new Closure()\n                 {\n                   Closure x2 = this;\n                   void apply ()\n                   {\n                     out = x2.x;\n                   }\n                 };\n    out = x1;\n  }\n}"
 compiled2 = "abstract class Closure\n{\n  Object x;\n  Object out;\n  abstract void apply ()\n  ;\n}\nclass MyClosure extends Closure\n{\n  void apply ()\n  {\n    Closure x2 = new Closure()\n                 {\n                   Closure x3 = this;\n                   {\n                     out = new Closure()\n                           {\n                             Closure x5 = this;\n                             void apply ()\n                             {\n                               Closure x6 = (Closure) x3.x;\n                               x6.x = x5.x;\n                               x6.apply();\n                               out = x6.out;\n                             }\n                           };\n                   }\n                   void apply ()\n                   {\n                   }\n                 };\n    Closure x8 = new Closure()\n                 {\n                   Closure x9 = this;\n                   void apply ()\n                   {\n                     out = x9.x;\n                   }\n                 };\n    Closure x1 = (Closure) x2;\n    x1.x = x8;\n    out = x1.out;\n  }\n}"

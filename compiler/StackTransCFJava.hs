@@ -1,4 +1,4 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses  -XScopedTypeVariables -XKindSignatures #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses  -XScopedTypeVariables -XKindSignatures -XUndecidableInstances -XOverlappingInstances #-}
 
 module StackTransCFJava where
 
@@ -9,7 +9,8 @@ import Data.List hiding (last)
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
-import Mixins
+-- import Mixins
+import Inheritance
 
 -- import ApplyTransCFJava 
 import BaseTransCFJava hiding (standardTranslation)
@@ -18,15 +19,22 @@ import MonadLib
 
 type Schedule = [([J.BlockStmt],[J.BlockStmt])]
 
-data TranslateStack (f :: (* -> *) -> *) m = TS {
-  toTS :: f m, -- supertype is a subtype of Translate
+data TranslateStack m = TS {
+  toTS :: Translate m, -- supertype is a subtype of Translate (later on at least)
   translateScheduleM :: PCExp Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
   }
                       
-instance (f :< Translate) => (:<) (TranslateStack f) Translate where
-   to              = to . toTS 
-   override (TS fm ts) f  = TS (override fm f) ts 
+instance {-(r :< Translate m) =>-} (:<) (TranslateStack m) (Translate m) where
+   up              = up . toTS 
+--   override (TS fm ts) f  = TS (override fm f) ts 
 
+instance (:<) (TranslateStack m) (TranslateStack m) where -- reflexivity
+  up = id
+   
+{-
+instance (r :< TranslateStack m) => (:<) r (Translate m) where -- transitivity
+  up = up . up
+-}
 
 sstack :: Schedule -> [J.BlockStmt]
 sstack []              = [] -- Sigma-Empty
@@ -49,15 +57,15 @@ standardTranslation javaExpression statementsBeforeOA idCurrentName idNextName =
                                                 )]
 -}
 
-transS :: (MonadState Int m, MonadWriter Bool m, f :< Translate) => Open (TranslateStack f m)
-transS this = TS {
-  toTS = override (toTS this) (\trans -> trans {
+transS :: (MonadState Int m, MonadWriter Bool m, selfType :< TranslateStack m) => Mixin selfType (Translate m) (TranslateStack m) 
+transS this super = TS {
+  toTS = T { -- override (toTS this) (\trans -> trans {
     translateM = \e -> case e of 
        CApp _ _ ->
-         do  (s1,je,sig,t) <- translateScheduleM this e 
+         do  (s1,je,sig,t) <- translateScheduleM (up this) e 
              return (s1 ++ (sstack sig), je, t)
        
-       otherwise -> translateM (to this) e, 
+       otherwise -> translateM super e, 
     translateScopeM = \e m -> case e of 
 {-
        Typ t g -> -- TODO: Copy&Paste code :( 
@@ -77,16 +85,16 @@ transS this = TS {
                     let cvar = standardTranslation je s self f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 -}
-       otherwise -> translateScopeM (to this) e m
+       otherwise -> translateScopeM super e m
 
-    }),
+    },
   
   translateScheduleM = \e -> case e of
     CApp e1 e2  -> -- CJ-App-Sigma
       do  (n :: Int) <- get
           put (n+1)
-          (s1,j1,sig1,CForall (Typ t1 g)) <- translateScheduleM this e1
-          (s2,j2,sig2,t2) <- translateScheduleM this e2
+          (s1,j1,sig1,CForall (Typ t1 g)) <- translateScheduleM (up this) e1
+          (s2,j2,sig2,t2) <- translateScheduleM (up this) e2
           let t    = g ()
           let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
           let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
@@ -98,6 +106,6 @@ transS this = TS {
           let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
           return (s1 ++ s2, j3, sig1 ++ (sig2 ++ [sig]), scope2ctyp t) -- need to check t1 == t2
     otherwise ->
-         do  (s,j,t) <- translateM (to this) e
+         do  (s,j,t) <- translateM (toTS $ up this) e -- ugly :(
              return (s,j,[],t)
   } 
