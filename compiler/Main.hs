@@ -19,6 +19,7 @@ import Language.Java.Pretty
 import MonadLib
 import Data.Map
 import Inheritance
+import qualified TestSuite as T
 
 import Prelude hiding (const)
 
@@ -29,8 +30,8 @@ type M3 = StateT Int (Writer Bool)
 
 type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
 
-sopt :: TranslateStack MAOpt  -- instantiation; all coinstraints resolved
-sopt = stackNaive
+sopt :: ApplyOptTranslate MAOpt  -- instantiation; all coinstraints resolved
+sopt = applyopt
 
 translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([BlockStmt], Exp, PCTyp Int)
 translate e = translateM (up sopt) e

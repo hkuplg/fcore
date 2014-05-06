@@ -33,6 +33,7 @@ compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case fst $ runWriter (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) of
       (ss,exp,t) -> (J.Block ss,exp, t)
+
 {-
 type MAOpt = StateT Int (State (Map J.Exp Int) ) 
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
@@ -125,13 +126,16 @@ program1Num = FApp (FTApp program1 PFInt) (FLit 5)
 intapp = FTApp idF PFInt
 
 
--- \(f : A -> A -> A) . \(x : A) . \(y : A) . f x (f y y)
+-- /\A . \(f : A -> A -> A) . \(x : A) . \(y : A) . f x (f y y)
 notail2 =
   FBLam (\a ->
     FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
       FLam (FTVar a) (\x ->
         FLam (FTVar a) (\y ->
           FApp (FApp (FVar f) (FVar x)) (FApp (FApp (FVar f) (FVar y)) (FVar y)) ))))
+  
+
+program2 = FApp (FApp (FApp (FTApp notail2 PFInt) (FTApp const PFInt)) (FLit 5)) (FLit 6)
 		  
 idfNum = FApp (FTApp idF PFInt) (FLit 10)
 
