@@ -22,32 +22,8 @@ import Data.Map
 
 import Prelude hiding (const)
 
--- Extra machinery needed to move between two views of the monad stack
-
 type M1 = StateT (Map String Int) (State Int)
 type M2 = StateT Int (State (Map String Int)) 
-
-{-
-swapS :: ((a,b),c) -> ((a,c),b)
-swapS ((x,y),z) = ((x,z),y)
-
-convState :: StateT b (State c) a -> StateT c (State b) a
-convState st = StateT $ \s1 -> State $ \s2 -> swapS $ runState (runStateT st s2) s1
-
-viewST :: M1 :-> M2
-viewST = View {fromV = convState, toV = convState}
--}
-
-{-
-st :: (MonadState Int m, MonadWriter Bool m) => TranslateStack (ApplyOptTranslate Translate) m
-st = stack
-
-type M a = WriterT Bool (State Int) a
-
-translate :: PCExp Int (Var, PCTyp Int) -> M ([BlockStmt], Exp, PCTyp Int)
-translate e = translateM (to st) e
--}
-
 
 sopt :: SubstIntVarTranslate Translate M2  -- instantiation; all coinstraints resolved
 sopt = substopt
