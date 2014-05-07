@@ -1,4 +1,4 @@
-{-# OPTIONS -XMultiParamTypeClasses -XFlexibleInstances -XRankNTypes -XTypeOperators #-}
+{-# OPTIONS -XMultiParamTypeClasses -XFlexibleInstances -XRankNTypes -XTypeOperators  -XOverlappingInstances #-}
 
 module MonadLib (module MonadLib, module Control.Monad, module Data.Monoid) where
 
@@ -88,6 +88,10 @@ instance (Monad m) => MonadReader r (ReaderT r m) where
     ask       = ReaderT return
     local f m = ReaderT $ \r -> runReaderT m (f r)
 
+instance MonadReader r m => MonadReader r (ReaderT t m) where
+    ask       = ReaderT (\r -> ask)
+    local f m = ReaderT (\r -> local f (runReaderT m r))
+
 -- State monad/monad transformers
 
 modify :: (MonadState s m) => (s -> s) -> m ()
@@ -165,6 +169,10 @@ instance (Monad m) => MonadState s (StateT s m) where
     get   = StateT $ \s -> return (s, s)
     put s = StateT $ \_ -> return ((), s)
 
+instance MonadState s m => MonadState s (StateT t m) where
+    get   = StateT $ \s -> liftM (\x -> (x,s)) get
+    put s = StateT $ \s1 -> liftM (\x -> (x,s1)) (put s) 
+
 -- Writer monad/monad transformer
 
 listens :: (MonadWriter w m) => (w -> b) -> m a -> m (a, b)
@@ -237,6 +245,11 @@ instance (Monoid w, Monad m) => MonadWriter w (WriterT w m) where
     pass   m = WriterT $ do
         ((a, f), w) <- runWriterT m
         return (a, f w)
+
+instance (MonadWriter w m, Monoid t) => MonadWriter w (WriterT t m) where
+    tell   w = WriterT $ liftM (\x -> (x,mempty)) $ tell w 
+    listen m = WriterT $ liftM (\((x,y),z) -> ((x,z),y)) $ listen (runWriterT m)
+    pass   m = WriterT $ pass $ liftM (\(((x,f),t)) -> (((x,t),f))) $ runWriterT m
 
 -- Transformers:
 

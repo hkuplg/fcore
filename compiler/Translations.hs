@@ -27,8 +27,11 @@ applyopt = new (transApply . transMixA)
 transMixS :: (MonadState Int m, f :< Translate) => Open (SubstIntVarTranslate f m)
 transMixS this = VNT (override (toTST this) trans)
 
-substopt :: (MonadState Int m, MonadState (Map.Map String Int) n, f :< Translate) => (n :-> m) -> SubstIntVarTranslate f m
-substopt view = new (transNewVar view . transMixS)
+-- substopt :: (MonadState Int m, MonadState (Map.Map String Int) n, f :< Translate) => (n :-> m) -> SubstIntVarTranslate f m
+-- substopt view = new (transNewVar view . transMixS)
+
+substopt :: (MonadState Int m, MonadState (Map.Map String Int) m, f :< Translate) => SubstIntVarTranslate f m
+substopt = new (transNewVar . transMixS)
 
 -- Stack-based translation 
 

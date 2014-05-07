@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# OPTIONS -XMultiParamTypeClasses -XRankNTypes -XFlexibleContexts -XTypeOperators #-}
+{-# OPTIONS -XMultiParamTypeClasses -XRankNTypes -XFlexibleContexts -XTypeOperators  -XOverlappingInstances #-}
 module Main where
 
 import qualified HM
@@ -27,6 +27,7 @@ import Prelude hiding (const)
 type M1 = StateT (Map String Int) (State Int)
 type M2 = StateT Int (State (Map String Int)) 
 
+{-
 swapS :: ((a,b),c) -> ((a,c),b)
 swapS ((x,y),z) = ((x,z),y)
 
@@ -35,6 +36,7 @@ convState st = StateT $ \s1 -> State $ \s2 -> swapS $ runState (runStateT st s2)
 
 viewST :: M1 :-> M2
 viewST = View {fromV = convState, toV = convState}
+-}
 
 {-
 st :: (MonadState Int m, MonadWriter Bool m) => TranslateStack (ApplyOptTranslate Translate) m
@@ -46,8 +48,9 @@ translate :: PCExp Int (Var, PCTyp Int) -> M ([BlockStmt], Exp, PCTyp Int)
 translate e = translateM (to st) e
 -}
 
+
 sopt :: SubstIntVarTranslate Translate M2  -- instantiation; all coinstraints resolved
-sopt = substopt viewST
+sopt = substopt
 
 translate e = translateM (to sopt) e
  
