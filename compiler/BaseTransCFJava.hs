@@ -61,9 +61,8 @@ createCU (J.Block bs,e,t) (Just expName) = (cu,t) where
    body = Just (J.Block (bs ++ [ass]))
 
    mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
-   apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (e) [] (J.Ident "apply") [])))
-
-   maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
+   --TODO: maybe get a state monad to createCU to createCU somehow?
+   maybeCastedReturnExp = case t of CInt -> case (listlast bs) of J.LocalVars [] _ ([J.VarDecl (J.VarId id) (_)]) -> J.ExpName $ J.Name [id]
                                     _ -> e
    returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
                           _ -> Just $J.RefType (refType "Closure")
@@ -86,13 +85,7 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
 
 boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
 
-genOp :: J.Exp -> J.Op -> J.Exp -> J.Exp
-genOp j1 op j2 = J.BinOp maybeCasted1 op maybeCasted2
-    where
-        maybeCasted1 = case j1 of J.Lit e -> j1
-                                  _ -> J.Cast boxedIntType j1
-        maybeCasted2 = case j2 of J.Lit e -> j2
-                                  _ -> J.Cast boxedIntType j2
+initIntCast castedintstr n j = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j))])
 
 type Var = Either Int Int -- left -> standard variable; right -> recursive variable
 
@@ -136,6 +129,7 @@ trans this = T {
      
      CFPrimOp e1 op e2 ->
        do  (s1,j1,t1) <- translateM (to this) e1
+           --TODO: modulurize the duplicated steps into a function
            (env1 :: Map.Map J.Exp Int) <- get
            (s3, jf1) <- case j1 of J.Lit e -> return ([], j1)
                                    --FieldAccess (PrimaryFieldAccess...  or J.ExpName
@@ -144,7 +138,7 @@ trans this = T {
                                                                                    put (n+1)
                                                                                    let temp1 = var (castedintstr ++ show n)
                                                                                    put (Map.insert j1 n env1)
-                                                                                   let defV1 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j1))])
+                                                                                   let defV1 = initIntCast castedintstr n j1
                                                                                    return ([defV1], temp1)
            (s2,j2,t2) <- translateM (to this) e2
            (env2 :: Map.Map J.Exp Int) <- get
@@ -154,7 +148,7 @@ trans this = T {
                                                                                    put (n+1)
                                                                                    let temp2 = var (castedintstr ++ show n)
                                                                                    put (Map.insert j2 n env2)
-                                                                                   let defV2 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j2))])
+                                                                                   let defV2 = initIntCast castedintstr n j2
                                                                                    return ([defV2], temp2)
         
            return (s1 ++ s2 ++ s3 ++ s4, J.BinOp jf1 op jf2, t1)
@@ -201,15 +195,28 @@ trans this = T {
            -- (CForall (Typ t1 g)) <- trace ("C:" ++ show debug) (return debug)
            -- END DEBUG
            (s2,j2,t2) <- translateM this e2
+           (env :: Map.Map J.Exp Int) <- get
            let t    = g ()
            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
            let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
            let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) ) 
            let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
-           let s3 = case t of -- checking the type whether to generate the apply() call
-                       Body _ -> [cvar,ass,apply]
-                       _ -> [cvar,ass]
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
+           s3 <- case t of -- checking the type whether to generate the apply() call
+                       Body _ -> 
+                        case (scope2ctyp t) of CInt -> 
+                                                case (Map.lookup j3 env) of 
+                                                    Just e -> return [cvar,ass,apply]
+                                                    Nothing -> do (n :: Int) <- get
+                                                                  put (n+1)
+                                                                  let temp1 = var (castedintstr ++ show n)
+                                                                  put (Map.insert j3 n env)
+                                                                  let defV1 = initIntCast castedintstr n j3
+                                                                  return [cvar,ass,apply,defV1]
+                                               _ -> do return [cvar,ass,apply]
+                            
+                       _ -> do return [cvar,ass]
+
            return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
            
   translateScopeM = \e m -> case e of 
