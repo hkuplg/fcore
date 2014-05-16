@@ -48,18 +48,32 @@ ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
         newvar = var ifvarname
 
-createCU :: (J.Block, J.Exp, t) -> (J.CompilationUnit, t)
-createCU (J.Block bs,e,t) = (cu,t) where
+createCU :: (J.Block, J.Exp, PCTyp Int) -> Maybe String -> (J.CompilationUnit, PCTyp Int)
+createCU (J.Block bs,e,t) Nothing = createCU (J.Block bs,e,t) (Just "apply")
+createCU (J.Block bs,e,t) (Just expName) = (cu,t) where
    cu = J.CompilationUnit Nothing [] [closureClass, classDecl]
    field name = J.MemberDecl (J.FieldDecl [] (J.RefType (refType "Object")) [
               J.VarDecl (J.VarId (J.Ident name)) Nothing])
-   app mod b = J.MemberDecl (J.MethodDecl mod [] Nothing (J.Ident "apply") [] [] (J.MethodBody b))
+   app mod b rt en args = J.MemberDecl (J.MethodDecl mod [] (rt) (J.Ident en) args [] (J.MethodBody b))
    closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
-                  J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing]))
+                  J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" []]))
    body = Just (J.Block (bs ++ [ass]))
-   ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA e))
+
+   mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
+   apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (e) [] (J.Ident "apply") [])))
+
+   maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
+                                    _ -> e
+   returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
+                          _ -> Just $J.RefType (refType "Closure")
+
+   mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall 
+    (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident (expName ++ "()")]])))])
+                          
+   ass  = J.BlockStmt (J.Return $ Just maybeCastedReturnExp)
    refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-   classDecl = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "MyClosure") [] (Just (refType "Closure")) [] (J.ClassBody [app [] body]))
+   classDecl = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident "Main") [] (Nothing) [] 
+    (J.ClassBody [app [J.Static] body returnType expName [], app [J.Public, J.Static] mainbody Nothing "main" mainArgType]))
 
 reduceTTuples :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
 reduceTTuples all = (merged, arrayAssignment, tupleType)
@@ -175,7 +189,7 @@ trans this = T {
                        Body _ -> [cvar,ass,apply]
                        _ -> [cvar,ass]
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           return (s1 ++ s2 ++ s3, trace "Hello!" $ j3, trace "Hello!" $ scope2ctyp t), -- need to check t1 == t2
+           return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
            
   translateScopeM = \e m -> case e of 
 

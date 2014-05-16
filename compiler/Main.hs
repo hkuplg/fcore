@@ -26,36 +26,38 @@ type M1 = StateT (Map String Int) (State Int)
 type M2 = StateT Int (State (Map String Int)) 
 type M3 = StateT Int (Writer Bool) 
 
-{-
+
 sopt :: SubstIntVarTranslate Translate M2  -- instantiation; all coinstraints resolved
 sopt = substopt
 
 translate e = translateM (to sopt) e
--}
- 
-sopt :: TranslateStack (ApplyOptTranslate Translate) M3
-sopt = stack
 
-translate e = translateM (to sopt) e
+ 
+--sopt :: TranslateStack (ApplyOptTranslate Translate) M3
+--sopt = stack
+
+--translate e = translateM (to sopt) e
 
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
-{-
+
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case evalState (evalStateT (translate (fexp2cexp e)) 0) empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
--}
 
+{-
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case fst $ runWriter (evalStateT (translate (fexp2cexp e)) 0) of
       (ss,exp,t) -> (J.Block ss,exp, t)
-
+-}
 compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))
 
-compileCU e = let (cu,t) = createCU $ compile e in (prettyJ cu >> putStrLn (show t))
+compileCU e (Just nameStr) = let (cu,t) = (createCU (compile e) (Just nameStr)) in (prettyJ cu >> putStrLn (show t))
+
+compileCU e Nothing = let (cu,t) = (createCU (compile e) Nothing) in (prettyJ cu >> putStrLn (show t))
 
 -- Some test terms
 
@@ -121,20 +123,20 @@ compiled2 = "abstract class Closure\n{\n  Object x;\n  Object out;\n  abstract v
 compiled3 = "abstract class Closure\n{\n  Object x;\n  Object out;\n  abstract void apply ()\n  ;\n}\nclass MyClosure extends Closure\n{\n  void apply ()\n  {\n    Closure x1 = new Closure()\n                 {\n                   Closure x2 = this;\n                   void apply ()\n                   {\n                     Closure x5 = new Closure()\n                                  {\n                                    Closure x6 = this;\n                                    void apply ()\n                                    {\n                                      out = x6.x;\n                                    }\n                                  };\n                     Closure x3 = (Closure) x5;\n                     x3.x = x2.x;\n                     x3.apply();\n                     out = x3.out;\n                   }\n                 };\n    out = x1;\n  }\n}"
 
 test1 = TestCase $ assertEqual
-  "Should compile idF" compiled1 ( let (cu,t) = createCU $ compile idF in (prettyPrint cu) )
+  "Should compile idF" compiled1 ( let (cu,t) = (createCU (compile idF) Nothing) in (prettyPrint cu) )
 
 test2 = TestCase $ assertEqual
-  "Should compile idF2" compiled2 ( let (cu,t) = createCU $ compile idF2 in (prettyPrint cu) )
+  "Should compile idF2" compiled2 ( let (cu,t) = (createCU (compile idF2) Nothing) in (prettyPrint cu) )
 
 test3 = TestCase $ assertEqual
-  "Should compile idF3" compiled3 ( let (cu,t) = createCU $ compile idF3 in (prettyPrint cu) )
+  "Should compile idF3" compiled3 ( let (cu,t) = (createCU (compile idF3) Nothing) in (prettyPrint cu) )
 
 test4 = TestCase $ assertEqual
-  "Should infeer type of intapp" "(forall (_ : Int) . Int)" ( let (cu, t) = createCU $ compile intapp in (show t) )
+  "Should infeer type of intapp" "(forall (_ : Int) . Int)" ( let (cu, t) = (createCU (compile intapp) Nothing) in (show t) )
 
 -- SystemF to Java
 sf2java :: String -> String
-sf2java src = let (cu, _) = createCU $ compile (readSF src) in prettyPrint cu
+sf2java src = let (cu, _) = (createCU (compile (readSF src)) Nothing) in prettyPrint cu
 
 -- SystemF file path to Java
 -- Example:
