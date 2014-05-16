@@ -8,6 +8,7 @@ import Data.List hiding (init, last)
 
 -- import Control.Monad.State
 -- import Control.Monad.Writer
+import qualified Data.Map as Map
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
@@ -121,7 +122,7 @@ instance Monoid Bool where
     mempty = False  
     mappend a b = a  
 
-trans :: (MonadState Int m) => Open (Translate m)
+trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m) => Open (Translate m)
 trans this = T {
   translateM = \e -> case e of 
      CVar (Left i,t) -> 
@@ -134,21 +135,41 @@ trans this = T {
        return ([],J.Lit $ J.Int e, CInt)
      
      CFPrimOp e1 op e2 ->
-       do  (s1,j1,t1) <- translateM this e1
-           (s2,j2,t2) <- translateM this e2
-           return (s1 ++ s2,  genOp j1 op j2, t1)
+       do  (s1,j1,t1) <- translateM (to this) e1
+           (env1 :: Map.Map J.Exp Int) <- get
+           (s3, jf1) <- case j1 of J.Lit e -> return ([], j1)
+                                   --FieldAccess (PrimaryFieldAccess...  or J.ExpName
+                                   _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (castedintstr ++ show e))
+                                                                     Nothing -> do (n :: Int) <- get
+                                                                                   put (n+1)
+                                                                                   let temp1 = var (castedintstr ++ show n)
+                                                                                   put (Map.insert j1 n env1)
+                                                                                   let defV1 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j1))])
+                                                                                   return ([defV1], temp1)
+           (s2,j2,t2) <- translateM (to this) e2
+           (env2 :: Map.Map J.Exp Int) <- get
+           (s4, jf2) <- case j2 of J.Lit e -> return ([], j2)
+                                   _ -> case (Map.lookup j2 env2) of Just e -> return ([], var (castedintstr ++ show e))
+                                                                     Nothing -> do (n :: Int) <- get
+                                                                                   put (n+1)
+                                                                                   let temp2 = var (castedintstr ++ show n)
+                                                                                   put (Map.insert j2 n env2)
+                                                                                   let defV2 = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j2))])
+                                                                                   return ([defV2], temp2)
+        
+           return (s1 ++ s2 ++ s3 ++ s4, J.BinOp jf1 op jf2, t1)
            
      CFif0 e1 e2 e3 ->
-       do  n <- get
-           put (n+1)
-           (s1,j1,t1) <- translateM this (CFPrimOp e1 J.Equal (CFLit 0))
-           (s2,j2,t2) <- translateM this e2
-           (s3,j3,t3) <- translateM this e3
-           let ifvarname = (ifresultstr ++ show n)
-           let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-           let ifresdecl = J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
-           let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable        
-           return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)                     -- need to check t2 == t3
+        do  n <- get
+            put (n+1)
+            (s1,j1,t1) <- translateM (to this) (CFPrimOp e1 J.Equal (CFLit 0))
+            (s2,j2,t2) <- translateM (to this) e2
+            (s3,j3,t3) <- translateM (to this) e3
+            let ifvarname = (ifresultstr ++ show n)
+            let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
+            let ifresdecl = J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
+            let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable        
+            return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)                    -- need to check t2 == t3
            
      CFTuple tuple ->
        liftM reduceTTuples $ mapM (translateM this) tuple
