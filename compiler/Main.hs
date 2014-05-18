@@ -32,8 +32,8 @@ type M3 = StateT Int (Writer Bool)
 
 type MAOpt = StateT Int (StateT (Map J.Exp Int) (ReaderT (Set.Set Int) (Writer Bool))) 
 
-sopt :: ApplyOptTranslate MAOpt  -- instantiation; all coinstraints resolved
-sopt = applyopt
+sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
+sopt = naive
 
 translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([BlockStmt], Exp, PCTyp Int)
 translate e = translateM (up sopt) e
@@ -80,6 +80,9 @@ compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putS
 compileCU e (Just nameStr) = let (cu,t) = (createCU (compile e) (Just nameStr)) in (prettyJ cu >> putStrLn (show t))
 
 compileCU e Nothing = let (cu,t) = (createCU (compile e) Nothing) in (prettyJ cu >> putStrLn (show t))
+
+prettyRead :: String -> String
+prettyRead s = prettyPFExp (readSF s) 0
 
 --TODO: add to execute the full compiler (starting with parser)
 main = undefined
