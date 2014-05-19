@@ -43,8 +43,8 @@ closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
 ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
     where
-        j2Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j2)))]))]
-        j3Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp (J.Cast (J.RefType (refType "Object")) j3)))]))]
+        j2Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp j2))]))]
+        j3Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp j3))]))]
         ifvarname = (ifresultstr ++ show n)
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
         newvar = var ifvarname
@@ -63,6 +63,7 @@ createCU (J.Block bs,e,t) (Just expName) = (cu,t) where
    mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
    --TODO: maybe get a state monad to createCU to createCU somehow?
    maybeCastedReturnExp = case t of CInt -> case (listlast bs) of J.LocalVars [] _ ([J.VarDecl (J.VarId id) (_)]) -> J.ExpName $ J.Name [id]
+                                                                  _ -> J.Cast boxedIntType e
                                     _ -> e
    returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
                           _ -> Just $J.RefType (refType "Closure")

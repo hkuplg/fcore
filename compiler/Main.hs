@@ -33,19 +33,21 @@ sopt = naive
 
 translate e = translateM (to sopt) e
 -}
-{- 
+
 sopt :: TranslateStack (ApplyOptTranslate Translate) MAOpt
 sopt = stack
 
 translate e = translateM (to sopt) e
--}
+
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
+{-
 aopt :: ApplyOptTranslate Translate MAOpt
 aopt = applyopt
 
 translate e = translateM (to aopt) e
+-}
 
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
@@ -177,4 +179,4 @@ inferHM = putStrLn . HM.pretty . HM.infer . readHM
 evenOdd :: String
 evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
 
-main = compileCU fibo_app (Just "fibo")--runTestTT $ TestList [test1, test2, test3, test4]
+main = runTestTT $ TestList [test1, test2, test3, test4]
