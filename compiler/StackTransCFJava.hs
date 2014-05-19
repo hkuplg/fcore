@@ -2,9 +2,9 @@
 
 module StackTransCFJava where
 
-import Prelude
+import Prelude hiding (last)
 import Debug.Trace
-import Data.List
+import Data.List hiding (last)
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
@@ -12,7 +12,7 @@ import ClosureF
 import Mixins
 
 -- import ApplyTransCFJava 
-import BaseTransCFJava
+import BaseTransCFJava hiding (standardTranslation)
 import StringPrefixes
 import MonadLib
 
@@ -41,6 +41,14 @@ push :: J.Exp -> J.BlockStmt
 push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [stack])) [] (J.Ident "push") [e])))
   where stack = (J.Ident "Stack")
 
+{-
+standardTranslation javaExpression statementsBeforeOA idCurrentName idNextName = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
+                                                (Just (J.InitExp 
+                                                    (jexp [currentInitialDeclaration idCurrentName] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression] ))))
+                                                    )
+                                                )]
+-}
+
 transS :: (MonadState Int m, MonadWriter Bool m, f :< Translate) => Open (TranslateStack f m)
 transS this = TS {
   toTS = override (toTS this) (\trans -> trans {
@@ -50,7 +58,27 @@ transS this = TS {
              return (s1 ++ (sstack sig), je, t)
        
        otherwise -> translateM (to this) e, 
-    translateScopeM = translateScopeM (to this)
+    translateScopeM = \e m -> case e of 
+{-
+       Typ t g -> -- TODO: Copy&Paste code :( 
+        do  n <- get
+            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable              
+            case m of -- Consider refactoring later?
+              Just (i,t') | last (g (Right i,t')) ->
+                do  put (n+1)
+                    let self = J.Ident (localvarstr ++ show i)
+                    (s,je,t1) <- translateScopeM (to this) (g (Left i,t)) m
+                    let cvar = standardTranslation je s self f
+                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+              otherwise -> 
+                do  put (n+2)
+                    let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable              
+                    (s,je,t1) <- translateScopeM (to this) (g (Left (n+1),t)) m
+                    let cvar = standardTranslation je s self f
+                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+-}
+       otherwise -> translateScopeM (to this) e m
+
     }),
   
   translateScheduleM = \e -> case e of

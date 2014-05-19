@@ -23,8 +23,10 @@ import Data.Map
 import Prelude hiding (const)
 
 type M1 = StateT (Map String Int) (State Int)
+
 type M2 = StateT Int (State (Map J.Exp Int)) 
 type M3 = StateT Int (Writer Bool) 
+
 type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
 
 {-
@@ -42,29 +44,11 @@ translate e = translateM (to sopt) e
 prettyJ :: Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
-{-
-aopt :: ApplyOptTranslate Translate MAOpt
-aopt = applyopt
-
-translate e = translateM (to aopt) e
--}
-
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case fst $ runWriter (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) of
       (ss,exp,t) -> (J.Block ss,exp, t)
-{-
-compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
-compile e = 
-  case evalState (evalStateT (translate (fexp2cexp e)) 0) empty of
-      (ss,exp,t) -> (J.Block ss,exp, t)
--}
-{-
-compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
-compile e = 
-  case fst $ runWriter (evalStateT (translate (fexp2cexp e)) 0) of
-      (ss,exp,t) -> (J.Block ss,exp, t)
--}
+
 compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))
 
 compileCU e (Just nameStr) = let (cu,t) = (createCU (compile e) (Just nameStr)) in (prettyJ cu >> putStrLn (show t))
