@@ -119,7 +119,20 @@ instance Monoid Bool where
     mempty = False  
     mappend a b = a  
     
-
+genSubst :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m) => J.Exp -> m ([J.BlockStmt], J.Exp)
+genSubst j1 = x
+         where
+             x = do (env1 :: Map.Map J.Exp Int) <- get
+                    case j1 of J.Lit e -> return ([], j1)
+                                   --FieldAccess (PrimaryFieldAccess...  or J.ExpName
+                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (castedintstr ++ show e))
+                                                                 Nothing -> do (n :: Int) <- get
+                                                                               put (n+1)
+                                                                               let temp1 = var (castedintstr ++ show n)
+                                                                               put (Map.insert j1 n env1)
+                                                                               let defV1 = initIntCast castedintstr n j1
+                                                                               return ([defV1], temp1)
+    
 trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of 
@@ -134,28 +147,9 @@ trans self = let this = up self in T {
      
      CFPrimOp e1 op e2 ->
        do  (s1,j1,t1) <- translateM this e1
-           --TODO: modulurize the duplicated steps into a function
-           (env1 :: Map.Map J.Exp Int) <- get
-           (s3, jf1) <- case j1 of J.Lit e -> return ([], j1)
-                                   --FieldAccess (PrimaryFieldAccess...  or J.ExpName
-                                   _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (castedintstr ++ show e))
-                                                                     Nothing -> do (n :: Int) <- get
-                                                                                   put (n+1)
-                                                                                   let temp1 = var (castedintstr ++ show n)
-                                                                                   put (Map.insert j1 n env1)
-                                                                                   let defV1 = initIntCast castedintstr n j1
-                                                                                   return ([defV1], temp1)
+           (s3, jf1) <- genSubst j1
            (s2,j2,t2) <- translateM this e2
-           (env2 :: Map.Map J.Exp Int) <- get
-           (s4, jf2) <- case j2 of J.Lit e -> return ([], j2)
-                                   _ -> case (Map.lookup j2 env2) of Just e -> return ([], var (castedintstr ++ show e))
-                                                                     Nothing -> do (n :: Int) <- get
-                                                                                   put (n+1)
-                                                                                   let temp2 = var (castedintstr ++ show n)
-                                                                                   put (Map.insert j2 n env2)
-                                                                                   let defV2 = initIntCast castedintstr n j2
-                                                                                   return ([defV2], temp2)
-        
+           (s4, jf2) <- genSubst j2
            return (s1 ++ s2 ++ s3 ++ s4, J.BinOp jf1 op jf2, t1)
            
      CFif0 e1 e2 e3 ->
