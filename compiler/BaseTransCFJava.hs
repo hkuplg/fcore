@@ -201,10 +201,8 @@ trans self = let this = up self in T {
            let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) ) 
            let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           s3 <- case t of -- checking the type whether to generate the apply() call
-                       Body _ -> 
-                        case (scope2ctyp t) of CInt -> 
-                                                case (Map.lookup j3 env) of 
+           s3 <- case (scope2ctyp t) of CInt -> 
+                                            case (Map.lookup j3 env) of 
                                                     Just e -> return [cvar,ass,apply]
                                                     Nothing -> do (n :: Int) <- get
                                                                   put (n+1)
@@ -212,9 +210,7 @@ trans self = let this = up self in T {
                                                                   put (Map.insert j3 n env)
                                                                   let defV1 = initIntCast castedintstr n j3
                                                                   return [cvar,ass,apply,defV1]
-                                               _ -> do return [cvar,ass,apply]
-                            
-                       _ -> do return [cvar,ass]
+                                        _ -> do return [cvar,ass,apply]
 
            return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
            

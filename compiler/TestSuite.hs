@@ -22,7 +22,7 @@ import ClosureF
 import Inheritance
 
 -- setting
-type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
+{-type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
 sopt :: ApplyOptTranslate MAOpt  -- instantiation; all coinstraints resolved
 sopt = applyopt
 
@@ -32,6 +32,18 @@ translate e = translateM (up sopt) e
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case fst $ runWriter (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) of
+      (ss,exp,t) -> (J.Block ss,exp, t)
+-}
+type MAOpt = StateT Int (State (Map J.Exp Int) ) 
+sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
+sopt = naive
+
+translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([BlockStmt], Exp, PCTyp Int)
+translate e = translateM (up sopt) e
+
+compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
+compile e = 
+  case evalState (evalStateT (translate (fexp2cexp e)) 0) empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 -- java compilation + run

@@ -1,5 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures -XConstraintKinds #-}
+{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures -XConstraintKinds -XScopedTypeVariables #-}
 
 module ApplyTransCFJava where
 
@@ -13,6 +13,7 @@ import ClosureF
 -- import Mixins
 import Inheritance
 import Data.Char
+import Data.Map as Map
 import BaseTransCFJava
 import StringPrefixes
 import MonadLib
@@ -28,13 +29,44 @@ instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where --reflexivity
 --   override (NT fm) f  = NT (override fm f) -- needed to do proper overriding of methods, when we only know we inherit from a subtype. If 
 
 -- main translation function
-transApply :: (MonadState Int m, MonadWriter Bool m, selfType :< ApplyOptTranslate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
+transApply :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadWriter Bool m, selfType :< ApplyOptTranslate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
 transApply this super = NT {toT = T { --override this (\trans -> trans {
   translateM = \e -> case e of 
        CLam s ->
            do  tell False
                translateM super e
 
+       CApp e1 e2 ->
+           do  tell True
+               (n :: Int) <- get
+               put (n+1)
+               (s1,j1, CForall (Typ t1 g)) <- translateM super e1
+
+               (s2,j2,t2) <- translateM super e2
+               (env :: Map.Map J.Exp Int) <- get
+               let t    = g ()
+               let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
+               let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
+               let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) ) 
+               let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
+               let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
+               s3 <- case t of -- checking the type whether to generate the apply() call
+                               Body _ -> 
+                                case (scope2ctyp t) of CInt -> 
+                                                        case (Map.lookup j3 env) of 
+                                                            Just e -> return [cvar,ass,apply]
+                                                            Nothing -> do (n :: Int) <- get
+                                                                          put (n+1)
+                                                                          let temp1 = var (castedintstr ++ show n)
+                                                                          put (Map.insert j3 n env)
+                                                                          let defV1 = initIntCast castedintstr n j3
+                                                                          return [cvar,ass,apply,defV1]
+                                                       _ -> do return [cvar,ass,apply]
+                            
+                               _ -> do return [cvar,ass]
+
+               return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
+               
        otherwise -> 
             do  tell True
                 translateM super e,
