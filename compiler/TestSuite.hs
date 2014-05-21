@@ -22,7 +22,7 @@ import ClosureF
 import Inheritance
 
 -- setting
-{-type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
+type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
 sopt :: ApplyOptTranslate MAOpt  -- instantiation; all coinstraints resolved
 sopt = applyopt
 
@@ -33,7 +33,7 @@ compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case fst $ runWriter (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) of
       (ss,exp,t) -> (J.Block ss,exp, t)
--}
+{-
 type MAOpt = StateT Int (State (Map J.Exp Int) ) 
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
@@ -45,7 +45,7 @@ compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
   case evalState (evalStateT (translate (fexp2cexp e)) 0) empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
-
+-}
 -- java compilation + run
 compileAndRun exp = do let source = prettyPrint (fst $ createCU (compile exp) Nothing)
                        writeFile "Main.java" source
@@ -119,6 +119,8 @@ program1 =
     )
   )
 
+program1Num = FApp (FTApp program1 PFInt) (FLit 5)
+
 -- should infer (forall (x0 : int) . int)
 intapp = FTApp idF PFInt
 
@@ -145,6 +147,7 @@ test4 = "Should compile idF int 10" ~: assert (liftM (== "10\n") (compileAndRun 
 
 test5 = "Should compile const int 10 20" ~: assert (liftM (== "10\n") (compileAndRun constNum))
 
+test6 = "Should compile program1 int 5" ~: assert (liftM (== "5\n") (compileAndRun program1Num))
 
 -- SystemF to Java
 sf2java :: String -> String
@@ -170,4 +173,4 @@ inferHM = putStrLn . HM.pretty . HM.infer . readHM
 evenOdd :: String
 evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
 
-main = runTestTT $ TestList [test1, test2, test3, test4, test5]
+main = runTestTT $ TestList [test1, test2, test3, test4, test5, test6]
