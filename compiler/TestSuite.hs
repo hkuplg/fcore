@@ -118,12 +118,20 @@ notail2 =
       FLam (FTVar a) (\x ->
         FLam (FTVar a) (\y ->
           FApp (FApp (FVar f) (FVar x)) (FApp (FApp (FVar f) (FVar y)) (FVar y)) ))))
+		  
+idfNum = FApp (FTApp idF PFInt) (FLit 10)
+
+constNum = FApp (FApp (FTApp const PFInt) (FLit 10)) (FLit 20)
 
 test1 = "Should compile factorial 10" ~: assert (liftM (== "3628800\n") (compileAndRun fact_app))
 
 test2 = "Should compile fibonacci 10" ~: assert (liftM (== "55\n") (compileAndRun fibo_app))
 
 test3 = "Should infeer type of intapp" ~: "(forall (_ : Int) . Int)" ~=? ( let (cu, t) = (createCU (compile intapp) Nothing) in (show t) )
+
+test4 = "Should compile idF int 10" ~: assert (liftM (== "10\n") (compileAndRun idfNum))
+
+test5 = "Should compile const int 10 20" ~: assert (liftM (== "10\n") (compileAndRun constNum))
 
 
 -- SystemF to Java
@@ -150,4 +158,4 @@ inferHM = putStrLn . HM.pretty . HM.infer . readHM
 evenOdd :: String
 evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
 
-main = runTestTT $ TestList [test1, test2, test3]
+main = runTestTT $ TestList [test1, test2, test3, test4, test5]
