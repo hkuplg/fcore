@@ -41,13 +41,14 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                (n :: Int) <- get
                put (n+1)
                (s1,j1, CForall (Typ t1 g)) <- translateM super e1
-
                (s2,j2,t2) <- translateM super e2
                (env :: Map.Map J.Exp Int) <- get
                let t    = g ()
                let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
+               let nje2 = case (Map.lookup j2 env) of Nothing -> j2
+                                                      Just no -> var (tempvarstr ++ show no)    
                let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
-               let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) ) 
+               let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) ) 
                let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
                let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
                s3 <- case t of -- checking the type whether to generate the apply() call
@@ -57,12 +58,19 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                                                             Just e -> return [cvar,ass,apply]
                                                             Nothing -> do (n :: Int) <- get
                                                                           put (n+1)
-                                                                          let temp1 = var (castedintstr ++ show n)
+                                                                          let temp1 = var (tempvarstr ++ show n)
                                                                           put (Map.insert j3 n env)
-                                                                          let defV1 = initIntCast castedintstr n j3
+                                                                          let defV1 = initIntCast tempvarstr n j3
                                                                           return [cvar,ass,apply,defV1]
-                                                       _ -> do return [cvar,ass,apply]
-                            
+                                                       _ ->  
+                                                        case (Map.lookup j3 env) of 
+                                                            Just e -> return [cvar,ass,apply]
+                                                            Nothing -> do (n :: Int) <- get
+                                                                          put (n+1)
+                                                                          let temp1 = var (tempvarstr ++ show n)
+                                                                          put (Map.insert j3 n env)
+                                                                          let defV1 = initObj tempvarstr n j3
+                                                                          return [cvar,ass,apply,defV1]                             
                                _ -> do return [cvar,ass]
 
                return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
@@ -81,14 +89,20 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                     let self = J.Ident (localvarstr ++ show i)
                     tell False
                     ((s,je,t1), closureCheck) <- listen $ translateScopeM super (g (Left i,t)) m
-                    let cvar = refactoredScopeTranslationBit je self s f closureCheck
+                    (env :: Map.Map J.Exp Int) <- get
+                    let nje = case (Map.lookup je env) of Nothing -> je
+                                                          Just no -> var (tempvarstr ++ show no)
+                    let cvar = refactoredScopeTranslationBit nje self s f closureCheck
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
                     let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable
                     tell False
                     ((s,je,t1), closureCheck) <- listen $ translateScopeM super (g (Left (n+1),t)) m
-                    let cvar = refactoredScopeTranslationBit je self s f closureCheck
+                    (env :: Map.Map J.Exp Int) <- get
+                    let nje = case (Map.lookup je env) of Nothing -> je
+                                                          Just no -> var (tempvarstr ++ show no)
+                    let cvar = refactoredScopeTranslationBit nje self s f closureCheck
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
       otherwise ->

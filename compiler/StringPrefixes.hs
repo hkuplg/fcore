@@ -7,5 +7,5 @@ listlast = Data.List.last
 localvarstr = "x"
 -- results of if statements
 ifresultstr = "ifres"
--- casted integer variables
-castedintstr = "inttemp"
+-- temporary vars
+tempvarstr = "temp"

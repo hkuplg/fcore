@@ -89,7 +89,10 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
 
 boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
 
-initIntCast castedintstr n j = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (castedintstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j))])
+initIntCast tempvarstr n j = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j))])
+
+initObj tempvarstr n j = J.LocalVars [] (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (J.InitExp j))])
+
 
 type Var = Either Int Int -- left -> standard variable; right -> recursive variable
 
@@ -118,6 +121,7 @@ data Translate m = T {
 instance Monoid Bool where  
     mempty = False  
     mappend a b = a  
+
     
 genSubst :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m) => J.Exp -> m ([J.BlockStmt], J.Exp)
 genSubst j1 = x
@@ -125,12 +129,12 @@ genSubst j1 = x
              x = do (env1 :: Map.Map J.Exp Int) <- get
                     case j1 of J.Lit e -> return ([], j1)
                                    --FieldAccess (PrimaryFieldAccess...  or J.ExpName
-                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (castedintstr ++ show e))
+                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (tempvarstr ++ show e))
                                                                  Nothing -> do (n :: Int) <- get
                                                                                put (n+1)
-                                                                               let temp1 = var (castedintstr ++ show n)
+                                                                               let temp1 = var (tempvarstr ++ show n)
                                                                                put (Map.insert j1 n env1)
-                                                                               let defV1 = initIntCast castedintstr n j1
+                                                                               let defV1 = initIntCast tempvarstr n j1
                                                                                return ([defV1], temp1)
     
 trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, selfType :< Translate m) => Base selfType (Translate m)
@@ -198,7 +202,9 @@ trans self = let this = up self in T {
            let t    = g ()
            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
            let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
-           let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) ) 
+           let nje2 = case (Map.lookup j2 env) of Nothing -> j2
+                                                  Just no -> var (tempvarstr ++ show no)    
+           let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) ) 
            let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
            s3 <- case (scope2ctyp t) of CInt -> 
@@ -206,11 +212,19 @@ trans self = let this = up self in T {
                                                     Just e -> return [cvar,ass,apply]
                                                     Nothing -> do (n :: Int) <- get
                                                                   put (n+1)
-                                                                  let temp1 = var (castedintstr ++ show n)
+                                                                  let temp1 = var (tempvarstr ++ show n)
                                                                   put (Map.insert j3 n env)
-                                                                  let defV1 = initIntCast castedintstr n j3
+                                                                  let defV1 = initIntCast tempvarstr n j3
                                                                   return [cvar,ass,apply,defV1]
-                                        _ -> do return [cvar,ass,apply]
+                                        _ ->  
+                                            case (Map.lookup j3 env) of 
+                                                    Just e -> return [cvar,ass,apply]
+                                                    Nothing -> do (n :: Int) <- get
+                                                                  put (n+1)
+                                                                  let temp1 = var (tempvarstr ++ show n)
+                                                                  put (Map.insert j3 n env)
+                                                                  let defV1 = initObj tempvarstr n j3
+                                                                  return [cvar,ass,apply,defV1] 
 
            return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
            
@@ -234,13 +248,19 @@ trans self = let this = up self in T {
                 do  put (n+1)
                     let self = J.Ident (localvarstr ++ show i)
                     (s,je,t1) <- translateScopeM this (g (Left i,t)) m
-                    let cvar = standardTranslation je s self f
+                    (env :: Map.Map J.Exp Int) <- get
+                    let nje = case (Map.lookup je env) of Nothing -> je
+                                                          Just no -> var (tempvarstr ++ show no)
+                    let cvar = standardTranslation nje s self f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
                     let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable              
                     (s,je,t1) <- translateScopeM this (g (Left (n+1),t)) m
-                    let cvar = standardTranslation je s self f
+                    (env :: Map.Map J.Exp Int) <- get
+                    let nje = case (Map.lookup je env) of Nothing -> je
+                                                          Just no -> var (tempvarstr ++ show no)                    
+                    let cvar = standardTranslation nje s self f
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
     }
