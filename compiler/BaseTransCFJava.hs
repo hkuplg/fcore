@@ -42,6 +42,8 @@ jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) []
        ])))
 
 closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
+objType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))
+boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
 
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
 ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
@@ -56,7 +58,7 @@ createCU :: (J.Block, J.Exp, PCTyp Int) -> Maybe String -> (J.CompilationUnit, P
 createCU (J.Block bs,e,t) Nothing = createCU (J.Block bs,e,t) (Just "apply")
 createCU (J.Block bs,e,t) (Just expName) = (cu,t) where
    cu = J.CompilationUnit Nothing [] [closureClass, classDecl]
-   field name = J.MemberDecl (J.FieldDecl [] (J.RefType (refType "Object")) [
+   field name = J.MemberDecl (J.FieldDecl [] (objType) [
               J.VarDecl (J.VarId (J.Ident name)) Nothing])
    app mod b rt en args = J.MemberDecl (J.MethodDecl mod [] (rt) (J.Ident en) args [] (J.MethodBody b))
    closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
@@ -69,7 +71,7 @@ createCU (J.Block bs,e,t) (Just expName) = (cu,t) where
                                                                   _ -> J.Cast boxedIntType e
                                     _ -> e
    returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
-                          _ -> Just $J.RefType (refType "Closure")
+                          _ -> Just $ closureType
 
    mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall 
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident (expName ++ "()")]])))])
@@ -83,19 +85,19 @@ reduceTTuples :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
 reduceTTuples all = (merged, arrayAssignment, tupleType)
     where
         merged = concat $ map (\x -> case x of (a,b,c) -> a) all
-        arrayAssignment = J.ArrayCreateInit (J.RefType (refType "Object")) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
+        arrayAssignment = J.ArrayCreateInit (objType) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
         tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
-        refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
 
-boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
+initStuff tempvarstr n j t = J.LocalVars [] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (exp))])
+    where
+        exp | t == objType = J.InitExp j
+            | otherwise = J.InitExp $ J.Cast t j
 
---TODO: merge
-initIntCast tempvarstr n j = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j))])
+initIntCast tempvarstr n j = initStuff tempvarstr n j boxedIntType
 
-initObj tempvarstr n j = J.LocalVars [] (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (J.InitExp j))])
+initObj tempvarstr n j = initStuff tempvarstr n j objType
 
-initClosure tempvarstr n j = J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (J.InitExp $ J.Cast closureType j))])
-
+initClosure tempvarstr n j = initStuff tempvarstr n j closureType
 
 type Var = Either Int Int -- left -> standard variable; right -> recursive variable
 
@@ -124,10 +126,9 @@ data Translate m = T {
 instance Monoid Bool where  
     mempty = False  
     mappend a b = a  
-
     
-genSubst :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m) => J.Exp -> m ([J.BlockStmt], J.Exp)
-genSubst j1 = x
+genSubst :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m) => J.Exp -> ([Char] -> Int -> J.Exp -> J.BlockStmt) -> m ([J.BlockStmt], J.Exp)
+genSubst j1 initFun = x
          where
              x = do (env1 :: Map.Map J.Exp Int) <- get
                     case j1 of J.Lit e -> return ([], j1)
@@ -137,7 +138,7 @@ genSubst j1 = x
                                                                                put (n+1)
                                                                                let temp1 = var (tempvarstr ++ show n)
                                                                                put (Map.insert j1 n env1)
-                                                                               let defV1 = initIntCast tempvarstr n j1
+                                                                               let defV1 = initFun tempvarstr n j1
                                                                                return ([defV1], temp1)
     
 trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, selfType :< Translate m) => Base selfType (Translate m)
@@ -154,9 +155,9 @@ trans self = let this = up self in T {
      
      CFPrimOp e1 op e2 ->
        do  (s1,j1,t1) <- translateM this e1
-           (s3, jf1) <- genSubst j1
+           (s3, jf1) <- genSubst j1 initIntCast
            (s2,j2,t2) <- translateM this e2
-           (s4, jf2) <- genSubst j2
+           (s4, jf2) <- genSubst j2 initIntCast
            return (s1 ++ s2 ++ s3 ++ s4, J.BinOp jf1 op jf2, t1)
            
      CFif0 e1 e2 e3 ->
@@ -167,7 +168,7 @@ trans self = let this = up self in T {
             (s3,j3,t3) <- translateM this e3
             let ifvarname = (ifresultstr ++ show n)
             let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-            let ifresdecl = J.LocalVars [] (J.RefType (refType "Object")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
+            let ifresdecl = J.LocalVars [] (objType) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
             let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable        
             return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)                    -- need to check t2 == t3
            
@@ -212,33 +213,18 @@ trans self = let this = up self in T {
            let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) ) 
            let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           s3 <- case (scope2ctyp t) of CInt -> --TODO: separate and merge
-                                            case (Map.lookup j3 env) of 
-                                                    Just e -> return [cvar,ass,apply]
-                                                    Nothing -> do (n :: Int) <- get
-                                                                  put (n+1)
-                                                                  let temp1 = var (tempvarstr ++ show n)
-                                                                  put (Map.insert j3 n env)
-                                                                  let defV1 = initIntCast tempvarstr n j3
-                                                                  return [cvar,ass,apply,defV1]
+           s3 <- case (scope2ctyp t) of CInt ->
+                                            do (result, _) <- genSubst j3 initIntCast
+                                               let r = [cvar,ass,apply] ++ result
+                                               return r
                                         CForall (_) ->
-                                            case (Map.lookup j3 env) of 
-                                                    Just e -> return [cvar,ass,apply]
-                                                    Nothing -> do (n :: Int) <- get
-                                                                  put (n+1)
-                                                                  let temp1 = var (tempvarstr ++ show n)
-                                                                  put (Map.insert j3 n env)
-                                                                  let defV1 = initClosure tempvarstr n j3
-                                                                  return [cvar,ass,apply,defV1]                                            
+                                            do (result, _) <- genSubst j3 initClosure
+                                               let r = [cvar,ass,apply] ++ result
+                                               return r
                                         _ ->  
-                                            case (Map.lookup j3 env) of 
-                                                    Just e -> return [cvar,ass,apply]
-                                                    Nothing -> do (n :: Int) <- get
-                                                                  put (n+1)
-                                                                  let temp1 = var (tempvarstr ++ show n)
-                                                                  put (Map.insert j3 n env)
-                                                                  let defV1 = initObj tempvarstr n j3
-                                                                  return [cvar,ass,apply,defV1] 
+                                            do (result, _) <- genSubst j3 initObj
+                                               let r = [cvar,ass,apply] ++ result
+                                               return r
 
            return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
            

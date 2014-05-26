@@ -35,7 +35,7 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
        CLam s ->
            do  tell False
                translateM super e
-
+--TODO: merge common parts with BaseTransCF
        CApp e1 e2 ->
            do  tell True
                (n :: Int) <- get
@@ -54,34 +54,19 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
                let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
                s3 <- case t of -- checking the type whether to generate the apply() call
-                               Body _ -> --TODO: separate / merge (see BaseTrans)
-                                case (scope2ctyp t) of CInt -> 
-                                                        case (Map.lookup j3 env) of 
-                                                            Just e -> return [cvar,ass,apply]
-                                                            Nothing -> do (n :: Int) <- get
-                                                                          put (n+1)
-                                                                          let temp1 = var (tempvarstr ++ show n)
-                                                                          put (Map.insert j3 n env)
-                                                                          let defV1 = initIntCast tempvarstr n j3
-                                                                          return [cvar,ass,apply,defV1]
-                                                       CForall (_) ->  
-                                                        case (Map.lookup j3 env) of 
-                                                            Just e -> return [cvar,ass,apply]
-                                                            Nothing -> do (n :: Int) <- get
-                                                                          put (n+1)
-                                                                          let temp1 = var (tempvarstr ++ show n)
-                                                                          put (Map.insert j3 n env)
-                                                                          let defV1 = initClosure tempvarstr n j3
-                                                                          return [cvar,ass,apply,defV1]           
+                               Body _ ->
+                                case (scope2ctyp t) of CInt ->
+                                                        do (result, _) <- genSubst j3 initIntCast
+                                                           let r = [cvar,ass,apply] ++ result
+                                                           return r
+                                                       CForall (_) ->
+                                                        do (result, _) <- genSubst j3 initClosure
+                                                           let r = [cvar,ass,apply] ++ result
+                                                           return r
                                                        _ ->  
-                                                        case (Map.lookup j3 env) of 
-                                                            Just e -> return [cvar,ass,apply]
-                                                            Nothing -> do (n :: Int) <- get
-                                                                          put (n+1)
-                                                                          let temp1 = var (tempvarstr ++ show n)
-                                                                          put (Map.insert j3 n env)
-                                                                          let defV1 = initObj tempvarstr n j3
-                                                                          return [cvar,ass,apply,defV1]                             
+                                                        do (result, _) <- genSubst j3 initObj
+                                                           let r = [cvar,ass,apply] ++ result
+                                                           return r
                                _ -> do return [cvar,ass]
 
                return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
