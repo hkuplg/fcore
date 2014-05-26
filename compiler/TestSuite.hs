@@ -142,6 +142,36 @@ idfNum = FApp (FTApp idF PFInt) (FLit 10)
 
 constNum = FApp (FApp (FTApp const PFInt) (FLit 10)) (FLit 20)
 
+-- /\A . \(f : A -> A -> A) . \(g : A -> A -> A) . \(x : A) . \(y : A) . f x (g y y)
+notail3 =
+  FBLam (\a ->
+    FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
+      FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\g ->
+        FLam (FTVar a) (\x ->
+          FLam (FTVar a) (\y ->
+            FApp (FApp (FVar f) (FVar x)) (FApp (FApp (FVar g) (FVar y)) (FVar y)) )))))
+
+program3 = FApp (FApp (FApp (FApp (FTApp notail3 PFInt) (FTApp const PFInt)) (FTApp const PFInt)) (FLit 5)) (FLit 6)
+    
+-- /\A . \(g : ((A -> A) -> (A -> A)) -> A) . \(f : A -> A -> A) . \(x : A) . \(y : A) . g (f x) (f y)
+notail4 =
+  FBLam (\a ->
+    FLam ( FFun (FFun (FTVar a) (FTVar a)) (FFun (FFun (FTVar a) (FTVar a)) (FTVar a))) (\g ->
+      FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
+        FLam (FTVar a) (\x ->
+          FLam (FTVar a) (\y ->
+            FApp (FApp (FVar g) (FApp (FVar f) (FVar x))) (FApp (FVar f) (FVar y)))))))
+
+-- \(x : Int -> Int) . \(y : Int -> Int) . (x 0) + (y 0)
+summa =
+    FLam (FFun PFInt PFInt) (\x ->
+       FLam (FFun PFInt PFInt) (\y ->
+          FPrimOp (FApp (FVar x) (FLit 0)) J.Add (FApp (FVar y) (FLit 0))
+       )
+    )
+            
+program4 = FApp (FApp (FApp (FApp (FTApp notail4 PFInt) summa) (FTApp const PFInt)) (FLit 5)) (FLit 6)
+
 test1 = "Should compile factorial 10" ~: assert (liftM (== "3628800\n") (compileAndRun fact_app))
 
 test2 = "Should compile fibonacci 10" ~: assert (liftM (== "55\n") (compileAndRun fibo_app))

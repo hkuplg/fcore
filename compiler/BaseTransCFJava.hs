@@ -89,9 +89,12 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
 
 boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
 
+--TODO: merge
 initIntCast tempvarstr n j = J.LocalVars [] (boxedIntType) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (J.InitExp $ J.Cast boxedIntType j))])
 
 initObj tempvarstr n j = J.LocalVars [] (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (J.InitExp j))])
+
+initClosure tempvarstr n j = J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (J.InitExp $ J.Cast closureType j))])
 
 
 type Var = Either Int Int -- left -> standard variable; right -> recursive variable
@@ -201,13 +204,15 @@ trans self = let this = up self in T {
            (env :: Map.Map J.Exp Int) <- get
            let t    = g ()
            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-           let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
+           let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
+                                                  Just no -> var (tempvarstr ++ show no)                   
+           let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (nje1)))])
            let nje2 = case (Map.lookup j2 env) of Nothing -> j2
                                                   Just no -> var (tempvarstr ++ show no)    
            let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) ) 
            let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           s3 <- case (scope2ctyp t) of CInt -> 
+           s3 <- case (scope2ctyp t) of CInt -> --TODO: separate and merge
                                             case (Map.lookup j3 env) of 
                                                     Just e -> return [cvar,ass,apply]
                                                     Nothing -> do (n :: Int) <- get
@@ -216,6 +221,15 @@ trans self = let this = up self in T {
                                                                   put (Map.insert j3 n env)
                                                                   let defV1 = initIntCast tempvarstr n j3
                                                                   return [cvar,ass,apply,defV1]
+                                        CForall (_) ->
+                                            case (Map.lookup j3 env) of 
+                                                    Just e -> return [cvar,ass,apply]
+                                                    Nothing -> do (n :: Int) <- get
+                                                                  put (n+1)
+                                                                  let temp1 = var (tempvarstr ++ show n)
+                                                                  put (Map.insert j3 n env)
+                                                                  let defV1 = initClosure tempvarstr n j3
+                                                                  return [cvar,ass,apply,defV1]                                            
                                         _ ->  
                                             case (Map.lookup j3 env) of 
                                                     Just e -> return [cvar,ass,apply]

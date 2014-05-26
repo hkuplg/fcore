@@ -45,14 +45,16 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                (env :: Map.Map J.Exp Int) <- get
                let t    = g ()
                let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
+               let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
+                                                      Just no -> var (tempvarstr ++ show no)                   
+               let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (nje1)))])
                let nje2 = case (Map.lookup j2 env) of Nothing -> j2
-                                                      Just no -> var (tempvarstr ++ show no)    
-               let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
+                                                      Just no -> var (tempvarstr ++ show no)                       
                let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) ) 
                let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
                let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
                s3 <- case t of -- checking the type whether to generate the apply() call
-                               Body _ -> 
+                               Body _ -> --TODO: separate / merge (see BaseTrans)
                                 case (scope2ctyp t) of CInt -> 
                                                         case (Map.lookup j3 env) of 
                                                             Just e -> return [cvar,ass,apply]
@@ -62,6 +64,15 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                                                                           put (Map.insert j3 n env)
                                                                           let defV1 = initIntCast tempvarstr n j3
                                                                           return [cvar,ass,apply,defV1]
+                                                       CForall (_) ->  
+                                                        case (Map.lookup j3 env) of 
+                                                            Just e -> return [cvar,ass,apply]
+                                                            Nothing -> do (n :: Int) <- get
+                                                                          put (n+1)
+                                                                          let temp1 = var (tempvarstr ++ show n)
+                                                                          put (Map.insert j3 n env)
+                                                                          let defV1 = initClosure tempvarstr n j3
+                                                                          return [cvar,ass,apply,defV1]           
                                                        _ ->  
                                                         case (Map.lookup j3 env) of 
                                                             Just e -> return [cvar,ass,apply]
