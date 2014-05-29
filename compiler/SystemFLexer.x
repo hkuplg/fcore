@@ -34,7 +34,6 @@ tokens :-
 
     [a-z] [$alpha $digit \_ \']*  { \s -> TokenLowId s }
     [A-Z] [$alpha $digit \_ \']*  { \s -> TokenUpId s }
-    [A-Z] [$alpha $digit \_ \']*  { \s -> TokenUpId s }
 
     [$digit]+  { \s -> TokenInt (read s) }
 
