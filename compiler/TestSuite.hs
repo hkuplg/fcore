@@ -54,7 +54,7 @@ compileAndRun exp = do let source = prettyPrint (fst $ createCU (compile exp) No
                        readProcess "javac" ["Main.java"] ""
                        result <- readProcess "java" ["Main"] ""
                        readProcess "rm" ["Main.java"] ""
-		       x <- getDirectoryContents "."
+                       x <- getDirectoryContents "."
                        readProcess "rm" [y | y<- x, ".class" `isSuffixOf` y] ""
                        return result
 
@@ -137,7 +137,7 @@ notail2 =
   
 
 program2 = FApp (FApp (FApp (FTApp notail2 PFInt) (FTApp const PFInt)) (FLit 5)) (FLit 6)
-		  
+                  
 idfNum = FApp (FTApp idF PFInt) (FLit 10)
 
 constNum = FApp (FApp (FTApp const PFInt) (FLit 10)) (FLit 20)

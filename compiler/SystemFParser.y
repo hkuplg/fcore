@@ -17,6 +17,8 @@ import Data.Maybe       (fromJust)
 
 "/\\"  { TokenTLambda }
 "\\"   { TokenLambda }
+fix    { TokenFix }
+","    { TokenComma }
 "."    { TokenDot }
 "->"   { TokenArrow }
 ":"    { TokenColon }
@@ -26,37 +28,44 @@ in     { TokenIn }
 "("    { TokenOParen }
 ")"    { TokenCParen }
 forall { TokenForall }
-Int    { TokenInt }
+Int    { TokenIntType }
 var    { TokenLowId $$ }
 tvar   { TokenUpId $$ }
+int    { TokenInt $$ }
+if     { TokenIf }
+then   { TokenThen }
+else   { TokenElse }
 
-%left TokenArrow
+%left "->"
+%nonassoc "else"
 
 %%
 
--- data PFExp t e = FVar e
---                | FBLam (t -> PFExp t e)
---                | FLam (PFTyp t) (e -> PFExp t e)
---                | FApp (PFExp t e) (PFExp t e)
---                | FTApp (PFExp t e) (PFTyp t)
-Exp : var                               { \(_, env)    -> FVar (fromJust (lookup $1 env)) }
-    | "/\\" tvar "." Exp                { \(tenv, env) -> FBLam (\a -> $4 (($2, a):tenv, env)) }
-    | "\\" "(" var ":" Typ ")" "." Exp  { \(tenv, env) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env)) }
-    -- let x = e : T in f  ~>  (\(x : T) . f) e
-    | let var "=" Exp ":" Typ in Exp    { \(tenv, env) ->
-                                            let lambda = \(tenv, env) -> FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env)) in
-                                            FApp (lambda (tenv, env)) ($4 (tenv, env))
-                                        }
-    | Exp Exp                           { \(tenv, env) -> FApp  ($1 (tenv, env)) ($2 (tenv, env)) }
-    | Exp Typ                           { \(tenv, env) -> FTApp ($1 (tenv, env)) ($2 tenv) }
-    | "(" Exp ")"                       { $2 }
+Exp : var  { \(tenv, env) -> FVar (fromJust (lookup $1 env)) }
+    | "/\\" tvar "." Exp  { \(tenv, env) -> FBLam (\a -> $4 (($2, a):tenv, env)) }
+    | "\\" "(" var ":" Typ ")" "." Exp  
+        { \(tenv, env) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env)) }
+    -- let x = e : T in f  rewrites to  (\(x : T) . f) e
+    | let var "=" Exp ":" Typ in Exp  
+        { \(tenv, env) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env))) ($4 (tenv, env)) }
+    | Exp Exp  { \(tenv, env) -> FApp  ($1 (tenv, env)) ($2 (tenv, env)) }
+    | Exp Typ  { \(tenv, env) -> FTApp ($1 (tenv, env)) ($2 tenv) }
+    | int  { \_e -> FLit $1 }
+    | if Exp then Exp else Exp  { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
+    | "(" Exps ")"  { \(tenv, env) -> FTuple ($2 (tenv, env)) }
+    | fix var "." "\\" "(" var ":" Typ ")" "." Exp ":" Typ 
+        { \(tenv, env) -> FFix ($8 tenv) (\y -> \x -> $11 (tenv, ($6, x):($2, y):env)) ($13 tenv) }
+    | "(" Exp ")"  { $2 }
+
+Exps : Exp "," Exp   { \(tenv, env) -> $1 (tenv, env):[$3 (tenv, env)] }
+     | Exp "," Exps  { \(tenv, env) -> $1 (tenv, env):$3 (tenv, env) }
 
 -- data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) | PFInt
 Typ : tvar                 { \tenv -> FTVar (fromJust (lookup $1 tenv)) }
     | forall tvar "." Typ  { \tenv -> FForall (\a -> $4 (($2, a):tenv)) }
-    | Typ "->" Typ      { \tenv -> FFun ($1 tenv) ($3 tenv) }
-    | Int               { \_    -> PFInt }
-    | "(" Typ ")"       { $2 }
+    | Typ "->" Typ  { \tenv -> FFun ($1 tenv) ($3 tenv) }
+    | Int           { \_    -> PFInt }
+    | "(" Typ ")"   { $2 }
 
 {
 parseError :: [SystemFToken] -> a

@@ -4,7 +4,10 @@ import Language.Java.Syntax as J
 
 -- System F syntax
 
-data PFTyp t = FTVar t | FForall (t -> PFTyp t) | FFun (PFTyp t) (PFTyp t) | PFInt
+data PFTyp t = FTVar t 
+             | FForall (t -> PFTyp t) 
+             | FFun (PFTyp t) (PFTyp t) 
+             | PFInt
 
 type PrimLit = Integer -- later maybe Bool | Char
 

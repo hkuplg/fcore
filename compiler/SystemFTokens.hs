@@ -2,6 +2,8 @@ module SystemFTokens where
 
 data SystemFToken = TokenTLambda
                   | TokenLambda
+                  | TokenFix
+                  | TokenComma
                   | TokenDot
                   | TokenArrow
                   | TokenColon
@@ -11,7 +13,11 @@ data SystemFToken = TokenTLambda
                   | TokenOParen
                   | TokenCParen
                   | TokenForall
-                  | TokenInt
+                  | TokenIntType
                   | TokenLowId String
                   | TokenUpId String
+                  | TokenInt Integer
+                  | TokenIf
+                  | TokenThen
+                  | TokenElse
                   deriving (Eq, Show)
