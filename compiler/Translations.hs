@@ -9,17 +9,18 @@ import StackTransCFJava
 import BaseTransCFJava
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Language.Java.Syntax as J
 import MonadLib
 
 -- Naive translation
 
-naive :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m) => Translate m
+naive :: (MonadState Int m, MonadReader (Set.Set Int) m, MonadState (Map.Map J.Exp Int) m) => Translate m
 naive = new trans
 
 -- Apply optimization
 
-applyopt :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => ApplyOptTranslate m
+applyopt :: (MonadState Int m, MonadReader (Set.Set Int) m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => ApplyOptTranslate m
 applyopt = new (transApply $> trans)
 
 -- Stack translation
@@ -27,14 +28,14 @@ applyopt = new (transApply $> trans)
 --trStack1 :: (MonadState Int m, MonadWriter Bool m) => Mixin (TranslateStack m) (Translate m) (TranslateStack m) -- need to instantiate records
 --trStack1 = transS
 
-stackNaive :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => TranslateStack m
+stackNaive :: (MonadState Int m, MonadReader (Set.Set Int) m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => TranslateStack m
 stackNaive = new (transS $> trans)
 
 -- Stack/Apply translation
 
 adaptApply mix this super = toT $ mix this super
 
-stackApply :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => TranslateStack m
+stackApply :: (MonadState Int m, MonadReader (Set.Set Int) m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => TranslateStack m
 stackApply = new ((transS <.> (adaptApply transApply)) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where

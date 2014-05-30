@@ -9,7 +9,8 @@ import Data.List hiding (init, last)
 -- import Control.Monad.State
 -- import Control.Monad.Writer
 import qualified Data.Map as Map
-
+import Data.Maybe
+import qualified Data.Set as Set
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
@@ -36,11 +37,6 @@ jbody = Just (J.Block [])
 
 init = [J.InitDecl False (J.Block [])]
 
-jexp init body = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] 
-       (Just (J.ClassBody (init ++  [
-          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body))
-       ])))
-
 closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 objType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))
 boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
@@ -53,18 +49,17 @@ ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $
         ifvarname = (ifresultstr ++ show n)
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
         newvar = var ifvarname
-
+        
 createCU :: (J.Block, J.Exp, PCTyp Int) -> Maybe String -> (J.CompilationUnit, PCTyp Int)
 createCU (J.Block bs,e,t) Nothing = createCU (J.Block bs,e,t) (Just "apply")
 createCU (J.Block bs,e,t) (Just expName) = (cu,t) where
-   cu = J.CompilationUnit Nothing [] [closureClass, classDecl]
+   cu = J.CompilationUnit Nothing [] [closureClass,classDecl]
    field name = J.MemberDecl (J.FieldDecl [] (objType) [
               J.VarDecl (J.VarId (J.Ident name)) Nothing])
    app mod b rt en args = J.MemberDecl (J.MethodDecl mod [] (rt) (J.Ident en) args [] (J.MethodBody b))
    closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
-                  J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" []]))
+                  J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [],app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
    body = Just (J.Block (bs ++ [ass]))
-
    mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
    --TODO: maybe get a state monad to createCU to createCU somehow?
    maybeCastedReturnExp = case t of CInt -> case (listlast bs) of J.LocalVars [] _ ([J.VarDecl (J.VarId id) (_)]) -> J.ExpName $ J.Name [id]
@@ -105,11 +100,29 @@ last (Typ _ _) = False
 last (Kind f)  = last (f 0)
 last (Body _)  = True
 
+instCreat i = J.InstanceCreation [] (J.ClassType [(J.Ident ("Fun" ++ show i),[])]) [] Nothing
+
+jexp init body (enCF,idCF) ids = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] 
+       (Just (J.ClassBody (init ++  [
+          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body)),
+          J.MemberDecl (J.MethodDecl [J.Public] [] (Just closureType) (J.Ident "clone") [] [] (J.MethodBody cloneBody))
+       ])))
+        where
+            enclosingId = J.Ident (localvarstr ++ show (enCF-2))
+            newClone i =  Just $ J.Block $ [J.BlockStmt $ J.Return $ Just (instCreat i)]            
+            cloneBody | ids = newClone idCF
+                      | otherwise = Just (J.Block [J.LocalVars [] (closureType) [J.VarDecl (J.VarId (J.Ident "c")) 
+                (Just (J.InitExp (J.MethodInv (J.MethodCall (J.Name [enclosingId,J.Ident "clone"]) []))))],J.BlockStmt 
+                (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA 
+                (J.ExpName (J.Name [enclosingId,J.Ident localvarstr])))),J.BlockStmt (J.ExpStmt (J.MethodInv 
+                (J.MethodCall (J.Name [J.Ident "c",J.Ident "apply"]) []))),J.BlockStmt (J.Return (Just 
+                (J.Cast (closureType) (J.ExpName (J.Name [J.Ident "c",J.Ident "out"])))))])
+
 currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
 outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-standardTranslation javaExpression statementsBeforeOA idCurrentName idNextName = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
+standardTranslation javaExpression statementsBeforeOA currentId nextId ids = J.LocalVars [] closureType [J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) 
                                                 (Just (J.InitExp 
-                                                    (jexp [currentInitialDeclaration idCurrentName] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))))
+                                                    (jexp [currentInitialDeclaration (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))) (currentId,nextId) ids)
                                                     )
                                                 )]
   
@@ -141,7 +154,7 @@ genSubst j1 initFun = x
                                                                                let defV1 = initFun tempvarstr n j1
                                                                                return ([defV1], temp1)
     
-trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, selfType :< Translate m) => Base selfType (Translate m)
+trans :: (MonadState Int m, MonadReader (Set.Set Int) m, MonadState (Map.Map J.Exp Int) m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of 
      CVar (Left i,t) -> 
@@ -183,15 +196,28 @@ trans self = let this = up self in T {
            (s,je, CForall (Kind f)) <- translateM this e
            return (s,je, scope2ctyp (substScope n t (f n)))
      
-     CLam s ->
-       do  (s,je, t) <- translateScopeM this s Nothing
-           return (s,je, CForall t)
+     CLam se ->
+       do  (n :: Int) <- get
+           (envs :: Set.Set Int) <- ask
+           (s,je, t) <- local (Set.insert n) (translateScopeM this se Nothing)
+           let ns = case (head s) of (J.LocalVars [] (a) ([J.VarDecl (varId) 
+                                        (Just (J.InitExp (J.InstanceCreation _ _ _ (Just initexp))))])) -> 
+                                        [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show n)) [] 
+                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (initexp))),
+                                        J.LocalVars [] (a) ([J.VarDecl (varId) (Just (J.InitExp (instCreat n)))])]
+           return (ns ++ (tail s),je, CForall t)
      
      CFix t s   -> 
        do  (n :: Int) <- get
            put (n+1)
-           (s, je, t') <- translateScopeM this (s (Right n,t)) (Just (n,t)) -- weird!
-           return (s,je, CForall t')
+           (envs :: Set.Set Int) <- ask
+           (s, je, t') <- local (Set.insert (n+1)) (translateScopeM this (s (Right n,t)) (Just (n,t))) -- weird!
+           let ns = case (head s) of (J.LocalVars [] (a) ([J.VarDecl (varId) 
+                                        (Just (J.InitExp (J.InstanceCreation _ _ _ (Just initexp))))])) -> 
+                                        [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show (n+1))) [] 
+                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (initexp))),
+                                        J.LocalVars [] (a) ([J.VarDecl (varId) (Just (J.InitExp (instCreat (n+1))))])]           
+           return (ns,je, CForall t')
            
      CApp e1 e2 ->
        do  (n :: Int) <- get
@@ -206,10 +232,17 @@ trans self = let this = up self in T {
            let t    = g ()
            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
            let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
-                                                  Just no -> var (tempvarstr ++ show no)                   
-           let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (nje1)))])
+                                                  Just no -> var (tempvarstr ++ show no)
+           let maybeCloned = case t of
+                                       Body _ ->
+                                           nje1
+                                       _ ->
+                                           J.MethodInv (J.PrimaryMethodCall (nje1) [] (J.Ident "clone") [])
+                                           
+           let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])
            let nje2 = case (Map.lookup j2 env) of Nothing -> j2
                                                   Just no -> var (tempvarstr ++ show no)    
+                                                  
            let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) ) 
            let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
@@ -236,31 +269,32 @@ trans self = let this = up self in T {
           
       Kind f -> 
         do  n <- get
-            put (n+1) -- needed?
+            --put (n+1) -- needed?
             (s,je,t1) <- translateScopeM this (f n) m
             return (s,je, Kind (\a -> substScope n (CTVar a) t1)) 
                 
       Typ t g -> 
         do  n <- get
+            envs :: Set.Set Int <- ask
             let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable              
             case m of -- Consider refactoring later?
               Just (i,t') | last (g (Right i,t')) ->
                 do  put (n+1)
-                    let self = J.Ident (localvarstr ++ show i)
+                    --let self = J.Ident (localvarstr ++ show i)
                     (s,je,t1) <- translateScopeM this (g (Left i,t)) m
                     (env :: Map.Map J.Exp Int) <- get
                     let nje = case (Map.lookup je env) of Nothing -> je
                                                           Just no -> var (tempvarstr ++ show no)
-                    let cvar = standardTranslation nje s self f
+                    let cvar = standardTranslation nje s i n (Set.member n envs)
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
-                    let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable              
+                    --let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable              
                     (s,je,t1) <- translateScopeM this (g (Left (n+1),t)) m
                     (env :: Map.Map J.Exp Int) <- get
                     let nje = case (Map.lookup je env) of Nothing -> je
                                                           Just no -> var (tempvarstr ++ show no)                    
-                    let cvar = standardTranslation nje s self f
+                    let cvar = standardTranslation nje s (n+1) n (Set.member n envs)
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
     }

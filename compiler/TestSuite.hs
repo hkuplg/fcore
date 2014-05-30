@@ -17,13 +17,15 @@ import Translations
 import BaseTransCFJava
 import ApplyTransCFJava
 import Data.Map
+import qualified Data.Set as Set
 import Data.List
 import ClosureF
 import Inheritance
 
 -- setting
 {-
-type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
+type MAOpt = StateT Int (StateT (Map J.Exp Int) (ReaderT (Set.Set Int) (Writer Bool))) 
+
 sopt :: ApplyOptTranslate MAOpt  -- instantiation; all coinstraints resolved
 sopt = applyopt
 
@@ -32,11 +34,11 @@ translate e = translateM (up sopt) e
 
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
-  case fst $ runWriter (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) of
+  case fst $ runWriter $ (runReaderT (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) Set.empty) of
       (ss,exp,t) -> (J.Block ss,exp, t)
 -}
 
-type MAOpt = StateT Int (State (Map J.Exp Int) ) 
+type MAOpt = StateT Int (StateT (Map J.Exp Int) (Reader (Set.Set Int))) 
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
 
@@ -45,7 +47,7 @@ translate e = translateM (up sopt) e
 
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
-  case evalState (evalStateT (translate (fexp2cexp e)) 0) empty of
+  case runReader (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) Set.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 -- java compilation + run
@@ -54,7 +56,7 @@ compileAndRun exp = do let source = prettyPrint (fst $ createCU (compile exp) No
                        readProcess "javac" ["Main.java"] ""
                        result <- readProcess "java" ["Main"] ""
                        readProcess "rm" ["Main.java"] ""
-                       x <- getDirectoryContents "."
+		       x <- getDirectoryContents "."
                        readProcess "rm" [y | y<- x, ".class" `isSuffixOf` y] ""
                        return result
 
@@ -112,7 +114,8 @@ const =
        )
     )
   )
-
+  
+-- /\A . \(x : A) . (/\A . \(f : A -> A -> A) . \(g : A -> A) . \(x : A) . f x (g x)) A (const A) (idF A) x
 -- /\A . \(x : A) . notail A (const A) (idF A) x
 program1 =
   FBLam (\a ->
@@ -137,7 +140,7 @@ notail2 =
   
 
 program2 = FApp (FApp (FApp (FTApp notail2 PFInt) (FTApp const PFInt)) (FLit 5)) (FLit 6)
-                  
+		  
 idfNum = FApp (FTApp idF PFInt) (FLit 10)
 
 constNum = FApp (FApp (FTApp const PFInt) (FLit 10)) (FLit 20)
@@ -184,6 +187,10 @@ test5 = "Should compile const int 10 20" ~: assert (liftM (== "10\n") (compileAn
 
 test6 = "Should compile program1 int 5" ~: assert (liftM (== "5\n") (compileAndRun program1Num))
 
+test7 = "Should compile program2" ~: assert (liftM (== "5\n") (compileAndRun program2))
+
+test8 = "Should compile program4" ~: assert (liftM (== "11\n") (compileAndRun program4))
+
 -- SystemF to Java
 sf2java :: String -> String
 sf2java src = let (cu, _) = (createCU (compile (readSF src)) Nothing) in prettyPrint cu
@@ -208,4 +215,4 @@ inferHM = putStrLn . HM.pretty . HM.infer . readHM
 evenOdd :: String
 evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
 
-main = runTestTT $ TestList [test1, test2, test3, test4, test5, test6]
+main = runTestTT $ TestList [test1, test2, test3, test4, test5, test6, test7, test8]
