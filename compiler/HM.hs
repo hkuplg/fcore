@@ -144,7 +144,7 @@ ctype ctx (EBin op e1 e2) =
        let c' = if isLitLitOp op then [(t1, CTLit), (t2, CTLit)] else [(t1, t2)]
        return (c1 `union` c2 `union` c', t1)
 
-ctype ctx (EIf e1 e2 e3) = 
+ctype ctx (EIf0 e1 e2 e3) = 
     do (c1, t1) <- ctype ctx e1
        (c2, t2) <- ctype ctx e2
        (c3, t3) <- ctype ctx e3
@@ -234,7 +234,7 @@ instance Pretty Exp where
         where prettyBindings = intercalate " and " $ map (\(x, e) -> x ++ " = " ++ pretty e) bindings
     pretty (EUn  op e) = "(" ++ pretty op  ++ pretty e ++ ")"
     pretty (EBin op e1 e2) = "(" ++ pretty e1 ++ " " ++ pretty op ++ " " ++ pretty e2 ++ ")"
-    pretty (EIf e0 e1 e2) = "(if " ++ pretty e0 ++ " then " ++ pretty e1 ++ " else " ++ pretty e2 ++ ")"
+    pretty (EIf0 e0 e1 e2) = "(if0 " ++ pretty e0 ++ " then " ++ pretty e1 ++ " else " ++ pretty e2 ++ ")"
 
 instance Pretty UnOp where
     pretty UMinus = "-"

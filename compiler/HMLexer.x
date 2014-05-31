@@ -44,7 +44,7 @@ tokens :-
     \&\&        { \_ -> TokenBin And }
     \|\|        { \_ -> TokenBin Or }
 
-    if          { \_ -> TokenIf }
+    if0         { \_ -> TokenIf0 }
     then        { \_ -> TokenThen }
     else        { \_ -> TokenElse }
 

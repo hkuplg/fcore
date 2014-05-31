@@ -17,7 +17,7 @@ data SystemFToken = TokenTLambda
                   | TokenLowId String
                   | TokenUpId String
                   | TokenInt Integer
-                  | TokenIf
+                  | TokenIf0
                   | TokenThen
                   | TokenElse
                   deriving (Eq, Show)

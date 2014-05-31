@@ -42,7 +42,7 @@ in      { TokenIn }
 "&&"    { TokenBin And }
 "||"    { TokenBin Or }
 
-if      { TokenIf }
+if0     { TokenIf0 }
 then    { TokenThen }
 else    { TokenElse }
 
@@ -90,7 +90,7 @@ Exp : "(" Exp ")"             { $2 }
     | Exp "&&" Exp  { EBin And $1 $3 }
     | Exp "||" Exp  { EBin Or  $1 $3 }
 
-    | if Exp then Exp else Exp  { EIf $2 $4 $6 }
+    | if0 Exp then Exp else Exp  { EIf0 $2 $4 $6 }
     | int  { ELit $1 }
 
 Binding : var "=" Exp   { ($1, $3) }

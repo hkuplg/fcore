@@ -28,7 +28,7 @@ tokens :-
     \)          { \_ -> TokenCParen }
     forall      { \_ -> TokenForall }
     Int         { \_ -> TokenIntType }
-    if          { \_ -> TokenIf }
+    if0         { \_ -> TokenIf0 }
     then        { \_ -> TokenThen }
     else        { \_ -> TokenElse }
 

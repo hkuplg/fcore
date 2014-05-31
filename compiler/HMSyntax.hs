@@ -16,7 +16,7 @@ data Exp = EVar Var
          | ELetRec [(Var, Exp)] Exp  -- let x1 = e1 and x2 = e2 and ... in e
          | EUn UnOp Exp
          | EBin BinOp Exp Exp
-         | EIf Exp Exp Exp
+         | EIf0 Exp Exp Exp
          deriving (Eq, Show)
 
 type Lit = Int 
