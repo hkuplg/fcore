@@ -20,4 +20,5 @@ data SystemFToken = TokenTLambda
                   | TokenIf0
                   | TokenThen
                   | TokenElse
+                  | TokenTupleField Int
                   deriving (Eq, Show)

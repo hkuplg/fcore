@@ -35,6 +35,7 @@ int    { TokenInt $$ }
 if0    { TokenIf0 }
 then   { TokenThen }
 else   { TokenElse }
+tuplefield { TokenTupleField $$ }
 
 %left "->"
 %nonassoc "else"
@@ -53,6 +54,7 @@ Exp : var  { \(tenv, env) -> FVar (fromJust (lookup $1 env)) }
     | int  { \_e -> FLit $1 }
     | if0 Exp then Exp else Exp  { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
     | "(" Exps ")"  { \(tenv, env) -> FTuple ($2 (tenv, env)) }
+    | Exp "." tuplefield { \e -> FProj $3 ($1 e) } 
     | fix var "." "\\" "(" var ":" Typ ")" "." Exp ":" Typ 
         { \(tenv, env) -> 
             FFix ($8 tenv) (\y -> \x -> $11 (tenv, ($6, x):($2, y):env)) ($13 tenv) 

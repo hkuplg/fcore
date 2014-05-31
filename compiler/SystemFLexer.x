@@ -35,7 +35,9 @@ tokens :-
     [a-z] [$alpha $digit \_ \']*  { \s -> TokenLowId s }
     [A-Z] [$alpha $digit \_ \']*  { \s -> TokenUpId s }
 
-    [$digit]+  { \s -> TokenInt (read s) }
+    $digit+  { \s -> TokenInt (read s) }
+
+    \_ $digit+ { \s -> TokenTupleField (read (tail s))  }
 
 {
 lexSF :: String -> [SystemFToken]
