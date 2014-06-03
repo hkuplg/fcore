@@ -62,6 +62,7 @@ adjust :: PFTyp t -> EScope t e -> TScope t
 adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
 adjust (FForall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
 adjust t (Body b)               = Body (ftyp2ctyp t)
+--adjust t u                      = 
 
 groupLambda :: PFExp t e -> EScope t e
 groupLambda (FBLam f)  = Kind (\a -> groupLambda (f a))

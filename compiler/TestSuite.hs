@@ -70,6 +70,11 @@ fact = FFix PFInt (\fact n ->
    Fif0  (FVar n) 
          (FLit 1) 
          (FPrimOp (FVar n) J.Mult (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))))) PFInt
+       
+tfact = FFix PFInt (\fact n -> FLam PFInt (\acc ->
+   Fif0  (FVar n) 
+         (FVar acc) 
+         (FApp (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))) (FPrimOp (FVar n) J.Mult (FVar acc))))) (FFun PFInt PFInt)
 
 fiboStr = "fix fibo. \\(n : Int). if0 n then 1 else (fibo (n-1)) + (fibo (n-2)) : Int"
 fibo = FFix PFInt (\fibo n -> 
