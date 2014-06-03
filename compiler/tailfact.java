@@ -25,7 +25,7 @@ public class Main
                          Object ifres6;
                          if (temp7 == 0)
                          {
-                            ifres6 = 1;
+                            ifres6 = x2.x;
                          }
                          else
                          {
@@ -63,7 +63,7 @@ public class Main
     x1.apply();
     Closure temp13 = (Closure) x1.out;
     Closure x0 = temp13;
-    x0.x = 0;
+    x0.x = 1;
     x0.apply();
     Integer temp14 = (Integer) x0.out;
     return temp14;
