@@ -1,0 +1,8 @@
+((fix fact. \(n : Int). \(count:Int). 
+   if0 n then 
+       1
+   else (
+     if0 count then 
+        (fact n) 500 
+     else 
+        (fact (n-1)) (count-1)) : Int -> Int) 10) 500
