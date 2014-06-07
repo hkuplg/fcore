@@ -1,5 +1,7 @@
 module SystemFTokens where
 
+import Language.Java.Syntax as J
+
 data SystemFToken = TokenTLambda
                   | TokenLambda
                   | TokenFix
@@ -21,4 +23,5 @@ data SystemFToken = TokenTLambda
                   | TokenThen
                   | TokenElse
                   | TokenTupleField Int
+                  | TokenPrimOp J.Op
                   deriving (Eq, Show)

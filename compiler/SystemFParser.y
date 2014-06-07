@@ -35,7 +35,8 @@ int    { TokenInt $$ }
 if0    { TokenIf0 }
 then   { TokenThen }
 else   { TokenElse }
-tuplefield { TokenTupleField $$ }
+primOp { TokenPrimOp $$ }
+tupleField { TokenTupleField $$ }
 
 %left "->"
 %nonassoc "else"
@@ -51,10 +52,11 @@ Exp : var  { \(tenv, env) -> FVar (fromJust (lookup $1 env)) }
     | let var "=" Exp ":" Typ in Exp  
         { \(tenv, env) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env))) ($4 (tenv, env)) }
     | Exp Typ  { \(tenv, env) -> FTApp ($1 (tenv, env)) ($2 tenv) }
+    | Exp primOp Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
     | int  { \_e -> FLit $1 }
     | if0 Exp then Exp else Exp  { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
     | "(" Exps ")"  { \(tenv, env) -> FTuple ($2 (tenv, env)) }
-    | Exp "." tuplefield { \e -> FProj $3 ($1 e) } 
+    | Exp "." tupleField { \e -> FProj $3 ($1 e) } 
     | fix var "." "\\" "(" var ":" Typ ")" "." Exp ":" Typ 
         { \(tenv, env) -> 
             FFix ($8 tenv) (\y -> \x -> $11 (tenv, ($6, x):($2, y):env)) ($13 tenv) 
