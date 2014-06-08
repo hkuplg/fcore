@@ -2,4 +2,4 @@
    if0 n then 
        acc
    else 
-       (fact (n-1)) (acc*n) : Int -> Int -> Int) 10) 1
+       (fact (n-1)) (acc*n) : Int -> Int) 10) 1

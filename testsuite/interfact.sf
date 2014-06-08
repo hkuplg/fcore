@@ -5,4 +5,4 @@
      if0 count then 
         (fact n) 500 
      else 
-        (fact (n-1)) (count-1)) : Int -> Int -> Int) 10) 500
+        (fact (n-1)) (count-1)) : Int -> Int) 10) 500

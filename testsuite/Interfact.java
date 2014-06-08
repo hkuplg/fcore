@@ -13,15 +13,15 @@ public class Interfact
   {
     class Fun3 extends Closure
     {
-      Closure x4 = this;
+      Closure x2 = this;
       void apply ()
       {
-        class Fun5 extends Closure
+        class Fun4 extends Closure
         {
-          Closure x2 = this;
+          Closure x5 = this;
           void apply ()
           {
-            Integer temp7 = (Integer) x4.x;
+            Integer temp7 = (Integer) x2.x;
             Object ifres6;
             if (temp7 == 0)
             {
@@ -29,7 +29,7 @@ public class Interfact
             }
             else
             {
-              Integer temp9 = (Integer) x2.x;
+              Integer temp9 = (Integer) x5.x;
               Object ifres8;
               if (temp9 == 0)
               {
@@ -40,7 +40,7 @@ public class Interfact
                 Closure x10 = (Closure) temp12;
                 x10.x = 500;
                 x10.apply();
-                Closure temp13 = (Closure) x10.out;
+                Integer temp13 = (Integer) x10.out;
                  ifres8 = temp13;
               }
               else
@@ -52,7 +52,7 @@ public class Interfact
                 Closure x14 = (Closure) temp16;
                 x14.x = temp9 - 1;
                 x14.apply();
-                Closure temp17 = (Closure) x14.out;
+                Integer temp17 = (Integer) x14.out;
                  ifres8 = temp17;
               }
                ifres6 = ifres8;
@@ -61,14 +61,14 @@ public class Interfact
           }
           public Closure clone ()
           {
-            Closure c = new Fun5();
+            Closure c = new Fun4();
             c.x = this.x;
             c.apply();
             return (Closure) c;
           }
         }
-        Closure x5 = new Fun5();
-        out = x5;
+        Closure x4 = new Fun4();
+        out = x4;
       }
       public Closure clone ()
       {

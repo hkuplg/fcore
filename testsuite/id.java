@@ -9,7 +9,7 @@ abstract class Closure
 }
 public class Id
 {
-  static Closure apply ()
+  static int apply ()
   {
     class Fun1 extends Closure
     {
@@ -21,7 +21,19 @@ public class Id
           Closure x5 = this;
           void apply ()
           {
-            out = x5.x;
+            Closure x8 = (Closure) x2.x;
+            x8.x = 3;
+            x8.apply();
+            Integer temp9 = (Integer) x8.out;
+            Closure x7 = ((Closure) x5.x).clone();
+            x7.x = temp9;
+            x7.apply();
+            Closure temp10 = (Closure) x7.out;
+            Closure x6 = (Closure) temp10;
+            x6.x = 4;
+            x6.apply();
+            Integer temp11 = (Integer) x6.out;
+            out = temp11;
           }
           public Closure clone ()
           {
@@ -32,43 +44,43 @@ public class Id
           }
         }
         Closure x4 = new Fun4();
-        class Fun6 extends Closure
+        class Fun12 extends Closure
         {
-          Closure x7 = this;
+          Closure x13 = this;
           void apply ()
           {
-            class Fun8 extends Closure
+            class Fun14 extends Closure
             {
-              Closure x9 = this;
+              Closure x15 = this;
               void apply ()
               {
-                out = x7.x;
+                out = x13.x;
               }
               public Closure clone ()
               {
-                Closure c = new Fun8();
+                Closure c = new Fun14();
                 c.x = this.x;
                 c.apply();
                 return (Closure) c;
               }
             }
-            Closure x8 = new Fun8();
-            out = x8;
+            Closure x14 = new Fun14();
+            out = x14;
           }
           public Closure clone ()
           {
-            Closure c = new Fun6();
+            Closure c = new Fun12();
             c.x = this.x;
             c.apply();
             return (Closure) c;
           }
         }
-        Closure x6 = new Fun6();
+        Closure x12 = new Fun12();
         Closure x3 = (Closure) x4;
-        x3.x = x6;
+        x3.x = x12;
         x3.apply();
-        Closure temp10 = (Closure) x3.out;
-        out = temp10;
+        Integer temp16 = (Integer) x3.out;
+        out = temp16;
       }
       public Closure clone ()
       {
@@ -79,27 +91,27 @@ public class Id
       }
     }
     Closure x1 = new Fun1();
-    class Fun11 extends Closure
+    class Fun17 extends Closure
     {
-      Closure x12 = this;
+      Closure x18 = this;
       void apply ()
       {
-        out = x12.x;
+        out = x18.x;
       }
       public Closure clone ()
       {
-        Closure c = new Fun11();
+        Closure c = new Fun17();
         c.x = this.x;
         c.apply();
         return (Closure) c;
       }
     }
-    Closure x11 = new Fun11();
+    Closure x17 = new Fun17();
     Closure x0 = (Closure) x1;
-    x0.x = x11;
+    x0.x = x17;
     x0.apply();
-    Closure temp13 = (Closure) x0.out;
-    return temp13;
+    Integer temp19 = (Integer) x0.out;
+    return temp19;
   }
   public static void main (String[] args)
   {

@@ -13,19 +13,19 @@ public class Tailfact
   {
     class Fun3 extends Closure
     {
-      Closure x4 = this;
+      Closure x2 = this;
       void apply ()
       {
-        class Fun5 extends Closure
+        class Fun4 extends Closure
         {
-          Closure x2 = this;
+          Closure x5 = this;
           void apply ()
           {
-            Integer temp7 = (Integer) x4.x;
+            Integer temp7 = (Integer) x2.x;
             Object ifres6;
             if (temp7 == 0)
             {
-               ifres6 = x2.x;
+               ifres6 = x5.x;
             }
             else
             {
@@ -33,25 +33,25 @@ public class Tailfact
               x9.x = temp7 - 1;
               x9.apply();
               Closure temp10 = (Closure) x9.out;
-              Integer temp11 = (Integer) x2.x;
+              Integer temp11 = (Integer) x5.x;
               Closure x8 = (Closure) temp10;
               x8.x = temp11 * temp7;
               x8.apply();
-              Closure temp12 = (Closure) x8.out;
+              Integer temp12 = (Integer) x8.out;
                ifres6 = temp12;
             }
             out = ifres6;
           }
           public Closure clone ()
           {
-            Closure c = new Fun5();
+            Closure c = new Fun4();
             c.x = this.x;
             c.apply();
             return (Closure) c;
           }
         }
-        Closure x5 = new Fun5();
-        out = x5;
+        Closure x4 = new Fun4();
+        out = x4;
       }
       public Closure clone ()
       {
