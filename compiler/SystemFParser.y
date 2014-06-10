@@ -38,7 +38,7 @@ else   { TokenElse }
 primOp { TokenPrimOp $$ }
 tupleField { TokenTupleField $$ }
 
-%left "->"
+%right "->"
 %nonassoc "else"
 
 %%
