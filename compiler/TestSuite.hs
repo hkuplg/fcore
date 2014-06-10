@@ -56,22 +56,23 @@ compileAndRun exp = do let source = prettyPrint (fst $ createCU (compile exp) No
                        readProcess "javac" ["Main.java"] ""
                        result <- readProcess "java" ["Main"] ""
                        readProcess "rm" ["Main.java"] ""
-		       x <- getDirectoryContents "."
+                       x <- getDirectoryContents "."
                        readProcess "rm" [y | y<- x, ".class" `isSuffixOf` y] ""
                        return result
 
 -- Some test terms
 
 -- mu loop . \x -> loop x
+loopStr = "fix loop. \\(x : Int). loop x : Int -> Int"
 loop = FFix PFInt (\loop x -> FApp (FVar loop) (FVar x)) PFInt
 
--- mu fact . \(n : Int) . if0 n then 1 else n * fact (n-1)
+factStr = "fix fact. \\(n : Int). if0 n then 1 else n * fact (n-1) : Int -> Int"
 fact = FFix PFInt (\fact n -> 
    Fif0  (FVar n) 
          (FLit 1) 
          (FPrimOp (FVar n) J.Mult (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))))) PFInt
 
--- mu fibo . \(n : Int) . if0 n then 1 else (fibo (n - 1) + fibo (n-2))
+fiboStr = "fix fibo. \\(n : Int). if0 n then 1 else (fibo (n-1)) + (fibo (n-2)) : Int -> Int"
 fibo = FFix PFInt (\fibo n -> 
    Fif0  (FPrimOp (FVar n) J.Sub (FLit 2))
          (FLit 1) 
@@ -84,12 +85,12 @@ fact_app = FApp fact (FLit 10)
 fibo_app = FApp fibo (FLit 10)
 -- /\A. \(x:A) . x
 
-idF1Str = "/\\A. \\(x:A) . x"
+idF1Str = "/\\A. \\(x:A). x"
 idF = FBLam (\a -> FLam (FTVar a) (\x -> FVar x))
 
 -- /\A . (\(f : A -> A) . \(x : A) . f x) (idF A)
 
-idF2Str = "/\\A . (\\(f : A -> A) . \\(x : A) . f x) (idF A)"
+idF2Str = "/\\A. (\\(f : A -> A). \\(x : A). f x) (idF A)"
 idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) (\x -> FApp (FVar f) (FVar x)))) (FTApp idF (FTVar a)))
 
 -- /\A . \(x:A) . (idF A) x
@@ -97,7 +98,7 @@ idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) 
 idF3Str = "/\\A . \\(x:A) . (idF A) x"
 idF3 = FBLam (\a -> FLam (FTVar a) (\x -> FApp (FTApp idF (FTVar a)) (FVar x) ))
 
--- /\A . \(f : A -> A -> A) . \(g : A -> A) . \(x : A) . f x (g x)
+notailStr = "/\\A. \\(f : A -> (A -> A)). \\(g : A -> A). \\(x : A). (f x) (g x)"
 notail =
   FBLam (\a ->
     FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
@@ -105,7 +106,7 @@ notail =
         FLam (FTVar a) (\x ->
           FApp (FApp (FVar f) (FVar x)) (FApp (FVar g) (FVar x)) ))))
 
--- /\A . \(x : A) . \(y : A) . x
+constStr = "/\\A . \\(x : A) . \\(y : A) . x"
 const =
   FBLam (\a ->
     FLam (FTVar a) (\x ->
@@ -130,7 +131,7 @@ program1Num = FApp (FTApp program1 PFInt) (FLit 5)
 intapp = FTApp idF PFInt
 
 
--- /\A . \(f : A -> A -> A) . \(x : A) . \(y : A) . f x (f y y)
+notail2Str = "/\\A. \\(f : A -> (A -> A)). \\(x : A). \\(y : A). (f x) ((f y) y)"
 notail2 =
   FBLam (\a ->
     FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
@@ -140,12 +141,12 @@ notail2 =
   
 
 program2 = FApp (FApp (FApp (FTApp notail2 PFInt) (FTApp const PFInt)) (FLit 5)) (FLit 6)
-		  
+                  
 idfNum = FApp (FTApp idF PFInt) (FLit 10)
 
 constNum = FApp (FApp (FTApp const PFInt) (FLit 10)) (FLit 20)
 
--- /\A . \(f : A -> A -> A) . \(g : A -> A -> A) . \(x : A) . \(y : A) . f x (g y y)
+notail3Str = "/\\A. \\(f : A -> (A -> A)). \\(g : A -> (A -> A)). \\(x : A). \\(y : A). (f x) ((g y) y)"
 notail3 =
   FBLam (\a ->
     FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
@@ -156,7 +157,7 @@ notail3 =
 
 program3 = FApp (FApp (FApp (FApp (FTApp notail3 PFInt) (FTApp const PFInt)) (FTApp const PFInt)) (FLit 5)) (FLit 6)
     
--- /\A . \(g : ((A -> A) -> (A -> A)) -> A) . \(f : A -> A -> A) . \(x : A) . \(y : A) . g (f x) (f y)
+notail4Str = "/\\A. \\(g : ((A -> A) -> (A -> A)) -> A). \\(f : A -> (A -> A)). \\(x : A). \\(y : A). (g (f x)) (f y)"
 notail4 =
   FBLam (\a ->
     FLam ( FFun (FFun (FTVar a) (FTVar a)) (FFun (FFun (FTVar a) (FTVar a)) (FTVar a))) (\g ->
@@ -165,7 +166,7 @@ notail4 =
           FLam (FTVar a) (\y ->
             FApp (FApp (FVar g) (FApp (FVar f) (FVar x))) (FApp (FVar f) (FVar y)))))))
 
--- \(x : Int -> Int) . \(y : Int -> Int) . (x 0) + (y 0)
+summaStr= "\\(x : Int -> Int). \\(y : Int -> Int). (x 0) + (y 0)"
 summa =
     FLam (FFun PFInt PFInt) (\x ->
        FLam (FFun PFInt PFInt) (\y ->

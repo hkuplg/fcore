@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 -- Hindley–Milner type system
 -- http://en.wikipedia.org/wiki/Hindley%E2%80%93Milner
 -- http://web.cs.wpi.edu/~cs4536/c12/milner-damas_principal_types.pdf
