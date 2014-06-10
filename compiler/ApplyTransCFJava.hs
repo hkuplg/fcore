@@ -30,7 +30,7 @@ instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where --reflexivity
 --   override (NT fm) f  = NT (override fm f) -- needed to do proper overriding of methods, when we only know we inherit from a subtype. If 
 
 -- main translation function
-transApply :: (MonadState Int m, MonadReader (Set.Set Int) m, MonadState (Map.Map J.Exp Int) m, MonadWriter Bool m, selfType :< ApplyOptTranslate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
+transApply :: (MonadState Int m, MonadReader (Set.Set Int) m, MonadState (Map.Map J.Exp Int) m, MonadWriter Bool m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
 transApply this super = NT {toT = T { --override this (\trans -> trans {
   translateM = \e -> case e of 
        CLam s ->
@@ -41,8 +41,8 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
            do  tell True
                (n :: Int) <- get
                put (n+1)
-               (s1,j1, CForall (Typ t1 g)) <- translateM super e1
-               (s2,j2,t2) <- translateM super e2
+               (s1,j1, CForall (Typ t1 g)) <- translateM (up this) e1
+               (s2,j2,t2) <- translateM (up this) e2
                (env :: Map.Map J.Exp Int) <- get
                let t    = g ()
                let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
@@ -92,7 +92,7 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                 do  put (n+1)
                     let self = J.Ident (localvarstr ++ show i)
                     tell False
-                    ((s,je,t1), closureCheck) <- listen $ translateScopeM super (g (Left i,t)) m
+                    ((s,je,t1), closureCheck) <- listen $ translateScopeM (up this) (g (Left i,t)) m
                     (env :: Map.Map J.Exp Int) <- get
                     let nje = case (Map.lookup je env) of Nothing -> je
                                                           Just no -> var (tempvarstr ++ show no)
@@ -102,7 +102,7 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                 do  put (n+2)
                     let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable
                     tell False
-                    ((s,je,t1), closureCheck) <- listen $ translateScopeM super (g (Left (n+1),t)) m
+                    ((s,je,t1), closureCheck) <- listen $ translateScopeM (up this) (g (Left (n+1),t)) m
                     (env :: Map.Map J.Exp Int) <- get
                     let nje = case (Map.lookup je env) of Nothing -> je
                                                           Just no -> var (tempvarstr ++ show no)
@@ -110,7 +110,7 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                     return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
       otherwise ->
-          do tell False
+          do tell True
              translateScopeM super e m
   }}
  
@@ -119,18 +119,34 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
 refactoredScopeTranslationBit javaExpression statementsBeforeOA currentId nextId closureCheck ids = completeClosure
     where
         -- outputAssignment = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-        fullAssignment = J.InitDecl False (J.Block [(J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA
-                                                    (pullupClosure statementsBeforeOA))))])
+        fullAssignment = {-J.InitDecl False (J.Block [-}(J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA
+                                                    (pullupClosure statementsBeforeOA)))){-])-}
         currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show currentId) (Just (J.InitExp J.This))]
         completeClosure | closureCheck  = standardTranslation javaExpression statementsBeforeOA currentId nextId ids
                         | otherwise = J.LocalVars [] closureType [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show nextId) 
                                                 (Just (J.InitExp 
-                                                    (jexp [currentInitialDeclaration,fullAssignment] (Just(J.Block $ []))  (currentId,nextId) ids)
+                                                    (jexp [currentInitialDeclaration, applyCall] (Just(J.Block $ [fullAssignment]))  (currentId,nextId) ids)
                                                     )
                                                 )]
 
+applyCall = J.InitDecl False $ J.Block [J.BlockStmt $ J.ExpStmt (J.MethodInv (J.MethodCall (J.Name $ [J.Ident "apply"]) []))]                                    
        
 pullupClosure [J.LocalVars [] rf vd] = case vd of
-                                [J.VarDecl variableId (Just(J.InitExp exp))] -> exp
+                                [J.VarDecl variableId (Just(J.InitExp exp))] -> transf exp
                                 _ -> error ("B:" ++ show vd)
+                                where
+                                    transf (J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody b))) = case (head $ tail b) of J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just (J.Block (ts))))) -> 
+                                                                                                                                                                case (head ts) of J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident idO)])) J.EqualA (rhs))) ->
+                                                                                                                                                                                    case idO of "out" ->
+                                                                                                                                                                                                    applyDef b
+                                                                                                                                                                                                _ -> case rhs of (J.InstanceCreation _ _ _ _) -> applyDef b
+                                                                                                                                                                                                                 _ -> defaultDef b
+                                                                                                                                                                                  _ -> defaultDef b
+                                                                                                                                                              _ -> defaultDef b
+                                    transf (exp) = exp
+                                    defaultDef b = (J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody b)))
+                                    applyDef b = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody ([head b, applyCall] ++ (tail b))))
+                                    
+                                    
+                             
 pullupClosure m = error ("A: " ++ concatMap prettyPrint m)   
