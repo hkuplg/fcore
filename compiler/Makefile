@@ -1,10 +1,11 @@
 languages = HM SystemF
 
-# Append "Lexer.hs" to language names
-lexers  = $(languages:%=%Lexer.hs)
+# Append "/Lexer.hs" to language names
+lexers  = $(languages:%=%/Lexer.hs)
 
-# Append "Parser.hs" to language names
-parsers = $(languages:%=%Parser.hs)
+# Append "/Parser.hs" to language names
+parsers     = $(languages:%=%/Parser.hs)
+parserinfos = $(languages:%=%/Parser.info)
 
 .PHONY : all
 all : $(lexers) $(parsers)
@@ -19,4 +20,4 @@ $(parsers) : %.hs : %.y
 
 .PHONY : clean
 clean :
-	rm -f $(lexers) $(parsers)
+	rm -f $(lexers) $(parsers) $(parserinfos)

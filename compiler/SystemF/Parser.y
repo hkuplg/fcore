@@ -1,16 +1,15 @@
 {
-module SystemFParser where
+module SystemF.Parser where
 
-import SystemFTokens
-import SystemFLexer
-import SystemF
+import SystemF.Syntax
+import SystemF.Lexer    
 
 import Data.Maybe       (fromJust)
 
 }
 
-%name parseSF
-%tokentype  { SystemFToken }
+%name parser
+%tokentype  { Token }
 %error      { parseError }
 
 %token
@@ -74,11 +73,11 @@ Typ : tvar                 { \tenv -> FTVar (fromJust (lookup $1 tenv)) }
     | "(" Typ ")"   { $2 }
 
 {
-parseError :: [SystemFToken] -> a
+parseError :: [Token] -> a
 parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
-readSF :: String -> PFExp t e
-readSF = (\parser -> parser emptyEnvs) . parseSF . lexSF
+reader :: String -> PFExp t e
+reader = (\parser -> parser emptyEnvs) . parser . lexer
     where emptyEnvs = ([], [])
 
 }

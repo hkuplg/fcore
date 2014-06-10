@@ -1,13 +1,12 @@
 {
-module HMParser where
+module HM.Parser where
 
-import HMSyntax
-import HMTokens
-import HMLexer
+import HM.Syntax
+import HM.Lexer
 }
 
-%name parseHM
-%tokentype  { HMToken }
+%name parser
+%tokentype  { Token }
 %error      { parseError }
 
 %token
@@ -101,9 +100,9 @@ Bindings : Binding               { [$1] }
 var : lowid  { $1 }
 
 {
-parseError :: [HMToken] -> a
+parseError :: [Token] -> a
 parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
-readHM :: String -> Exp
-readHM = parseHM . lexHM
+reader :: String -> Exp
+reader = parser . lexer
 }

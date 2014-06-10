@@ -1,8 +1,7 @@
 {
-module HMLexer (lexHM) where
+module HM.Lexer (lexer, Token (..)) where
 
-import HMSyntax
-import HMTokens
+import HM.Syntax
 }
 
 %wrapper "basic"
@@ -54,6 +53,16 @@ tokens :-
     [A-Z] [$alpha $digit \_ \']*  { \s -> TokenUpId s }
 
 {
-lexHM :: String -> [HMToken]
-lexHM = alexScanTokens
+
+data Token = TokenLet | TokenRec | TokenAnd | TokenEQ | TokenIn
+           | TokenLambda | TokenArrow
+           | TokenOParen | TokenCParen
+           | TokenUn UnOp | TokenBin BinOp 
+           | TokenIf0 | TokenThen | TokenElse
+           | TokenInt Int
+           | TokenLowId String | TokenUpId  String
+           deriving (Eq, Show)
+
+lexer :: String -> [HMToken]
+lexer = alexScanTokens
 }

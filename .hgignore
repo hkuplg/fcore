@@ -2,10 +2,9 @@ syntax: glob
 systemf/.cache
 systemf/.classpath
 systemf/.project
-compiler/SystemFLexer.hs
-compiler/SystemFParser.hs
-compiler/HMLexer.hs
-compiler/HMParser.hs
+Lexer.hs
+Parser.hs
+Parser.info
 dist/
 *.info
 *.swp

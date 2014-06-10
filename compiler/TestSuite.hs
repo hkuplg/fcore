@@ -1,12 +1,12 @@
 module TestSuite where
 
 import Test.HUnit hiding (State)
-import SystemF
+import SystemF.Syntax
 import Language.Java.Syntax as J
 import Prelude hiding (const)
-import qualified HM
-import HMParser         (readHM)
-import SystemFParser    (readSF)
+-- import qualified HM
+-- import HMParser         (readHM)
+import qualified SystemF.Parser
 import BaseTransCFJava (createCU)
 import Language.Java.Pretty
 import MonadLib
@@ -194,7 +194,7 @@ test8 = "Should compile program4" ~: assert (liftM (== "11\n") (compileAndRun pr
 
 -- SystemF to Java
 sf2java :: String -> String
-sf2java src = let (cu, _) = (createCU (compile (readSF src)) Nothing) in prettyPrint cu
+sf2java src = let (cu, _) = (createCU (compile (SystemF.Parser.reader src)) Nothing) in prettyPrint cu
 
 -- SystemF file path to Java
 -- Example:
@@ -210,8 +210,8 @@ compilesf2java :: FilePath -> FilePath -> IO ()
 compilesf2java srcPath outputPath = loadsf2java srcPath >>= writeFile outputPath
 
 -- Similar to the ":t" in GHCi
-inferHM :: String -> IO ()
-inferHM = putStrLn . HM.pretty . HM.infer . readHM 
+-- inferHM :: String -> IO ()
+-- inferHM = putStrLn . HM.pretty . HM.infer . readHM 
 
 evenOdd :: String
 evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
