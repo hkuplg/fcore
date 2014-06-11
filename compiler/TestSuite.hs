@@ -66,13 +66,13 @@ compileAndRun exp = do let source = prettyPrint (fst $ createCU (compile exp) No
 loopStr = "fix loop. \\(x : Int). loop x : Int -> Int"
 loop = FFix PFInt (\loop x -> FApp (FVar loop) (FVar x)) PFInt
 
-factStr = "fix fact. \\(n : Int). if0 n then 1 else n * fact (n-1) : Int -> Int"
+factStr = "fix fact. \\(n : Int). if0 n then 1 else n * fact (n-1) : Int"
 fact = FFix PFInt (\fact n -> 
    Fif0  (FVar n) 
          (FLit 1) 
          (FPrimOp (FVar n) J.Mult (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))))) PFInt
 
-fiboStr = "fix fibo. \\(n : Int). if0 n then 1 else (fibo (n-1)) + (fibo (n-2)) : Int -> Int"
+fiboStr = "fix fibo. \\(n : Int). if0 n then 1 else (fibo (n-1)) + (fibo (n-2)) : Int"
 fibo = FFix PFInt (\fibo n -> 
    Fif0  (FPrimOp (FVar n) J.Sub (FLit 2))
          (FLit 1) 

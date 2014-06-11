@@ -1,9 +1,10 @@
 module SystemF.Spec where
 
+import Test.Hspec
+import Language.Java.Syntax as J
+
 import SystemF.Syntax
 import SystemF.Pretty
-
-import Test.Hspec
 
 main :: IO ()
 main = hspec $ do
@@ -47,3 +48,15 @@ main = hspec $ do
 
         it "prettyprints /\\A1. \\(x1 : A1). x1" $
             prettyPrint (FBLam (\a1 -> FLam (FTVar a1) (\x1 -> FVar x1)) :: PFExp Int Int) `shouldBe` "/\\A1. \\(x1 : A1). x1" 
+
+        it "prettyprints loop" $
+            prettyPrint (FFix PFInt (\loop x -> FApp (FVar loop) (FVar x)) PFInt :: PFExp Int Int) `shouldBe` "fix x1. \\(x2 : Int). x1 x2 : Int"
+
+        it "prettyprints fact" $
+            prettyPrint (FFix PFInt (\fact n -> 
+                                        Fif0  (FVar n) 
+                                        (FLit 1) 
+                                        (FPrimOp (FVar n) J.Mult (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))))) PFInt
+                        :: PFExp Int Int
+                        ) `shouldBe` "fix x1. \\(x2 : Int). if0 x2 then 1 else x2 * x1 (x2 - 1) : Int" 
+

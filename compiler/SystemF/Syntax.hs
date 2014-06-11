@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 module SystemF.Syntax where
 
-import Language.Java.Syntax as JS (Op (..))
+import Language.Java.Syntax as J (Op (..))
 
 -- System F syntax
 
@@ -18,7 +18,7 @@ data PFExp t e =
    | FLam (PFTyp t) (e -> PFExp t e) 
    | FApp (PFExp t e) (PFExp t e)
    | FTApp (PFExp t e) (PFTyp t)
-   | FPrimOp (PFExp t e) (JS.Op) (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
+   | FPrimOp (PFExp t e) (J.Op) (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
    | FLit PrimLit
    | Fif0 (PFExp t e) (PFExp t e) (PFExp t e)
    | FTuple [PFExp t e]
