@@ -1,7 +1,7 @@
 {
 module SystemF.Lexer (lexer, Token (..)) where
 
-import Language.Java.Syntax as J
+import Language.Java.Syntax     as J    (Op (..))
 }
 
 %wrapper "basic"
@@ -13,70 +13,58 @@ tokens :-
 
     $white+     ;
 
-    \/\\        { \_ -> TokenTLambda }
-    \\          { \_ -> TokenLambda }
-    \-\>        { \_ -> TokenArrow }
-    \.          { \_ -> TokenDot }
-    \:          { \_ -> TokenColon }
-    \,          { \_ -> TokenComma }
-    let         { \_ -> TokenLet }
-    \=          { \_ -> TokenEQ }
-    in          { \_ -> TokenIn }
-    \(          { \_ -> TokenOParen }
-    \)          { \_ -> TokenCParen }
-    forall      { \_ -> TokenForall }
-    Int         { \_ -> TokenIntType }
-    if0         { \_ -> TokenIf0 }
-    then        { \_ -> TokenThen }
-    else        { \_ -> TokenElse }
-    fix         { \_ -> TokenFix }
+    \(          { \_ -> OParen }
+    \)          { \_ -> CParen }
+    \/\\        { \_ -> TLam }
+    \\          { \_ -> Lam }
+    \:          { \_ -> Colon }
+    forall      { \_ -> Forall }
+    \-\>        { \_ -> Arrow }
+    \.          { \_ -> Dot }
+    let         { \_ -> Let }
+    \=          { \_ -> Eq }
+    in          { \_ -> In }
+    fix         { \_ -> Fix }
+    Int         { \_ -> TypeInt }
+    if0         { \_ -> If0 }
+    then        { \_ -> Then }
+    else        { \_ -> Else }
+    \,          { \_ -> Comma }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
-    \*          { \_ -> TokenPrimOp J.Mult }
-    \/          { \_ -> TokenPrimOp J.Div }
-    \%          { \_ -> TokenPrimOp J.Rem }
-    \+          { \_ -> TokenPrimOp J.Add }
-    \-          { \_ -> TokenPrimOp J.Sub }
-    \<          { \_ -> TokenPrimOp J.LThan }
-    \>          { \_ -> TokenPrimOp J.GThan }
-    \<\=        { \_ -> TokenPrimOp J.LThanE }
-    \>\=        { \_ -> TokenPrimOp J.GThanE }
-    \=\=        { \_ -> TokenPrimOp J.Equal }
-    \!\=        { \_ -> TokenPrimOp J.NotEq }
-    \&\&        { \_ -> TokenPrimOp J.And }
-    \|\|        { \_ -> TokenPrimOp J.Or }
+    \*          { \_ -> Op J.Mult }
+    \/          { \_ -> Op J.Div }
+    \%          { \_ -> Op J.Rem }
+    \+          { \_ -> Op J.Add }
+    \-          { \_ -> Op J.Sub }
+    \<          { \_ -> Op J.LThan }
+    \>          { \_ -> Op J.GThan }
+    \<\=        { \_ -> Op J.LThanE }
+    \>\=        { \_ -> Op J.GThanE }
+    \=\=        { \_ -> Op J.Equal }
+    \!\=        { \_ -> Op J.NotEq }
+    \&\&        { \_ -> Op J.And }
+    \|\|        { \_ -> Op J.Or }
 
-    [a-z] [$alpha $digit \_ \']*  { \s -> TokenLowId s }
-    [A-Z] [$alpha $digit \_ \']*  { \s -> TokenUpId s }
+    [a-z] [$alpha $digit \_ \']*  { \s -> LowId s }
+    [A-Z] [$alpha $digit \_ \']*  { \s -> UpId s }
 
-    $digit+    { \s -> TokenInt (read s) }
+    $digit+    { \s -> Int (read s) }
 
-    \_ $digit+ { \s -> TokenTupleField (read (tail s))  }
+    \_ $digit+ { \s -> TupleField (read (tail s))  }
 
 {
 
-data Token = TokenTLambda
-           | TokenLambda
-           | TokenFix
-           | TokenComma
-           | TokenDot
-           | TokenArrow
-           | TokenColon
-           | TokenLet
-           | TokenEQ
-           | TokenIn
-           | TokenOParen
-           | TokenCParen
-           | TokenForall
-           | TokenIntType
-           | TokenLowId String
-           | TokenUpId String
-           | TokenInt Integer
-           | TokenIf0
-           | TokenThen
-           | TokenElse
-           | TokenTupleField Int
-           | TokenPrimOp J.Op
+data Token = OParen | CParen
+           | TLam | Lam | Colon | Forall | Arrow | Dot
+           | Let | Eq | In | Fix
+           | TypeInt
+           | If0 | Then | Else
+           | Comma
+           | Op J.Op
+           | LowId String | UpId String
+           | Int Integer
+           | TupleField Int
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

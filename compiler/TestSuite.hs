@@ -62,7 +62,7 @@ compileAndRun exp = do let source = prettyPrint (fst $ createCU (compile exp) No
 
 -- Some test terms
 
--- mu loop . \x -> loop x
+-- mu loop. \x -> loop x
 loopStr = "fix loop. \\(x : Int). loop x : Int -> Int"
 loop = FFix PFInt (\loop x -> FApp (FVar loop) (FVar x)) PFInt
 

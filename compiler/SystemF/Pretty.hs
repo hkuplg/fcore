@@ -1,6 +1,11 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 module SystemF.Pretty where
 
+import SystemF.Syntax
+
+import Data.List        (intercalate)
+import Language.Java.Pretty as JP
+
 prettyPFTyp :: PFTyp Int -> Int -> Bool -> String
 prettyPFTyp (FTVar i) _ _    = "A" ++ show i
 prettyPFTyp (FForall f) i p  = "forall A" ++ show i ++ ". " ++ prettyPFTyp (f i) (i+1) False
@@ -14,7 +19,7 @@ prettyPFExp (FBLam f)  i         = "(" ++ "/\\A" ++ show i ++ ". " ++ prettyPFEx
 prettyPFExp (FLam t f) i         = "(" ++ "\\(x" ++ show i ++ " : " ++ prettyPFTyp t (i+1) False ++ "). " ++ prettyPFExp (f i) (i+1) ++ ")" 
 prettyPFExp (FApp e1 e2) i       = "(" ++ prettyPFExp e1 i ++ ") (" ++ prettyPFExp e2 i ++ ")"
 prettyPFExp (FTApp e t) i        = "(" ++ prettyPFExp e i ++ ") (" ++ prettyPFTyp t i False ++ ")"
-prettyPFExp (FPrimOp e1 op e2) i = "(" ++ prettyPFExp e1 i ++ " " ++ JPretty.prettyPrint op ++ " " ++ prettyPFExp e2 i ++ ")"
+prettyPFExp (FPrimOp e1 op e2) i = "(" ++ prettyPFExp e1 i ++ " " ++ JP.prettyPrint op ++ " " ++ prettyPFExp e2 i ++ ")"
 prettyPFExp (FLit n) _           = show n
 prettyPFExp (Fif0 e1 e2 e3) i    = "(if " ++ prettyPFExp e1 i ++ " then " ++ prettyPFExp e2 i ++ " else " ++ prettyPFExp e3 i ++ ")"
 prettyPFExp (FTuple es) i        = "(" ++ intercalate "," (map (\e -> prettyPFExp e i) es)

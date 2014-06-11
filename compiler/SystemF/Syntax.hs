@@ -2,8 +2,6 @@
 module SystemF.Syntax where
 
 import Language.Java.Syntax as J
-import Language.Java.Pretty as JPretty
-import Data.List        (intercalate)
 
 -- System F syntax
 

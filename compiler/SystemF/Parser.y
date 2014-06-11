@@ -14,28 +14,28 @@ import Data.Maybe       (fromJust)
 
 %token
 
-"/\\"  { TokenTLambda }
-"\\"   { TokenLambda }
-fix    { TokenFix }
-","    { TokenComma }
-"."    { TokenDot }
-"->"   { TokenArrow }
-":"    { TokenColon }
-let    { TokenLet }
-"="    { TokenEQ }
-in     { TokenIn }
-"("    { TokenOParen }
-")"    { TokenCParen }
-forall { TokenForall }
-Int    { TokenIntType }
-var    { TokenLowId $$ }
-tvar   { TokenUpId $$ }
-int    { TokenInt $$ }
-if0    { TokenIf0 }
-then   { TokenThen }
-else   { TokenElse }
-primOp { TokenPrimOp $$ }
-tupleField { TokenTupleField $$ }
+"("    { OParen }
+")"    { CParen }
+"/\\"  { TLam }
+"\\"   { Lam }
+":"    { Colon }
+forall { Forall }
+"->"   { Arrow }
+"."    { Dot }
+let    { Let }
+"="    { Eq }
+in     { In }
+fix    { Fix }
+Int    { TypeInt }
+if0    { If0 }
+then   { Then }
+else   { Else }
+","    { Comma }
+op     { Op $$ }
+var    { LowId $$ }
+tvar   { UpId $$ }
+int    { Int $$ }
+tupleField { TupleField $$ }
 
 %right "->"
 %nonassoc "else"
@@ -51,7 +51,7 @@ Exp : var  { \(tenv, env) -> FVar (fromJust (lookup $1 env)) }
     | let var "=" Exp ":" Typ in Exp  
         { \(tenv, env) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env))) ($4 (tenv, env)) }
     | Exp Typ  { \(tenv, env) -> FTApp ($1 (tenv, env)) ($2 tenv) }
-    | Exp primOp Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
+    | Exp op Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
     | int  { \_e -> FLit $1 }
     | if0 Exp then Exp else Exp  { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
     | "(" Exps ")"  { \(tenv, env) -> FTuple ($2 (tenv, env)) }
