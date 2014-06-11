@@ -1,7 +1,7 @@
 {
 module SystemF.Lexer (lexer, Token (..)) where
 
-import Language.Java.Syntax     as J    (Op (..))
+import Language.Java.Syntax     as JS    (Op (..))
 }
 
 %wrapper "basic"
@@ -32,19 +32,19 @@ tokens :-
     \,          { \_ -> Comma }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
-    \*          { \_ -> Op J.Mult }
-    \/          { \_ -> Op J.Div }
-    \%          { \_ -> Op J.Rem }
-    \+          { \_ -> Op J.Add }
-    \-          { \_ -> Op J.Sub }
-    \<          { \_ -> Op J.LThan }
-    \>          { \_ -> Op J.GThan }
-    \<\=        { \_ -> Op J.LThanE }
-    \>\=        { \_ -> Op J.GThanE }
-    \=\=        { \_ -> Op J.Equal }
-    \!\=        { \_ -> Op J.NotEq }
-    \&\&        { \_ -> Op J.And }
-    \|\|        { \_ -> Op J.Or }
+    \*          { \_ -> Op JS.Mult }
+    \/          { \_ -> Op JS.Div }
+    \%          { \_ -> Op JS.Rem }
+    \+          { \_ -> Op JS.Add }
+    \-          { \_ -> Op JS.Sub }
+    \<          { \_ -> Op JS.LThan }
+    \>          { \_ -> Op JS.GThan }
+    \<\=        { \_ -> Op JS.LThanE }
+    \>\=        { \_ -> Op JS.GThanE }
+    \=\=        { \_ -> Op JS.Equal }
+    \!\=        { \_ -> Op JS.NotEq }
+    \&\&        { \_ -> Op JS.And }
+    \|\|        { \_ -> Op JS.Or }
 
     [a-z] [$alpha $digit \_ \']*  { \s -> LowId s }
     [A-Z] [$alpha $digit \_ \']*  { \s -> UpId s }
@@ -61,7 +61,7 @@ data Token = OParen | CParen
            | TypeInt
            | If0 | Then | Else
            | Comma
-           | Op J.Op
+           | Op JS.Op
            | LowId String | UpId String
            | Int Integer
            | TupleField Int

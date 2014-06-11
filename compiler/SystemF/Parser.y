@@ -1,11 +1,10 @@
 {
 module SystemF.Parser where
 
-import SystemF.Syntax
-import SystemF.Lexer    
-
 import Data.Maybe       (fromJust)
 
+import SystemF.Syntax
+import SystemF.Lexer    
 }
 
 %name parser
