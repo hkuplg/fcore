@@ -2,9 +2,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 module SystemF.Pretty where
 
-import Text.PrettyPrint
+import qualified Language.Java.Syntax as JS
 import qualified Language.Java.Pretty as JP
-import Data.List        (intercalate)
+import Text.PrettyPrint
+import Data.List        (intersperse)
 
 import SystemF.Syntax
 
@@ -31,19 +32,23 @@ precFFun = 2
 instance Pretty (PFTyp Int) where
     prettyPrec p i (FTVar a)    = text ("A" ++ show a)
     prettyPrec p i (FForall f)  = text ("forall A" ++ show i ++ ".") <+> prettyPrec p (i+1) (f i)
-    prettyPrec p i (FFun t1 t2) = parenPrec p precFFun $ hsep $ [prettyPrec (precFFun - 1) i t1, text "->", prettyPrec p i t2]
+    prettyPrec p i (FFun t1 t2) = parenPrec p precFFun $ prettyPrec (precFFun - 1) i t1 <+> text "->" <+> prettyPrec p i t2
     prettyPrec p i PFInt        = text "Int"
 
--- prettyPFExp :: PFExp Int Int -> Int -> String     
--- prettyPFExp (FVar n)   _         = "x" ++ show n
--- prettyPFExp (FBLam f)  i         = "(" ++ "/\\A" ++ show i ++ ". " ++ prettyPFExp (f i) (i+1) ++ ")" 
--- prettyPFExp (FLam t f) i         = "(" ++ "\\(x" ++ show i ++ " : " ++ prettyPFTyp t (i+1) False ++ "). " ++ prettyPFExp (f i) (i+1) ++ ")" 
--- prettyPFExp (FApp e1 e2) i       = "(" ++ prettyPFExp e1 i ++ ") (" ++ prettyPFExp e2 i ++ ")"
--- prettyPFExp (FTApp e t) i        = "(" ++ prettyPFExp e i ++ ") (" ++ prettyPFTyp t i False ++ ")"
--- prettyPFExp (FPrimOp e1 op e2) i = "(" ++ prettyPFExp e1 i ++ " " ++ JP.prettyPrint op ++ " " ++ prettyPFExp e2 i ++ ")"
--- prettyPFExp (FLit n) _           = show n
--- prettyPFExp (Fif0 e1 e2 e3) i    = "(if " ++ prettyPFExp e1 i ++ " then " ++ prettyPFExp e2 i ++ " else " ++ prettyPFExp e3 i ++ ")"
--- prettyPFExp (FTuple es) i        = "(" ++ intercalate "," (map (\e -> prettyPFExp e i) es)
--- prettyPFExp (FProj pos e) i      = "(" ++ prettyPFExp e i ++ "._" ++ show pos ++ ")"
--- prettyPFExp (FFix t1 f t2) i     = "(fix x" ++ show i ++ ". \\(x" ++ show (i+1) ++ " : " ++ prettyPFTyp t1 i False ++ "). " ++ 
---                                     prettyPFExp (f i (i+1)) (i+2) ++ " : " ++ prettyPFTyp t2 i False ++ ")"
+instance Pretty (PFExp Int Int) where
+    prettyPrec p i (FVar x)           = text ("x" ++ show x)
+    prettyPrec p i (FBLam f)          = text ("/\\A" ++ show i ++ ".") <+> prettyPrec p (i+1) (f i)
+    prettyPrec p i (FLam t f)         = char '\\' <> parens (text ("x" ++ show i) <+> colon <+> prettyPrec p (i+1) t) <> char '.' <+> prettyPrec p (i+1) (f i)
+    prettyPrec p i (FApp e1 e2)       = prettyPrec p i e1 <+> prettyPrec p i e2 
+    prettyPrec p i (FTApp e t)        = prettyPrec p i e <+> prettyPrec p i t
+    prettyPrec p i (FPrimOp e1 op e2) = prettyPrec p i e1 <+> text (JP.prettyPrint op) <+> prettyPrec p i e2 
+    prettyPrec p i (FLit n)           = integer n
+    prettyPrec p i (Fif0 e1 e2 e3)    = hsep [text "if", prettyPrec p i e1, text "then", prettyPrec p i e2, text "else", prettyPrec p i e3]
+    prettyPrec p i (FTuple es)        = parens $ hcat $ intersperse comma (map (prettyPrec p i) es)
+    prettyPrec p i (FProj idx e)      = prettyPrec p i e <> text ("._" ++ show idx)
+    prettyPrec p i (FFix t1 f t2)     = hsep [ text ("fix x" ++ show i ++ ".")
+                                             , char '\\' <> parens (text ("x" ++ show (i+1)) <+> colon <+> prettyPrec p (i+2) t1) <> char '.'
+                                             , prettyPrec p (i+2) (f i (i+1)) 
+                                             , colon
+                                             , prettyPrec p (i+2) t2
+                                             ]

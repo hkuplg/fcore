@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 module SystemF.Syntax where
 
-import Language.Java.Syntax     as JS       (Op (..))
+import Language.Java.Syntax as JS (Op (..))
 
 -- System F syntax
 
