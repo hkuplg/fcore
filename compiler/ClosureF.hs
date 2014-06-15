@@ -7,6 +7,8 @@ import Language.Java.Syntax as J
 import Language.SystemF.Syntax
 import Language.SystemF.Parser
 
+import Data.Maybe
+
 -- Closure F syntax
 
 data Scope b t e = Body b | Kind (t -> Scope b t e) | Typ (PCTyp t) (e -> Scope b t e) 
@@ -40,10 +42,22 @@ ftyp2scope t             = Body (ftyp2ctyp t)
 -- ftyp2scope PFInt         = Body CInt
 -- ftyp2scope (FTVar x)     = Body (CTVar x)
 
+{-
+ftyp2ctyp2 :: PFTyp Int -> [t] -> PCTyp t
+ftyp2ctyp2 = undefined
+-}
+
 ftyp2ctyp :: PFTyp t -> PCTyp t
 ftyp2ctyp (FTVar x) = CTVar x
 ftyp2ctyp (FInt)    = CInt
 ftyp2ctyp t         = CForall (ftyp2scope t)
+
+{-
+fexp2cexp2 :: PFExp Int (Int,PFTyp Int) -> [t] -> [e] -> PCExp t e
+fexp2cexp2 (FVar _ t) tenv env = CVar (env !! fst t)
+fexp2cexp2 e tenv env = CLam (groupLambda2 e tenv env)
+-}
+
 
 fexp2cexp :: PFExp t e -> PCExp t e
 fexp2cexp (FVar _ x)    = CVar x
@@ -64,6 +78,13 @@ adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not
 adjust (FForall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
 adjust t (Body b)               = Body (ftyp2ctyp t)
 --adjust t u                      = 
+
+{-
+groupLambda2 :: PFExp Int (Int,PFTyp Int) -> [t] -> [e] -> EScope t e
+groupLambda2 (FBLam f) tenv env = Kind (\a -> groupLambda2 (f (length tenv)) (a:tenv) env)
+groupLambda2 (FLam t f) tenv env = 
+  Typ (ftyp2ctyp2 t tenv) (\x -> groupLambda2 (f (length env,t)) tenv (x:env))
+-}
 
 groupLambda :: PFExp t e -> EScope t e
 groupLambda (FBLam f)  = Kind (\a -> groupLambda (f a))

@@ -1,3 +1,5 @@
+{-# OPTIONS -XRankNTypes #-}
+
 module Language.SystemF.Syntax 
     ( PFTyp(..)
     , PrimLit
@@ -12,12 +14,14 @@ data PFTyp t =
     | FFun (PFTyp t) (PFTyp t) 
     | FInt
     | FProduct [PFTyp t]
+      
+newtype Typ = HideTyp {revealTyp :: forall t . PFTyp t} -- type of closed types
 
 type PrimLit = Integer -- later maybe Bool | Char
 
 data PFExp t e = 
       FVar String e 
-
+      
     | FBLam          (t -> PFExp t e) 
     | FLam (PFTyp t) (e -> PFExp t e) 
 
@@ -32,3 +36,5 @@ data PFExp t e =
     | FProj Int (PFExp t e)
 
     | FFix (PFTyp t) (e -> e -> PFExp t e) (PFTyp t)  -- fix (y : t1 -> t2). \x. e
+
+newtype Exp = HideExp {revealExp :: forall t e . PFExp t e}
