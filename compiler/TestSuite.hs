@@ -23,42 +23,41 @@ import ClosureF
 import Inheritance
 
 -- setting
-{-
-type MAOpt = StateT Int (StateT (Map J.Exp Int) (ReaderT (Set.Set Int) (Writer Bool))) 
+type AOptType = StateT Int (StateT (Map J.Exp Int) (ReaderT (Set.Set Int) (Writer Bool))) 
 
-sopt :: ApplyOptTranslate MAOpt  -- instantiation; all coinstraints resolved
-sopt = applyopt
+aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
+aoptinst = applyopt
 
-translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([BlockStmt], Exp, PCTyp Int)
-translate e = translateM (up sopt) e
+translateAO ::  PCExp Int (Var, PCTyp Int) -> AOptType ([BlockStmt], Exp, PCTyp Int)
+translateAO e = translateM (up aoptinst) e
 
-compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
-compile e = 
-  case fst $ runWriter $ (runReaderT (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) Set.empty) of
+compileAO ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
+compileAO e = 
+  case fst $ runWriter $ (runReaderT (evalStateT (evalStateT (translateAO (fexp2cexp e)) 0) empty) Set.empty) of
       (ss,exp,t) -> (J.Block ss,exp, t)
--}
 
-type MAOpt = StateT Int (StateT (Map J.Exp Int) (Reader (Set.Set Int))) 
-sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
-sopt = naive
 
-translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([BlockStmt], Exp, PCTyp Int)
-translate e = translateM (up sopt) e
+type NType = StateT Int (StateT (Map J.Exp Int) (Reader (Set.Set Int))) 
+ninst :: Translate NType  -- instantiation; all coinstraints resolved
+ninst = naive
 
-compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
-compile e = 
-  case runReader (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) Set.empty of
+translateN ::  PCExp Int (Var, PCTyp Int) -> NType ([BlockStmt], Exp, PCTyp Int)
+translateN e = translateM (up ninst) e
+
+compileN ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
+compileN e = 
+  case runReader (evalStateT (evalStateT (translateN (fexp2cexp e)) 0) empty) Set.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 -- java compilation + run
-compileAndRun exp = do let source = prettyPrint (fst $ createCU (compile exp) Nothing)
-                       writeFile "Main.java" source
-                       readProcess "javac" ["Main.java"] ""
-                       result <- readProcess "java" ["Main"] ""
-                       readProcess "rm" ["Main.java"] ""
-                       x <- getDirectoryContents "."
-                       readProcess "rm" [y | y<- x, ".class" `isSuffixOf` y] ""
-                       return result
+compileAndRun compileF exp = do let source = prettyPrint (fst $ createCU (compileF exp) Nothing)
+                                writeFile "Main.java" source
+                                readProcess "javac" ["Main.java"] ""
+                                result <- readProcess "java" ["Main"] ""
+                                readProcess "rm" ["Main.java"] ""
+                                x <- getDirectoryContents "."
+                                readProcess "rm" [y | y<- x, ".class" `isSuffixOf` y] ""
+                                return result
 
 -- Some test terms
 
@@ -176,25 +175,30 @@ summa =
             
 program4 = FApp (FApp (FApp (FApp (FTApp notail4 PFInt) summa) (FTApp const PFInt)) (FLit 5)) (FLit 6)
 
-test1 = "Should compile factorial 10" ~: assert (liftM (== "3628800\n") (compileAndRun fact_app))
+test1 = \desc c -> "Should compile factorial 10 using " ++ desc ~: assert (liftM (== "3628800\n") (compileAndRun c fact_app))
 
-test2 = "Should compile fibonacci 10" ~: assert (liftM (== "55\n") (compileAndRun fibo_app))
+test2 = \desc c -> "Should compile fibonacci 10 using " ++ desc ~: assert (liftM (== "55\n") (compileAndRun c fibo_app))
 
-test3 = "Should infeer type of intapp" ~: "(forall (_ : Int) . Int)" ~=? ( let (cu, t) = (createCU (compile intapp) Nothing) in (show t) )
+test3 = \desc c -> "Should infeer type of intapp using " ++ desc ~: "(forall (_ : Int) . Int)" ~=? ( let (cu, t) = (createCU (c intapp) Nothing) in (show t) )
 
-test4 = "Should compile idF int 10" ~: assert (liftM (== "10\n") (compileAndRun idfNum))
+test4 = \desc c -> "Should compile idF int 10 using " ++ desc ~: assert (liftM (== "10\n") (compileAndRun c idfNum))
 
-test5 = "Should compile const int 10 20" ~: assert (liftM (== "10\n") (compileAndRun constNum))
+test5 = \desc c -> "Should compile const int 10 20 using " ++ desc ~: assert (liftM (== "10\n") (compileAndRun c constNum))
 
-test6 = "Should compile program1 int 5" ~: assert (liftM (== "5\n") (compileAndRun program1Num))
+test6 = \desc c -> "Should compile program1 int 5 using " ++ desc ~: assert (liftM (== "5\n") (compileAndRun c program1Num))
 
-test7 = "Should compile program2" ~: assert (liftM (== "5\n") (compileAndRun program2))
+test7 = \desc c -> "Should compile program2 using " ++ desc ~: assert (liftM (== "5\n") (compileAndRun c program2))
 
-test8 = "Should compile program4" ~: assert (liftM (== "11\n") (compileAndRun program4))
+test8 = \desc c -> "Should compile program4 using " ++ desc ~: assert (liftM (== "11\n") (compileAndRun c program4))
+
+suite = [test1, test2, test3, test4, test5, test6, test7, test8]
+
+naivesuite = Data.List.map (\t -> t "BaseTrans" compileN) suite
+aosuite = Data.List.map (\t -> t "ApplyTrans" compileAO) suite
 
 -- SystemF to Java
 sf2java :: String -> String
-sf2java src = let (cu, _) = (createCU (compile (SystemF.Parser.reader src)) Nothing) in prettyPrint cu
+sf2java src = let (cu, _) = (createCU (compileN (SystemF.Parser.reader src)) Nothing) in prettyPrint cu
 
 -- SystemF file path to Java
 -- Example:
@@ -216,4 +220,4 @@ compilesf2java srcPath outputPath = loadsf2java srcPath >>= writeFile outputPath
 evenOdd :: String
 evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
 
-main = runTestTT $ TestList [test1, test2, test3, test4, test5, test6, test7, test8]
+main = runTestTT $ TestList (naivesuite ++ aosuite)

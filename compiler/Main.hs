@@ -2,28 +2,26 @@
 {-# OPTIONS -XMultiParamTypeClasses -XRankNTypes -XFlexibleContexts -XTypeOperators  -XOverlappingInstances #-}
 module Main where
 
-import qualified HM
-import HMParser         (readHM)
-import SystemFParser    (readSF)
-import SystemF
-import ClosureF
-import BaseTransCFJava (createCU)
-
-import Control.Monad.Identity
+import SystemF.Syntax
 import Language.Java.Syntax as J
-import StackTransCFJava
-import ApplyTransCFJava
-import BaseTransCFJava
-import Translations
+import Prelude hiding (const)
+-- import qualified HM
+-- import HMParser         (readHM)
+import qualified SystemF.Parser
+import BaseTransCFJava (createCU)
 import Language.Java.Pretty
 import MonadLib
+import System.Process
+import System.Directory
+
+import Translations
+import BaseTransCFJava
+import ApplyTransCFJava
 import Data.Map
 import qualified Data.Set as Set
-
+import Data.List
+import ClosureF
 import Inheritance
-import qualified TestSuite as T
-
-import Prelude hiding (const)
 
 type M1 = StateT (Map String Int) (State Int)
 
@@ -80,9 +78,6 @@ compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putS
 compileCU e (Just nameStr) = let (cu,t) = (createCU (compile e) (Just nameStr)) in (prettyJ cu >> putStrLn (show t))
 
 compileCU e Nothing = let (cu,t) = (createCU (compile e) Nothing) in (prettyJ cu >> putStrLn (show t))
-
-prettyRead :: String -> String
-prettyRead s = prettyPFExp (readSF s) 0
 
 --TODO: add to execute the full compiler (starting with parser)
 main = undefined
