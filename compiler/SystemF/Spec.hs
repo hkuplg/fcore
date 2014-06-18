@@ -54,9 +54,19 @@ main = hspec $ do
 
         it "prettyprints fact" $
             prettyPrint (FFix PFInt (\fact n -> 
-                                        Fif0  (FVar n) 
-                                        (FLit 1) 
-                                        (FPrimOp (FVar n) J.Mult (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))))) PFInt
+                                        Fif0 (FVar n) 
+                                            (FLit 1) 
+                                            (FPrimOp (FVar n) J.Mult (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))))) PFInt
                         :: PFExp Int Int
                         ) `shouldBe` "fix x1. \\(x2 : Int). if0 x2 then 1 else x2 * x1 (x2 - 1) : Int" 
 
+        it "prettyprints fibo" $
+            prettyPrint (FFix PFInt (\fibo n -> 
+                                        Fif0 (FPrimOp (FVar n) J.Sub (FLit 2))
+                                            (FLit 1) 
+                                            (Fif0 (FPrimOp (FVar n) J.Sub (FLit 1)) 
+                                                (FLit 1) 
+                                                (FPrimOp (FApp (FVar fibo) (FPrimOp (FVar n) J.Sub (FLit 1))) 
+                                                    J.Add (FApp (FVar fibo) (FPrimOp (FVar n) J.Sub (FLit 2)))))) PFInt 
+                        :: PFExp Int Int
+                        ) `shouldBe` "fix x1. \\(x2 : Int). if0 x2 - 2 then 1 else if0 x2 - 1 then 1 else x1 (x2 - 1) + x1 (x2 - 2) : Int"
