@@ -198,7 +198,6 @@ trans self = let this = up self in T {
      
      CLam se ->
        do  (n :: Int) <- get
-           (envs :: Set.Set Int) <- ask
            (s,je, t) <- local (Set.insert n) (translateScopeM this se Nothing)
            let ns = case (head s) of (J.LocalVars [] (a) ([J.VarDecl (varId) 
                                         (Just (J.InitExp (J.InstanceCreation _ _ _ (Just initexp))))])) -> 
@@ -210,7 +209,6 @@ trans self = let this = up self in T {
      CFix t s   -> 
        do  (n :: Int) <- get
            put (n+1)
-           (envs :: Set.Set Int) <- ask
            (s, je, t') <- local (Set.insert (n+1)) (translateScopeM this (s (Right n,t)) (Just (n,t))) -- weird!
            let ns = case (head s) of (J.LocalVars [] (a) ([J.VarDecl (varId) 
                                         (Just (J.InitExp (J.InstanceCreation _ _ _ (Just initexp))))])) -> 
