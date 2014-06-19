@@ -36,6 +36,7 @@ tvar   { UpId $$ }
 int    { Int $$ }
 tupleField { TupleField $$ }
 
+%right "in"
 %right "->"
 %nonassoc "else"
 
@@ -46,7 +47,7 @@ Exp : var  { \(tenv, env) -> FVar (fromJust (lookup $1 env)) }
     | "\\" "(" var ":" Typ ")" "." Exp  
         { \(tenv, env) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env)) }
     | Exp Exp  { \(tenv, env) -> FApp  ($1 (tenv, env)) ($2 (tenv, env)) }
-    -- let x = e : T in f  rewrites to  (\(x : T) . f) e
+    -- Note that let x = e : T in f  rewrites to  (\(x : T) . f) e
     | let var "=" Exp ":" Typ in Exp  
         { \(tenv, env) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env))) ($4 (tenv, env)) }
     | Exp Typ  { \(tenv, env) -> FTApp ($1 (tenv, env)) ($2 tenv) }

@@ -13,6 +13,12 @@ import SystemF.Syntax
 prettyPrint :: Pretty a => a -> String
 prettyPrint = show . pretty
 
+prettyPrintPFTyp :: PFTyp Int -> String
+prettyPrintPFTyp = prettyPrint
+
+prettyPrintPFExp :: PFExp Int Int -> String
+prettyPrintPFExp = prettyPrint
+
 parenPrec :: Int -> Int -> Doc -> Doc
 parenPrec inheritedPrec currentPrec t
     | inheritedPrec <= 0          = t
@@ -73,13 +79,28 @@ instance Pretty (PFExp Int Int) where
     prettyPrec p L{..} (FApp e1 e2)       = prettyPrec precApp L{..} e1 <+> prettyPrec precApp L{..} e2 
     prettyPrec p L{..} (FTApp e t)        = prettyPrec p L{..} e <+> prettyPrec p L{..} t
     prettyPrec p L{..} (FPrimOp e1 op e2) = let p' = precOp op in
-                                            parenPrec p p' $ prettyPrec p' L{..} e1 <+> text (JP.prettyPrint op) <+> prettyPrec p' L{..} e2 
+                                            parenPrec p p' $ 
+                                                prettyPrec p' L{..} e1 <+> text (JP.prettyPrint op) <+> prettyPrec p' L{..} e2 
     prettyPrec p L{..} (FLit n)           = integer n
-    prettyPrec p L{..} (Fif0 e1 e2 e3)    = hsep [text "if0", prettyPrec p L{..} e1, text "then", prettyPrec p L{..} e2, text "else", prettyPrec p L{..} e3]
+    prettyPrec p L{..} (Fif0 e1 e2 e3)    = hsep [ text "if0"
+                                                 , prettyPrec p L{..} e1
+                                                 , text "then"
+                                                 , prettyPrec p L{..} e2
+                                                 , text "else"
+                                                 , prettyPrec p L{..} e3
+                                                 ]
     prettyPrec p L{..} (FTuple es)        = parens $ hcat $ intersperse comma (map (prettyPrec p L{..}) es)
     prettyPrec p L{..} (FProj idx e)      = prettyPrec p L{..} e <> text ("._" ++ show idx)
-    prettyPrec p L{..} (FFix t1 f t2)     = hsep 
-                                            [ text "fix" <+> text ("x" ++ show lx) <> char '.'
-                                            , char '\\' <> parens (text ("x" ++ show (lx + 1)) <+> colon <+> prettyPrec p L{ lx = lx + 2, .. } t1) <> char '.'
-                                            , prettyPrec p L{ lx = lx + 2, .. } (f lx (lx + 1)) <+> colon <+> prettyPrec p L{ lx = lx + 2, .. } t2
-                                            ]
+    prettyPrec p L{..} (FFix t1 f t2)     = hsep [ text "fix" <+> text ("x" ++ show lx) <> char '.'
+                                                 , hcat [ char '\\'
+                                                        , parens (hsep [ text ("x" ++ show (lx + 1))
+                                                                       , colon
+                                                                       , prettyPrec p L{ lx = lx + 2, .. } t1
+                                                                       ])
+                                                        , char '.'
+                                                        ]
+                                                 , hsep [ prettyPrec p L{ lx = lx + 2, .. } (f lx (lx + 1))
+                                                        , colon
+                                                        , prettyPrec p L{ lx = lx + 2, .. } t2
+                                                        ]
+                                                 ]
