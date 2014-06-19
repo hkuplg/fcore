@@ -22,6 +22,9 @@ import qualified Data.Set as Set
 import Data.List
 import ClosureF
 import Inheritance
+import qualified TestSuite as TS
+import System.Environment
+import System.Exit
 
 type M1 = StateT (Map String Int) (State Int)
 
@@ -79,5 +82,24 @@ compileCU e (Just nameStr) = let (cu,t) = (createCU (compile e) (Just nameStr)) 
 
 compileCU e Nothing = let (cu,t) = (createCU (compile e) Nothing) in (prettyJ cu >> putStrLn (show t))
 
---TODO: add to execute the full compiler (starting with parser)
-main = undefined
+-- SystemF to Java
+sf2java :: String -> String
+sf2java src = let (cu, _) = (createCU (compile (SystemF.Parser.reader src)) Nothing) in prettyPrint cu
+
+-- SystemF file path to Java
+-- Example:
+--      loadsf2java "id.sf"
+loadsf2java :: FilePath -> IO String
+loadsf2java = readFile >=> (return . sf2java)
+
+-- `compilesf2java srcPath outputPath` loads a SystemF file at `srcPath`,
+-- and writes the compiled Java code to `outputPath`.
+-- Example:
+--      compilesf2java "id.sf" "id.java"
+compilesf2java :: FilePath -> FilePath -> IO ()
+compilesf2java srcPath outputPath = loadsf2java srcPath >>= writeFile outputPath
+                          
+main = do args <- getArgs
+          if (length args < 2)
+            then putStrLn "help: compiler inputFN outputFN"
+            else compilesf2java (args!!0) (args!!1)

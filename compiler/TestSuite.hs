@@ -196,23 +196,6 @@ suite = [test1, test2, test3, test4, test5, test6, test7, test8]
 naivesuite = Data.List.map (\t -> t "BaseTrans" compileN) suite
 aosuite = Data.List.map (\t -> t "ApplyTrans" compileAO) suite
 
--- SystemF to Java
-sf2java :: String -> String
-sf2java src = let (cu, _) = (createCU (compileN (SystemF.Parser.reader src)) Nothing) in prettyPrint cu
-
--- SystemF file path to Java
--- Example:
---      loadsf2java "id.sf"
-loadsf2java :: FilePath -> IO String
-loadsf2java = readFile >=> (return . sf2java)
-
--- `compilesf2java srcPath outputPath` loads a SystemF file at `srcPath`,
--- and writes the compiled Java code to `outputPath`.
--- Example:
---      compilesf2java "id.sf" "id.java"
-compilesf2java :: FilePath -> FilePath -> IO ()
-compilesf2java srcPath outputPath = loadsf2java srcPath >>= writeFile outputPath
-
 -- Similar to the ":t" in GHCi
 -- inferHM :: String -> IO ()
 -- inferHM = putStrLn . HM.pretty . HM.infer . readHM 
