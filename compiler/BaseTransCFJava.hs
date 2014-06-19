@@ -195,7 +195,7 @@ trans self = let this = up self in T {
        do  n <- get
            (s,je, CForall (Kind f)) <- translateM this e
            return (s,je, scope2ctyp (substScope n t (f n)))
-     
+    -- TODO: CLam and CFix generation of top-level Fun closures is a bit ad-hoc transformation from the old generated code + duplicate code 
      CLam se ->
        do  (n :: Int) <- get
            (s,je, t) <- local (Set.insert n) (translateScopeM this se Nothing)
@@ -215,7 +215,7 @@ trans self = let this = up self in T {
                                         [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show (n+1))) [] 
                                         (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (initexp))),
                                         J.LocalVars [] (a) ([J.VarDecl (varId) (Just (J.InitExp (instCreat (n+1))))])]           
-           return (ns,je, CForall t')
+           return (ns ++ (tail s),je, CForall t')
            
      CApp e1 e2 ->
        do  (n :: Int) <- get
