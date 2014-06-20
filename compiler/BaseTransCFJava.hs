@@ -62,9 +62,9 @@ createCU (J.Block bs,e,t) (Just expName) = (cu,t) where
    body = Just (J.Block (bs ++ [ass]))
    mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
    --TODO: maybe get a state monad to createCU to createCU somehow?
-   maybeCastedReturnExp = case t of CInt -> case (listlast bs) of J.LocalVars [] _ ([J.VarDecl (J.VarId id) (_)]) -> J.ExpName $ J.Name [id]
-                                                                  _ -> J.Cast boxedIntType e
-                                    _ -> e
+   maybeCastedReturnExp = case (listlast bs) of J.LocalVars [] _ ([J.VarDecl (J.VarId id) (_)]) -> J.ExpName $ J.Name [id]
+                                                _ -> case t of CInt -> J.Cast boxedIntType e
+                                                               _ -> J.Cast closureType e   
    returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
                           _ -> Just $ closureType
 
