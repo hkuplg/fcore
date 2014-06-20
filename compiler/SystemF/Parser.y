@@ -30,7 +30,12 @@ if0    { If0 }
 then   { Then }
 else   { Else }
 ","    { Comma }
-op     { Op $$ }
+op3    { Op3 $$ }
+op4    { Op4 $$ }
+op6    { Op6 $$ }
+op7    { Op7 $$ }
+op11   { Op11 $$ }
+op12   { Op12 $$ }
 var    { LowId $$ }
 tvar   { UpId $$ }
 int    { Int $$ }
@@ -39,6 +44,12 @@ tupleField { TupleField $$ }
 %right "in"
 %right "->"
 %nonassoc "else"
+
+%left op5
+%left op4
+%left op3
+%left op2
+%left op1
 
 %%
 
@@ -51,7 +62,12 @@ Exp : var  { \(tenv, env) -> FVar (fromJust (lookup $1 env)) }
     | let var "=" Exp ":" Typ in Exp  
         { \(tenv, env) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env))) ($4 (tenv, env)) }
     | Exp Typ  { \(tenv, env) -> FTApp ($1 (tenv, env)) ($2 tenv) }
-    | Exp op Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
+    | Exp op3  Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
+    | Exp op4  Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
+    | Exp op6  Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
+    | Exp op7  Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
+    | Exp op11 Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
+    | Exp op12 Exp  { \e -> FPrimOp ($1 e) $2 ($3 e) }
     | int  { \_e -> FLit $1 }
     | if0 Exp then Exp else Exp  { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
     | "(" Exps ")"  { \(tenv, env) -> FTuple ($2 (tenv, env)) }

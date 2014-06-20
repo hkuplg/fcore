@@ -32,19 +32,19 @@ tokens :-
     \,          { \_ -> Comma }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
-    \*          { \_ -> Op JS.Mult }
-    \/          { \_ -> Op JS.Div }
-    \%          { \_ -> Op JS.Rem }
-    \+          { \_ -> Op JS.Add }
-    \-          { \_ -> Op JS.Sub }
-    \<          { \_ -> Op JS.LThan }
-    \>          { \_ -> Op JS.GThan }
-    \<\=        { \_ -> Op JS.LThanE }
-    \>\=        { \_ -> Op JS.GThanE }
-    \=\=        { \_ -> Op JS.Equal }
-    \!\=        { \_ -> Op JS.NotEq }
-    \&\&        { \_ -> Op JS.And }
-    \|\|        { \_ -> Op JS.Or }
+    \*          { \_ -> Op3 JS.Mult }
+    \/          { \_ -> Op3 JS.Div }
+    \%          { \_ -> Op3 JS.Rem }
+    \+          { \_ -> Op4 JS.Add }
+    \-          { \_ -> Op4 JS.Sub }
+    \<          { \_ -> Op6 JS.LThan }
+    \>          { \_ -> Op6 JS.GThan }
+    \<\=        { \_ -> Op6 JS.LThanE }
+    \>\=        { \_ -> Op6 JS.GThanE }
+    \=\=        { \_ -> Op7 JS.Equal }
+    \!\=        { \_ -> Op7 JS.NotEq }
+    \&\&        { \_ -> Op11 JS.CAnd }
+    \|\|        { \_ -> Op12 JS.COr }
 
     [a-z] [$alpha $digit \_ \']*  { \s -> LowId s }
     [A-Z] [$alpha $digit \_ \']*  { \s -> UpId s }
@@ -61,7 +61,7 @@ data Token = OParen | CParen
            | TypeInt
            | If0 | Then | Else
            | Comma
-           | Op JS.Op
+           | Op3 JS.Op | Op4 JS.Op | Op6 JS.Op | Op7 JS.Op | Op11 JS.Op | Op12 JS.Op
            | LowId String | UpId String
            | Int Integer
            | TupleField Int
