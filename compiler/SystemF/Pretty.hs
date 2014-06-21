@@ -36,15 +36,6 @@ class Pretty a where
     prettyPrec :: Int -> (Label, Label) -> a -> Doc
     prettyPrec _ _ = pretty
 
-precApp :: Int
-precApp = 1
-
-precLam :: Int
-precLam = 2
-
-precFun :: Int
-precFun = 2
-
 -- Precedence of operators based on the table in:
 -- http://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
 precOp JS.Mult    = 3
@@ -67,14 +58,14 @@ name :: Int -> String
 name n
     | n < 0     = error "name called with n < 0"
     | n < 26    = [chr (ord 'a' + n)]
-    | otherwise = "a" ++ show (n - 26)
+    | otherwise = "a" ++ show (n - 25)
 
 instance Pretty (PFTyp Int) where
     prettyPrec p (ltvar, lvar) t = case t of
         FTVar a    -> text (name a)
         FForall f  -> text ("forall " ++ name ltvar ++ ".") <+> prettyPrec p (ltvar+1,  lvar) (f ltvar)
-        FFun t1 t2 -> parenPrec p precFun $ 
-                        prettyPrec (precFun-1) (ltvar, lvar) t1 
+        FFun t1 t2 -> parenPrec p 2 $ 
+                        prettyPrec (2-1) (ltvar, lvar) t1 
                         <+> text "->" 
                         <+> prettyPrec p (ltvar, lvar) t2
         PFInt      -> text "Int"
@@ -85,30 +76,30 @@ instance Pretty (PFExp Int Int) where
 
         FBLam f          -> text ("/\\" ++ name ltvar ++ ".") <+> prettyPrec p (ltvar+1, lvar) (f ltvar)
 
-        FLam t f         -> parenPrec p precLam $ 
+        FLam t f         -> parenPrec p 2 $ 
                                 text ("\\(" ++ name lvar ++ " : " ++ show (prettyPrec p (ltvar, lvar+1) t) ++ ").")
                                 <+> prettyPrec p (ltvar, lvar+1) (f lvar)
 
-        FApp e1 e2       -> prettyPrec precApp (ltvar, lvar) e1 <+> prettyPrec precApp (ltvar, lvar) e2 
+        FApp e1 e2       -> parenPrec p 1 $ prettyPrec 1 (ltvar, lvar) e1 <+> prettyPrec 1 (ltvar, lvar) e2 
 
         FTApp e t        -> prettyPrec p (ltvar, lvar) e <+> prettyPrec p (ltvar, lvar) t
 
         FPrimOp e1 op e2 -> parenPrec p p' $ 
                                     prettyPrec p' (ltvar, lvar) e1 
                                 <+> text (JP.prettyPrint op) 
-                                <+> prettyPrec p' (ltvar, lvar) e2 
+                                <+> prettyPrec (p'-1) (ltvar, lvar) e2 
                                 where p' = precOp op 
 
         FLit n           -> integer n
 
-        Fif0 e1 e2 e3    -> text "if0"      <+> prettyPrec p (ltvar, lvar) e1
-                            <+> text "then" <+> prettyPrec p (ltvar, lvar) e2
-                            <+> text "else" <+> prettyPrec p (ltvar, lvar) e3
+        Fif0 e1 e2 e3    -> text "if0" <+> prettyPrec p (ltvar, lvar) e1
+                                <+> text "then" <+> prettyPrec p (ltvar, lvar) e2
+                                <+> text "else" <+> prettyPrec p (ltvar, lvar) e3
 
         FTuple es        -> parens $ hcat $ intersperse comma (map (prettyPrec p (ltvar, lvar)) es)
 
         FProj idx e      -> prettyPrec p (ltvar, lvar) e <> text ("._" ++ show idx)
 
         FFix t1 f t2     -> text ("fix " ++ name lvar ++ ".")
-                            <+> text ("\\(" ++ (name (lvar+1) ++ " : " ++ show (prettyPrec p (ltvar, lvar+2) t1)) ++ ").")
-                            <+> prettyPrec p (ltvar, lvar+2) (f lvar (lvar+1)) <+> colon <+> prettyPrec p (ltvar, lvar+2) t2
+                                <+> text ("\\(" ++ (name (lvar+1) ++ " : " ++ show (prettyPrec p (ltvar, lvar+2) t1)) ++ ").")
+                                <+> prettyPrec p (ltvar, lvar+2) (f lvar (lvar+1)) <+> colon <+> prettyPrec p (ltvar, lvar+2) t2
