@@ -14,6 +14,13 @@ import SystemF.Syntax
 prettyPrint :: Pretty a => a -> String
 prettyPrint = show . pretty
 
+prettyPrintPFTyp :: PFTyp Int -> String
+prettyPrintPFTyp = prettyPrint
+
+prettyPrintPFExp :: PFExp Int Int -> String
+prettyPrintPFExp = prettyPrint
+
+
 parenPrec :: Int -> Int -> Doc -> Doc
 parenPrec inheritedPrec currentPrec t
     | inheritedPrec <= 0          = t
