@@ -2,7 +2,7 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 module SystemF.Pretty where
 
-import qualified Language.Java.Syntax as JS
+import qualified Language.Java.Syntax as J
 import qualified Language.Java.Pretty as JP (prettyPrint)
 import Text.PrettyPrint
 import Data.Char        (chr, ord)
@@ -82,18 +82,18 @@ var n
 
 -- Precedence of operators based on the table in:
 -- http://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
-opPrec JS.Mult    = 3
-opPrec JS.Div     = 3
-opPrec JS.Rem     = 3
-opPrec JS.Add     = 4
-opPrec JS.Sub     = 4
-opPrec JS.LThan   = 6
-opPrec JS.GThan   = 6
-opPrec JS.LThanE  = 6
-opPrec JS.GThanE  = 6
-opPrec JS.Equal   = 7
-opPrec JS.NotEq   = 7
-opPrec JS.CAnd    = 11
-opPrec JS.COr     = 12
+opPrec J.Mult    = 3
+opPrec J.Div     = 3
+opPrec J.Rem     = 3
+opPrec J.Add     = 4
+opPrec J.Sub     = 4
+opPrec J.LThan   = 6
+opPrec J.GThan   = 6
+opPrec J.LThanE  = 6
+opPrec J.GThanE  = 6
+opPrec J.Equal   = 7
+opPrec J.NotEq   = 7
+opPrec J.CAnd    = 11
+opPrec J.COr     = 12
 opPrec op         = error $ "Something impossible happens! The operator '" 
                             ++ JP.prettyPrint op ++ "' is not part of the language."
