@@ -44,7 +44,7 @@ instance Pretty (PFTyp Int) where
 instance Pretty (PFExp Int Int) where
     prettyPrec p l@(ltvar, lvar) e = case e of
         FVar x           -> text (var x)
-        FLit n           -> integer n
+        FLit n           -> if n < 0 then parenPrec p 5 (integer n) else integer n
         FTuple es        -> parens $ hcat $ intersperse comma $ map (prettyPrec p l) es
 
         FProj i e        -> parenPrec p 1 $ prettyPrec 1 l e <> text ("._" ++ show i)
@@ -82,18 +82,18 @@ var n
 
 -- Precedence of operators based on the table in:
 -- http://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
-opPrec JS.Mult    = 30
-opPrec JS.Div     = 30
-opPrec JS.Rem     = 30
-opPrec JS.Add     = 40
-opPrec JS.Sub     = 40
-opPrec JS.LThan   = 60
-opPrec JS.GThan   = 60
-opPrec JS.LThanE  = 60
-opPrec JS.GThanE  = 60
-opPrec JS.Equal   = 70
-opPrec JS.NotEq   = 70
-opPrec JS.CAnd    = 110
-opPrec JS.COr     = 120
+opPrec JS.Mult    = 3
+opPrec JS.Div     = 3
+opPrec JS.Rem     = 3
+opPrec JS.Add     = 4
+opPrec JS.Sub     = 4
+opPrec JS.LThan   = 6
+opPrec JS.GThan   = 6
+opPrec JS.LThanE  = 6
+opPrec JS.GThanE  = 6
+opPrec JS.Equal   = 7
+opPrec JS.NotEq   = 7
+opPrec JS.CAnd    = 11
+opPrec JS.COr     = 12
 opPrec op         = error $ "Something impossible happens! The operator '" 
                             ++ JP.prettyPrint op ++ "' is not part of the language."

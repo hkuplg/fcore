@@ -64,6 +64,8 @@ UNDERID  { UnderId $$ }
 %left "+" "-"
 %left "*" "/" "%"
 
+%nonassoc UMINUS
+
 %%
 
 exp 
@@ -77,6 +79,7 @@ exp
         { \(tenv, env) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env))) ($4 (tenv, env)) }
 
     | "if0" exp "then" exp "else" exp           { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
+    | "-" INT %prec UMINUS                      { \e -> FLit (-$2) }
     | prim_op_exp       { $1 }
     | fexp              { $1 }
 
