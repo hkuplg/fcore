@@ -51,7 +51,7 @@ tokens :-
 
     $digit+    { \s -> Int (read s) }
 
-    \_ $digit+ { \s -> TupleField (read (tail s))  }
+    \_ $digit+ { \s -> UnderId (read (tail s))  }
 
 {
 
@@ -62,9 +62,8 @@ data Token = OParen | CParen
            | If0 | Then | Else
            | Comma
            | Op3 JS.Op | Op4 JS.Op | Op6 JS.Op | Op7 JS.Op | Op11 JS.Op | Op12 JS.Op
-           | LowId String | UpId String
+           | LowId String | UpId String | UnderId Int
            | Int Integer
-           | TupleField Int
            deriving (Eq, Show)
 
 lexer :: String -> [Token]
