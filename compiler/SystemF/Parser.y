@@ -2,6 +2,7 @@
 module SystemF.Parser where
 
 import Data.Maybe       (fromJust)
+import qualified Language.Java.Syntax as J (Op (..))
 
 import SystemF.Syntax
 import SystemF.Lexer    
@@ -30,27 +31,38 @@ import SystemF.Lexer
 "then"   { Then }
 "else"   { Else }
 ","      { Comma }
-OP3      { Op3 $$ }
-OP4      { Op4 $$ }
-OP6      { Op6 $$ }
-OP7      { Op7 $$ }
-OP11     { Op11 $$ }
-OP12     { Op12 $$ }
+
+"*"      { PrimOp J.Mult   }
+"/"      { PrimOp J.Div    }
+"%"      { PrimOp J.Rem    }
+"+"      { PrimOp J.Add    }
+"-"      { PrimOp J.Sub    }
+"<"      { PrimOp J.LThan  }
+"<="     { PrimOp J.LThanE }
+">"      { PrimOp J.GThan  }
+">="     { PrimOp J.GThanE }
+"=="     { PrimOp J.Equal  }
+"!="     { PrimOp J.NotEq  }
+"&&"     { PrimOp J.CAnd   }
+"||"     { PrimOp J.COr    }
+
 INT      { Int $$ }
 UPPERID  { UpperId $$ }
 LOWERID  { LowerId $$ }
 UNDERID  { UnderId $$ }
 
+-- Precedence and associativity directives
 %right "in"
 %right "->"
 %nonassoc "else"
 
-%left OP12
-%left OP11
-%left OP7
-%left OP6
-%left OP4
-%left OP3
+-- http://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
+%left "||"
+%left "&&"
+%nonassoc "==" "!="
+%nonassoc "<" "<=" ">" ">="
+%left "+" "-"
+%left "*" "/" "%"
 
 %%
 
@@ -65,13 +77,23 @@ exp
         { \(tenv, env) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env))) ($4 (tenv, env)) }
 
     | "if0" exp "then" exp "else" exp           { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
-    | exp OP3  exp      { \e -> FPrimOp ($1 e) $2 ($3 e) }
-    | exp OP4  exp      { \e -> FPrimOp ($1 e) $2 ($3 e) }
-    | exp OP6  exp      { \e -> FPrimOp ($1 e) $2 ($3 e) }
-    | exp OP7  exp      { \e -> FPrimOp ($1 e) $2 ($3 e) }
-    | exp OP11 exp      { \e -> FPrimOp ($1 e) $2 ($3 e) }
-    | exp OP12 exp      { \e -> FPrimOp ($1 e) $2 ($3 e) }
+    | prim_op_exp       { $1 }
     | fexp              { $1 }
+
+prim_op_exp 
+    : exp "*" exp     { \e -> FPrimOp ($1 e) J.Mult   ($3 e) }
+    | exp "/" exp     { \e -> FPrimOp ($1 e) J.Div    ($3 e) }
+    | exp "%" exp     { \e -> FPrimOp ($1 e) J.Rem    ($3 e) }
+    | exp "+" exp     { \e -> FPrimOp ($1 e) J.Add    ($3 e) }
+    | exp "-" exp     { \e -> FPrimOp ($1 e) J.Sub    ($3 e) }
+    | exp "<" exp     { \e -> FPrimOp ($1 e) J.LThan  ($3 e) }
+    | exp "<=" exp    { \e -> FPrimOp ($1 e) J.LThanE ($3 e) }
+    | exp ">"  exp    { \e -> FPrimOp ($1 e) J.GThan  ($3 e) }
+    | exp ">=" exp    { \e -> FPrimOp ($1 e) J.GThanE ($3 e) }
+    | exp "==" exp    { \e -> FPrimOp ($1 e) J.Equal  ($3 e) }
+    | exp "!=" exp    { \e -> FPrimOp ($1 e) J.NotEq  ($3 e) }
+    | exp "&&" exp    { \e -> FPrimOp ($1 e) J.CAnd   ($3 e) }
+    | exp "||" exp    { \e -> FPrimOp ($1 e) J.COr    ($3 e) }
 
 fexp
     : fexp aexp         { \(tenv, env) -> FApp  ($1 (tenv, env)) ($2 (tenv, env)) }

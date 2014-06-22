@@ -1,7 +1,7 @@
 {
 module SystemF.Lexer (lexer, Token (..)) where
 
-import Language.Java.Syntax     as JS    (Op (..))
+import qualified Language.Java.Syntax as J (Op (..))
 }
 
 %wrapper "basic"
@@ -32,19 +32,19 @@ tokens :-
     \,          { \_ -> Comma }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
-    \*          { \_ -> Op3 JS.Mult }
-    \/          { \_ -> Op3 JS.Div }
-    \%          { \_ -> Op3 JS.Rem }
-    \+          { \_ -> Op4 JS.Add }
-    \-          { \_ -> Op4 JS.Sub }
-    \<          { \_ -> Op6 JS.LThan }
-    \>          { \_ -> Op6 JS.GThan }
-    \<\=        { \_ -> Op6 JS.LThanE }
-    \>\=        { \_ -> Op6 JS.GThanE }
-    \=\=        { \_ -> Op7 JS.Equal }
-    \!\=        { \_ -> Op7 JS.NotEq }
-    \&\&        { \_ -> Op11 JS.CAnd }
-    \|\|        { \_ -> Op12 JS.COr }
+    \*          { \_ -> PrimOp J.Mult   }
+    \/          { \_ -> PrimOp J.Div    }
+    \%          { \_ -> PrimOp J.Rem    }
+    \+          { \_ -> PrimOp J.Add    }
+    \-          { \_ -> PrimOp J.Sub    }
+    \<          { \_ -> PrimOp J.LThan  }
+    \>          { \_ -> PrimOp J.GThan  }
+    \<\=        { \_ -> PrimOp J.LThanE }
+    \>\=        { \_ -> PrimOp J.GThanE }
+    \=\=        { \_ -> PrimOp J.Equal  }
+    \!\=        { \_ -> PrimOp J.NotEq  }
+    \&\&        { \_ -> PrimOp J.CAnd   }
+    \|\|        { \_ -> PrimOp J.COr    }
 
     [A-Z] [$alpha $digit \_ \']*  { \s -> UpperId s }
     [a-z] [$alpha $digit \_ \']*  { \s -> LowerId s }
@@ -60,7 +60,7 @@ data Token = OParen | CParen
            | TypeInt
            | If0 | Then | Else
            | Comma
-           | Op3 JS.Op | Op4 JS.Op | Op6 JS.Op | Op7 JS.Op | Op11 JS.Op | Op12 JS.Op
+           | PrimOp J.Op 
            | UpperId String | LowerId String | UnderId Int
            | Int Integer
            deriving (Eq, Show)
