@@ -36,14 +36,14 @@ class Pretty a where
 
 instance Pretty (PFTyp Int) where
     prettyPrec p l@(ltvar, lvar) t = case t of
-        FTVar a    -> text (name a)
-        FForall f  -> text ("forall " ++ name ltvar ++ ".") <+> prettyPrec p (ltvar+1,  lvar) (f ltvar)
+        FTVar a    -> text (tvar a)
+        FForall f  -> text ("forall " ++ tvar ltvar ++ ".") <+> prettyPrec p (ltvar+1,  lvar) (f ltvar)
         FFun t1 t2 -> parenPrec p 2 $ prettyPrec 1 l t1 <+> text "->" <+> prettyPrec p l t2
         PFInt      -> text "Int"
 
 instance Pretty (PFExp Int Int) where
     prettyPrec p l@(ltvar, lvar) e = case e of
-        FVar x           -> text (name x)
+        FVar x           -> text (var x)
         FLit n           -> integer n
         FTuple es        -> parens $ hcat $ intersperse comma $ map (prettyPrec p l) es
 
@@ -53,14 +53,14 @@ instance Pretty (PFExp Int Int) where
         FTApp e t        -> parenPrec p 2 $ prettyPrec 2 l e  <+> prettyPrec 1 l t
 
         FBLam f          -> parenPrec p 3 $ 
-                                text ("/\\" ++ name ltvar ++ ".") 
+                                text ("/\\" ++ tvar ltvar ++ ".") 
                                 <+> prettyPrec 0 (ltvar+1, lvar) (f ltvar)
         FLam t f         -> parenPrec p 3 $ 
-                                text ("\\(" ++ name lvar ++ " : " ++ show (prettyPrec p (ltvar, lvar+1) t) ++ ").")
+                                text ("\\(" ++ var lvar ++ " : " ++ show (prettyPrec p (ltvar, lvar+1) t) ++ ").")
                                 <+> prettyPrec 0 (ltvar, lvar+1) (f lvar)
         FFix t1 f t2     -> parenPrec p 3 $ 
-                                text ("fix " ++ name lvar ++ ".")
-                                <+> text ("\\(" ++ (name (lvar+1) ++ " : " ++ show (prettyPrec p (ltvar, lvar+2) t1)) ++ ").")
+                                text ("fix " ++ var lvar ++ ".")
+                                <+> text ("\\(" ++ (var (lvar+1) ++ " : " ++ show (prettyPrec p (ltvar, lvar+2) t1)) ++ ").")
                                 <+> prettyPrec 0 (ltvar, lvar+2) (f lvar (lvar+1)) <+> colon <+> prettyPrec 0 (ltvar, lvar+2) t2
 
         FPrimOp e1 op e2 -> parenPrec p q $ prettyPrec q l e1 <+> text (JP.prettyPrint op) <+> prettyPrec (q-1) l e2 
@@ -68,9 +68,15 @@ instance Pretty (PFExp Int Int) where
 
         Fif0 e1 e2 e3    -> text "if0" <+> prettyPrec p l e1 <+> text "then" <+> prettyPrec p l e2 <+> text "else" <+> prettyPrec p l e3
 
-name :: Int -> String
-name n
-    | n < 0     = error "`name` called with n < 0"
+tvar :: Int -> String
+tvar n
+    | n < 0     = error "`var` called with n < 0"
+    | n < 26    = [chr (ord 'A' + n)]
+    | otherwise = "A" ++ show (n - 25)
+
+var :: Int -> String
+var n
+    | n < 0     = error "`tvar` called with n < 0"
     | n < 26    = [chr (ord 'a' + n)]
     | otherwise = "a" ++ show (n - 25)
 
