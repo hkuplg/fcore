@@ -50,7 +50,7 @@ tokens :-
     [a-z] [$alpha $digit \_ \']*  { \s -> LowerId s }
     \_ $digit+                    { \s -> UnderId (read (tail s))  }
 
-    $digit+    { \s -> Int (read s) }
+    $digit+    { \s -> Integer (read s) }
 
 {
 
@@ -62,7 +62,7 @@ data Token = OParen | CParen
            | Comma
            | PrimOp J.Op 
            | UpperId String | LowerId String | UnderId Int
-           | Int Integer
+           | Integer Integer
            deriving (Eq, Show)
 
 lexer :: String -> [Token]
