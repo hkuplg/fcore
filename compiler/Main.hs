@@ -3,30 +3,30 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 module Main where
 
-import SystemF.Syntax
-import Language.Java.Syntax as J
-import Prelude hiding (const)
--- import qualified HM
--- import HMParser         (readHM)
-import qualified SystemF.Parser
-import BaseTransCFJava (createCU)
-import Language.Java.Pretty
-import MonadLib
-import System.Process
-import System.Directory
-import System.FilePath (dropExtension, addExtension)
-
-import Translations
-import BaseTransCFJava
-import ApplyTransCFJava
+import Data.List
 import Data.Map
 import qualified Data.Set as Set
-import Data.List
-import ClosureF
-import Inheritance
-import qualified TestSuite as TS
+import Language.Java.Pretty
+import Language.Java.Syntax as J
+import Prelude hiding (const)
+import System.Directory
 import System.Environment       (getArgs)
 import System.Exit
+import System.FilePath (replaceExtension)
+import System.Process
+
+-- import HMParser         (readHM)
+-- import qualified HM
+import ApplyTransCFJava
+import BaseTransCFJava
+import BaseTransCFJava (createCU)
+import ClosureF
+import Inheritance
+import MonadLib
+import SystemF.Syntax
+import Translations
+import qualified SystemF.Parser
+import qualified TestSuite as TS
 
 type M1 = StateT (Map String Int) (State Int)
 
@@ -108,6 +108,6 @@ main = do
         then putStrLn "Usage: f2j <source file>"
         else do 
             let inputPath  = args !! 0
-                outputPath = addExtension (dropExtension inputPath) "java"
+                outputPath = replaceExtension inputPath "java"
             compilesf2java inputPath outputPath 
             putStrLn $ "Wrote " ++ outputPath
