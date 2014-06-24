@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS -XMultiParamTypeClasses -XRankNTypes -XFlexibleContexts -XTypeOperators  -XOverlappingInstances #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 module Main where
 
 import SystemF.Syntax
@@ -13,6 +14,7 @@ import Language.Java.Pretty
 import MonadLib
 import System.Process
 import System.Directory
+import System.FilePath (dropExtension, addExtension)
 
 import Translations
 import BaseTransCFJava
@@ -23,7 +25,7 @@ import Data.List
 import ClosureF
 import Inheritance
 import qualified TestSuite as TS
-import System.Environment
+import System.Environment       (getArgs)
 import System.Exit
 
 type M1 = StateT (Map String Int) (State Int)
@@ -98,8 +100,14 @@ loadsf2java = readFile >=> (return . sf2java)
 --      compilesf2java "id.sf" "id.java"
 compilesf2java :: FilePath -> FilePath -> IO ()
 compilesf2java srcPath outputPath = loadsf2java srcPath >>= writeFile outputPath
-                          
-main = do args <- getArgs
-          if (length args < 2)
-            then putStrLn "help: compiler inputFN outputFN"
-            else compilesf2java (args!!0) (args!!1)
+
+main :: IO ()
+main = do 
+    args <- getArgs
+    if length args < 1
+        then putStrLn "Usage: f2j <source file>"
+        else do 
+            let inputPath  = args !! 0
+                outputPath = addExtension (dropExtension inputPath) "java"
+            compilesf2java inputPath outputPath 
+            putStrLn $ "Wrote " ++ outputPath
