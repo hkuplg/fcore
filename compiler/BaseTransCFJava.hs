@@ -102,29 +102,24 @@ last (Body _)  = True
 
 instCreat i = J.InstanceCreation [] (J.ClassType [(J.Ident ("Fun" ++ show i),[])]) [] Nothing
 
-jexp init body (enCF,idCF) ids = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] 
-       (Just (J.ClassBody (init ++  [
+jexp init body idCF =
+       J.ClassBody (init ++  [
           J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body)),
           J.MemberDecl (J.MethodDecl [J.Public] [] (Just closureType) (J.Ident "clone") [] [] (J.MethodBody cloneBody))
-       ])))
+       ])
         where
-            enclosingId = J.Ident (localvarstr ++ show (enCF-2))
-            newClone i =  Just $ J.Block $ [J.BlockStmt $ J.Return $ Just (instCreat i)]            
-            cloneBody | ids = newClone idCF
-                      | otherwise = Just (J.Block [J.LocalVars [] (closureType) [J.VarDecl (J.VarId (J.Ident "c")) 
-                (Just (J.InitExp (J.MethodInv (J.MethodCall (J.Name [enclosingId,J.Ident "clone"]) []))))],J.BlockStmt 
+            cloneBody = Just (J.Block [J.LocalVars [] (closureType) [J.VarDecl (J.VarId (J.Ident "c")) 
+                (Just $ J.InitExp $ instCreat idCF)],J.BlockStmt 
                 (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA 
-                (J.ExpName (J.Name [enclosingId,J.Ident localvarstr])))),J.BlockStmt (J.ExpStmt (J.MethodInv 
-                (J.MethodCall (J.Name [J.Ident "c",J.Ident "apply"]) []))),J.BlockStmt (J.Return (Just 
-                (J.Cast (closureType) (J.ExpName (J.Name [J.Ident "c",J.Ident "out"])))))])
+                (J.ExpName (J.Name [J.Ident "this",J.Ident localvarstr])))),J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident "out"])) J.EqualA 
+                (J.ExpName (J.Name [J.Ident "this",J.Ident "out"])))),J.BlockStmt (J.Return (Just 
+                (J.Cast (closureType) (J.ExpName (J.Name [J.Ident "c"])))))])
 
 currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
 outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-standardTranslation javaExpression statementsBeforeOA currentId nextId ids = J.LocalVars [] closureType [J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) 
-                                                (Just (J.InitExp 
-                                                    (jexp [currentInitialDeclaration (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))) (currentId,nextId) ids)
-                                                    )
-                                                )]
+standardTranslation javaExpression statementsBeforeOA currentId nextId = [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) [] 
+                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId))),
+                                        J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
   
 data Translate m = T {
   translateM :: 
@@ -154,7 +149,7 @@ genSubst j1 initFun = x
                                                                                let defV1 = initFun tempvarstr n j1
                                                                                return ([defV1], temp1)
     
-trans :: (MonadState Int m, MonadReader (Set.Set Int) m, MonadState (Map.Map J.Exp Int) m, selfType :< Translate m) => Base selfType (Translate m)
+trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of 
      CVar (Left i,t) -> 
@@ -198,24 +193,14 @@ trans self = let this = up self in T {
     -- TODO: CLam and CFix generation of top-level Fun closures is a bit ad-hoc transformation from the old generated code + duplicate code 
      CLam se ->
        do  (n :: Int) <- get
-           (s,je, t) <- local (Set.insert n) (translateScopeM this se Nothing)
-           let ns = case (head s) of (J.LocalVars [] (a) ([J.VarDecl (varId) 
-                                        (Just (J.InitExp (J.InstanceCreation _ _ _ (Just initexp))))])) -> 
-                                        [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show n)) [] 
-                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (initexp))),
-                                        J.LocalVars [] (a) ([J.VarDecl (varId) (Just (J.InitExp (instCreat n)))])]
-           return (ns ++ (tail s),je, CForall t)
+           (s,je, t) <- translateScopeM this se Nothing
+           return (s,je, CForall t)
      
      CFix t s   -> 
        do  (n :: Int) <- get
            put (n+1)
-           (s, je, t') <- local (Set.insert (n+1)) (translateScopeM this (s (Right n,t)) (Just (n,t))) -- weird!
-           let ns = case (head s) of (J.LocalVars [] (a) ([J.VarDecl (varId) 
-                                        (Just (J.InitExp (J.InstanceCreation _ _ _ (Just initexp))))])) -> 
-                                        [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show (n+1))) [] 
-                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (initexp))),
-                                        J.LocalVars [] (a) ([J.VarDecl (varId) (Just (J.InitExp (instCreat (n+1))))])]           
-           return (ns ++ (tail s),je, CForall t')
+           (s, je, t') <- translateScopeM this (s (Right n,t)) (Just (n,t)) -- weird!          
+           return (s,je, CForall t')
            
      CApp e1 e2 ->
        do  (n :: Int) <- get
@@ -273,7 +258,6 @@ trans self = let this = up self in T {
                 
       Typ t g -> 
         do  n <- get
-            envs :: Set.Set Int <- ask
             let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable              
             case m of -- Consider refactoring later?
               Just (i,t') | last (g (Right i,t')) ->
@@ -283,8 +267,8 @@ trans self = let this = up self in T {
                     (env :: Map.Map J.Exp Int) <- get
                     let nje = case (Map.lookup je env) of Nothing -> je
                                                           Just no -> var (tempvarstr ++ show no)
-                    let cvar = standardTranslation nje s i n (Set.member n envs)
-                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+                    let cvar = standardTranslation nje s i n
+                    return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
               otherwise -> 
                 do  put (n+2)
                     --let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable              
@@ -292,7 +276,7 @@ trans self = let this = up self in T {
                     (env :: Map.Map J.Exp Int) <- get
                     let nje = case (Map.lookup je env) of Nothing -> je
                                                           Just no -> var (tempvarstr ++ show no)                    
-                    let cvar = standardTranslation nje s (n+1) n (Set.member n envs)
-                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+                    let cvar = standardTranslation nje s (n+1) n
+                    return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
     }

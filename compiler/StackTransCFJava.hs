@@ -40,8 +40,8 @@ sstack :: Schedule -> [J.BlockStmt]
 sstack []              = [] -- Sigma-Empty
 sstack ((s1,s2) : [])  = s1 ++ s2 -- Sigma-One
 sstack ((s1,[]) : ss)  = s1 ++ sstack ss -- Sigma-Many1
-sstack ((s1,s2) : ss)  = s1 ++ [push (closure ss)] ++ s2 -- Sigma-Many2
-   where closure ss = jexp [] (Just $ J.Block (sstack ss)) (0,0) False
+sstack ((s1,s2) : ss)  = s1 ++ [] ++ s2 -- Sigma-Many2
+   where closure ss = jexp [] (Just $ J.Block (sstack ss)) 0
          
 -- push method call.
 

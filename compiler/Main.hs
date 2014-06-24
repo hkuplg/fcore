@@ -31,7 +31,7 @@ type M1 = StateT (Map String Int) (State Int)
 type M2 = StateT Int (State (Map J.Exp Int)) 
 type M3 = StateT Int (Writer Bool) 
 
-type MAOpt = StateT Int (StateT (Map J.Exp Int) (ReaderT (Set.Set Int) (Writer Bool))) 
+type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
 
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
@@ -41,7 +41,7 @@ translate e = translateM (up sopt) e
 
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
-  case fst $ runWriter $ (runReaderT (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) Set.empty) of
+  case fst $ runWriter $ (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 {-

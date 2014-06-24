@@ -23,7 +23,7 @@ import ClosureF
 import Inheritance
 
 -- setting
-type AOptType = StateT Int (StateT (Map J.Exp Int) (ReaderT (Set.Set Int) (Writer Bool))) 
+type AOptType = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
 
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
@@ -33,11 +33,11 @@ translateAO e = translateM (up aoptinst) e
 
 compileAO ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compileAO e = 
-  case fst $ runWriter $ (runReaderT (evalStateT (evalStateT (translateAO (fexp2cexp e)) 0) empty) Set.empty) of
+  case fst $ runWriter $ (evalStateT (evalStateT (translateAO (fexp2cexp e)) 0) empty) of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 
-type NType = StateT Int (StateT (Map J.Exp Int) (Reader (Set.Set Int))) 
+type NType = StateT Int (State (Map J.Exp Int)) 
 ninst :: Translate NType  -- instantiation; all coinstraints resolved
 ninst = naive
 
@@ -46,7 +46,7 @@ translateN e = translateM (up ninst) e
 
 compileN ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compileN e = 
-  case runReader (evalStateT (evalStateT (translateN (fexp2cexp e)) 0) empty) Set.empty of
+  case evalState (evalStateT (translateN (fexp2cexp e)) 0) empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 -- java compilation + run
