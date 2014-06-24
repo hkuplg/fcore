@@ -125,7 +125,11 @@ tup_exprs
 
 typ
     : "forall" tvar "." typ     { \tenv -> FForall (\a -> $4 (($2, a):tenv)) }
+    
+    -- Require an atyp on the LHS so that `for A. A -> A` cannot be
+    -- parsed as `(for A. A) -> A` since `for A. A` is not a valid atyp.
     | atyp "->" typ             { \tenv -> FFun ($1 tenv) ($3 tenv) }
+
     | atyp                      { $1 }
 
 atyp 
