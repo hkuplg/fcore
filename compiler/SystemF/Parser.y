@@ -55,6 +55,8 @@ LOWERID  { LowerId $$ }
 UNDERID  { UnderId $$ }
 
 -- Precedence and associativity directives
+%nonassoc EOF
+
 %right "in"
 %right "->"
 %nonassoc "else"
@@ -74,7 +76,7 @@ UNDERID  { UnderId $$ }
 -- Reference for rules:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
-exp : infixexp                  { $1 }
+exp : infixexp %prec EOF        { $1 }
 
 infixexp
     : exp10                     { $1 }
