@@ -244,20 +244,20 @@ trans self = let this = up self in T {
            let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) ) 
            let apply = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           s3 <- case (scope2ctyp t) of CInt ->
-                                            do (result, _) <- genSubst j3 initIntCast
-                                               let r = [cvar,ass,apply] ++ result
-                                               return r
-                                        CForall (_) ->
-                                            do (result, _) <- genSubst j3 initClosure
-                                               let r = [cvar,ass,apply] ++ result
-                                               return r
-                                        _ ->  
-                                            do (result, _) <- genSubst j3 initObj
-                                               let r = [cvar,ass,apply] ++ result
-                                               return r
+           (nj3, s3) <- case (scope2ctyp t) of CInt ->
+                                                do (result, rj) <- genSubst j3 initIntCast
+                                                   let r = [cvar,ass,apply] ++ result
+                                                   return (rj, r)
+                                               CForall (_) ->
+                                                   do (result, rj) <- genSubst j3 initClosure
+                                                      let r = [cvar,ass,apply] ++ result
+                                                      return (rj, r)
+                                               _ ->  
+                                                   do (result, rj) <- genSubst j3 initObj
+                                                      let r = [cvar,ass,apply] ++ result
+                                                      return (rj, r)
 
-           return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
+           return (s1 ++ s2 ++ s3, nj3, scope2ctyp t), -- need to check t1 == t2
            
   translateScopeM = \e m -> case e of 
 
