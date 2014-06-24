@@ -55,6 +55,8 @@ LOWERID  { LowerId $$ }
 UNDERID  { UnderId $$ }
 
 -- Precedence and associativity directives
+%nonassoc EOF
+
 %right "in"
 %right "->"
 %nonassoc "else"
@@ -74,7 +76,7 @@ UNDERID  { UnderId $$ }
 -- Reference for rules:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
-exp : infixexp                  { $1 }
+exp : infixexp %prec EOF        { $1 }
 
 infixexp
     : exp10                     { $1 }
@@ -123,11 +125,18 @@ tup_exprs
     : exp "," exp       { \(tenv, env) -> ($1 (tenv, env):[$3 (tenv, env)]) }
     | exp "," tup_exprs { \(tenv, env) -> ($1 (tenv, env):$3 (tenv, env)) }
 
-typ 
+typ
+    : "forall" tvar "." typ     { \tenv -> FForall (\a -> $4 (($2, a):tenv)) }
+    
+    -- Require an atyp on the LHS so that `for A. A -> A` cannot be
+    -- parsed as `(for A. A) -> A` since `for A. A` is not a valid atyp.
+    | atyp "->" typ             { \tenv -> FFun ($1 tenv) ($3 tenv) }
+
+    | atyp                      { $1 }
+
+atyp 
     : tvar                      { \tenv -> FTVar (fromJust (lookup $1 tenv)) }
     | "Int"                     { \_    -> PFInt }
-    | typ "->" typ              { \tenv -> FFun ($1 tenv) ($3 tenv) }
-    | "forall" tvar "." typ     { \tenv -> FForall (\a -> $4 (($2, a):tenv)) }
     | "(" typ ")"               { $2 }
 
 var  : LOWERID       { $1 }
