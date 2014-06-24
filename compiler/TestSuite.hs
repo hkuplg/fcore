@@ -1,6 +1,6 @@
 module TestSuite where
 
-import Test.HUnit hiding (State)
+import Test.Hspec
 import SystemF.Syntax
 import Language.Java.Syntax as J
 import Prelude hiding (const)
@@ -180,26 +180,26 @@ summa =
             
 program4 = FApp (FApp (FApp (FApp (FTApp notail4 PFInt) summa) (FTApp const PFInt)) (FLit 5)) (FLit 6)
 
-test1 = \desc c -> "Should compile factorial 10 using " ++ desc ~: assert (liftM (== "3628800\n") (compileAndRun c fact_app))
+test1 = \c -> it "Should compile factorial 10" $ ((compileAndRun c fact_app) `shouldReturn` "3628800\n")
 
-test2 = \desc c -> "Should compile fibonacci 10 using " ++ desc ~: assert (liftM (== "55\n") (compileAndRun c fibo_app))
+test2 = \c -> it "Should compile fibonacci 10" $ ((compileAndRun c fibo_app) `shouldReturn` "55\n")
 
-test3 = \desc c -> "Should infeer type of intapp using " ++ desc ~: "(forall (_ : Int) . Int)" ~=? ( let (cu, t) = (createCU (c intapp) Nothing) in (show t) )
+test3 = \c -> it "Should infeer type of intapp" $ "(forall (_ : Int) . Int)" `shouldBe` ( let (cu, t) = (createCU (c intapp) Nothing) in (show t) )
 
-test4 = \desc c -> "Should compile idF int 10 using " ++ desc ~: assert (liftM (== "10\n") (compileAndRun c idfNum))
+test4 = \c -> it "Should compile idF int 10" $ ((compileAndRun c idfNum) `shouldReturn` "10\n")
 
-test5 = \desc c -> "Should compile const int 10 20 using " ++ desc ~: assert (liftM (== "10\n") (compileAndRun c constNum))
+test5 = \c -> it "Should compile const int 10 20" $ ((compileAndRun c constNum) `shouldReturn` "10\n")
 
-test6 = \desc c -> "Should compile program1 int 5 using " ++ desc ~: assert (liftM (== "5\n") (compileAndRun c program1Num))
+test6 = \c -> it "Should compile program1 int 5" $ ((compileAndRun c program1Num) `shouldReturn` "5\n")
 
-test7 = \desc c -> "Should compile program2 using " ++ desc ~: assert (liftM (== "5\n") (compileAndRun c program2))
+test7 = \c -> it "Should compile program2" $ ((compileAndRun c program2) `shouldReturn` "5\n")
 
-test8 = \desc c -> "Should compile program4 using " ++ desc ~: assert (liftM (== "11\n") (compileAndRun c program4))
+test8 = \c -> it "Should compile program4" $ ((compileAndRun c program4) `shouldReturn` "11\n")
 
 suite = [test1, test2, test3, test4, test5, test6, test7, test8]
 
-naivesuite = Data.List.map (\t -> t "BaseTrans" compileN) suite
-aosuite = Data.List.map (\t -> t "ApplyTrans" compileAO) suite
+naivesuite = describe "Naive compilation (BaseTransCF)" $ forM_ suite (\t -> t compileN)
+aosuite = describe "ApplyOpt compilation (ApplyTransCF)" $ forM_ suite (\t -> t compileAO)
 
 -- Similar to the ":t" in GHCi
 -- inferHM :: String -> IO ()
@@ -208,4 +208,8 @@ aosuite = Data.List.map (\t -> t "ApplyTrans" compileAO) suite
 evenOdd :: String
 evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
 
-main = runTestTT $ TestList (naivesuite ++ aosuite)
+spec = do describe "Compile and run the result" $
+            do 
+              naivesuite
+              aosuite
+main = hspec spec
