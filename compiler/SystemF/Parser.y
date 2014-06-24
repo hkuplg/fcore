@@ -123,11 +123,14 @@ tup_exprs
     : exp "," exp       { \(tenv, env) -> ($1 (tenv, env):[$3 (tenv, env)]) }
     | exp "," tup_exprs { \(tenv, env) -> ($1 (tenv, env):$3 (tenv, env)) }
 
-typ 
+typ
+    : "forall" tvar "." typ     { \tenv -> FForall (\a -> $4 (($2, a):tenv)) }
+    | atyp "->" typ             { \tenv -> FFun ($1 tenv) ($3 tenv) }
+    | atyp                      { $1 }
+
+atyp 
     : tvar                      { \tenv -> FTVar (fromJust (lookup $1 tenv)) }
     | "Int"                     { \_    -> PFInt }
-    | typ "->" typ              { \tenv -> FFun ($1 tenv) ($3 tenv) }
-    | "forall" tvar "." typ     { \tenv -> FForall (\a -> $4 (($2, a):tenv)) }
     | "(" typ ")"               { $2 }
 
 var  : LOWERID       { $1 }
