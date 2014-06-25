@@ -116,17 +116,21 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
 -- seperating (hopefully) the important bit
 refactoredScopeTranslationBit javaExpression statementsBeforeOA currentId nextId closureCheck = completeClosure
     where
-        -- outputAssignment = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-        fullAssignment = {-J.InitDecl False (J.Block [-}(J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA
-                                                    (pullupClosure statementsBeforeOA)))){-])-}
+        fullAssignment = (J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA
+                                                    (pullupClosure (tail statementsBeforeOA)))))
         currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show currentId) (Just (J.InitExp J.This))]
         completeClosure | closureCheck  = standardTranslation javaExpression statementsBeforeOA currentId nextId
                         | otherwise = [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) [] 
-                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration, applyCall] (Just(J.Block $ [fullAssignment]))  nextId))),
+                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration, applyCall] (Just(J.Block $ [head statementsBeforeOA, fullAssignment]))  nextId))),
                                         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])] 
 
 applyCall = J.InitDecl False $ J.Block [J.BlockStmt $ J.ExpStmt (J.MethodInv (J.MethodCall (J.Name $ [J.Ident "apply"]) []))]                                    
-       
+
+{-
+[(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) [] 
+                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration, applyCall] (Just(J.Block $ [fullAssignment]))  nextId))),
+                                        J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])] 
+-}       
 pullupClosure [J.LocalVars [] rf vd] = case vd of
                                 [J.VarDecl variableId (Just(J.InitExp exp))] -> transf exp
                                 _ -> error ("B:" ++ show vd)
