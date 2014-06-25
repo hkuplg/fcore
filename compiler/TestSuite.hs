@@ -50,7 +50,7 @@ compileN e =
       (ss,exp,t) -> (J.Block ss,exp, t)
 
 -- java compilation + run
-compileAndRun compileF exp = do let source = prettyPrint (fst $ createCU (compileF exp) Nothing)
+compileAndRun compileF exp = do let source = prettyPrint (fst $ createCU "Main" (compileF exp) Nothing)
                                 writeFile "Main.java" source
                                 readProcess "javac" ["Main.java"] ""
                                 result <- readProcess "java" ["Main"] ""
@@ -184,7 +184,7 @@ test1 = \c -> it "Should compile factorial 10" $ ((compileAndRun c fact_app) `sh
 
 test2 = \c -> it "Should compile fibonacci 10" $ ((compileAndRun c fibo_app) `shouldReturn` "55\n")
 
-test3 = \c -> it "Should infeer type of intapp" $ "(forall (_ : Int) . Int)" `shouldBe` ( let (cu, t) = (createCU (c intapp) Nothing) in (show t) )
+test3 = \c -> it "Should infeer type of intapp" $ "(forall (_ : Int) . Int)" `shouldBe` ( let (cu, t) = (createCU "Main" (c intapp) Nothing) in (show t) )
 
 test4 = \c -> it "Should compile idF int 10" $ ((compileAndRun c idfNum) `shouldReturn` "10\n")
 

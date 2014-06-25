@@ -50,9 +50,9 @@ ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
         newvar = var ifvarname
         
-createCU :: (J.Block, J.Exp, PCTyp Int) -> Maybe String -> (J.CompilationUnit, PCTyp Int)
-createCU (J.Block bs,e,t) Nothing = createCU (J.Block bs,e,t) (Just "apply")
-createCU (J.Block bs,e,t) (Just expName) = (cu,t) where
+createCU :: String -> (J.Block, J.Exp, PCTyp Int) -> Maybe String -> (J.CompilationUnit, PCTyp Int)
+createCU className (J.Block bs,e,t) Nothing = createCU className (J.Block bs,e,t) (Just "apply")
+createCU className (J.Block bs,e,t) (Just expName) = (cu,t) where
    cu = J.CompilationUnit Nothing [] [closureClass,classDecl]
    field name = J.MemberDecl (J.FieldDecl [] (objType) [
               J.VarDecl (J.VarId (J.Ident name)) Nothing])
@@ -73,7 +73,7 @@ createCU (J.Block bs,e,t) (Just expName) = (cu,t) where
                           
    ass  = J.BlockStmt (J.Return $ Just maybeCastedReturnExp)
    refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-   classDecl = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident "Main") [] (Nothing) [] 
+   classDecl = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) [] 
     (J.ClassBody [app [J.Static] body returnType expName [], app [J.Public, J.Static] mainbody Nothing "main" mainArgType]))
 
 reduceTTuples :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)

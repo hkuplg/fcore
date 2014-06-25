@@ -4,58 +4,105 @@ abstract class Closure
   Object out;
   abstract void apply ()
   ;
+  public abstract Closure clone ()
+  ;
 }
-class MyClosure extends Closure
+public class Id
 {
-  void apply ()
+  static Closure apply ()
   {
-    Closure x1 = new Closure()
-                 {
-                   Closure x2 = this;
-                   void apply ()
-                   {
-                     Closure x4 = new Closure()
-                                  {
-                                    Closure x5 = this;
-                                    void apply ()
-                                    {
-                                      out = x5.x;
-                                    }
-                                  };
-                     Closure x7 = new Closure()
-                                  {
-                                    Closure x8 = this;
-                                    {
-                                      out = new Closure()
-                                            {
-                                              Closure x10 = this;
-                                              void apply ()
-                                              {
-                                                out = x8.x;
-                                              }
-                                            };
-                                    }
-                                    void apply ()
-                                    {
-                                    }
-                                  };
-                     Closure x3 = (Closure) x4;
-                     x3.x = x7;
-                     x3.apply();
-                     out = x3.out;
-                   }
-                 };
-    Closure x12 = new Closure()
-                  {
-                    Closure x13 = this;
-                    void apply ()
-                    {
-                      out = x13.x;
-                    }
-                  };
+    class Fun1 extends Closure
+    {
+      Closure x2 = this;
+      void apply ()
+      {
+        class Fun4 extends Closure
+        {
+          Closure x5 = this;
+          void apply ()
+          {
+            out = x5.x;
+          }
+          public Closure clone ()
+          {
+            Closure c = new Fun4();
+            c.x = this.x;
+            c.apply();
+            return (Closure) c;
+          }
+        }
+        Closure x4 = new Fun4();
+        class Fun6 extends Closure
+        {
+          Closure x7 = this;
+          void apply ()
+          {
+            class Fun8 extends Closure
+            {
+              Closure x9 = this;
+              void apply ()
+              {
+                out = x7.x;
+              }
+              public Closure clone ()
+              {
+                Closure c = new Fun8();
+                c.x = this.x;
+                c.apply();
+                return (Closure) c;
+              }
+            }
+            Closure x8 = new Fun8();
+            out = x8;
+          }
+          public Closure clone ()
+          {
+            Closure c = new Fun6();
+            c.x = this.x;
+            c.apply();
+            return (Closure) c;
+          }
+        }
+        Closure x6 = new Fun6();
+        Closure x3 = (Closure) x4;
+        x3.x = x6;
+        x3.apply();
+        Closure temp10 = (Closure) x3.out;
+        out = temp10;
+      }
+      public Closure clone ()
+      {
+        Closure c = new Fun1();
+        c.x = this.x;
+        c.apply();
+        return (Closure) c;
+      }
+    }
+    Closure x1 = new Fun1();
+    class Fun11 extends Closure
+    {
+      Closure x12 = this;
+      void apply ()
+      {
+        out = x12.x;
+      }
+      public Closure clone ()
+      {
+        Closure c = new Fun11();
+        c.x = this.x;
+        c.apply();
+        return (Closure) c;
+      }
+    }
+    Closure x11 = new Fun11();
     Closure x0 = (Closure) x1;
-    x0.x = x12;
+    x0.x = x11;
     x0.apply();
-    out = x0.out;
+    Closure temp13 = (Closure) x0.out;
+    return temp13;
+  }
+  public static void main (String[] args)
+  {
+    System.out.println(apply());
   }
 }

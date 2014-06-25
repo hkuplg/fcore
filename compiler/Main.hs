@@ -4,15 +4,16 @@
 module Main where
 
 import Data.List
+import qualified Data.Char as Char (toUpper)
 import Data.Map
 import qualified Data.Set as Set
 import Language.Java.Pretty
 import Language.Java.Syntax as J
 import Prelude hiding (const)
 import System.Directory
-import System.Environment       (getArgs)
+import qualified System.Environment       (getArgs)
 import System.Exit
-import System.FilePath (replaceExtension)
+import System.FilePath
 import System.Process
 
 -- import HMParser         (readHM)
@@ -80,34 +81,44 @@ prettyJ = putStrLn . prettyPrint
 
 compilePretty e = let (b,exp,t) = compile e in (prettyJ b >> prettyJ exp >> putStrLn (show t))
 
-compileCU e (Just nameStr) = let (cu,t) = (createCU (compile e) (Just nameStr)) in (prettyJ cu >> putStrLn (show t))
+compileCU className e (Just nameStr) = let (cu,t) = (createCU className (compile e) (Just nameStr)) in (prettyJ cu >> putStrLn (show t))
 
-compileCU e Nothing = let (cu,t) = (createCU (compile e) Nothing) in (prettyJ cu >> putStrLn (show t))
+compileCU className e Nothing = let (cu,t) = (createCU className (compile e) Nothing) in (prettyJ cu >> putStrLn (show t))
 
 -- SystemF to Java
-sf2java :: String -> String
-sf2java src = let (cu, _) = (createCU (compile (SystemF.Parser.reader src)) Nothing) in prettyPrint cu
-
--- SystemF file path to Java
--- Example:
---      loadsf2java "id.sf"
-loadsf2java :: FilePath -> IO String
-loadsf2java = readFile >=> (return . sf2java)
+sf2java :: String -> String -> String
+sf2java className src = let (cu, _) = (createCU className (compile (SystemF.Parser.reader src)) Nothing) in prettyPrint cu
 
 -- `compilesf2java srcPath outputPath` loads a SystemF file at `srcPath`,
 -- and writes the compiled Java code to `outputPath`.
 -- Example:
 --      compilesf2java "id.sf" "id.java"
 compilesf2java :: FilePath -> FilePath -> IO ()
-compilesf2java srcPath outputPath = loadsf2java srcPath >>= writeFile outputPath
+compilesf2java srcPath outputPath = do
+    src <- readFile srcPath
+    let output = sf2java (inferClassName outputPath) src
+    writeFile outputPath output
+
+inferOutputPath :: String -> String
+inferOutputPath srcPath = directory </> className ++ ".java"
+    where directory  = takeDirectory srcPath
+          className  = capitalize $ takeBaseName srcPath
+
+inferClassName :: String -> String
+inferClassName outputPath = capitalize $ takeBaseName outputPath
+
+capitalize :: String -> String
+capitalize "" = ""
+capitalize (s:ss) = Char.toUpper s : ss
 
 main :: IO ()
 main = do 
-    args <- getArgs
+    args <- System.Environment.getArgs
     if length args < 1
-        then putStrLn "Usage: f2j <source file>"
+        then putStrLn "Usage: f2j <source files>"
         else do 
-            let inputPath  = args !! 0
-                outputPath = replaceExtension inputPath "java"
-            compilesf2java inputPath outputPath 
-            putStrLn $ "Wrote " ++ outputPath
+            let inputPaths = args 
+            forM_ inputPaths (\srcPath -> do
+                let outputPath = inferOutputPath srcPath
+                compilesf2java srcPath outputPath 
+                putStrLn $ "Wrote " ++ outputPath)

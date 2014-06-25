@@ -7,7 +7,7 @@ abstract class Closure
   public abstract Closure clone ()
   ;
 }
-public class Main
+public class Mutual
 {
   static int apply ()
   {
