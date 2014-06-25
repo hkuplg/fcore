@@ -111,14 +111,15 @@ jexp init body idCF =
             cloneBody = Just (J.Block [J.LocalVars [] (closureType) [J.VarDecl (J.VarId (J.Ident "c")) 
                 (Just $ J.InitExp $ instCreat idCF)],J.BlockStmt 
                 (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA 
-                (J.ExpName (J.Name [J.Ident "this",J.Ident localvarstr])))),J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident "out"])) J.EqualA 
-                (J.ExpName (J.Name [J.Ident "this",J.Ident "out"])))),J.BlockStmt (J.Return (Just 
+                (J.ExpName (J.Name [J.Ident "this",J.Ident localvarstr])))),J.BlockStmt (J.ExpStmt (J.MethodInv 
+                (J.PrimaryMethodCall (J.ExpName (J.Name [J.Ident "c"])) [] (J.Ident "apply") []))),J.BlockStmt (J.Return (Just 
                 (J.Cast (closureType) (J.ExpName (J.Name [J.Ident "c"])))))])
 
 currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
 outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
 standardTranslation javaExpression statementsBeforeOA currentId nextId = [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) [] 
-                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId))),
+                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration 
+                                        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId))),
                                         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
   
 data Translate m = T {

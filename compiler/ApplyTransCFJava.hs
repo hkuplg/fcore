@@ -121,28 +121,23 @@ refactoredScopeTranslationBit javaExpression statementsBeforeOA currentId nextId
         currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show currentId) (Just (J.InitExp J.This))]
         completeClosure | closureCheck  = standardTranslation javaExpression statementsBeforeOA currentId nextId
                         | otherwise = [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) [] 
-                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration, applyCall] (Just(J.Block $ [head statementsBeforeOA, fullAssignment]))  nextId))),
+                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration] (Just(J.Block $ [head statementsBeforeOA, fullAssignment]))  nextId))),
                                         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])] 
 
 applyCall = J.InitDecl False $ J.Block [J.BlockStmt $ J.ExpStmt (J.MethodInv (J.MethodCall (J.Name $ [J.Ident "apply"]) []))]                                    
-
-{-
-[(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) [] 
-                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration, applyCall] (Just(J.Block $ [fullAssignment]))  nextId))),
-                                        J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])] 
--}       
+  
 pullupClosure [J.LocalVars [] rf vd] = case vd of
                                 [J.VarDecl variableId (Just(J.InitExp exp))] -> transf exp
                                 _ -> error ("B:" ++ show vd)
                                 where
-                                    transf (J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody b))) = case (head $ tail b) of J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just (J.Block (ts))))) -> 
-                                                                                                                                                                case (head ts) of J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident idO)])) J.EqualA (rhs))) ->
-                                                                                                                                                                                    case idO of "out" ->
-                                                                                                                                                                                                    applyDef b
-                                                                                                                                                                                                _ -> case rhs of (J.InstanceCreation _ _ _ _) -> applyDef b
-                                                                                                                                                                                                                 _ -> defaultDef b
-                                                                                                                                                                                  _ -> defaultDef b
-                                                                                                                                                              _ -> defaultDef b
+                                    transf (J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody b))) = case (head $ tail b) of 
+                                        J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just (J.Block (ts))))) -> case (head ts) of 
+                                            J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident idO)])) J.EqualA (rhs))) -> 
+                                                case idO of "out" -> applyDef b
+                                                            _ -> case rhs of (J.InstanceCreation _ _ _ _) -> applyDef b
+                                                                             _ -> defaultDef b
+                                            _ -> defaultDef b
+                                        _ -> defaultDef b
                                     transf (exp) = exp
                                     defaultDef b = (J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody b)))
                                     applyDef b = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody ([head b, applyCall] ++ (tail b))))
