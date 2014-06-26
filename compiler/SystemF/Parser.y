@@ -4,7 +4,7 @@ module SystemF.Parser where
 -- References:
 -- http://www.haskell.org/onlinereport/exps.html
 
-import Data.Maybe       (fromJust)
+import Data.Maybe       (fromMaybe)
 import qualified Language.Java.Syntax as J (Op (..))
 
 import SystemF.Syntax
@@ -115,7 +115,7 @@ aexp   : aexp1          { $1 }
 aexp1  : aexp2          { $1 }
 
 aexp2 
-    : var               { \(tenv, env) -> FVar (fromJust (lookup $1 env)) }
+    : var               { \(tenv, env) -> FVar (fromMaybe (error $ "Unbound variable: `" ++ $1 ++ "'") (lookup $1 env)) }
     | INTEGER           { \_e -> FLit $1 }
     | aexp "." UNDERID  { \e -> FProj $3 ($1 e) } 
     | "(" exp ")"       { $2 }
@@ -135,9 +135,9 @@ typ
     | atyp                      { $1 }
 
 atyp 
-    : tvar                      { \tenv -> FTVar (fromJust (lookup $1 tenv)) }
-    | "Int"                     { \_    -> PFInt }
-    | "(" typ ")"               { $2 }
+    : tvar              { \tenv -> FTVar (fromMaybe (error $ "Unbound type variable: `" ++ $1 ++ "'") (lookup $1 tenv)) }
+    | "Int"             { \_    -> PFInt }
+    | "(" typ ")"       { $2 }
 
 var  : LOWERID       { $1 }
 tvar : UPPERID       { $1 }
