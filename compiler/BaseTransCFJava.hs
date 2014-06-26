@@ -261,10 +261,10 @@ trans self = let this = up self in T {
         do  n <- get
             let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable              
             case m of -- Consider refactoring later?
-              Just (i,t') | last (g (Right i,t')) ->
+              Just (i,t') {-| last (g (Right i,t'))-} -> -- why last?
                 do  put (n+1)
                     --let self = J.Ident (localvarstr ++ show i)
-                    (s,je,t1) <- translateScopeM this (g (Left i,t)) m
+                    (s,je,t1) <- translateScopeM this (g (Left i,t)) {-m-} Nothing
                     (env :: Map.Map J.Exp Int) <- get
                     let nje = case (Map.lookup je env) of Nothing -> je
                                                           Just no -> var (tempvarstr ++ show no)
