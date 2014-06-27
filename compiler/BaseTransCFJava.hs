@@ -259,25 +259,13 @@ trans self = let this = up self in T {
                 
       Typ t g -> 
         do  n <- get
-            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable              
-            case m of -- Consider refactoring later?
-              Just (i,t') {-| last (g (Right i,t'))-} -> -- why last?
-                do  put (n+1)
-                    --let self = J.Ident (localvarstr ++ show i)
-                    (s,je,t1) <- translateScopeM this (g (Left i,t)) {-m-} Nothing
-                    (env :: Map.Map J.Exp Int) <- get
-                    let nje = case (Map.lookup je env) of Nothing -> je
-                                                          Just no -> var (tempvarstr ++ show no)
-                    let cvar = standardTranslation nje s i n
-                    return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
-              otherwise -> 
-                do  put (n+2)
-                    --let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable              
-                    (s,je,t1) <- translateScopeM this (g (Left (n+1),t)) m
-                    (env :: Map.Map J.Exp Int) <- get
-                    let nje = case (Map.lookup je env) of Nothing -> je
-                                                          Just no -> var (tempvarstr ++ show no)                    
-                    let cvar = standardTranslation nje s (n+1) n
-                    return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
-
+            let f       = J.Ident (localvarstr ++ show n) -- use a fresh variable 
+            let (v,m',n')  = maybe (n+1,m,n+2) (\(i,_) -> (i,Nothing,n+1)) m --decide whether we have found the fixpoint closure or not
+            put n'
+            (s,je,t1) <- translateScopeM this (g (Left v,t)) m'
+            (env :: Map.Map J.Exp Int) <- get
+            let nje = case (Map.lookup je env) of Nothing -> je
+                                                  Just no -> var (tempvarstr ++ show no)
+            let cvar = standardTranslation nje s v n
+            return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
     }
