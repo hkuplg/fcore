@@ -1,1 +1,1 @@
-(fix fact. \(n : Int). if0 n then 1 else n * fact (n-1) : Int) 10
+(fix (fact : Int -> Int). \n. if0 n then 1 else n * fact (n-1)) 10
