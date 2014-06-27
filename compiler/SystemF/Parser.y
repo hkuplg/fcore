@@ -97,8 +97,14 @@ infixexp
 exp10 
     : "/\\" tvar "." exp                        { \(tenv, env) -> FBLam (\a -> $4 (($2, a):tenv, env)) }
     | "\\" "(" var ":" typ ")" "." exp          { \(tenv, env) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env)) }
-    | "fix" var "." "\\" "(" var ":" typ ")" "." exp ":" typ 
-        { \(tenv, env) -> FFix ($8 tenv) (\y -> \x -> $11 (tenv, ($6, x):($2, y):env)) ($13 tenv) }
+
+    -- -- For the old fixpoint syntax
+
+    -- | "fix" var "." "\\" "(" var ":" typ ")" "." exp ":" typ 
+    --      { \(tenv, env) -> FFix ($8 tenv) (\y -> \x -> $11 (tenv, ($6, x):($2, y):env)) ($13 tenv) }
+  
+    | "fix" "(" var ":" atyp "->" typ ")" "." "\\" var "." exp 
+        { \(tenv, env) -> FFix ($5 tenv) (\y -> \x -> $13 (tenv, ($11, x):($3, y):env)) ($7 tenv) }
     | "let" var "=" exp ":" typ "in" exp  -- let x = e : T in f  rewrites to  (\(x : T) . f) e
         { \(tenv, env) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env))) ($4 (tenv, env)) }
     | "if0" exp "then" exp "else" exp           { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
