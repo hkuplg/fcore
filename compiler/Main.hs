@@ -39,6 +39,11 @@ type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool))
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
 
+{-
+sopt :: ApplyOptTranslate MAOpt 
+sopt = applyopt
+-}
+
 translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([BlockStmt], Exp, PCTyp Int)
 translate e = translateM (up sopt) e
 

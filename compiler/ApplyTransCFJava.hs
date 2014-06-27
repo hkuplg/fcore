@@ -86,6 +86,16 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
       Typ t g -> 
         do  n <- get
             let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
+            let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
+            put n'
+            let self = J.Ident (localvarstr ++ show v)
+            ((s,je,t1), closureCheck) <- listen $ translateScopeM (up this) (g (Left v,t)) Nothing
+            (env :: Map.Map J.Exp Int) <- get
+            let nje = case (Map.lookup je env) of Nothing -> je
+                                                  Just no -> var (tempvarstr ++ show no)
+            let cvar = refactoredScopeTranslationBit nje s v n closureCheck -- standardTranslation nje s i n (Set.member n envs)
+            return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+            {-
             case m of -- Consider refactoring later?
               Just (i,t') | last (g (Right i,t')) ->
                 do  put (n+1)
@@ -107,7 +117,7 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                                                           Just no -> var (tempvarstr ++ show no)
                     let cvar = refactoredScopeTranslationBit nje s (n+1) n closureCheck
                     return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
-
+             -}
       otherwise ->
           do tell True
              translateScopeM super e m
