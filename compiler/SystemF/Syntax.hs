@@ -8,6 +8,7 @@ data PFTyp t = FTVar t
              | FForall (t -> PFTyp t) 
              | FFun (PFTyp t) (PFTyp t) 
              | PFInt
+             | Tuple [PFTyp t]
 
 type PrimLit = Integer -- later maybe Bool | Char
 

@@ -40,12 +40,13 @@ instance Pretty (PFTyp Int) where
         FForall f  -> text ("forall " ++ tvar ltvar ++ ".") <+> prettyPrec p (ltvar+1,  lvar) (f ltvar)
         FFun t1 t2 -> parenPrec p 2 $ prettyPrec 1 l t1 <+> text "->" <+> prettyPrec p l t2
         PFInt      -> text "Int"
+        Tuple ts   -> parens $ hcat (intersperse (comma <> space) $ map (prettyPrec p l) ts)
 
 instance Pretty (PFExp Int Int) where
     prettyPrec p l@(ltvar, lvar) e = case e of
         FVar x           -> text (var x)
         FLit n           -> if n < 0 then parenPrec p 5 (integer n) else integer n
-        FTuple es        -> parens $ hcat $ intersperse comma $ map (prettyPrec p l) es
+        FTuple es        -> parens $ hcat (intersperse comma $ map (prettyPrec p l) es)
 
         FProj i e        -> parenPrec p 1 $ prettyPrec 1 l e <> text ("._" ++ show i)
 

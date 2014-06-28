@@ -13,3 +13,4 @@ dist/
 *.o
 *.hi
 f2j
+.hdevtools.sock

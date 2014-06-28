@@ -9,6 +9,7 @@ import qualified Language.Java.Syntax as J (Op (..))
 
 import SystemF.Syntax
 import SystemF.Lexer    
+import SystemF.TypeInference    (inferType)
 }
 
 %name parser
@@ -95,25 +96,39 @@ infixexp
     | infixexp "||" exp10       { \e -> FPrimOp ($1 e) J.COr    ($3 e) }
 
 exp10 
-    : "/\\" tvar "." exp                        { \(tenv, env) -> FBLam (\a -> $4 (($2, a):tenv, env)) }
-    | "\\" "(" var ":" typ ")" "." exp          { \(tenv, env) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env)) }
+    : "/\\" tvar "." exp                        { \(tenv, env, venv) -> FBLam (\a -> $4 (($2, a):tenv, env, venv)) }
+    | "\\" "(" var ":" typ ")" "." exp          { \(tenv, env, venv) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env, venv)) }
+
+    -- let x = e1 : T in e2 rewrites to  (\(x : T). e2) e1
+
+    | "let" var "=" exp ":" typ "in" exp  
+        { \(tenv, env, venv) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env, venv))) ($4 (tenv, env, venv)) }
+
+    -- let x = e1 in e2 rewrites to (\(x : (inferType ... e1)). e2) e1
+
+    | "let" var "=" exp "in" exp  
+        { \(tenv, env, venv) -> 
+            let e1  = $4 (tenv, env, venv)
+                te1 = inferType (tenv, env, venv) e1
+            in
+            FApp (FLam te1 (\x -> $6 (tenv, ($2, x):env, venv))) e1 
+        }
 
     -- -- For the old fixpoint syntax
 
     -- | "fix" var "." "\\" "(" var ":" typ ")" "." exp ":" typ 
-    --      { \(tenv, env) -> FFix ($8 tenv) (\y -> \x -> $11 (tenv, ($6, x):($2, y):env)) ($13 tenv) }
+    --      { \(tenv, env, venv) -> FFix ($8 tenv) (\y -> \x -> $11 (tenv, ($6, x):($2, y):env)) ($13 tenv) }
   
     | "fix" "(" var ":" atyp "->" typ ")" "." "\\" var "." exp 
-        { \(tenv, env) -> FFix ($5 tenv) (\y -> \x -> $13 (tenv, ($11, x):($3, y):env)) ($7 tenv) }
-    | "let" var "=" exp ":" typ "in" exp  -- let x = e : T in f  rewrites to  (\(x : T) . f) e
-        { \(tenv, env) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env))) ($4 (tenv, env)) }
+        { \(tenv, env, venv) -> FFix ($5 tenv) (\y -> \x -> $13 (tenv, ($11, x):($3, y):env, venv)) ($7 tenv) }
+
     | "if0" exp "then" exp "else" exp           { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
     | "-" INTEGER %prec UMINUS                  { \e -> FLit (-$2) }
     | fexp                                      { $1 }
 
 fexp
-    : fexp aexp         { \(tenv, env) -> FApp  ($1 (tenv, env)) ($2 (tenv, env)) }
-    | fexp typ          { \(tenv, env) -> FTApp ($1 (tenv, env)) ($2 tenv) }
+    : fexp aexp         { \(tenv, env, venv) -> FApp  ($1 (tenv, env, venv)) ($2 (tenv, env, venv)) }
+    | fexp typ          { \(tenv, env, venv) -> FTApp ($1 (tenv, env, venv)) ($2 tenv) }
     | aexp              { $1 }
 
 aexp   : aexp1          { $1 }
@@ -121,15 +136,15 @@ aexp   : aexp1          { $1 }
 aexp1  : aexp2          { $1 }
 
 aexp2 
-    : var               { \(tenv, env) -> FVar (fromMaybe (error $ "Unbound variable: `" ++ $1 ++ "'") (lookup $1 env)) }
+    : var               { \(tenv, env, venv) -> FVar (fromMaybe (error $ "Unbound variable: `" ++ $1 ++ "'") (lookup $1 env)) }
     | INTEGER           { \_e -> FLit $1 }
     | aexp "." UNDERID  { \e -> FProj $3 ($1 e) } 
     | "(" exp ")"       { $2 }
-    | "(" tup_exprs ")" { \(tenv, env) -> FTuple ($2 (tenv, env)) }
+    | "(" tup_exprs ")" { \(tenv, env, venv) -> FTuple ($2 (tenv, env, venv)) }
 
 tup_exprs 
-    : exp "," exp       { \(tenv, env) -> ($1 (tenv, env):[$3 (tenv, env)]) }
-    | exp "," tup_exprs { \(tenv, env) -> ($1 (tenv, env):$3 (tenv, env)) }
+    : exp "," exp       { \(tenv, env, venv) -> ($1 (tenv, env, venv):[$3 (tenv, env, venv)]) }
+    | exp "," tup_exprs { \(tenv, env, venv) -> ($1 (tenv, env, venv):$3 (tenv, env, venv)) }
 
 typ
     : "forall" tvar "." typ     { \tenv -> FForall (\a -> $4 (($2, a):tenv)) }
@@ -153,7 +168,5 @@ parseError :: [Token] -> a
 parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
 reader :: String -> PFExp t e
-reader = (\parser -> parser emptyEnvs) . parser . lexer
-    where emptyEnvs = ([], [])
-
+reader = (\parser -> parser ([], [], [])) . parser . lexer
 }
