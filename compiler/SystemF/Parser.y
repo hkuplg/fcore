@@ -164,7 +164,7 @@ var  : LOWERID       { $1 }
 tvar : UPPERID       { $1 }
 
 {
--- parseError :: [Token] -> a
+parseError :: [Token] -> a
 parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
 reader :: String -> PFExp t e

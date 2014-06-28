@@ -63,26 +63,26 @@ compileAndRun compileF exp = do let source = prettyPrint (fst $ createCU "Main" 
 
 -- mu loop. \x -> loop x
 loopStr = "fix loop. \\(x : Int). loop x : Int -> Int"
-loop = FFix PFInt (\loop x -> FApp (FVar loop) (FVar x)) PFInt
+loop = FFix PFInt (\loop x -> FApp (FVar "" loop) (FVar "" x)) PFInt
 
 factStr = "fix fact. \\(n : Int). if0 n then 1 else n * fact (n-1) : Int"
 fact = FFix PFInt (\fact n -> 
-   Fif0  (FVar n) 
+   Fif0  (FVar "" n) 
          (FLit 1) 
-         (FPrimOp (FVar n) J.Mult (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))))) PFInt
+         (FPrimOp (FVar "" n) J.Mult (FApp (FVar "" fact) (FPrimOp (FVar "" n) J.Sub (FLit 1))))) PFInt
        
 tfact = FFix PFInt (\fact n -> FLam PFInt (\acc ->
-   Fif0  (FVar n) 
-         (FVar acc) 
-         (FApp (FApp (FVar fact) (FPrimOp (FVar n) J.Sub (FLit 1))) (FPrimOp (FVar n) J.Mult (FVar acc))))) (FFun PFInt PFInt)
+   Fif0  (FVar "" n) 
+         (FVar "" acc) 
+         (FApp (FApp (FVar "" fact) (FPrimOp (FVar "" n) J.Sub (FLit 1))) (FPrimOp (FVar "" n) J.Mult (FVar "" acc))))) (FFun PFInt PFInt)
 
 fiboStr = "fix fibo. \\(n : Int). if0 n then 1 else (fibo (n-1)) + (fibo (n-2)) : Int"
 fibo = FFix PFInt (\fibo n -> 
-   Fif0  (FPrimOp (FVar n) J.Sub (FLit 2))
+   Fif0  (FPrimOp (FVar "" n) J.Sub (FLit 2))
          (FLit 1) 
-         (Fif0  (FPrimOp (FVar n) J.Sub (FLit 1)) 
+         (Fif0  (FPrimOp (FVar "" n) J.Sub (FLit 1)) 
                (FLit 1) 
-               (FPrimOp (FApp (FVar fibo) (FPrimOp (FVar n) J.Sub (FLit 1))) J.Add (FApp (FVar fibo) (FPrimOp (FVar n) J.Sub (FLit 2)))))) PFInt
+               (FPrimOp (FApp (FVar "" fibo) (FPrimOp (FVar "" n) J.Sub (FLit 1))) J.Add (FApp (FVar "" fibo) (FPrimOp (FVar "" n) J.Sub (FLit 2)))))) PFInt
       
 fact_app = FApp fact (FLit 10)
 
@@ -90,17 +90,17 @@ fibo_app = FApp fibo (FLit 10)
 -- /\A. \(x:A) . x
 
 idF1Str = "/\\A. \\(x:A). x"
-idF = FBLam (\a -> FLam (FTVar a) (\x -> FVar x))
+idF = FBLam (\a -> FLam (FTVar a) (\x -> FVar "" x))
 
 -- /\A . (\(f : A -> A) . \(x : A) . f x) (idF A)
 
 idF2Str = "/\\A. (\\(f : A -> A). \\(x : A). f x) (idF A)"
-idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) (\x -> FApp (FVar f) (FVar x)))) (FTApp idF (FTVar a)))
+idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) (\x -> FApp (FVar "" f) (FVar "" x)))) (FTApp idF (FTVar a)))
 
 -- /\A . \(x:A) . (idF A) x
 
 idF3Str = "/\\A . \\(x:A) . (idF A) x"
-idF3 = FBLam (\a -> FLam (FTVar a) (\x -> FApp (FTApp idF (FTVar a)) (FVar x) ))
+idF3 = FBLam (\a -> FLam (FTVar a) (\x -> FApp (FTApp idF (FTVar a)) (FVar "" x) ))
 
 notailStr = "/\\A. \\(f : A -> (A -> A)). \\(g : A -> A). \\(x : A). (f x) (g x)"
 notail =
@@ -108,14 +108,14 @@ notail =
     FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
       FLam (FFun (FTVar a) (FTVar a)) (\g ->
         FLam (FTVar a) (\x ->
-          FApp (FApp (FVar f) (FVar x)) (FApp (FVar g) (FVar x)) ))))
+          FApp (FApp (FVar "" f) (FVar "" x)) (FApp (FVar "" g) (FVar "" x)) ))))
 
 constStr = "/\\A . \\(x : A) . \\(y : A) . x"
 const =
   FBLam (\a ->
     FLam (FTVar a) (\x ->
        FLam (FTVar a) (\y ->
-          FVar x
+          FVar "" x
        )
     )
   )
@@ -125,7 +125,7 @@ const =
 program1 =
   FBLam (\a ->
     FLam (FTVar a) (\x ->
-       FApp (FApp (FApp (FTApp notail (FTVar a)) (FTApp const (FTVar a))) (FTApp idF (FTVar a))) (FVar x)
+       FApp (FApp (FApp (FTApp notail (FTVar a)) (FTApp const (FTVar a))) (FTApp idF (FTVar a))) (FVar "" x)
     )
   )
 
@@ -141,7 +141,7 @@ notail2 =
     FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
       FLam (FTVar a) (\x ->
         FLam (FTVar a) (\y ->
-          FApp (FApp (FVar f) (FVar x)) (FApp (FApp (FVar f) (FVar y)) (FVar y)) ))))
+          FApp (FApp (FVar "" f) (FVar "" x)) (FApp (FApp (FVar "" f) (FVar "" y)) (FVar "" y)) ))))
   
 
 program2 = FApp (FApp (FApp (FTApp notail2 PFInt) (FTApp const PFInt)) (FLit 5)) (FLit 6)
@@ -157,7 +157,7 @@ notail3 =
       FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\g ->
         FLam (FTVar a) (\x ->
           FLam (FTVar a) (\y ->
-            FApp (FApp (FVar f) (FVar x)) (FApp (FApp (FVar g) (FVar y)) (FVar y)) )))))
+            FApp (FApp (FVar "" f) (FVar "" x)) (FApp (FApp (FVar "" g) (FVar "" y)) (FVar "" y)) )))))
 
 program3 = FApp (FApp (FApp (FApp (FTApp notail3 PFInt) (FTApp const PFInt)) (FTApp const PFInt)) (FLit 5)) (FLit 6)
     
@@ -168,13 +168,13 @@ notail4 =
       FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
         FLam (FTVar a) (\x ->
           FLam (FTVar a) (\y ->
-            FApp (FApp (FVar g) (FApp (FVar f) (FVar x))) (FApp (FVar f) (FVar y)))))))
+            FApp (FApp (FVar "" g) (FApp (FVar "" f) (FVar "" x))) (FApp (FVar "" f) (FVar "" y)))))))
 
 summaStr= "\\(x : Int -> Int). \\(y : Int -> Int). (x 0) + (y 0)"
 summa =
     FLam (FFun PFInt PFInt) (\x ->
        FLam (FFun PFInt PFInt) (\y ->
-          FPrimOp (FApp (FVar x) (FLit 0)) J.Add (FApp (FVar y) (FLit 0))
+          FPrimOp (FApp (FVar "" x) (FLit 0)) J.Add (FApp (FVar "" y) (FLit 0))
        )
     )
             
