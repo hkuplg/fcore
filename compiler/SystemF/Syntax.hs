@@ -13,7 +13,7 @@ data PFTyp t = FTVar t
 type PrimLit = Integer -- later maybe Bool | Char
 
 data PFExp t e = 
-     FVar e 
+     FVar String e 
    | FBLam (t -> PFExp t e) 
    | FLam (PFTyp t) (e -> PFExp t e) 
    | FApp (PFExp t e) (PFExp t e)

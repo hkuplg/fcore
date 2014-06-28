@@ -41,11 +41,11 @@ ftyp2scope t             = Body (ftyp2ctyp t)
 
 ftyp2ctyp :: PFTyp t -> PCTyp t
 ftyp2ctyp (FTVar x) = CTVar x
-ftyp2ctyp (PFInt)     = CInt
+ftyp2ctyp (PFInt)   = CInt
 ftyp2ctyp t         = CForall (ftyp2scope t)
 
 fexp2cexp :: PFExp t e -> PCExp t e
-fexp2cexp (FVar x)      = CVar x
+fexp2cexp (FVar _ x)    = CVar x
 fexp2cexp (FApp e1 e2)  = CApp (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (FPrimOp e1 op e2) = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)

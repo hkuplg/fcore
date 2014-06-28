@@ -111,7 +111,7 @@ exp10
             let e1  = $4 (tenv, env, venv)
                 te1 = inferType (tenv, env, venv) e1
             in
-            FApp (FLam te1 (\x -> $6 (tenv, ($2, x):env, venv))) e1 
+            FApp (FLam te1 (\x -> $6 (tenv, ($2, x):env, ($2, te1):venv))) e1 
         }
 
     -- -- For the old fixpoint syntax
@@ -136,7 +136,7 @@ aexp   : aexp1          { $1 }
 aexp1  : aexp2          { $1 }
 
 aexp2 
-    : var               { \(tenv, env, venv) -> FVar (fromMaybe (error $ "Unbound variable: `" ++ $1 ++ "'") (lookup $1 env)) }
+    : var               { \(tenv, env, venv) -> FVar $1 (fromMaybe (error $ "Unbound variable: `" ++ $1 ++ "'") (lookup $1 env)) }
     | INTEGER           { \_e -> FLit $1 }
     | aexp "." UNDERID  { \e -> FProj $3 ($1 e) } 
     | "(" exp ")"       { $2 }
@@ -164,7 +164,7 @@ var  : LOWERID       { $1 }
 tvar : UPPERID       { $1 }
 
 {
-parseError :: [Token] -> a
+-- parseError :: [Token] -> a
 parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
 reader :: String -> PFExp t e

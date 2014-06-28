@@ -44,7 +44,7 @@ instance Pretty (PFTyp Int) where
 
 instance Pretty (PFExp Int Int) where
     prettyPrec p l@(ltvar, lvar) e = case e of
-        FVar x           -> text (var x)
+        FVar _ x         -> text (var x)
         FLit n           -> if n < 0 then parenPrec p 5 (integer n) else integer n
         FTuple es        -> parens $ hcat (intersperse comma $ map (prettyPrec p l) es)
 
