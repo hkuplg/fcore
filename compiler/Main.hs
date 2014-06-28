@@ -2,14 +2,16 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 module Main where
 
-import Data.List
-import qualified Data.Char as Char (toUpper)
-import Data.Map
-import Language.Java.Pretty
-import Language.Java.Syntax as J
 import Prelude hiding (const)
-import qualified System.Environment       (getArgs)
-import System.FilePath
+import qualified Data.Char as Char (toUpper)
+import qualified Data.Map  as Map
+import Language.Java.Syntax as J
+import Language.Java.Pretty
+import System.IO                (hFlush, stdout)
+import System.Cmd               (system)
+import System.Directory         (setCurrentDirectory)
+import System.Environment       (getArgs)
+import System.FilePath          (takeDirectory, takeBaseName, takeFileName, (</>))
 
 -- import HMParser         (readHM)
 -- import qualified HM
@@ -22,12 +24,12 @@ import SystemF.Syntax
 import Translations
 import qualified SystemF.Parser
 
-type M1 = StateT (Map String Int) (State Int)
+type M1 = StateT (Map.Map String Int) (State Int)
 
-type M2 = StateT Int (State (Map J.Exp Int)) 
+type M2 = StateT Int (State (Map.Map J.Exp Int)) 
 type M3 = StateT Int (Writer Bool) 
 
-type MAOpt = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
+type MAOpt = StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool)) 
 
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
@@ -42,7 +44,7 @@ translate = translateM (up sopt)
 
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
 compile e = 
-  case fst $ runWriter $ evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty of
+  case fst $ runWriter $ evalStateT (evalStateT (translate (fexp2cexp e)) 0) Map.empty of
       (ss,e1,t) -> (J.Block ss,e1, t)
 
 {-
@@ -95,12 +97,23 @@ compilesf2java srcPath outputPath = do
     let output = sf2java (inferClassName outputPath) src
     writeFile outputPath output
 
-inferOutputPath :: String -> String
+compileJava :: FilePath -> IO ()
+compileJava srcPath = system ("javac " ++ srcPath) >> return ()
+
+runJava :: FilePath -> IO ()
+runJava srcPath = do
+    -- Must "cd" into that directory in order to run the compiled Java code
+    setCurrentDirectory (takeDirectory srcPath)
+    system $ "java "  ++ takeBaseName srcPath
+    system $ "rm *.class"
+    setCurrentDirectory ".."
+
+inferOutputPath :: FilePath -> FilePath
 inferOutputPath srcPath = directory </> className ++ ".java"
     where directory = takeDirectory srcPath
           className = capitalize $ takeBaseName srcPath
 
-inferClassName :: String -> String
+inferClassName :: FilePath -> String
 inferClassName outputPath = capitalize $ takeBaseName outputPath
 
 capitalize :: String -> String
@@ -109,12 +122,23 @@ capitalize (s:ss) = Char.toUpper s : ss
 
 main :: IO ()
 main = do 
-    args <- System.Environment.getArgs
+    args <- getArgs
     if length args < 1
         then putStrLn "Usage: f2j <source files>"
         else do 
             let inputPaths = args 
             forM_ inputPaths (\srcPath -> do
+                putStr (takeFileName srcPath) >> hFlush stdout
                 let outputPath = inferOutputPath srcPath
+
+                putStr (" -> Java source") >> hFlush stdout
                 compilesf2java srcPath outputPath 
-                putStrLn $ "Wrote " ++ outputPath)
+
+                putStrLn (" -> Java bytecode") >> hFlush stdout
+                compileJava outputPath
+
+                putStr "=> " >> hFlush stdout
+                runJava outputPath
+                putStrLn ""
+
+                )
