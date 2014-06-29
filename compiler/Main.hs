@@ -1,28 +1,28 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, RankNTypes, FlexibleContexts, TypeOperators, OverlappingInstances #-}
+{-# LANGUAGE RankNTypes, FlexibleContexts, TypeOperators #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeOperators, OverlappingInstances #-}
+{-# LANGUAGE DeriveDataTypeable #-}     -- Required by Neil Mitchell's CmdArgs package
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 module Main where
 
-import Prelude hiding (const)
+import Control.Monad            (when)
 import qualified Data.Char as Char (toUpper)
 import qualified Data.Map  as Map
-import Language.Java.Syntax as J
 import Language.Java.Pretty
-import System.IO                (hFlush, stdout)
+import Language.Java.Syntax as J
 import System.Cmd               (system)
+import System.Console.CmdArgs   -- The CmdArgs package
 import System.Directory         (setCurrentDirectory)
-import System.Environment       (getArgs)
+import System.Environment       (getArgs, withArgs)
 import System.FilePath          (takeDirectory, takeBaseName, takeFileName, (</>))
+import System.IO                (hFlush, stdout)
 
--- import HMParser         (readHM)
--- import qualified HM
--- import ApplyTransCFJava
 import BaseTransCFJava
 import ClosureF
 import Inheritance
 import MonadLib
-import SystemF.Syntax
 import Translations
-import qualified SystemF.Parser
+import SystemF.Syntax
+import qualified SystemF.Parser (reader)
 
 type M1 = StateT (Map.Map String Int) (State Int)
 
@@ -120,25 +120,42 @@ capitalize :: String -> String
 capitalize "" = ""
 capitalize (s:ss) = Char.toUpper s : ss
 
+data Options = Options
+    { optCompile       :: Bool
+    , optCompileAndRun :: Bool
+    , optSourceFiles   :: [String]
+    , optDebug         :: Bool
+    } deriving (Eq, Show, Data, Typeable)
+
+optionsSpec :: Options
+optionsSpec = Options
+    { optCompile       = False &= explicit &= name "c" &= name "compile"         &= help "Compile Java source"
+    , optCompileAndRun = False &= explicit &= name "r" &= name "compile-and-run" &= help "Compile & run Java source"
+    , optDebug         = False &= explicit &= name "d" &= name "debug"           &= help "Show debug information"
+    , optSourceFiles   = []    &= args     &= typ "<source files>"
+    }
+
+getOpts :: IO Options
+getOpts = cmdArgs $ optionsSpec -- cmdArgs :: Data a => a -> IO a
+    &= helpArg       [explicit, name "help", name "h"]
+    &= program       "f2j"
+    &= summary       "SystemF to Java compiler"
+
+withMessage :: String -> IO () -> IO ()
+withMessage msg act = do { putStr msg; hFlush stdout; act }
+
+withMessageLn :: String -> IO () -> IO ()
+withMessageLn msg act = do { withMessage msg act; putStrLn "" }
+
 main :: IO ()
 main = do 
     args <- getArgs
-    if length args < 1
-        then putStrLn "Usage: f2j <source files>"
-        else do 
-            let inputPaths = args 
-            forM_ inputPaths (\srcPath -> do
-                putStr (takeFileName srcPath) >> hFlush stdout
-                let outputPath = inferOutputPath srcPath
-
-                putStr (" -> Java source") >> hFlush stdout
-                compilesf2java srcPath outputPath 
-
-                putStrLn (" -> Java bytecode") >> hFlush stdout
-                compileJava outputPath
-
-                putStr "=> " >> hFlush stdout
-                runJava outputPath
-                putStrLn ""
-
-                )
+    -- If the user did not specify any arguments, pretend as "--help" was given
+    opts <- (if null args then withArgs ["--help"] else id) getOpts
+    when (optDebug opts) $ putStrLn (show opts ++ "\n")
+    forM_ (optSourceFiles opts) (\srcPath -> do
+        putStrLn (takeFileName srcPath) 
+        let outputPath = inferOutputPath srcPath
+        withMessageLn "  Compiling System F to Java..." $ compilesf2java srcPath outputPath 
+        when (optCompile opts || optCompileAndRun opts) $ withMessageLn "  Compiling Java..." $ compileJava outputPath
+        when (optCompileAndRun opts) $ withMessage "  Running Java...\n  Output: " $ runJava outputPath)
