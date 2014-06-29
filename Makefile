@@ -1,17 +1,17 @@
 # General project-wide tasks
 
 srcdir=compiler
-testdir=spec
+testdir=test
 
 .PHONY : compiler
 compiler :
 	cabal configure
 	cabal build
+	cabal install
 
 .PHONY : test
 test :
-	make parsers
-	runhaskell -i$(srcdir) -i$(testdir) $(testdir)/Spec.hs
+	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
 
 .PHONY : parsers
 parsers :

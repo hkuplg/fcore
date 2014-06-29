@@ -1,16 +1,36 @@
 syntax: glob
+
 systemf/.cache
 systemf/.classpath
 systemf/.project
+
 Lexer.hs
 Parser.hs
 Parser.info
-dist/
-*.class
-*.info
-*.swp
-*~
+
+### Haskell ###
+dist
+cabal-dev
 *.o
 *.hi
-f2j
+*.chi
+*.chs.h
+.virtualenv
+.hsenv
+.cabal-sandbox/
+cabal.sandbox.config
+cabal.config
+
+### Java ###
+*.java
+*.class
+
+### vim ###
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+*.un~
+Session.vim
+.netrwhist
+*~
+
 .hdevtools.sock
