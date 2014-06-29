@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes, FlexibleContexts, TypeOperators #-}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeOperators, OverlappingInstances #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, OverlappingInstances #-}
 {-# LANGUAGE DeriveDataTypeable #-}     -- Required by Neil Mitchell's CmdArgs package
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 module Main where
@@ -137,9 +137,9 @@ optionsSpec = Options
 
 getOpts :: IO Options
 getOpts = cmdArgs $ optionsSpec -- cmdArgs :: Data a => a -> IO a
-    &= helpArg       [explicit, name "help", name "h"]
-    &= program       "f2j"
-    &= summary       "SystemF to Java compiler"
+    &= helpArg [explicit, name "help", name "h"]
+    &= program "f2j"
+    &= summary "SystemF to Java compiler"
 
 withMessage :: String -> IO () -> IO ()
 withMessage msg act = do { putStr msg; hFlush stdout; act }
