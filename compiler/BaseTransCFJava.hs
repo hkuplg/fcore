@@ -64,12 +64,14 @@ createCU className (J.Block bs,e,t) (Just expName) = (cu,t) where
    --TODO: maybe get a state monad to createCU to createCU somehow?
    maybeCastedReturnExp = 
         case bs of
-            [] -> error "BaseTransCFJava.hs:67"
+            [] -> case t of 
+                            CInt -> J.Cast boxedIntType e
+                            _ -> J.Cast objType e 
             _  -> case listlast bs of 
                     J.LocalVars [] _ ([J.VarDecl (J.VarId id) (_)]) -> J.ExpName $ J.Name [id]
                     _ -> case t of 
                             CInt -> J.Cast boxedIntType e
-                            _ -> J.Cast closureType e   
+                            _ -> J.Cast objType e    
    returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
                           _ -> Just $ closureType
 
