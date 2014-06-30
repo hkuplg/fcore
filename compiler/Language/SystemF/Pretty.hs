@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
-module SystemF.Pretty where
+module Language.SystemF.Pretty where
 
 import qualified Language.Java.Syntax as J
 import qualified Language.Java.Pretty as JP (prettyPrint)
@@ -8,7 +8,7 @@ import Text.PrettyPrint
 import Data.Char        (chr, ord)
 import Data.List        (intersperse)
 
-import SystemF.Syntax
+import Language.SystemF.Syntax
 
 
 prettyPrint :: Pretty a => a -> String

@@ -1,11 +1,13 @@
+# Makefile for generating lexers and parsers
+
 languages = SystemF
 
-# Append "/Lexer.hs" to language names
-lexers  = $(languages:%=%/Lexer.hs)
+# Append "/Lexer.hs" & prepend "Language" to language names
+lexers  = $(languages:%=Language/%/Lexer.hs)
 
-# Append "/Parser.hs" to language names
-parsers     = $(languages:%=%/Parser.hs)
-parserinfos = $(languages:%=%/Parser.info)
+# Append "/Parser.hs" & prepend "Language" to language names
+parsers     = $(languages:%=Language/%/Parser.hs)
+parserinfos = $(languages:%=Language/%/Parser.info)
 
 .PHONY : all
 all : $(lexers) $(parsers)

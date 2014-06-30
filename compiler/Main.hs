@@ -21,8 +21,8 @@ import ClosureF
 import Inheritance
 import MonadLib
 import Translations
-import SystemF.Syntax
-import qualified SystemF.Parser (reader)
+import Language.SystemF.Syntax
+import qualified Language.SystemF.Parser (reader)
 
 type M1 = StateT (Map.Map String Int) (State Int)
 
@@ -85,7 +85,7 @@ compileCU className e Nothing = let (cu,t) = createCU className (compile e) Noth
 
 -- SystemF to Java
 sf2java :: String -> String -> String
-sf2java className src = let (cu, _) = createCU className (compile (SystemF.Parser.reader src)) Nothing in prettyPrint cu
+sf2java className src = let (cu, _) = createCU className (compile (Language.SystemF.Parser.reader src)) Nothing in prettyPrint cu
 
 -- `compilesf2java srcPath outputPath` loads a SystemF file at `srcPath`,
 -- and writes the compiled Java code to `outputPath`.
@@ -156,6 +156,6 @@ main = do
     forM_ (optSourceFiles opts) (\srcPath -> do
         putStrLn (takeFileName srcPath) 
         let outputPath = inferOutputPath srcPath
-        withMessageLn "  Compiling System F to Java..." $ compilesf2java srcPath outputPath 
-        when (optCompile opts || optCompileAndRun opts) $ withMessageLn "  Compiling Java..." $ compileJava outputPath
-        when (optCompileAndRun opts) $ withMessage "  Running Java...\n  Output: " $ runJava outputPath)
+        withMessageLn ("  Compiling System F to Java (" ++ outputPath ++ ")") $ compilesf2java srcPath outputPath 
+        when (optCompile opts || optCompileAndRun opts) $ withMessageLn "  Compiling Java" $ compileJava outputPath
+        when (optCompileAndRun opts) $ withMessage "  Running Java\n  Output: " $ runJava outputPath)

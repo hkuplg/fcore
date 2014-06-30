@@ -2,7 +2,7 @@
 -- the parser needs the syntax definition and we'd like to import the
 -- parser in the module HM.
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
-module HM.Syntax where
+module Langauge.HM.Syntax where
 
 type Var = String
 type TVar = String

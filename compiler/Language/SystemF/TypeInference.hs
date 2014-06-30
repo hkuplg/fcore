@@ -1,9 +1,9 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
-module SystemF.TypeInference (inferType) where
+module Language.SystemF.TypeInference (inferType) where
 
 import Data.Maybe (fromMaybe)
 
-import SystemF.Syntax
+import Language.SystemF.Syntax
 
 inferType :: (t1, t2, [(String, PFTyp t)]) -> PFExp t e -> PFTyp t
 inferType (tenv, env, venv) e = case e of

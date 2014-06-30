@@ -1,26 +1,24 @@
 module TestSuite where
 
-import Test.Hspec
-import SystemF.Syntax
-import Language.Java.Syntax as J
 import Prelude hiding (const)
--- import qualified HM
--- import HMParser         (readHM)
-import qualified SystemF.Parser
-import BaseTransCFJava (createCU)
 import Language.Java.Pretty
-import MonadLib
-import System.Process
+import Language.Java.Syntax as J
 import System.Directory
-
-import Translations
-import BaseTransCFJava
-import ApplyTransCFJava
+import System.Process
+import Test.Hspec
 import Data.Map
+import Data.List        (isSuffixOf)
 import qualified Data.Set as Set
-import Data.List
+
+import ApplyTransCFJava
+import BaseTransCFJava
+import BaseTransCFJava (createCU)
 import ClosureF
 import Inheritance
+import Language.SystemF.Syntax
+import MonadLib
+import Translations
+import qualified Language.SystemF.Parser
 
 -- setting
 type AOptType = StateT Int (StateT (Map J.Exp Int) (Writer Bool)) 
@@ -184,7 +182,7 @@ test1 = \c -> it "Should compile factorial 10" $ ((compileAndRun c fact_app) `sh
 
 test2 = \c -> it "Should compile fibonacci 10" $ ((compileAndRun c fibo_app) `shouldReturn` "55\n")
 
-test3 = \c -> it "Should infeer type of intapp" $ "(forall (_ : Int) . Int)" `shouldBe` ( let (cu, t) = (createCU "Main" (c intapp) Nothing) in (show t) )
+test3 = \c -> it "Should infer type of intapp" $ "(forall (_ : Int) . Int)" `shouldBe` ( let (cu, t) = (createCU "Main" (c intapp) Nothing) in (show t) )
 
 test4 = \c -> it "Should compile idF int 10" $ ((compileAndRun c idfNum) `shouldReturn` "10\n")
 

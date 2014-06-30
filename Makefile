@@ -12,10 +12,13 @@ compiler :
 .PHONY : test
 test :
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
-	runhaskell -i$(srcdir) $(srcdir)/TestSuite.hs
+	runhaskell -i$(srcdir)		  $(srcdir)/TestSuite.hs
  
 .PHONY : parsers
 parsers :
-	cd $(srcdir)
-	make
-	cd ..
+	cd $(srcdir) && make && cd ..
+
+.PHONY : guard
+guard :
+	cabal install hspec
+	gem install guard-haskell

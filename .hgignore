@@ -4,9 +4,9 @@ systemf/.cache
 systemf/.classpath
 systemf/.project
 
-Lexer.hs
-Parser.hs
-Parser.info
+*Lexer.hs
+*Parser.hs
+*Parser.info
 
 ### Haskell ###
 dist

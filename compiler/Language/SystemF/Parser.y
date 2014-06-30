@@ -1,5 +1,5 @@
 {
-module SystemF.Parser where
+module Language.SystemF.Parser where
 
 -- References:
 -- http://www.haskell.org/onlinereport/exps.html
@@ -7,9 +7,9 @@ module SystemF.Parser where
 import Data.Maybe       (fromMaybe)
 import qualified Language.Java.Syntax as J (Op (..))
 
-import SystemF.Syntax
-import SystemF.Lexer    
-import SystemF.TypeInference    (inferType)
+import Language.SystemF.Syntax
+import Language.SystemF.Lexer    
+import Language.SystemF.TypeInference    (inferType)
 }
 
 %name parser

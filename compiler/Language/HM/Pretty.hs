@@ -1,4 +1,4 @@
-module HM.Pretty where
+module Langauge.HM.Pretty where
 
 class Pretty a where 
     pretty :: a -> String

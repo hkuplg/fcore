@@ -3,8 +3,9 @@
 module ClosureF where
 
 import Language.Java.Syntax as J
-import SystemF.Syntax
-import SystemF.Parser
+
+import Language.SystemF.Syntax
+import Language.SystemF.Parser
 
 -- Closure F syntax
 

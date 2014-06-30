@@ -1,5 +1,5 @@
 {
-module SystemF.Lexer (lexer, Token (..)) where
+module Language.SystemF.Lexer (lexer, Token (..)) where
 
 import qualified Language.Java.Syntax as J (Op (..))
 }

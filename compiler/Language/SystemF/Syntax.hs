@@ -1,4 +1,4 @@
-module SystemF.Syntax where
+module Language.SystemF.Syntax where
 
 import qualified Language.Java.Syntax as J (Op (..))
 

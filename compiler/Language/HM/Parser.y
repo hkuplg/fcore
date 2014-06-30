@@ -1,8 +1,8 @@
 {
-module HM.Parser where
+module Langauge.HM.Parser where
 
-import HM.Syntax
-import HM.Lexer
+import Langauge.HM.Syntax
+import Langauge.HM.Lexer
 }
 
 %name parser

@@ -1,15 +1,15 @@
 -- Hindley–Milner type system
 -- http://en.wikipedia.org/wiki/Hindley%E2%80%93Milner
 -- http://web.cs.wpi.edu/~cs4536/c12/milner-damas_principal_types.pdf
-module HM.TypeChecker where
-
-import HM.Syntax
-import HM.Parser         (reader)
+module Language.HM.TypeCheck where
 
 import Prelude hiding   (id)
 import Control.Monad.State
 import Data.List        (union, delete, intercalate, nub)
 import Data.Maybe       (fromMaybe)
+
+import Language.HM.Syntax
+import Language.HM.Parser         (reader)
 
 true :: Poly
 true = PForall "a" (PForall "b" (PMono (MVar "a")))

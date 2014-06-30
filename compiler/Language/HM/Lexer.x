@@ -1,7 +1,7 @@
 {
-module HM.Lexer (lexer, Token (..)) where
+module Language.HM.Lexer (lexer, Token (..)) where
 
-import HM.Syntax
+import Language.HM.Syntax
 }
 
 %wrapper "basic"
