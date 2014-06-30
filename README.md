@@ -1,29 +1,14 @@
-# README #
+# How do I get set up? #
 
-This README would normally document whatever steps are necessary to get your application up and running.
+The toplevel Makefile sets up commands for running several of the most common tasks of the project, such as building the executable and running tests. To issue a command, run 
+```
+#!bash
 
-### What is this repository for? ###
+make <name of task>
+```
+at the project root.
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+* `make compiler` will build the executable `f2j`. Note that you may invoke `f2j` (with the very name) anywhere in the file system.
+* `make test` will run all the tests inside the `test/` directory and the one at `compiler/TestSuite.hs`.
+* `make parsers` will generate the parser as well the lexer for System F and other source languages, if any.
 
-### How do I get set up? ###
-
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
-
-### Contribution guidelines ###
-
-* Writing tests
-* Code review
-* Other guidelines
-
-### Who do I talk to? ###
-
-* Repo owner or admin
-* Other community or team contact
