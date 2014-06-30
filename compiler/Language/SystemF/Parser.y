@@ -10,7 +10,7 @@ import qualified Language.Java.Syntax as J (Op (..))
 
 import Language.SystemF.Syntax
 import Language.SystemF.Lexer    
-import Language.SystemF.TypeInference    (inferType)
+import Language.SystemF.TypeCheck    (inferWithEnv)
 }
 
 %name parser
@@ -97,20 +97,20 @@ infixexp
     | infixexp "||" exp10       { \e -> FPrimOp ($1 e) J.COr    ($3 e) }
 
 exp10 
-    : "/\\" tvar "." exp                        { \(tenv, env, venv) -> FBLam (\a -> $4 (($2, a):tenv, env, venv)) }
-    | "\\" "(" var ":" typ ")" "." exp          { \(tenv, env, venv) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env, venv)) }
+    : "/\\" tvar "." exp                { \(tenv, env, venv) -> FBLam (\a -> $4 (($2, a):tenv, env, venv)) }
+    | "\\" "(" var ":" typ ")" "." exp  { \(tenv, env, venv) -> FLam ($5 tenv) (\x -> $8 (tenv, ($3, x):env, venv)) }
 
     -- let x = e1 : T in e2 rewrites to  (\(x : T). e2) e1
 
     | "let" var "=" exp ":" typ "in" exp  
         { \(tenv, env, venv) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, ($2, x):env, venv))) ($4 (tenv, env, venv)) }
 
-    -- let x = e1 in e2 rewrites to (\(x : (inferType ... e1)). e2) e1
+    -- let x = e1 in e2 rewrites to (\(x : (inferWithEnv ... e1)). e2) e1
 
     | "let" var "=" exp "in" exp  
         { \(tenv, env, venv) -> 
             let e1  = $4 (tenv, env, venv)
-                te1 = inferType (tenv, env, venv) e1
+                te1 = inferWithEnv (tenv, env, venv) e1
             in
             FApp (FLam te1 (\x -> $6 (tenv, ($2, x):env, ($2, te1):venv))) e1 
         }
@@ -123,9 +123,9 @@ exp10
     | "fix" "(" var ":" atyp "->" typ ")" "." "\\" var "." exp 
         { \(tenv, env, venv) -> FFix ($5 tenv) (\y -> \x -> $13 (tenv, ($11, x):($3, y):env, venv)) ($7 tenv) }
 
-    | "if0" exp "then" exp "else" exp           { \e -> FIf0 ($2 e) ($4 e) ($6 e) }
-    | "-" INTEGER %prec UMINUS                  { \e -> FLit (-$2) }
-    | fexp                                      { $1 }
+    | "if0" exp "then" exp "else" exp   { \e -> FIf0 ($2 e) ($4 e) ($6 e) }
+    | "-" INTEGER %prec UMINUS          { \e -> FLit (-$2) }
+    | fexp                              { $1 }
 
 fexp
     : fexp aexp         { \(tenv, env, venv) -> FApp  ($1 (tenv, env, venv)) ($2 (tenv, env, venv)) }

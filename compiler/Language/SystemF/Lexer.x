@@ -1,8 +1,10 @@
 {
 module Language.SystemF.Lexer 
-    ( lexer, Token (..) ) where
+    ( lexer
+    , Token (..) 
+    ) where
 
-import qualified Language.Java.Syntax as J (Op (..))
+import qualified Language.Java.Syntax as J (Op(..))
 }
 
 %wrapper "basic"

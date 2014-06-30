@@ -2,7 +2,11 @@
 
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Language.SystemF.Pretty where
+module Language.SystemF.Pretty
+    ( prettyPrint
+    , prettyPrintPFExp
+    , prettyPrintPFTyp
+    ) where
 
 import Data.Char        (chr, ord)
 import Data.List        (intersperse)
@@ -51,7 +55,7 @@ instance Pretty (PFExp Int Int) where
         FLit n           -> if n < 0 then parenPrec p 5 (integer n) else integer n
         FTuple es        -> parens $ hcat (intersperse comma $ map (prettyPrec p l) es)
 
-        FProj i e        -> parenPrec p 1 $ prettyPrec 1 l e <> text ("._" ++ show i)
+        FProj i e1       -> parenPrec p 1 $ prettyPrec 1 l e1 <> text ("._" ++ show i)
 
         FApp e1 e2       -> parenPrec p 2 $ prettyPrec 2 l e1 <+> prettyPrec 1 l e2 
         FTApp e t        -> parenPrec p 2 $ prettyPrec 2 l e  <+> prettyPrec 1 l t
@@ -86,6 +90,7 @@ var n
 
 -- Precedence of operators based on the table in:
 -- http://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
+opPrec :: Num a => J.Op -> a
 opPrec J.Mult    = 3
 opPrec J.Div     = 3
 opPrec J.Rem     = 3

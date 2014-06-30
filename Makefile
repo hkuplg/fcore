@@ -12,7 +12,6 @@ compiler :
 .PHONY : test
 test :
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
-	runhaskell -i$(srcdir)		  $(srcdir)/TestSuite.hs
  
 .PHONY : parsers
 parsers :
