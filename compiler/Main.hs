@@ -1,7 +1,14 @@
-{-# LANGUAGE RankNTypes, FlexibleContexts, TypeOperators #-}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, OverlappingInstances #-}
-{-# LANGUAGE DeriveDataTypeable #-}     -- Required by Neil Mitchell's CmdArgs package
+{-# LANGUAGE DeriveDataTypeable    
+           , FlexibleContexts
+           , FlexibleInstances
+           , MultiParamTypeClasses
+           , OverlappingInstances 
+           , RankNTypes
+           , TypeOperators 
+           #-}  
+
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+
 module Main where
 
 import Control.Monad            (when)

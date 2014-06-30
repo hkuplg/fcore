@@ -176,7 +176,7 @@ trans self = let this = up self in T {
            (s4, jf2) <- genSubst j2 initIntCast
            return (s1 ++ s2 ++ s3 ++ s4, J.BinOp jf1 op jf2, t1)
            
-     CFif0 e1 e2 e3 ->
+     CFIf0 e1 e2 e3 ->
         do  n <- get
             put (n+1)
             (s1,j1,t1) <- translateM this (CFPrimOp e1 J.Equal (CFLit 0))

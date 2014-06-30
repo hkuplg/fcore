@@ -1,5 +1,8 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
-module Language.SystemF.TypeInference (inferType) where
+
+module Language.SystemF.TypeInference 
+    ( inferType
+    ) where
 
 import Data.Maybe (fromMaybe)
 
@@ -21,15 +24,15 @@ inferType (tenv, env, venv) e = case e of
                             te2 = inferType (tenv, env, venv) e2
                         in
                         error "FPrimOp" -- TODO
-    FLit n           -> PFInt
-    Fif0 e1 e2 e3    -> let te1 = inferType (tenv, env, venv) e1
+    FLit n           -> FInt
+    FIf0 e1 e2 e3    -> let te1 = inferType (tenv, env, venv) e1
                             te2 = inferType (tenv, env, venv) e2 
                             te3 = inferType (tenv, env, venv) e3
                         in
                         error "Fif0" -- TODO
-    FTuple es -> Tuple $ map (inferType (tenv, env, venv)) es
+    FTuple es -> FProduct $ map (inferType (tenv, env, venv)) es
     FProj i e1 -> case inferType (tenv, env, venv) e1 of 
-                    Tuple ts | i <= length ts -> ts !! (i - 1)
-                    Tuple _                   -> error $ "Index out of bounds in projection"
+                    FProduct ts | i <= length ts -> ts !! (i - 1)
+                    FProduct _                   -> error $ "Index out of bounds in projection"
                     _                         -> error $ "Projection on a non-tuple" 
     FFix t1 f t2 -> FFun t1 t2

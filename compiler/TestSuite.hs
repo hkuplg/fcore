@@ -61,26 +61,26 @@ compileAndRun compileF exp = do let source = prettyPrint (fst $ createCU "Main" 
 
 -- mu loop. \x -> loop x
 loopStr = "fix loop. \\(x : Int). loop x : Int -> Int"
-loop = FFix PFInt (\loop x -> FApp (FVar "" loop) (FVar "" x)) PFInt
+loop = FFix FInt (\loop x -> FApp (FVar "" loop) (FVar "" x)) FInt
 
 factStr = "fix fact. \\(n : Int). if0 n then 1 else n * fact (n-1) : Int"
-fact = FFix PFInt (\fact n -> 
-   Fif0  (FVar "" n) 
+fact = FFix FInt (\fact n -> 
+   FIf0  (FVar "" n) 
          (FLit 1) 
-         (FPrimOp (FVar "" n) J.Mult (FApp (FVar "" fact) (FPrimOp (FVar "" n) J.Sub (FLit 1))))) PFInt
+         (FPrimOp (FVar "" n) J.Mult (FApp (FVar "" fact) (FPrimOp (FVar "" n) J.Sub (FLit 1))))) FInt
        
-tfact = FFix PFInt (\fact n -> FLam PFInt (\acc ->
-   Fif0  (FVar "" n) 
+tfact = FFix FInt (\fact n -> FLam FInt (\acc ->
+   FIf0  (FVar "" n) 
          (FVar "" acc) 
-         (FApp (FApp (FVar "" fact) (FPrimOp (FVar "" n) J.Sub (FLit 1))) (FPrimOp (FVar "" n) J.Mult (FVar "" acc))))) (FFun PFInt PFInt)
+         (FApp (FApp (FVar "" fact) (FPrimOp (FVar "" n) J.Sub (FLit 1))) (FPrimOp (FVar "" n) J.Mult (FVar "" acc))))) (FFun FInt FInt)
 
 fiboStr = "fix fibo. \\(n : Int). if0 n then 1 else (fibo (n-1)) + (fibo (n-2)) : Int"
-fibo = FFix PFInt (\fibo n -> 
-   Fif0  (FPrimOp (FVar "" n) J.Sub (FLit 2))
+fibo = FFix FInt (\fibo n -> 
+   FIf0  (FPrimOp (FVar "" n) J.Sub (FLit 2))
          (FLit 1) 
-         (Fif0  (FPrimOp (FVar "" n) J.Sub (FLit 1)) 
+         (FIf0  (FPrimOp (FVar "" n) J.Sub (FLit 1)) 
                (FLit 1) 
-               (FPrimOp (FApp (FVar "" fibo) (FPrimOp (FVar "" n) J.Sub (FLit 1))) J.Add (FApp (FVar "" fibo) (FPrimOp (FVar "" n) J.Sub (FLit 2)))))) PFInt
+               (FPrimOp (FApp (FVar "" fibo) (FPrimOp (FVar "" n) J.Sub (FLit 1))) J.Add (FApp (FVar "" fibo) (FPrimOp (FVar "" n) J.Sub (FLit 2)))))) FInt
       
 fact_app = FApp fact (FLit 10)
 
@@ -127,10 +127,10 @@ program1 =
     )
   )
 
-program1Num = FApp (FTApp program1 PFInt) (FLit 5)
+program1Num = FApp (FTApp program1 FInt) (FLit 5)
 
 -- should infer (forall (x0 : int) . int)
-intapp = FTApp idF PFInt
+intapp = FTApp idF FInt
 
 
 notail2Str = "/\\A. \\(f : A -> (A -> A)). \\(x : A). \\(y : A). (f x) ((f y) y)"
@@ -142,11 +142,11 @@ notail2 =
           FApp (FApp (FVar "" f) (FVar "" x)) (FApp (FApp (FVar "" f) (FVar "" y)) (FVar "" y)) ))))
   
 
-program2 = FApp (FApp (FApp (FTApp notail2 PFInt) (FTApp const PFInt)) (FLit 5)) (FLit 6)
+program2 = FApp (FApp (FApp (FTApp notail2 FInt) (FTApp const FInt)) (FLit 5)) (FLit 6)
                   
-idfNum = FApp (FTApp idF PFInt) (FLit 10)
+idfNum = FApp (FTApp idF FInt) (FLit 10)
 
-constNum = FApp (FApp (FTApp const PFInt) (FLit 10)) (FLit 20)
+constNum = FApp (FApp (FTApp const FInt) (FLit 10)) (FLit 20)
 
 notail3Str = "/\\A. \\(f : A -> (A -> A)). \\(g : A -> (A -> A)). \\(x : A). \\(y : A). (f x) ((g y) y)"
 notail3 =
@@ -157,7 +157,7 @@ notail3 =
           FLam (FTVar a) (\y ->
             FApp (FApp (FVar "" f) (FVar "" x)) (FApp (FApp (FVar "" g) (FVar "" y)) (FVar "" y)) )))))
 
-program3 = FApp (FApp (FApp (FApp (FTApp notail3 PFInt) (FTApp const PFInt)) (FTApp const PFInt)) (FLit 5)) (FLit 6)
+program3 = FApp (FApp (FApp (FApp (FTApp notail3 FInt) (FTApp const FInt)) (FTApp const FInt)) (FLit 5)) (FLit 6)
     
 notail4Str = "/\\A. \\(g : ((A -> A) -> (A -> A)) -> A). \\(f : A -> (A -> A)). \\(x : A). \\(y : A). (g (f x)) (f y)"
 notail4 =
@@ -170,13 +170,13 @@ notail4 =
 
 summaStr= "\\(x : Int -> Int). \\(y : Int -> Int). (x 0) + (y 0)"
 summa =
-    FLam (FFun PFInt PFInt) (\x ->
-       FLam (FFun PFInt PFInt) (\y ->
+    FLam (FFun FInt FInt) (\x ->
+       FLam (FFun FInt FInt) (\y ->
           FPrimOp (FApp (FVar "" x) (FLit 0)) J.Add (FApp (FVar "" y) (FLit 0))
        )
     )
             
-program4 = FApp (FApp (FApp (FApp (FTApp notail4 PFInt) summa) (FTApp const PFInt)) (FLit 5)) (FLit 6)
+program4 = FApp (FApp (FApp (FApp (FTApp notail4 FInt) summa) (FTApp const FInt)) (FLit 5)) (FLit 6)
 
 test1 = \c -> it "Should compile factorial 10" $ ((compileAndRun c fact_app) `shouldReturn` "3628800\n")
 

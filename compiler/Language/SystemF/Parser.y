@@ -5,6 +5,7 @@ module Language.SystemF.Parser where
 -- http://www.haskell.org/onlinereport/exps.html
 
 import Data.Maybe       (fromMaybe)
+
 import qualified Language.Java.Syntax as J (Op (..))
 
 import Language.SystemF.Syntax
@@ -122,7 +123,7 @@ exp10
     | "fix" "(" var ":" atyp "->" typ ")" "." "\\" var "." exp 
         { \(tenv, env, venv) -> FFix ($5 tenv) (\y -> \x -> $13 (tenv, ($11, x):($3, y):env, venv)) ($7 tenv) }
 
-    | "if0" exp "then" exp "else" exp           { \e -> Fif0 ($2 e) ($4 e) ($6 e) }
+    | "if0" exp "then" exp "else" exp           { \e -> FIf0 ($2 e) ($4 e) ($6 e) }
     | "-" INTEGER %prec UMINUS                  { \e -> FLit (-$2) }
     | fexp                                      { $1 }
 
@@ -157,7 +158,7 @@ typ
 
 atyp 
     : tvar              { \tenv -> FTVar (fromMaybe (error $ "Unbound type variable: `" ++ $1 ++ "'") (lookup $1 tenv)) }
-    | "Int"             { \_    -> PFInt }
+    | "Int"             { \_    -> FInt }
     | "(" typ ")"       { $2 }
 
 var  : LOWERID       { $1 }

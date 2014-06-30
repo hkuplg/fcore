@@ -1,15 +1,18 @@
 {-# LANGUAGE FlexibleInstances #-}
+
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
+
 module Language.SystemF.Pretty where
 
-import qualified Language.Java.Syntax as J
-import qualified Language.Java.Pretty as JP (prettyPrint)
-import Text.PrettyPrint
 import Data.Char        (chr, ord)
 import Data.List        (intersperse)
 
-import Language.SystemF.Syntax
+import qualified Language.Java.Syntax as J
+import qualified Language.Java.Pretty as JP (prettyPrint)
 
+import Text.PrettyPrint
+
+import Language.SystemF.Syntax
 
 prettyPrint :: Pretty a => a -> String
 prettyPrint = show . pretty
@@ -36,11 +39,11 @@ class Pretty a where
 
 instance Pretty (PFTyp Int) where
     prettyPrec p l@(ltvar, lvar) t = case t of
-        FTVar a    -> text (tvar a)
-        FForall f  -> text ("forall " ++ tvar ltvar ++ ".") <+> prettyPrec p (ltvar+1,  lvar) (f ltvar)
-        FFun t1 t2 -> parenPrec p 2 $ prettyPrec 1 l t1 <+> text "->" <+> prettyPrec p l t2
-        PFInt      -> text "Int"
-        Tuple ts   -> parens $ hcat (intersperse (comma <> space) $ map (prettyPrec p l) ts)
+        FTVar a     -> text (tvar a)
+        FForall f   -> text ("forall " ++ tvar ltvar ++ ".") <+> prettyPrec p (ltvar+1,  lvar) (f ltvar)
+        FFun t1 t2  -> parenPrec p 2 $ prettyPrec 1 l t1 <+> text "->" <+> prettyPrec p l t2
+        FInt        -> text "Int"
+        FProduct ts -> parens $ hcat (intersperse (comma <> space) $ map (prettyPrec p l) ts)
 
 instance Pretty (PFExp Int Int) where
     prettyPrec p l@(ltvar, lvar) e = case e of
@@ -67,7 +70,7 @@ instance Pretty (PFExp Int Int) where
         FPrimOp e1 op e2 -> parenPrec p q $ prettyPrec q l e1 <+> text (JP.prettyPrint op) <+> prettyPrec (q-1) l e2 
                                 where q = opPrec op 
 
-        Fif0 e1 e2 e3    -> text "if0" <+> prettyPrec p l e1 <+> text "then" <+> prettyPrec p l e2 <+> text "else" <+> prettyPrec p l e3
+        FIf0 e1 e2 e3    -> text "if0" <+> prettyPrec p l e1 <+> text "then" <+> prettyPrec p l e2 <+> text "else" <+> prettyPrec p l e3
 
 tvar :: Int -> String
 tvar n
