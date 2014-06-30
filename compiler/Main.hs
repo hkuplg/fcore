@@ -39,8 +39,6 @@ import Inheritance
 import MonadLib
 import Translations
 
-import Compilations
-
 data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
