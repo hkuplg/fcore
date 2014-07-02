@@ -71,7 +71,6 @@ UNDERID  { UnderId $$ }
 %nonassoc "<" "<=" ">" ">="
 %left "+" "-"
 %left "*" "/" "%"
-
 %nonassoc UMINUS
 
 %%

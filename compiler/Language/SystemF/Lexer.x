@@ -59,7 +59,6 @@ tokens :-
     $digit+    { \s -> Integer (read s) }
 
 {
-
 data Token = OParen | CParen
            | TLam | Lam | Colon | Forall | Arrow | Dot
            | Let | Eq | In | Fix

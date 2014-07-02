@@ -1,42 +1,38 @@
--- We need this module to break circular dependency, namely,
--- the parser needs the syntax definition and we'd like to import the
--- parser in the module HM.
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
-module Langauge.HM.Syntax where
 
-type Var = String
-type TVar = String
+module Language.HM.Syntax where
 
--- e ::= x | e e' | \x . e | let x = e in e'
-data Exp = EVar Var
+data ExpAnnot = ExpAnnot Exp (Maybe Type) deriving (Eq, Show)
+
+data Exp = EVar String
          | ELit Lit     -- Literal
          | EApp Exp Exp
-         | ELam Var Exp
-         | ELet Var Exp Exp
-         | ELetRec [(Var, Exp)] Exp  -- let x1 = e1 and x2 = e2 and ... in e
-         | EUn UnOp Exp
-         | EBin BinOp Exp Exp
-         | EIf0 Exp Exp Exp
+         | ELam [Pat] Exp
+         | ELet (String, [Pat], Exp) Exp
+         | ELetRec (String, [Pat], Exp) Exp
+         | EUnOp  UnOp Exp
+         | EBinOp Exp BinOp Exp
+         | EIf Exp Exp Exp
+         | ETup [Exp]
+         | EProj Exp Int
          deriving (Eq, Show)
 
-type Lit = Int 
+data Pat = PVar String
+         | PVarAnnot (String, Type)     -- Pattern variable with a type annotation
+         deriving (Eq, Show)
 
-data UnOp = UMinus | Not deriving (Eq, Show)
+data Lit = LInteger Integer | LBool Bool deriving (Eq, Show)
 
-data BinOp = Add | Sub | Mul | Div | Mod 
-           | Eq | Ne | Lt | Gt | Le | Ge 
-           | And | Or
+data UnOp = Neg | Not deriving (Eq, Show)
+
+data BinOp = Mul | Div | Mod
+           | Add | Sub
+           | Lt | Gt | Le | Ge
+           | Eq | Ne
+           | And 
+           | Or
            deriving (Eq, Show)
                     
-litlitOP :: [BinOp]
-litlitOP = [Add,Sub,Mul,Div,Mod]
-
-func op | op `elem` litlitOP = "here!"
-        | otherwise = "there!"
-
-isLitLitOp :: BinOp -> Bool
-isLitLitOp _ = True
-
 -- tau   ::= alpha | iota | tau -> tau
 -- sigma ::= tau | forall alpha . sigma
 data Type = TMono Mono
@@ -44,7 +40,7 @@ data Type = TMono Mono
           deriving (Eq, Show)
 
 -- Monotype tau
-data Mono = MVar TVar
+data Mono = MVar String
           | MPrim Prim  -- Primitive types
           | MApp Mono Mono -- Function Arrow: t1 -> t2
           deriving (Eq, Show)
@@ -53,7 +49,7 @@ data Prim = Int | Bool deriving (Eq, Show)
 
 -- Polytype sigma
 data Poly = PMono Mono
-          | PForall TVar Poly
+          | PForall [String] Poly
           deriving (Show)
 
 -- Equality of monotypes is purely syntactical. But syntactically different

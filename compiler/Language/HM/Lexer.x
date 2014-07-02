@@ -1,5 +1,8 @@
 {
-module Language.HM.Lexer (lexer, Token (..)) where
+module Language.HM.Lexer 
+    ( lexer
+    , Token(..)
+    ) where
 
 import Language.HM.Syntax
 }
@@ -12,57 +15,64 @@ $digit = [0-9]
 tokens :-
 
     $white+     ;
+    "#".*       ;
+    "--".*      ;
+    "//".*      ;
 
-    let         { \_ -> TokenLet }
-    rec         { \_ -> TokenRec }
-    and         { \_ -> TokenAnd }
-    \=          { \_ -> TokenEQ }
-    in          { \_ -> TokenIn }
+    \(          { \_ -> TkOParen }
+    \)          { \_ -> TkCParen }
+    \\          { \_ -> TkLam }
+    \.          { \_ -> TkDot }
+    \-\>        { \_ -> TkArrow }
+    \:          { \_ -> TkColon }
+    forall      { \_ -> TkForall }
+    Int         { \_ -> TkTyInt }
+    Bool        { \_ -> TkTyBool }
+    let         { \_ -> TkLet }
+    rec         { \_ -> TkRec }
+    \=          { \_ -> TkEq }
+    and         { \_ -> TkAnd }
+    in          { \_ -> TkIn }
+    if          { \_ -> TkIf }
+    then        { \_ -> TkThen }
+    else        { \_ -> TkElse }
 
-    \\          { \_ -> TokenLambda }
-    \-\>        { \_ -> TokenArrow }
+    \!          { \_ -> TkUnOp Not }
 
-    \(          { \_ -> TokenOParen }
-    \)          { \_ -> TokenCParen }
+    \*          { \_ -> TkBinOp Mul   }
+    \/          { \_ -> TkBinOp Div    }
+    \%          { \_ -> TkBinOp Mod    }
+    \+          { \_ -> TkBinOp Add    }
+    \-          { \_ -> TkBinOp Sub    }
+    \<          { \_ -> TkBinOp Lt  }
+    \>          { \_ -> TkBinOp Gt  }
+    \<\=        { \_ -> TkBinOp Le }
+    \>\=        { \_ -> TkBinOp Ge }
+    \=\=        { \_ -> TkBinOp Eq  }
+    \!\=        { \_ -> TkBinOp Ne  }
+    \&\&        { \_ -> TkBinOp And   }
+    \|\|        { \_ -> TkBinOp Or    }
 
-    \!          { \_ -> TokenUn Not }
+    [A-Z] [$alpha $digit \_ \']*  { \s -> TkUpperId s }
+    [a-z] [$alpha $digit \_ \']*  { \s -> TkLowerId s }
+    \_ $digit+                    { \s -> TkUnderId (read (tail s))  }
 
-    \+          { \_ -> TokenBin Add }
-    \-          { \_ -> TokenBin Sub }
-    \*          { \_ -> TokenBin Mul }
-    \/          { \_ -> TokenBin Div }
-    \%          { \_ -> TokenBin Mod }
-
-    \=\=        { \_ -> TokenBin Eq }
-    \!\=        { \_ -> TokenBin Ne }
-    \<          { \_ -> TokenBin Lt }
-    \>          { \_ -> TokenBin Gt }
-    \<=         { \_ -> TokenBin Le }
-    \>=         { \_ -> TokenBin Ge }
-
-    \&\&        { \_ -> TokenBin And }
-    \|\|        { \_ -> TokenBin Or }
-
-    if0         { \_ -> TokenIf0 }
-    then        { \_ -> TokenThen }
-    else        { \_ -> TokenElse }
-
-    $digit+     { \s -> TokenInt (read s) }
-
-    [a-z] [$alpha $digit \_ \']*  { \s -> TokenLowId s }
-    [A-Z] [$alpha $digit \_ \']*  { \s -> TokenUpId s }
+    $digit+     { \s -> TkInteger (read s) }
+    True        { \s -> TkBool True }
+    False       { \s -> TkBool False }
 
 {
-
-data Token = TokenLet | TokenRec | TokenAnd | TokenEQ | TokenIn
-           | TokenLambda | TokenArrow
-           | TokenOParen | TokenCParen
-           | TokenUn UnOp | TokenBin BinOp 
-           | TokenIf0 | TokenThen | TokenElse
-           | TokenInt Int
-           | TokenLowId String | TokenUpId  String
+data Token = TkOParen | TkCParen
+           | TkLam | TkDot | TkArrow | TkColon
+           | TkLet | TkRec | TkEq | TkAnd | TkIn
+           | TkIf | TkThen | TkElse
+           | TkForall | TkTyInt | TkTyBool
+           | TkComma
+           | TkBinOp BinOp | TkUnOp UnOp
+           | TkUpperId String | TkLowerId String | TkUnderId Int
+           | TkInteger Integer | TkBool Bool
            deriving (Eq, Show)
 
-lexer :: String -> [HMToken]
+lexer :: String -> [Token]
 lexer = alexScanTokens
 }

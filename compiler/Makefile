@@ -1,6 +1,6 @@
 # Makefile for generating lexers and parsers
 
-languages = SystemF
+languages = HM SystemF
 
 # Append "/Lexer.hs" & prepend "Language" to language names
 lexers  = $(languages:%=Language/%/Lexer.hs)
