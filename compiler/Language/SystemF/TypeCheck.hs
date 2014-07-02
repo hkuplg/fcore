@@ -1,14 +1,15 @@
+
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
 module Language.SystemF.TypeCheck 
-    ( -- inferWithEnv
-     infer, gen
+    ( unsafeGeneralize
+    , infer
     ) where
 
 import Data.Maybe (fromMaybe)
+import qualified Unsafe.Coerce 
 
 import Language.SystemF.Syntax
-import Unsafe.Coerce
 
 {- Generalizing from a concrete type to a polymorphic type:
 
@@ -22,11 +23,12 @@ the structure and converts the tree.
 
 -}
 
-gen :: PFExp Int (Int, PFTyp Int) -> PFExp t e
-gen = unsafeCoerce
+unsafeGeneralize :: PFExp Int (Int, PFTyp Int) -> PFExp t e
+unsafeGeneralize = Unsafe.Coerce.unsafeCoerce
 
 {- Alternative to gen: not all cases completed -}
 
+{-
 generalizeTyp :: PFTyp Int -> [t] -> PFTyp t
 generalizeTyp (FTVar i) tenv = FTVar (tenv !! i)
 -- generalizeTyp ()
@@ -36,25 +38,51 @@ generalize (FVar x t) tenv env  = FVar x (env !! fst t)
 generalize (FBLam f) tenv env   = FBLam (\a -> generalize (f (length tenv)) (a:tenv) env)
 generalize (FLam t f) tenv env  = 
   FLam (generalizeTyp t tenv) (\x -> generalize (f (length env,t)) tenv env)
+-}
 
-eqTyp :: PFTyp Int -> PFTyp Int -> Int -> Bool
-eqTyp (FTVar x) (FTVar y)      _  = x == y
-eqTyp (FForall f) (FForall g)  n  = eqTyp (f n) (g n) (n+1)
+infer :: Int -> PFExp Int (Int, PFTyp Int) -> PFTyp Int
+infer _ (FVar _ t) = snd t
+infer i (FBLam f)  = FForall (\a -> infer i (f a))
+infer i (FLam t g) = FFun t (infer (i+1) (g (i, t))) 
+infer i (FTApp e t) = 
+    case infer i e of
+        FForall g -> substFree (i, t) (g i)
+        _         -> error "Cannot apply type to a type that is a non-forall type"
+infer i (FApp e1 e2) = 
+    let t3 = infer i e2 in
+    case infer i e1 of
+        FFun t1 t2 | t1 == t3 -> t2
+        _                     -> error "Type mismatch in function application"
+infer i (FPrimOp e1 op e2) = 
+    let t1 = infer i e1 
+        t2 = infer i e2 
+    in
+    if t1 == t2 then t1
+                else error "Type mismatch of two operands in primitive operation"
+infer i (FLit _) = FInt
+infer i (FIf0 e1 e2 e3) = 
+    case infer i e1 of
+        FInt -> let t2 = infer i e2 
+                    t3 = infer i e3 
+                in
+                if t2 == t3 then t2 
+                            else error "Type mismatch in two branches of if expression"
+        _    -> error "The predicate of an if expression should be of literal type"
+infer i (FTuple es) = FProduct $ map (infer i) es
+infer i (FProj idx e) = case infer i e of
+                        FProduct ts | idx <= length ts -> ts !! (i-1)
+                        FProduct _                     -> error "Index out of bounds in projection"
+                        _                              -> error "Projection on a non-tuple"
+infer _ (FFix t1 _ t2) = FFun t1 t2
 
-infer :: PFExp Int (Int,PFTyp Int) -> Int -> PFTyp Int -- Maybe (PFTyp Int)
-infer (FVar _ t) _  = snd t
-infer (FBLam f) i   = FForall (\a -> infer (f a) i)
-infer (FLam t g) i  = FFun t (infer (g (i,t)) (i+1)) 
-infer (FTApp e t) i = 
-  case infer e i of
-    FForall g -> substFree i t (g i)
-infer (FApp e1 e2) i = 
-  let t3 = infer e2 i in
-  case infer e1 i of
-    FFun t1 t2 | eqTyp t1 t3 i -> t2
-    
-substFree :: Int -> PFTyp Int -> PFTyp Int -> PFTyp Int
-substFree = undefined
+substFree :: (Int, PFTyp Int) -> PFTyp Int -> PFTyp Int
+substFree (i, t) (FTVar j) 
+    | j == i    = t
+    | otherwise = FTVar j
+substFree (i, t) (FForall f)   = FForall (\a -> substFree (i, t) (f a))
+substFree (i, t) (FFun t1 t2)  = FFun (substFree (i, t) t1) (substFree (i, t) t2)
+substFree (i, t) FInt          = FInt 
+substFree (i, t) (FProduct ts) = FProduct (map (substFree (i, t)) ts)
 
 {-
 inferWithEnv :: (t1, t2, [(String, PFTyp t)]) -> PFExp t e -> PFTyp t

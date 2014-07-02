@@ -31,7 +31,7 @@ tokens :-
     \=          { \_ -> Eq }
     in          { \_ -> In }
     fix         { \_ -> Fix }
-    Int         { \_ -> TypeInt }
+    Int         { \_ -> TyInt }
     if0         { \_ -> If0 }
     then        { \_ -> Then }
     else        { \_ -> Else }
@@ -63,7 +63,7 @@ tokens :-
 data Token = OParen | CParen
            | TLam | Lam | Colon | Forall | Arrow | Dot
            | Let | Eq | In | Fix
-           | TypeInt
+           | TyInt
            | If0 | Then | Else
            | Comma
            | PrimOp J.Op 
