@@ -53,12 +53,14 @@ ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $
 createCU :: String -> (J.Block, J.Exp, PCTyp Int) -> Maybe String -> (J.CompilationUnit, PCTyp Int)
 createCU className (J.Block bs,e,t) Nothing = createCU className (J.Block bs,e,t) (Just "apply")
 createCU className (J.Block bs,e,t) (Just expName) = (cu,t) where
-   cu = J.CompilationUnit Nothing [] [closureClass,classDecl]
+   cu = J.CompilationUnit Nothing [] [closureClass,nextClass,classDecl]
    field name = J.MemberDecl (J.FieldDecl [] (objType) [
               J.VarDecl (J.VarId (J.Ident name)) Nothing])
    app mod b rt en args = J.MemberDecl (J.MethodDecl mod [] (rt) (J.Ident en) args [] (J.MethodBody b))
    closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
                   J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [],app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
+   nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.ClassBody [J.MemberDecl (J.FieldDecl 
+        [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))               
    body = Just (J.Block (bs ++ [ass]))
    mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
    --TODO: maybe get a state monad to createCU to createCU somehow?

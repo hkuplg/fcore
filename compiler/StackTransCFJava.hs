@@ -2,26 +2,25 @@
 
 module StackTransCFJava where
 
-import Prelude hiding (last)
+import Prelude hiding (init, last)
 import Debug.Trace
-import Data.List hiding (last)
+import Data.List hiding (init, last)
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF
 -- import Mixins
 import Inheritance
-
--- import ApplyTransCFJava 
-import BaseTransCFJava hiding (standardTranslation)
+import Data.Char
+import Data.Map as Map
+import qualified Data.Set as Set
+import BaseTransCFJava
+import ApplyTransCFJava
 import StringPrefixes
 import MonadLib
 
-type Schedule = [([J.BlockStmt],[J.BlockStmt])]
-
 data TranslateStack m = TS {
-  toTS :: Translate m, -- supertype is a subtype of Translate (later on at least)
-  translateScheduleM :: PCExp Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, Schedule, PCTyp Int)
+  toTS :: Translate m -- supertype is a subtype of Translate (later on at least)
   }
                       
 instance {-(r :< Translate m) =>-} (:<) (TranslateStack m) (Translate m) where
@@ -36,76 +35,89 @@ instance (r :< TranslateStack m) => (:<) r (Translate m) where -- transitivity
   up = up . up
 -}
 
-sstack :: Schedule -> [J.BlockStmt]
-sstack []              = [] -- Sigma-Empty
-sstack ((s1,s2) : [])  = s1 ++ s2 -- Sigma-One
-sstack ((s1,[]) : ss)  = s1 ++ sstack ss -- Sigma-Many1
-sstack ((s1,s2) : ss)  = s1 ++ [] ++ s2 -- Sigma-Many2
-   where closure ss = jexp [] (Just $ J.Block (sstack ss)) 0
-         
--- push method call.
+whileApply :: J.Exp -> String -> J.Ident -> J.Type -> [J.BlockStmt]
+whileApply cl ctemp tempOut outType = [J.LocalVars [] outType [J.VarDecl (J.VarId tempOut) (Just (J.InitExp (J.Lit J.Null)))],
+        J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"])) J.EqualA (cl))),
+        J.LocalVars [] closureType [J.VarDecl (J.VarId $ J.Ident $ ctemp) (Nothing)],
+        -- this is a hack, because language-java 0.2.x removed J.Paren
+        --J.Paren $ J.Assign (J.NameLhs (J.Name [J.Ident ctemp]))
+        --        J.EqualA (J.ExpName (J.Name [J.Ident "Next",J.Ident "next"]))
+        J.BlockStmt (J.While (J.BinOp (J.ExpName $ J.Name [J.Ident ("(" ++ ctemp ++ " = " ++ "Next.next" ++ ")")])
+        J.NotEq (J.Lit J.Null)) (J.StmtBlock (J.Block 
+        [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"])) 
+        J.EqualA (J.Lit J.Null))),
+        J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident $ ctemp,J.Ident "apply"]) []))),
+        J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [tempOut])) 
+        J.EqualA (J.Cast outType 
+        (J.ExpName (J.Name [J.Ident $ ctemp,J.Ident "out"])))))])))]
 
-push :: J.Exp -> J.BlockStmt
-push e = J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [stack])) [] (J.Ident "push") [e])))
-  where stack = (J.Ident "Stack")
-
-{-
-standardTranslation javaExpression statementsBeforeOA idCurrentName idNextName = J.LocalVars [] closureType [J.VarDecl (J.VarId idNextName) 
-                                                (Just (J.InitExp 
-                                                    (jexp [currentInitialDeclaration idCurrentName] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression] ))))
-                                                    )
-                                                )]
--}
-
-transS :: (MonadState Int m, MonadWriter Bool m, selfType :< TranslateStack m) => Mixin selfType (Translate m) (TranslateStack m) 
+-- copy-paste from ApplyOpt, TODO: modularize
+transS :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadWriter Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m) 
 transS this super = TS {
-  toTS = T { -- override (toTS this) (\trans -> trans {
-    translateM = \e -> case e of 
-       CApp _ _ ->
-         do  (s1,je,sig,t) <- translateScheduleM (up this) e 
-             return (s1 ++ (sstack sig), je, t)
-       
-       otherwise -> translateM super e, 
-    translateScopeM = \e m -> case e of 
-{-
-       Typ t g -> -- TODO: Copy&Paste code :( 
-        do  n <- get
-            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable              
-            case m of -- Consider refactoring later?
-              Just (i,t') | last (g (Right i,t')) ->
-                do  put (n+1)
-                    let self = J.Ident (localvarstr ++ show i)
-                    (s,je,t1) <- translateScopeM (to this) (g (Left i,t)) m
-                    let cvar = standardTranslation je s self f
-                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
-              otherwise -> 
-                do  put (n+2)
-                    let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable              
-                    (s,je,t1) <- translateScopeM (to this) (g (Left (n+1),t)) m
-                    let cvar = standardTranslation je s self f
-                    return ([cvar],J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
--}
-       otherwise -> translateScopeM super e m
+  toTS = T {  translateM = \e -> case e of 
+       CLam s ->
+           do  tell False
+               translateM super e
+--TODO: merge common parts with BaseTransCF
+       CApp e1 e2 ->
+           do  tell True
+               (n :: Int) <- get
+               put (n+1)
+               (s1,j1, CForall (Typ t1 g)) <- translateM (up this) e1
+               (s2,j2,t2) <- translateM (up this) e2
+               (env :: Map.Map J.Exp Int) <- get
+               let t    = g ()
+               let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
+               let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
+                                                      Just no -> var (tempvarstr ++ show no) 
+               let maybeCloned = case t of
+                                       Body _ ->
+                                           nje1
+                                       _ ->
+                                           J.MethodInv (J.PrimaryMethodCall (nje1) [] (J.Ident "clone") [])
+                                           
+               let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])                                                      
+               let nje2 = case (Map.lookup j2 env) of Nothing -> j2
+                                                      Just no -> var (tempvarstr ++ show no)                       
+               let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) ) 
+               let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
+               s3 <- case t of -- checking the type whether to generate the apply() call
+                               Body _ ->
+                                case (scope2ctyp t) of CInt ->
+                                                        do (_, loc) <- genSubst j3 initIntCast
+                                                           let h = case loc of J.ExpName (J.Name [z]) -> z 
+                                                           return ([cvar, ass] ++ whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h boxedIntType)
+                                                       CForall (_) ->
+                                                        do (_, loc) <- genSubst j3 initClosure
+                                                           let h = case loc of J.ExpName (J.Name [z]) -> z 
+                                                           return ([cvar, ass] ++ whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h closureType)
+                                                       _ ->  
+                                                        do (_, loc) <- genSubst j3 initObj
+                                                           let h = case loc of J.ExpName (J.Name [z]) -> z 
+                                                           return ([cvar, ass] ++ whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h objType)
+                               _ -> do return [cvar,ass]
 
-    },
+               return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
+               
+       otherwise -> 
+            do  tell True
+                translateM super e,
   
-  translateScheduleM = \e -> case e of
-    CApp e1 e2  -> -- CJ-App-Sigma
-      do  (n :: Int) <- get
-          put (n+1)
-          (s1,j1,sig1,CForall (Typ t1 g)) <- translateScheduleM (up this) e1
-          (s2,j2,sig2,t2) <- translateScheduleM (up this) e2
-          let t    = g ()
-          let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-          let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (J.Cast closureType j1)))])
-          let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "x"))) J.EqualA j2) ) 
-          let p = push (J.ExpName (J.Name [f]))
-          let sig = case t of -- checking the type whether to generate the apply() call
-                      Body _ -> ([cvar,ass],[p])
-                      _ -> ([cvar,ass],[])
-          let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-          return (s1 ++ s2, j3, sig1 ++ (sig2 ++ [sig]), scope2ctyp t) -- need to check t1 == t2
-    otherwise ->
-         do  (s,j,t) <- translateM (toTS $ up this) e -- ugly :(
-             return (s,j,[],t)
-  } 
+  translateScopeM = \e m -> case e of 
+      Typ t g -> 
+        do  n <- get
+            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
+            let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
+            put n'
+            let self = J.Ident (localvarstr ++ show v)
+            ((s,je,t1), closureCheck) <- listen $ translateScopeM (up this) (g (Left v,t)) Nothing
+            (env :: Map.Map J.Exp Int) <- get
+            let nje = case (Map.lookup je env) of Nothing -> je
+                                                  Just no -> var (tempvarstr ++ show no)
+            let cvar = refactoredScopeTranslationBit nje s v n closureCheck -- standardTranslation nje s i n (Set.member n envs)
+            return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+
+      otherwise ->
+          do tell True
+             translateScopeM super e m
+  }}
