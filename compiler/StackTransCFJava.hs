@@ -50,21 +50,30 @@ whileApply cl ctemp tempOut outType = [J.LocalVars [] outType [J.VarDecl (J.VarI
         J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [tempOut])) 
         J.EqualA (J.Cast outType 
         (J.ExpName (J.Name [J.Ident $ ctemp,J.Ident "out"])))))])))]
+--Next.next = x8;
+nextApply cl = [J.BlockStmt $ J.ExpStmt $ J.Assign (J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"])) J.EqualA (cl)]
 
 -- copy-paste from ApplyOpt, TODO: modularize
-transS :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadWriter Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m) 
+transS :: (MonadState Int m, MonadState Bool m, MonadState (Map.Map J.Exp Int) m, MonadWriter Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m) 
 transS this super = TS {
   toTS = T {  translateM = \e -> case e of 
        CLam s ->
            do  tell False
                translateM super e
+               
+       CFPrimOp e1 op e2 ->
+           do  prev :: Bool <- get
+               case e1 of CApp _ _ -> put True
+                          _ -> case e2 of CApp _ _ -> put True
+                                          _ -> put prev
+               translateM super e               
 --TODO: merge common parts with BaseTransCF
        CApp e1 e2 ->
            do  tell True
                (n :: Int) <- get
                put (n+1)
-               (s1,j1, CForall (Typ t1 g)) <- translateM (up this) e1
-               (s2,j2,t2) <- translateM (up this) e2
+               ((s1,j1, CForall (Typ t1 g)),l1 :: Bool) <- listen $ translateM (up this) e1
+               ((s2,j2,t2), l2 :: Bool) <- listen $ translateM (up this) e2
                (env :: Map.Map J.Exp Int) <- get
                let t    = g ()
                let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
@@ -82,19 +91,25 @@ transS this super = TS {
                let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) ) 
                let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
                s3 <- case t of -- checking the type whether to generate the apply() call
-                               Body _ ->
+                               Body _ -> do
+                                (genApplys :: Bool) <- get
+                                put (True)
+                                
                                 case (scope2ctyp t) of CInt ->
                                                         do (_, loc) <- genSubst j3 initIntCast
-                                                           let h = case loc of J.ExpName (J.Name [z]) -> z 
-                                                           return ([cvar, ass] ++ whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h boxedIntType)
+                                                           let h = case loc of J.ExpName (J.Name [z]) -> z
+                                                           let applyCall = if genApplys then (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h boxedIntType) else (nextApply (J.ExpName (J.Name [f])))  
+                                                           return ([cvar, ass] ++ applyCall)
                                                        CForall (_) ->
                                                         do (_, loc) <- genSubst j3 initClosure
                                                            let h = case loc of J.ExpName (J.Name [z]) -> z 
-                                                           return ([cvar, ass] ++ whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h closureType)
+                                                           let applyCall = if genApplys then (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h closureType) else (nextApply (J.ExpName (J.Name [f])))  
+                                                           return ([cvar, ass] ++ applyCall)
                                                        _ ->  
                                                         do (_, loc) <- genSubst j3 initObj
                                                            let h = case loc of J.ExpName (J.Name [z]) -> z 
-                                                           return ([cvar, ass] ++ whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h objType)
+                                                           let applyCall = if genApplys then (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h objType) else (nextApply (J.ExpName (J.Name [f])))  
+                                                           return ([cvar, ass] ++ applyCall)
                                _ -> do return [cvar,ass]
 
                return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
