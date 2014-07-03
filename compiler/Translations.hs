@@ -12,6 +12,7 @@ module Translations
     ( Compilation
     , compileN
     , compileAO
+    , compileS
     , compilesf2java
     ) where
 
@@ -193,3 +194,16 @@ compileN :: Compilation
 compileN e = 
   case evalState (evalStateT (translateN (fexp2cexp e)) 0) Map.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
+
+      
+stackinst :: TranslateStack AOptType  -- instantiation; all coinstraints resolved
+stackinst = stackNaive
+
+translateS :: PCExp Int (Var, PCTyp Int) -> AOptType ([J.BlockStmt], J.Exp, PCTyp Int)
+translateS = translateM (up stackinst) 
+
+compileS :: Compilation
+compileS e = 
+  case fst $ runWriter $ evalStateT (evalStateT (translateS (fexp2cexp e)) 0) Map.empty of
+      (ss,exp,t) -> (J.Block ss,exp, t)      
+      
