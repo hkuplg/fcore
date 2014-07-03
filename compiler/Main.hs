@@ -47,7 +47,7 @@ data Options = Options
     , optCompilationMethod :: CompilationMethod
     } deriving (Eq, Show, Data, Typeable)
 
-data CompilationMethod = Naive | ApplyOpt deriving (Eq, Show, Data, Typeable)
+data CompilationMethod = Naive | ApplyOpt | Stack deriving (Eq, Show, Data, Typeable)
 
 optionsSpec :: Options
 optionsSpec = Options
@@ -59,7 +59,7 @@ optionsSpec = Options
                           &= explicit &= name "m" &= name "method"
                           &= typ "<method>" 
                           &= help (unwords [ "Compilation method."
-                                           , "Can be either 'naive' or 'applyopt' (use without quotes)."
+                                           , "Can be either 'naive', 'applyopt' or 'stack' (use without quotes)."
                                            , "The default is 'applyopt'."
                                            ])
     }
@@ -91,6 +91,7 @@ main = do
             compilesf2java (case method of 
                                 Naive    -> compileN
                                 ApplyOpt -> compileAO
+                                Stack -> compileS
                            ) srcPath outputPath 
 
         when (optCompile opts || optCompileAndRun opts) $ withMessageLn "  Compiling Java" $ compileJava outputPath
