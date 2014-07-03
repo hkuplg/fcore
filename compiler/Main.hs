@@ -44,10 +44,10 @@ data Options = Options
     , optCompileAndRun :: Bool
     , optSourceFiles   :: [String]
     , optDebug         :: Bool
-    , optCompilationMethod :: CompilationMethod
+    , optTransMethod   :: TransMethod
     } deriving (Eq, Show, Data, Typeable)
 
-data CompilationMethod = Naive | ApplyOpt | Stack deriving (Eq, Show, Data, Typeable)
+data TransMethod = Naive | ApplyOpt | Stack deriving (Eq, Show, Data, Typeable)
 
 optionsSpec :: Options
 optionsSpec = Options
@@ -55,13 +55,13 @@ optionsSpec = Options
     , optCompileAndRun = False &= explicit &= name "r" &= name "compile-and-run" &= help "Compile & run Java source"
     , optDebug         = False &= explicit &= name "d" &= name "debug"           &= help "Show debug information"
     , optSourceFiles   = []    &= args     &= typ "<source files>"
-    , optCompilationMethod = ApplyOpt 
-                          &= explicit &= name "m" &= name "method"
-                          &= typ "<method>" 
-                          &= help (unwords [ "Compilation method."
-                                           , "Can be either 'naive', 'applyopt' or 'stack' (use without quotes)."
-                                           , "The default is 'applyopt'."
-                                           ])
+    , optTransMethod   = ApplyOpt 
+                      &= explicit &= name "m" &= name "method"
+                      &= typ "<method>" 
+                      &= help (unwords [ "Translations method."
+                                       , "Can be either 'naive', 'applyopt', or 'stack' (use without quotes)."
+                                       , "The default is 'applyopt'."
+                                       ])
     }
 
 getOpts :: IO Options
@@ -86,7 +86,7 @@ main = do
         putStrLn (takeFileName srcPath) 
         let outputPath = inferOutputPath srcPath
 
-        let method = optCompilationMethod opts 
+        let method = optTransMethod opts 
         withMessageLn (concat ["  Compiling System F to Java using ", show method, " ( ", outputPath, " )"]) $ 
             compilesf2java (case method of 
                                 Naive    -> compileN
