@@ -9,7 +9,7 @@ make <name of task>
 at the project root.
 
 * `make parsers` will generate the parser as well the lexer for System F and other source languages, if any.
-* `make test` will run all the tests inside the `test/` directory and the one at `compiler/TestSuite.hs`.
+* `make test` will run all the tests inside the `test/` directory.
 * `make compiler` or simply `make` will build the executable `f2j`. Note that you may invoke `f2j` (with the very name) anywhere in the file system, and it is *not* necessary to run `make parsers` before running this command.
 
 # Using f2j #
