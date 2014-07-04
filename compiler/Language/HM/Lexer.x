@@ -39,23 +39,23 @@ tokens :-
 
     \!          { \_ -> TkUnOp Not }
 
-    \*          { \_ -> TkBinOp Mul   }
-    \/          { \_ -> TkBinOp Div    }
-    \%          { \_ -> TkBinOp Mod    }
-    \+          { \_ -> TkBinOp Add    }
-    \-          { \_ -> TkBinOp Sub    }
+    \*          { \_ -> TkBinOp Mul }
+    \/          { \_ -> TkBinOp Div }
+    \%          { \_ -> TkBinOp Mod }
+    \+          { \_ -> TkBinOp Add }
+    \-          { \_ -> TkBinOp Sub }
     \<          { \_ -> TkBinOp Lt  }
     \>          { \_ -> TkBinOp Gt  }
-    \<\=        { \_ -> TkBinOp Le }
-    \>\=        { \_ -> TkBinOp Ge }
+    \<\=        { \_ -> TkBinOp Le  }
+    \>\=        { \_ -> TkBinOp Ge  }
     \=\=        { \_ -> TkBinOp Eq  }
     \!\=        { \_ -> TkBinOp Ne  }
-    \&\&        { \_ -> TkBinOp And   }
-    \|\|        { \_ -> TkBinOp Or    }
+    \&\&        { \_ -> TkBinOp And }
+    \|\|        { \_ -> TkBinOp Or  }
 
     [A-Z] [$alpha $digit \_ \']*  { \s -> TkUpperId s }
     [a-z] [$alpha $digit \_ \']*  { \s -> TkLowerId s }
-    \_ $digit+                    { \s -> TkUnderId (read (tail s))  }
+    \_ $digit+                    { \s -> TkUnderId (read (tail s)) }
 
     $digit+     { \s -> TkInteger (read s) }
     True        { \s -> TkBool True }

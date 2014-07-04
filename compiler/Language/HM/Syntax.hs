@@ -2,24 +2,20 @@
 
 module Language.HM.Syntax where
 
-data ExpAnnot = ExpAnnot Exp (Maybe Type) deriving (Eq, Show)
-
 data Exp = EVar String
          | ELit Lit     -- Literal
          | EApp Exp Exp
          | ELam [Pat] Exp
          | ELet (String, [Pat], Exp) Exp
          | ELetRec (String, [Pat], Exp) Exp
-         | EUnOp  UnOp Exp
-         | EBinOp Exp BinOp Exp
+         | EUnOp UnOp Exp
+         | EBinOp BinOp Exp Exp
          | EIf Exp Exp Exp
          | ETup [Exp]
          | EProj Exp Int
          deriving (Eq, Show)
 
-data Pat = PVar String
-         | PVarAnnot (String, Type)     -- Pattern variable with a type annotation
-         deriving (Eq, Show)
+newtype Pat = PVar String deriving (Eq, Show)
 
 data Lit = LInteger Integer | LBool Bool deriving (Eq, Show)
 
@@ -50,8 +46,9 @@ data Prim = Int | Bool deriving (Eq, Show)
 -- Polytype sigma
 data Poly = PMono Mono
           | PForall [String] Poly
-          deriving (Show)
+          deriving (Eq, Show)
 
+{-
 -- Equality of monotypes is purely syntactical. But syntactically different
 -- polytypes are equal w.r.t. renaming their quantified variables.
 instance Eq Poly where
@@ -70,3 +67,4 @@ instance Eq Poly where
                     eqMono rs _            _            = False
             eq rs _ _                             = False
 
+-}
