@@ -50,6 +50,7 @@ ftyp2ctyp2 = undefined
 ftyp2ctyp :: PFTyp t -> PCTyp t
 ftyp2ctyp (FTVar x) = CTVar x
 ftyp2ctyp (FInt)    = CInt
+ftyp2ctyp (FProduct ts) = CTupleType (map ftyp2ctyp ts)
 ftyp2ctyp t         = CForall (ftyp2scope t)
 
 {-
@@ -135,6 +136,7 @@ showPCTyp :: PCTyp Int -> Int -> String
 showPCTyp (CTVar i) n = "a" ++ show i
 showPCTyp (CForall s) n = "(forall " ++ showTScope s n ++ ")"
 showPCTyp CInt n = "Int"
+showPCTyp (CTupleType ts) n = "TODO!"
 
 showTScope (Body t) n = ". " ++ showPCTyp t n
 showTScope (Kind f) n = "a" ++ show n ++ " " ++ showTScope (f n) (n+1)

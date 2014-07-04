@@ -75,7 +75,7 @@ createCU className (J.Block bs,e,t) (Just expName) = (cu,t) where
                             CInt -> J.Cast boxedIntType e
                             _ -> J.Cast objType e    
    returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
-                          _ -> Just $ closureType
+                          _ -> Just $ objType
 
    mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall 
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident (expName ++ "()")]])))])
