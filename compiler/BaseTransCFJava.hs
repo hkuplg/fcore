@@ -40,6 +40,7 @@ init = [J.InitDecl False (J.Block [])]
 closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
 objType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))
 boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
+objArrayType = J.RefType (J.ArrayType (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))))
 
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
 ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
@@ -64,16 +65,8 @@ createCU className (J.Block bs,e,t) (Just expName) = (cu,t) where
    body = Just (J.Block (bs ++ [ass]))
    mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
    --TODO: maybe get a state monad to createCU to createCU somehow?
-   maybeCastedReturnExp = 
-        case bs of
-            [] -> case t of 
-                            CInt -> J.Cast boxedIntType e
-                            _ -> J.Cast objType e 
-            _  -> case listlast bs of 
-                    J.LocalVars [] _ ([J.VarDecl (J.VarId id) (_)]) -> J.ExpName $ J.Name [id]
-                    _ -> case t of 
-                            CInt -> J.Cast boxedIntType e
-                            _ -> J.Cast objType e    
+   maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
+                                    _ -> J.Cast objType e    
    returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
                           _ -> Just $ objType
 
@@ -102,6 +95,8 @@ initIntCast tempvarstr n j = initStuff tempvarstr n j boxedIntType
 initObj tempvarstr n j = initStuff tempvarstr n j objType
 
 initClosure tempvarstr n j = initStuff tempvarstr n j closureType
+
+initObjArray tempvarstr n j = initStuff tempvarstr n j objArrayType
 
 type Var = Either Int Int -- left -> standard variable; right -> recursive variable
 
@@ -194,7 +189,12 @@ trans self = let this = up self in T {
        liftM reduceTTuples $ mapM (translateM this) tuple
        
      CFProj i (CFTuple tuple) ->
-       translateM this (tuple!!i)
+       do (s1,j1,t) <- translateM this (CFTuple tuple)
+          (s2, j2) <- genSubst j1 initObjArray
+          let fj = J.ArrayAccess (J.ArrayIndex j2 (J.Lit (J.Int $ toInteger i)))
+          let ft = case t of CTupleType ts -> ts!!i
+                             _ -> error "expected tuple type"
+          return (s1 ++ s2, fj, ft)
      
      CTApp e t -> 
        do  n <- get

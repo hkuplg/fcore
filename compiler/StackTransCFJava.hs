@@ -72,9 +72,12 @@ transS this super = TS {
            do  tell True
                (n :: Int) <- get
                put (n+1)
-               ((s1,j1, CForall (Typ t1 g)),l1 :: Bool) <- listen $ translateM (up this) e1
-               ((s2,j2,t2), l2 :: Bool) <- listen $ translateM (up this) e2
+               (s1,j1, CForall (Typ t1 g)) <- translateM (up this) e1
+               (s2,j2,t2) <- translateM (up this) e2
                (env :: Map.Map J.Exp Int) <- get
+               case t2 of CForall _ -> put True
+                          _ -> do aps :: Bool <- get
+                                  put aps
                let t    = g ()
                let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
                let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
