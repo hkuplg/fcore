@@ -3,23 +3,12 @@
 -- http://web.cs.wpi.edu/~cs4536/c12/milner-damas_principal_types.pdf
 module Language.HM.TypeCheck where
 
-import Prelude hiding   (id)
 import Control.Monad.State
 import Data.List        (union, delete, intercalate, nub)
 import Data.Maybe       (fromMaybe)
 
 import Language.HM.Syntax
 import Language.HM.Parser         (reader)
-
-true :: Poly
-true = PForall "a" (PForall "b" (PMono (MVar "a")))
-
-false :: Poly
-false = PForall "a" (PForall "b" (PMono (MVar "b")))
-
--- We should have: true == true'
-true' :: Poly
-true' = PForall "b" (PForall "a" (PMono (MVar "b")))
 
 type Env = [(Var, Poly)]
 
@@ -82,18 +71,6 @@ type2mono (TPoly s) = error "type2mono (TPoly s)"
 -- g(tau) = forall a. tau, a = free(t) - free(env)
 -- generalize :: Env -> Mono -> Poly
 -- quantifies all monotype variables not bound in env
-
-id :: Exp
-id = ELet "id" (ELam "x" (EVar "x")) (EVar "id")
-
-foo :: Exp
-foo = ELam "y" (EVar "x")
-
-bar :: Exp
-bar = ELam "x" (ELet "foo" foo (EVar "foo"))
-
-example1 :: Exp
-example1 = ELet "bar" bar (EVar "bar")
 
 -- Constraint-based typing (TaPL, Figure 22-1)
 

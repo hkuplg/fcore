@@ -15,6 +15,17 @@ data Exp = EVar String
          | EProj Exp Int
          deriving (Eq, Show)
 
+data Type = Mono Mono 
+          | Forall [String] Type
+          deriving (Eq, Show)
+
+data Mono = MVar String 
+          | MPrim Prim 
+          | MFun Mono Mono 
+          deriving (Eq, Show)
+
+data Prim = PInt | PBool deriving (Eq, Show)
+
 newtype Pat = PVar String deriving (Eq, Show)
 
 data Lit = LInteger Integer | LBool Bool deriving (Eq, Show)
@@ -28,25 +39,6 @@ data BinOp = Mul | Div | Mod
            | And 
            | Or
            deriving (Eq, Show)
-                    
--- tau   ::= alpha | iota | tau -> tau
--- sigma ::= tau | forall alpha . sigma
-data Type = TMono Mono
-          | TPoly Poly
-          deriving (Eq, Show)
-
--- Monotype tau
-data Mono = MVar String
-          | MPrim Prim  -- Primitive types
-          | MApp Mono Mono -- Function Arrow: t1 -> t2
-          deriving (Eq, Show)
-
-data Prim = Int | Bool deriving (Eq, Show)
-
--- Polytype sigma
-data Poly = PMono Mono
-          | PForall [String] Poly
-          deriving (Eq, Show)
 
 {-
 -- Equality of monotypes is purely syntactical. But syntactically different
