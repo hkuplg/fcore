@@ -171,11 +171,11 @@ aexp2
     | INTEGER           { \_e -> FLit $1 }
     | aexp "." UNDERID  { \e -> FProj $3 ($1 e) } 
     | "(" exp ")"       { $2 }
-    | "(" tup_exprs ")" { \(tenv, env, i) -> FTuple ($2 (tenv, env, i)) }
+    | "(" tup_exprs ")" { \(tenv, env, i) -> FTuple (map ($ (tenv, env, i)) $2) }
 
 tup_exprs 
-    : exp "," exp       { \(tenv, env, i) -> ($1 (tenv, env, i):[$3 (tenv, env, i)]) }
-    | exp "," tup_exprs { \(tenv, env, i) -> ($1 (tenv, env, i):$3 (tenv, env, i)) }
+    : exp "," exp       { $1:[$3] }
+    | exp "," tup_exprs { $1:$3   }
 
 typ
     : "forall" tvar "." typ     { \tenv -> FForall (\a -> $4 (Map.insert $2 a tenv)) }
@@ -190,6 +190,11 @@ atyp
     : tvar              { \tenv -> FTVar (fromMaybe (error $ "Unbound type variable: `" ++ $1 ++ "'") (Map.lookup $1 tenv)) }
     | "Int"             { \_    -> FInt }
     | "(" typ ")"       { $2 }
+    | "(" tup_typs ")"  { \tenv -> FProduct (map ($ tenv) $2) }
+
+tup_typs
+    : typ "," typ       { $1:[$3] }
+    | typ "," tup_typs  { $1:$3   }
 
 var  : LOWERID          { $1 }
 tvar : UPPERID          { $1 }
