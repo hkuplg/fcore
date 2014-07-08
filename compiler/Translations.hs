@@ -154,14 +154,14 @@ prettyJ = putStrLn . prettyPrint
 -- compileCU className e Nothing = let (cu,t) = createCU className (compile e) Nothing in (prettyJ cu >> print t)
 
 -- SystemF to Java
-sf2java :: Compilation -> ClassName -> String -> String
-sf2java compilation (ClassName className) src = 
-    let (cu, _) = createCU className (compilation (Language.SystemF.Parser.reader src)) Nothing in prettyPrint cu
+sf2java :: Compilation -> ClassName -> String -> Bool -> String
+sf2java compilation (ClassName className) src stackTr = 
+    let (cu, _) = createCU className (compilation (Language.SystemF.Parser.reader src)) stackTr in prettyPrint cu
 
-compilesf2java :: Compilation -> FilePath -> FilePath -> IO ()
-compilesf2java compilation srcPath outputPath = do
+compilesf2java :: Compilation -> FilePath -> FilePath -> Bool -> IO ()
+compilesf2java compilation srcPath outputPath stackTr = do
     src <- readFile srcPath
-    let output = sf2java compilation (ClassName (inferClassName outputPath)) src
+    let output = sf2java compilation (ClassName (inferClassName outputPath)) src stackTr
     writeFile outputPath output
 
 type Compilation = PFExp Int (Var, PCTyp Int) -> (J.Block, J.Exp, PCTyp Int)

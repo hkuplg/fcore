@@ -9,7 +9,7 @@
 
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Main (main) where
+module Main (main, TransMethod) where
 
 import Control.Monad            (when)
 
@@ -92,7 +92,7 @@ main = do
                                 Naive    -> compileN
                                 ApplyOpt -> compileAO
                                 Stack -> compileS
-                           ) srcPath outputPath 
+                           ) srcPath outputPath (method == Stack)
 
         when (optCompile opts || optCompileAndRun opts) $ withMessageLn "  Compiling Java" $ compileJava outputPath
         when (optCompileAndRun opts) $ withMessage "  Running Java\n  Output: " $ runJava outputPath)

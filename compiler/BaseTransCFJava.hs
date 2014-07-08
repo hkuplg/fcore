@@ -19,6 +19,7 @@ import Inheritance
 import StringPrefixes
 import MonadLib
 
+
 {-
 class (:<) (f :: (* -> *) -> *) g  where
    to :: f m -> g m
@@ -50,19 +51,47 @@ ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $
         ifvarname = (ifresultstr ++ show n)
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
         newvar = var ifvarname
+
+whileApplyLoop :: String -> J.Ident -> J.Type -> [J.BlockStmt]
+whileApplyLoop ctemp tempOut outType = [J.LocalVars [] closureType [J.VarDecl (J.VarId $ J.Ident $ ctemp) (Nothing)],
+        J.LocalVars [] outType [J.VarDecl (J.VarId tempOut) (Just (J.InitExp (J.Lit J.Null)))],
+        -- this is a hack, because language-java 0.2.x removed J.Paren
+        --J.Paren $ J.Assign (J.NameLhs (J.Name [J.Ident ctemp]))
+        --        J.EqualA (J.ExpName (J.Name [J.Ident "Next",J.Ident "next"]))
+        J.BlockStmt (J.While (J.BinOp (J.ExpName $ J.Name [J.Ident ("(" ++ ctemp ++ " = " ++ "Next.next" ++ ")")])
+        J.NotEq (J.Lit J.Null)) (J.StmtBlock (J.Block 
+        [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"])) 
+        J.EqualA (J.Lit J.Null))),
+        J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident $ ctemp,J.Ident "apply"]) []))),
+        J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [tempOut])) 
+        J.EqualA (J.Cast outType 
+        (J.ExpName (J.Name [J.Ident $ ctemp,J.Ident "out"])))))])))]
         
-createCU :: String -> (J.Block, J.Exp, PCTyp Int) -> Maybe String -> (J.CompilationUnit, PCTyp Int)
-createCU className (J.Block bs,e,t) Nothing = createCU className (J.Block bs,e,t) (Just "apply")
-createCU className (J.Block bs,e,t) (Just expName) = (cu,t) where
-   cu = J.CompilationUnit Nothing [] [closureClass,nextClass,classDecl]
+createCU :: String -> (J.Block, J.Exp, PCTyp Int) -> Bool -> (J.CompilationUnit, PCTyp Int)
+createCU className (J.Block bs,e,t) stackTran = (cu,t) where
+   cu | stackTran = J.CompilationUnit Nothing [] [closureClass,nextClass,stackDecl]
+      | otherwise = J.CompilationUnit Nothing [] [closureClass,classDecl]
+   
+   applyCall = J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident "apply"]) [])))   
+   stackbody = applyCall : whileApplyLoop "c" (J.Ident "result") (case t of CInt -> boxedIntType
+                                                                            _ -> objType) ++ [
+               J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall 
+    (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("result")]])))                                                 
+                                                                ]
+                                                                
+   stackDecl = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) [] 
+    (J.ClassBody [app [J.Static] body Nothing "apply" [], app [J.Public, J.Static] (Just $ J.Block $ stackbody) Nothing "main" mainArgType]))
+    
+   nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.ClassBody [J.MemberDecl (J.FieldDecl 
+        [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))         
+                                                                
    field name = J.MemberDecl (J.FieldDecl [] (objType) [
               J.VarDecl (J.VarId (J.Ident name)) Nothing])
    app mod b rt en args = J.MemberDecl (J.MethodDecl mod [] (rt) (J.Ident en) args [] (J.MethodBody b))
    closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
                   J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [],app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
-   nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.ClassBody [J.MemberDecl (J.FieldDecl 
-        [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))               
-   body = Just (J.Block (bs ++ [ass]))
+          
+   body = Just (J.Block (bs ++ ass))
    mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
    --TODO: maybe get a state monad to createCU to createCU somehow?
    maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
@@ -71,12 +100,13 @@ createCU className (J.Block bs,e,t) (Just expName) = (cu,t) where
                           _ -> Just $ objType
 
    mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall 
-    (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident (expName ++ "()")]])))])
+    (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("apply" ++ "()")]])))])
                           
-   ass  = J.BlockStmt (J.Return $ Just maybeCastedReturnExp)
+   ass  | stackTran = []
+        | otherwise = [J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]
    refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
    classDecl = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) [] 
-    (J.ClassBody [app [J.Static] body returnType expName [], app [J.Public, J.Static] mainbody Nothing "main" mainArgType]))
+    (J.ClassBody [app [J.Static] body returnType "apply" [], app [J.Public, J.Static] mainbody Nothing "main" mainArgType]))
 
 reduceTTuples :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
 reduceTTuples all = (merged, arrayAssignment, tupleType)
