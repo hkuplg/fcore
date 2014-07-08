@@ -28,6 +28,7 @@ tokens :-
     \-\>        { \_ -> Arrow }
     \.          { \_ -> Dot }
     let         { \_ -> Let }
+    rec         { \_ -> Rec }
     \=          { \_ -> Eq }
     in          { \_ -> In }
     fix         { \_ -> Fix }
@@ -61,7 +62,7 @@ tokens :-
 {
 data Token = OParen | CParen
            | TLam | Lam | Colon | Forall | Arrow | Dot
-           | Let | Eq | In | Fix
+           | Let | Rec | Eq | In | Fix
            | TyInt
            | If0 | Then | Else
            | Comma

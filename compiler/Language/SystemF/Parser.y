@@ -29,6 +29,7 @@ import Language.SystemF.TypeCheck       (infer, unsafeGeneralize)
     "->"     { Arrow }
     "."      { Dot }
     "let"    { Let }
+    "rec"    { Rec }
     "="      { Eq }
     "in"     { In }
     "fix"    { Fix }
@@ -100,26 +101,55 @@ exp10
     : "/\\" tvar "." exp                { \(tenv, env, i) -> FBLam (\a -> $4 (Map.insert $2 a tenv, env, i)) }
     | "\\" "(" var ":" typ ")" "." exp  { \(tenv, env, i) -> FLam ($5 tenv) (\x -> $8 (tenv, Map.insert $3 x env, i)) }
 
-    -- let x = e1 : T in e2 rewrites to  (\(x : T). e2) e1
+    --    let x = e1 : T in e2 
+    -- ~> (\(x : T). e2) e1
 
     | "let" var "=" exp ":" typ "in" exp  
         { \(tenv, env, i) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, Map.insert $2 x env, i))) ($4 (tenv, env, i)) }
 
-   -- | let x = e1 in e2 rewrites to (\(x : (infer e1 i)). e2) e1
+    --    let x = e1 in e2 
+    -- ~> (\(x : (infer e1)). e2) e1
 
-    | "let" var "=" exp "in" exp  
+    | "let" var{-2-} "=" exp "in" exp{-6-}
         { \(tenv, env, i) -> 
-            let e1  = $4 (tenv, env, i)
-                te1 = infer i e1 
-            in
-            FApp (FLam te1 (\x -> $6 (tenv, Map.insert $2 x env, i))) e1 
+            let e1 = $4 (tenv, env, i) in
+            FApp (FLam (infer i e1) (\x -> $6 (tenv, Map.insert $2 x env, i))) e1 
         }
 
     -- -- Rule for the old fixpoint syntax
 
     -- | "fix" var "." "\\" "(" var ":" typ ")" "." exp ":" typ 
     --      { \(tenv, env, i) -> FFix ($8 tenv) (\y -> \x -> $11 (tenv, ($6, x):($2, y):env)) ($13 tenv) }
-  
+    
+    
+    --    let rec f A1 ... An (x1 : T1) ... (xn : Tn) : T(n+1) = e1 in e2
+    -- ~> let f = /\A1. ... /\An. (fix (f : T1 -> T2 -> ... -> Tn -> T(n+1)). \x1. (\(x2 : T2). ... \(xn : Tn). e1)) in e2
+    --         --------------------------------------------------------------------------------------------------
+    --                                                         e3
+    -- ~> (\(f : (infer e3). e2) e3
+    
+    | "let" "rec" var{-3-} tvars{-4-} varannot{-5-} varannots{-6-} ":" typ{-8-} "=" exp{-10-} "in" exp{-12-}
+        { \(tenv, env, i) -> 
+            let e3 = (wrapWithBLams $4 
+                        (\(tenv, env, i) -> 
+                            FFix
+                                -- Type of the first argument
+                                ((snd $5) tenv)    
+                                
+                                -- Body
+                                (\y -> \x -> 
+                                    (wrapWithLams tenv $6 $10) (tenv, (Map.insert (fst $5) x . Map.insert $3 y) env, i)
+                                )  
+
+                                -- Return type
+                                (mkFunType tenv (map snd $6 ++ [$8]))
+                        )  
+                     ) (tenv, env, i)
+            in
+            FApp (FLam (infer i e3) (\f -> $12 (tenv, Map.insert $3 f env, i))) e3
+        }
+    
+    -- This syntax is about to replaced by the 'let rec' syntax.
     | "fix" "(" var ":" atyp "->" typ ")" "." "\\" var "." exp 
         { \(tenv, env, i) -> FFix ($5 tenv) (\y -> \x -> $13 (tenv, (Map.insert $11 x . Map.insert $3 y) env, i)) ($7 tenv) }
 
@@ -161,10 +191,42 @@ atyp
     | "Int"             { \_    -> FInt }
     | "(" typ ")"       { $2 }
 
-var  : LOWERID       { $1 }
-tvar : UPPERID       { $1 }
+var  : LOWERID          { $1 }
+tvar : UPPERID          { $1 }
+
+varannot : "(" var ":" typ ")"  { ($2, $4) }
+
+varannots
+    : varannot varannots        { $1:$2 }
+    | {- empty -}               { [] }
+
+tvars 
+    : tvar tvars        { $1:$2 }
+    | {- empty -}       { []    } 
 
 {
+wrapWithBLams 
+    :: forall t e. 
+        [String] 
+    -> ((Map.Map String t, Map.Map String e, Int) -> PFExp t e) 
+    -> ((Map.Map String t, Map.Map String e, Int) -> PFExp t e)
+wrapWithBLams []     expr = expr
+wrapWithBLams (a:as) expr = \(tenv, env, i) -> FBLam (\x -> (wrapWithBLams as expr) (Map.insert a x tenv, env, i))
+
+wrapWithLams
+    :: forall t e.
+       Map.Map String t 
+    -> [(String, Map.Map String t -> PFTyp t)]   -- Annotated types
+    -> ((Map.Map String t, Map.Map String e, Int) -> PFExp t e) 
+    -> ((Map.Map String t, Map.Map String e, Int) -> PFExp t e)
+wrapWithLams tenv []              expr = expr
+wrapWithLams tenv ((var, typ):xs) expr = \(tenv, env, i) -> FLam (typ tenv) (\x -> (wrapWithLams tenv xs expr) (tenv, Map.insert var x env, i))
+
+mkFunType :: (Map.Map String t) -> [Map.Map String t -> PFTyp t] -> PFTyp t
+mkFunType tenv []     = error "mkFunType: impossible case reached"
+mkFunType tenv [t]    = t tenv
+mkFunType tenv (t:ts) = FFun (t tenv) (mkFunType tenv ts)
+
 parseError :: [Token] -> a
 parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
 
