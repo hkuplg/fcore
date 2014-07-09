@@ -218,8 +218,8 @@ trans self = let this = up self in T {
      CFTuple tuple ->
        liftM reduceTTuples $ mapM (translateM this) tuple
        
-     CFProj i (CFTuple tuple) ->
-       do (s1,j1,t) <- translateM this (CFTuple tuple)
+     CFProj i e ->
+       do (s1,j1,t) <- translateM this e
           (s2, j2) <- genSubst j1 initObjArray
           let fj = J.ArrayAccess (J.ArrayIndex j2 (J.Lit (J.Int $ toInteger i)))
           let ft = case t of CTupleType ts -> ts!!i
@@ -277,12 +277,17 @@ trans self = let this = up self in T {
                                                    do (result, rj) <- genSubst j3 initClosure
                                                       let r = [cvar,ass,apply] ++ result
                                                       return (rj, r)
+                                               CTupleType _ ->
+                                                   do (result, rj) <- genSubst j3 initObjArray
+                                                      let r = [cvar,ass,apply] ++ result
+                                                      return (rj, r)                                               
                                                _ ->  
                                                    do (result, rj) <- genSubst j3 initObj
                                                       let r = [cvar,ass,apply] ++ result
                                                       return (rj, r)
 
            return (s1 ++ s2 ++ s3, nj3, scope2ctyp t), -- need to check t1 == t2
+         
            
   translateScopeM = \e m -> case e of 
 

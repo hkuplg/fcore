@@ -113,6 +113,11 @@ transS this super = TS {
                                                            let h = case loc of J.ExpName (J.Name [z]) -> z 
                                                            let applyCall = if genApplys then (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h closureType) else (nextApply (J.ExpName (J.Name [f])) h closureType)  
                                                            return ([cvar, ass] ++ applyCall)
+                                                       CTupleType (_) ->
+                                                        do (_, loc) <- genSubst j3 initObjArray
+                                                           let h = case loc of J.ExpName (J.Name [z]) -> z 
+                                                           let applyCall = if genApplys then (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h closureType) else (nextApply (J.ExpName (J.Name [f])) h closureType)  
+                                                           return ([cvar, ass] ++ applyCall)                                                           
                                                        _ ->  
                                                         do (_, loc) <- genSubst j3 initObj
                                                            let h = case loc of J.ExpName (J.Name [z]) -> z 

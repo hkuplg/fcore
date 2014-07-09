@@ -70,6 +70,10 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                                                         do (result, _) <- genSubst j3 initClosure
                                                            let r = [cvar,ass,apply] ++ result
                                                            return r
+                                                       CTupleType _ ->
+                                                           do (result, _) <- genSubst j3 initObjArray
+                                                              let r = [cvar,ass,apply] ++ result
+                                                              return r                                                                                     
                                                        _ ->  
                                                         do (result, _) <- genSubst j3 initObj
                                                            let r = [cvar,ass,apply] ++ result
