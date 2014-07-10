@@ -78,7 +78,7 @@ transS this super = TS {
            do  tell True
                (n :: Int) <- get
                put (n+1)
-               
+               -- e1 e2, if c then e1 else e2, e1 T
                (genApplys :: Bool) <- get --state before
                put True --not last
                (s1,j1, CForall (Typ t1 g)) <- translateM (up this) e1
