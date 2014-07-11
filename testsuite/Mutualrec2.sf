@@ -1,0 +1,13 @@
+-- Intention
+
+-- let rec even (n : Int) : Int = if0 n then 1 else if0 n-1 then 0 else odd  (n-1)
+-- and     odd  (n : Int) : Int = if0 n then 0 else if0 n-1 then 1 else even (n-1) 
+-- in
+-- odd 7
+
+-- System F code: not parsing:
+
+let rec evenodd : (Int -> Int, Int -> Int) =
+     (\(n : Int) . if0 n then 1 else evenodd._1 (n-1), \(n : Int) . if0 n then 0 else evenodd._0 (n-1))
+in
+evenodd._1 7
