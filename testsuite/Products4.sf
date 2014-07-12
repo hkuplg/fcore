@@ -1,0 +1,1 @@
+let f = \(x : Int) . (x,x) in (f 3)._1
