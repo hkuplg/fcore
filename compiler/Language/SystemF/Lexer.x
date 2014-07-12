@@ -30,6 +30,7 @@ tokens :-
     let         { \_ -> Let }
     rec         { \_ -> Rec }
     \=          { \_ -> Eq }
+    and         { \_ -> And }
     in          { \_ -> In }
     fix         { \_ -> Fix }
     Int         { \_ -> TyInt }
@@ -62,7 +63,7 @@ tokens :-
 {
 data Token = OParen | CParen
            | TLam | Lam | Colon | Forall | Arrow | Dot
-           | Let | Rec | Eq | In | Fix
+           | Let | Rec | Eq | And | In | Fix
            | TyInt
            | If0 | Then | Else
            | Comma
