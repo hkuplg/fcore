@@ -37,7 +37,7 @@ parenPrec inheritedPrec currentPrec t
 class Pretty a where
     pretty :: a -> Doc
     pretty = prettyPrec 0 (0, 0)
-  
+
     prettyPrec :: Int -> (Int, Int) -> a -> Doc
     prettyPrec _ _ = pretty
 
@@ -57,22 +57,22 @@ instance Pretty (PFExp Int Int) where
 
         FProj i e1       -> parenPrec p 1 $ prettyPrec 1 l e1 <> text ("._" ++ show i)
 
-        FApp e1 e2       -> parenPrec p 2 $ prettyPrec 2 l e1 <+> prettyPrec 1 l e2 
+        FApp e1 e2       -> parenPrec p 2 $ prettyPrec 2 l e1 <+> prettyPrec 1 l e2
         FTApp e t        -> parenPrec p 2 $ prettyPrec 2 l e  <+> prettyPrec 1 l t
 
-        FBLam f          -> parenPrec p 3 $ 
-                                text ("/\\" ++ tvar ltvar ++ ".") 
+        FBLam f          -> parenPrec p 3 $
+                                text ("/\\" ++ tvar ltvar ++ ".")
                                 <+> prettyPrec 0 (ltvar+1, lvar) (f ltvar)
-        FLam t f         -> parenPrec p 3 $ 
+        FLam t f         -> parenPrec p 3 $
                                 text ("\\(" ++ var lvar ++ " : " ++ show (prettyPrec p (ltvar, lvar+1) t) ++ ").")
                                 <+> prettyPrec 0 (ltvar, lvar+1) (f lvar)
-        FFix t1 f t2     -> parenPrec p 3 $ 
+        FFix f t1 t2     -> parenPrec p 3 $
                                 text ("fix " ++ var lvar ++ ".")
                                 <+> text ("\\(" ++ (var (lvar+1) ++ " : " ++ show (prettyPrec p (ltvar, lvar+2) t1)) ++ ").")
                                 <+> prettyPrec 0 (ltvar, lvar+2) (f lvar (lvar+1)) <+> colon <+> prettyPrec 0 (ltvar, lvar+2) t2
 
-        FPrimOp e1 op e2 -> parenPrec p q $ prettyPrec q l e1 <+> text (JP.prettyPrint op) <+> prettyPrec (q-1) l e2 
-                                where q = opPrec op 
+        FPrimOp e1 op e2 -> parenPrec p q $ prettyPrec q l e1 <+> text (JP.prettyPrint op) <+> prettyPrec (q-1) l e2
+                                where q = opPrec op
 
         FIf0 e1 e2 e3    -> text "if0" <+> prettyPrec p l e1 <+> text "then" <+> prettyPrec p l e2 <+> text "else" <+> prettyPrec p l e3
 
@@ -104,5 +104,5 @@ opPrec J.Equal   = 7
 opPrec J.NotEq   = 7
 opPrec J.CAnd    = 11
 opPrec J.COr     = 12
-opPrec op         = error $ "Something impossible happens! The operator '" 
+opPrec op         = error $ "Something impossible happens! The operator '"
                             ++ JP.prettyPrint op ++ "' is not part of the language."

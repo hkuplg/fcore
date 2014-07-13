@@ -11,7 +11,7 @@ import Data.Maybe
 
 -- Closure F syntax
 
-data Scope b t e = Body b | Kind (t -> Scope b t e) | Typ (PCTyp t) (e -> Scope b t e) 
+data Scope b t e = Body b | Kind (t -> Scope b t e) | Typ (PCTyp t) (e -> Scope b t e)
 
 type TScope t = Scope (PCTyp t) t ()
 
@@ -19,10 +19,10 @@ type EScope t e = Scope (PCExp t e) t e
 
 data PCTyp t = CTVar t | CForall (TScope t) | CInt | CTupleType [PCTyp t]
 
-data PCExp t e = 
-     CVar e 
+data PCExp t e =
+     CVar e
    | CFVar Int
-   | CLam (EScope t e)  
+   | CLam (EScope t e)
    | CApp (PCExp t e) (PCExp t e)
    | CTApp (PCExp t e) (PCTyp t)
    | CFPrimOp (PCExp t e) (J.Op) (PCExp t e)
@@ -31,7 +31,7 @@ data PCExp t e =
    | CFTuple [PCExp t e]
    | CFProj Int (PCExp t e)
    -- fixpoints
-   | CFix (PCTyp t) (e -> EScope t e) 
+   | CFix (PCTyp t) (e -> EScope t e)
 
 -- System F to Closure F
 
@@ -69,7 +69,7 @@ fexp2cexp (FLit e) = CFLit e
 fexp2cexp (FIf0 e1 e2 e3) = CFIf0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
 fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
-fexp2cexp (FFix t1 f t2) = 
+fexp2cexp (FFix f t1 t2) =
   let  g e = groupLambda (FLam t1 (f e)) -- is this right???? (BUG)
   in   CFix (CForall (adjust (FFun t1 t2) (g undefined))) g
 fexp2cexp e             = CLam (groupLambda e)
@@ -78,12 +78,12 @@ adjust :: PFTyp t -> EScope t e -> TScope t
 adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
 adjust (FForall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
 adjust t (Body b)               = Body (ftyp2ctyp t)
---adjust t u                      = 
+--adjust t u                      =
 
 {-
 groupLambda2 :: PFExp Int (Int,PFTyp Int) -> [t] -> [e] -> EScope t e
 groupLambda2 (FBLam f) tenv env = Kind (\a -> groupLambda2 (f (length tenv)) (a:tenv) env)
-groupLambda2 (FLam t f) tenv env = 
+groupLambda2 (FLam t f) tenv env =
   Typ (ftyp2ctyp2 t tenv) (\x -> groupLambda2 (f (length env,t)) tenv (x:env))
 -}
 
@@ -123,13 +123,13 @@ class Subst t where
    subst :: Int -> PCTyp Int -> t -> PCTyp t
 
 instance Subst Int where
-   subst n t x 
+   subst n t x
       | n == x = t
       | otherwise = CTVar x
 
 instance Subst t => Subst (PCTyp t) where
    subst n t x = CTVar (substType n t x)
-   
+
 -- Pretty Printing
 
 showPCTyp :: PCTyp Int -> Int -> String

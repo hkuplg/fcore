@@ -119,38 +119,56 @@ exp10
             FApp (FLam (infer i e1) (\x -> $6 (tenv, Map.insert $2 x env, i))) e1
         }
 
-    -- -- Rule for the old fixpoint syntax
+    {- De-sugar of let-rec without mutual recursion
 
-    -- | "fix" var "." "\\" "(" var ":" typ ")" "." exp ":" typ
-    --      { \(tenv, env, i) -> FFix ($8 tenv) (\y -> \x -> $11 (tenv, ($6, x):($2, y):env)) ($13 tenv) }
-
-
-    --    let rec f A1 ... An (x1 : T1) ... (xn : Tn) : T(n+1) = e1 in e2
-    -- ~> let f = /\A1. ... /\An. (fix (f : T1 -> T2 -> ... -> Tn -> T(n+1)). \x1. (\(x2 : T2). ... \(xn : Tn). e1)) in e2
-    --         --------------------------------------------------------------------------------------------------
-    --                                                         e3
-    -- ~> (\(f : (infer e3). e2) e3
+            let rec f A1 ... An (x1 : T1) ... (xn : Tn) : T(n+1) = e1 in e2
+        ~~> let f = /\A1. ... /\An. (fix (f : T1 -> T2 -> ... -> Tn -> T(n+1)). \x1. (\(x2 : T2). ... \(xn : Tn). e1)) in e2
+                   --------------------------------------------------------------------------------------------------
+        ~~> (\(f : (infer e3). e2) e3
+    -}
 
     | "let" "rec" binding{-3-} "in" exp{-5-}
         { \(tenv, env, i) ->
             let (var, tvars, varannot, varannots, typ, exp) = $3 in
             let e3 = (wrapWithBLams tvars (\(tenv, env, i) ->
                         FFix
-                            ((snd varannot) tenv)
                             (\y -> \x -> (wrapWithLams tenv varannots exp)
                                 (tenv, (Map.insert (fst varannot) x . Map.insert var y) env, i))
-                            (mkFunType tenv (map snd varannots ++ [typ])))
-                     ) (tenv, env, i)
+                            ((snd varannot) tenv)
+                            (mkFunType tenv (map snd varannots ++ [typ]))
+                     )) (tenv, env, i)
             in
             FApp (FLam (infer i e3) (\f -> $5 (tenv, Map.insert var f env, i))) e3
         }
 
-    -- Mutual recursion
-    | "let" "rec" bindings "in" exp { \_ -> FLit 1 }
+    {- De-sugar of mutually recursive let-rec
+
+             let rec f1 A1_1 ... A1_n (x1_0 : T1_0) (x1_1 : T1_1) ... (x1_n : T1_n) = e1
+             and     f2 A2_1 ... A2_n (x2_0 : T2_0) (x2_1 : T2_1) ... (x2_n : T2_n) = e2
+             ...
+             and     fn An_1 ... An_n (xn_0 : Tn_0) (xn_1 : Tn_1) ... (xn_n : Tn_n) = en
+             in
+             e
+
+        ~~>  let rec m (dummy : Int) : (sig1, sig2, ..., sign) =
+                ( /\A1_1. ... /\A1_n. \(x1_0 : T1_0). \(x1_1 : T1_1). ... \(x1_n : T1_n). e1
+                , ...
+                , /\An_1. ... /\An_n. \(xn_0 : Tn_0). \(xn_1 : Tn_1). ... \(xn_n : Tn_n). en
+                )
+            in
+            e
+            where in the environment:
+                f1 |-> (m 0)._0
+                f2 |-> (m 0)._1
+                ...
+                fn |-> (m 0)._(n-1)
+    -}
+
+    | "let" "rec" bindings "in" exp { \(tenv, env, i) -> FLit 1 -- TODO }
 
     -- This syntax is about to replaced by the 'let rec' syntax.
-    | "fix" "(" var ":" atyp "->" typ ")" "." "\\" var "." exp
-        { \(tenv, env, i) -> FFix ($5 tenv) (\y -> \x -> $13 (tenv, (Map.insert $11 x . Map.insert $3 y) env, i)) ($7 tenv) }
+    | "fix" "(" var ":" atyp{-5-} "->" typ{-7-} ")" "." "\\" var "." exp
+        { \(tenv, env, i) -> FFix (\y -> \x -> $13 (tenv, (Map.insert $11 x . Map.insert $3 y) env, i)) ($5 tenv) ($7 tenv) }
 
     | "if0" exp "then" exp "else" exp   { \e -> FIf0 ($2 e) ($4 e) ($6 e) }
     | "-" INTEGER %prec UMINUS          { \e -> FLit (-$2) }
