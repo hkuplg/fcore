@@ -1,11 +1,11 @@
-{-# LANGUAGE DeriveDataTypeable    
+{-# LANGUAGE DeriveDataTypeable
            , FlexibleContexts
            , FlexibleInstances
            , MultiParamTypeClasses
-           , OverlappingInstances 
+           , OverlappingInstances
            , RankNTypes
-           , TypeOperators 
-           #-}  
+           , TypeOperators
+           #-}
 
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
@@ -19,7 +19,10 @@ import Language.Java.Pretty
 import Language.Java.Syntax as J
 
 import System.Cmd               (system)
-import System.Console.CmdArgs   -- The CmdArgs package
+
+-- The CmdArgs package
+import System.Console.CmdArgs
+
 import System.Directory         (setCurrentDirectory)
 import System.Environment       (getArgs, withArgs)
 import System.FilePath          (takeFileName)
@@ -55,9 +58,9 @@ optionsSpec = Options
     , optCompileAndRun = False &= explicit &= name "r" &= name "compile-and-run" &= help "Compile & run Java source"
     , optDebug         = False &= explicit &= name "d" &= name "debug"           &= help "Show debug information"
     , optSourceFiles   = []    &= args     &= typ "<source files>"
-    , optTransMethod   = ApplyOpt 
+    , optTransMethod   = ApplyOpt
                       &= explicit &= name "m" &= name "method"
-                      &= typ "<method>" 
+                      &= typ "<method>"
                       &= help (unwords [ "Translations method."
                                        , "Can be either 'naive', 'applyopt', or 'stack' (use without quotes)."
                                        , "The default is 'applyopt'."
@@ -77,18 +80,18 @@ withMessageLn :: String -> IO () -> IO ()
 withMessageLn msg act = do { withMessage msg act; putStrLn "" }
 
 main :: IO ()
-main = do 
-    args <- getArgs
+main = do
+    rawArgs <- getArgs
     -- If the user did not specify any arguments, pretend as "--help" was given
-    opts <- (if null args then withArgs ["--help"] else id) getOpts
+    opts <- (if null rawArgs then withArgs ["--help"] else id) getOpts
     when (optDebug opts) $ putStrLn (show opts ++ "\n")
     forM_ (optSourceFiles opts) (\srcPath -> do
-        putStrLn (takeFileName srcPath) 
+        putStrLn (takeFileName srcPath)
         let outputPath = inferOutputPath srcPath
 
-        let method = optTransMethod opts 
-        withMessageLn (concat ["  Compiling System F to Java using ", show method, " ( ", outputPath, " )"]) $ 
-            compilesf2java (case method of 
+        let method = optTransMethod opts
+        withMessageLn (concat ["  Compiling System F to Java using ", show method, " ( ", outputPath, " )"]) $
+            compilesf2java (case method of
                                 Naive    -> compileN
                                 ApplyOpt -> compileAO
                                 Stack -> compileS

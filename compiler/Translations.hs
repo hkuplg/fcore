@@ -1,10 +1,10 @@
 {-# LANGUAGE FlexibleContexts
            , FlexibleInstances
            , MultiParamTypeClasses
-           , OverlappingInstances 
+           , OverlappingInstances
            , RankNTypes
-           , TypeOperators 
-           #-}  
+           , TypeOperators
+           #-}
 
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
@@ -16,6 +16,7 @@ module Translations
     , compilesf2java
     ) where
 
+import Prelude hiding (exp)
 import Control.Monad            (when)
 
 import qualified Data.Map as Map
@@ -82,20 +83,20 @@ trStack2 = transS
 -}
 
 {-
--- apply() distinction 
+-- apply() distinction
 transMixA :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, f :< Translate) => Open (ApplyOptTranslate f m)
 transMixA this = NT (override (toT this) trans)
 
 applyopt :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, f :< Translate) => ApplyOptTranslate f m
 applyopt = new (transApply . transMixA)
 
--- Stack-based translation 
+-- Stack-based translation
 
 -- Adaptor mixin for trans
 
 transMix :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, f :< Translate) => Open (TranslateStack (ApplyOptTranslate f) m)
 transMix this = TS (transMixA (toTS this)) (translateScheduleM this)
-             
+
 -- mixing in the new translation
 
 stack :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, f :< Translate) => TranslateStack (ApplyOptTranslate f) m
@@ -104,21 +105,21 @@ stack = new (transS . transMix)
 
 type M1 = StateT (Map.Map String Int) (State Int)
 
-type M2 = StateT Int (State (Map.Map J.Exp Int)) 
-type M3 = StateT Int (Writer Bool) 
+type M2 = StateT Int (State (Map.Map J.Exp Int))
+type M3 = StateT Int (Writer Bool)
 
-type MAOpt = StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool)) 
+type MAOpt = StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool))
 
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
 
 {-
-sopt :: ApplyOptTranslate MAOpt 
+sopt :: ApplyOptTranslate MAOpt
 sopt = applyopt
 -}
 
 {-
-type MAOpt = StateT Int (StateT (Map J.Exp Int) (Reader (Set.Set Int))) 
+type MAOpt = StateT Int (StateT (Map J.Exp Int) (Reader (Set.Set Int)))
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
 
@@ -126,7 +127,7 @@ translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([BlockStmt], Exp, PCTyp Int)
 translate e = translateM (up sopt) e
 
 compile ::  PFExp Int (Var, PCTyp Int) -> (Block, Exp, PCTyp Int)
-compile e = 
+compile e =
   case runReader (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) Set.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 -}
@@ -155,7 +156,7 @@ prettyJ = putStrLn . prettyPrint
 
 -- SystemF to Java
 sf2java :: Compilation -> ClassName -> String -> Bool -> String
-sf2java compilation (ClassName className) src stackTr = 
+sf2java compilation (ClassName className) src stackTr =
     let (cu, _) = createCU className (compilation (Language.SystemF.Parser.reader src)) stackTr in prettyPrint cu
 
 compilesf2java :: Compilation -> FilePath -> FilePath -> Bool -> IO ()
@@ -167,23 +168,23 @@ compilesf2java compilation srcPath outputPath stackTr = do
 type Compilation = PFExp Int (Var, PCTyp Int) -> (J.Block, J.Exp, PCTyp Int)
 
 -- setting
-type AOptType = StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool)) 
+type AOptType = StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool))
 
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
 
 translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([J.BlockStmt], J.Exp, PCTyp Int)
-translate = translateM (up sopt) 
+translate = translateM (up sopt)
 
 translateAO :: PCExp Int (Var, PCTyp Int) -> AOptType ([J.BlockStmt], J.Exp, PCTyp Int)
-translateAO = translateM (up aoptinst) 
+translateAO = translateM (up aoptinst)
 
 compileAO :: Compilation
-compileAO e = 
+compileAO e =
   case fst $ runWriter $ evalStateT (evalStateT (translateAO (fexp2cexp e)) 0) Map.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
-type NType = StateT Int (State (Map.Map J.Exp Int)) 
+type NType = StateT Int (State (Map.Map J.Exp Int))
 ninst :: Translate NType  -- instantiation; all coinstraints resolved
 ninst = naive
 
@@ -191,19 +192,19 @@ translateN ::  PCExp Int (Var, PCTyp Int) -> NType ([J.BlockStmt], J.Exp, PCTyp 
 translateN = translateM (up ninst)
 
 compileN :: Compilation
-compileN e = 
+compileN e =
   case evalState (evalStateT (translateN (fexp2cexp e)) 0) Map.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
-type StackType = StateT Bool (StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool)))       
+type StackType = StateT Bool (StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool)))
 stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
 stackinst = stackNaive
 
 translateS :: PCExp Int (Var, PCTyp Int) -> StackType ([J.BlockStmt], J.Exp, PCTyp Int)
-translateS = translateM (up stackinst) 
+translateS = translateM (up stackinst)
 
 compileS :: Compilation
-compileS e = 
+compileS e =
   case fst $ runWriter $ evalStateT (evalStateT (evalStateT (translateS (fexp2cexp e)) False) 0) Map.empty of
-      (ss,exp,t) -> (J.Block ss,exp, t)      
-      
+      (ss,exp,t) -> (J.Block ss,exp, t)
+

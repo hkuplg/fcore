@@ -1,10 +1,11 @@
 {
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Language.SystemF.Parser where
 
 -- References:
 -- http://www.haskell.org/onlinereport/exps.html
+-- http://caml.inria.fr/pub/docs/manual-ocaml/expr.html
 
 import Data.Maybe       (fromMaybe)
 import qualified Data.Map as Map
@@ -82,9 +83,10 @@ import Language.SystemF.TypeCheck       (infer, unsafeGeneralize)
 -- Reference for rules:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
-exp : infixexp %prec EOF        { $1 }
+exp :: { Exp t e }
+    : infixexp %prec EOF        { $1 }
 
-infixexp
+infixexp :: { Exp t e }
     : exp10                     { $1 }
     | infixexp "*"  infixexp    { \e -> FPrimOp ($1 e) J.Mult   ($3 e) }
     | infixexp "/"  infixexp    { \e -> FPrimOp ($1 e) J.Div    ($3 e) }
@@ -100,107 +102,117 @@ infixexp
     | infixexp "&&" infixexp    { \e -> FPrimOp ($1 e) J.CAnd   ($3 e) }
     | infixexp "||" infixexp    { \e -> FPrimOp ($1 e) J.COr    ($3 e) }
 
-exp10
+exp10 :: { Exp t e }
     : "/\\" tvar "." exp                { \(tenv, env, i) -> FBLam (\a -> $4 (Map.insert $2 a tenv, env, i)) }
     | "\\" "(" var ":" typ ")" "." exp  { \(tenv, env, i) -> FLam ($5 tenv) (\x -> $8 (tenv, Map.insert $3 x env, i)) }
 
-    --    let x = e1 : T in e2
-    -- ~> (\(x : T). e2) e1
+    -- let x = e1 : T in e2 ~~> (\(x : T). e2) e1
 
-    | "let" var "=" exp ":" typ "in" exp
+    | "let" var{-2-} "=" exp{-4-} ":" typ{-6-} "in" exp{-8-}
         { \(tenv, env, i) -> FApp (FLam ($6 tenv) (\x -> $8 (tenv, Map.insert $2 x env, i))) ($4 (tenv, env, i)) }
 
-    --    let x = e1 in e2
-    -- ~> (\(x : (infer e1)). e2) e1
+    -- let x = e1 in e2 ~~> (\(x : (infer e1)). e2) e1
 
-    | "let" var{-2-} "=" exp "in" exp{-6-}
+    | "let" var{-2-} "=" exp{-4-} "in" exp{-6-}
         { \(tenv, env, i) ->
             let e1 = $4 (tenv, env, i) in
             FApp (FLam (infer i e1) (\x -> $6 (tenv, Map.insert $2 x env, i))) e1
         }
 
-    {- De-sugar of let-rec without mutual recursion
-
-            let rec f A1 ... An (x1 : T1) ... (xn : Tn) : T(n+1) = e1 in e2
-        ~~> let f = /\A1. ... /\An. (fix (f : T1 -> T2 -> ... -> Tn -> T(n+1)). \x1. (\(x2 : T2). ... \(xn : Tn). e1)) in e2
-                   --------------------------------------------------------------------------------------------------
-        ~~> (\(f : (infer e3). e2) e3
+    {-
+    let rec f A1 ... An (x1 : T1) ... (xn : Tn) : T(n+1) = e1 in e2
+~~> let f = /\A1. ... /\An. (fix (f : T1 -> ... -> Tn -> T(n+1)). \x1. (\(x2 : T2). ... \(xn : Tn). e1)) in e2
+~~> (\(f : (infer e3). e2) e3
     -}
 
-    | "let" "rec" binding{-3-} "in" exp{-5-}
+    | "let" "rec" letbinding{-3-} "in" exp{-5-}
         { \(tenv, env, i) ->
-            let (var, tvars, varannot, varannots, typ, exp) = $3 in
-            let e3 = (wrapWithBLams tvars (\(tenv, env, i) ->
+            let LetBinding {..} = $3 in
+            let e3 = (withBLams lbtvars (\(tenv, env, i) ->
                         FFix
-                            (\y -> \x -> (wrapWithLams tenv varannots exp)
-                                (tenv, (Map.insert (fst varannot) x . Map.insert var y) env, i))
-                            ((snd varannot) tenv)
-                            (mkFunType tenv (map snd varannots ++ [typ]))
+                            (\y -> \x -> (withLams tenv lbvar_annots lbexp)
+                                (tenv, (Map.insert (fst lbvar_annot) x . Map.insert lbvar y) env, i))
+                            ((snd lbvar_annot) tenv)
+                            (mkFunType tenv (map snd lbvar_annots ++ [lbtyp]))
                      )) (tenv, env, i)
             in
-            FApp (FLam (infer i e3) (\f -> $5 (tenv, Map.insert var f env, i))) e3
+            FApp (FLam (infer i e3) (\f -> $5 (tenv, Map.insert lbvar f env, i))) e3
         }
 
-    {- De-sugar of mutually recursive let-rec
+    {-
 
-             let rec f1 A1_1 ... A1_n (x1_0 : T1_0) (x1_1 : T1_1) ... (x1_n : T1_n) = e1
-             and     f2 A2_1 ... A2_n (x2_0 : T2_0) (x2_1 : T2_1) ... (x2_n : T2_n) = e2
-             ...
-             and     fn An_1 ... An_n (xn_0 : Tn_0) (xn_1 : Tn_1) ... (xn_n : Tn_n) = en
-             in
-             e
+    let rec f1 A1_1 ... A1_n (x1_0 : T1_0) (x1_1 : T1_1) ... (x1_n : T1_n) = e1
+    and     f2 A2_1 ... A2_n (x2_0 : T2_0) (x2_1 : T2_1) ... (x2_n : T2_n) = e2
+    ...
+    and     fn An_1 ... An_n (xn_0 : Tn_0) (xn_1 : Tn_1) ... (xn_n : Tn_n) = en
+    in
+    e
 
-        ~~>  let rec m (dummy : Int) : (sig1, sig2, ..., sign) =
-                ( /\A1_1. ... /\A1_n. \(x1_0 : T1_0). \(x1_1 : T1_1). ... \(x1_n : T1_n). e1
-                , ...
-                , /\An_1. ... /\An_n. \(xn_0 : Tn_0). \(xn_1 : Tn_1). ... \(xn_n : Tn_n). en
-                )
-            in
-            e
-            where in the environment:
-                f1 |-> (m 0)._0
-                f2 |-> (m 0)._1
-                ...
-                fn |-> (m 0)._(n-1)
+~~> let rec m (dummy : Int) : (sig1, sig2, ..., sign) =
+        ( /\A1_1. ... /\A1_n. \(x1_0 : T1_0). \(x1_1 : T1_1). ... \(x1_n : T1_n). e1
+        , ...
+        , /\An_1. ... /\An_n. \(xn_0 : Tn_0). \(xn_1 : Tn_1). ... \(xn_n : Tn_n). en
+        )
+    in
+    e
+    where in the environment:
+        f1 |-> (m 0)._0
+        ...
+        fn |-> (m 0)._(n-1)
+
     -}
 
-    | "let" "rec" bindings "in" exp { \(tenv, env, i) -> FLit 1 -- TODO }
+    | "let" "rec" and_letbindings "in" exp { \(tenv, env, i) -> FLit 1 -- TODO }
 
-    -- This syntax is about to replaced by the 'let rec' syntax.
     | "fix" "(" var ":" atyp{-5-} "->" typ{-7-} ")" "." "\\" var "." exp
-        { \(tenv, env, i) -> FFix (\y -> \x -> $13 (tenv, (Map.insert $11 x . Map.insert $3 y) env, i)) ($5 tenv) ($7 tenv) }
+        { \(tenv, env, i) ->
+            FFix (\y -> \x ->
+                    $13 (tenv, (Map.insert $11 x . Map.insert $3 y) env, i))
+                ($5 tenv) ($7 tenv)
+        }
 
     | "if0" exp "then" exp "else" exp   { \e -> FIf0 ($2 e) ($4 e) ($6 e) }
     | "-" INTEGER %prec UMINUS          { \e -> FLit (-$2) }
     | fexp                              { $1 }
 
-binding : var tvars varannot varannots ":" typ "=" exp      { ($1, $2, $3, $4, $6, $8) }
+letbinding :: { LetBinding t e }
+    : var tvars var_annot var_annots ":" typ "=" exp
+        { LetBinding { lbvar = $1
+                     , lbtvars = $2
+                     , lbvar_annot = $3
+                     , lbvar_annots = $4
+                     , lbtyp = $6
+                     , lbexp = $8
+                     }
+        }
 
-bindings
-    : binding "and" binding     { [$1, $3] }
-    | binding "and" bindings    { $1:$3    }
+and_letbindings :: { [LetBinding t e] }
+    : letbinding "and" letbinding       { [$1, $3] }
+    | letbinding "and" and_letbindings  { $1:$3    }
 
-fexp
+fexp :: { Exp t e }
     : fexp aexp         { \(tenv, env, i) -> FApp  ($1 (tenv, env, i)) ($2 (tenv, env, i)) }
     | fexp typ          { \(tenv, env, i) -> FTApp ($1 (tenv, env, i)) ($2 tenv) }
     | aexp              { $1 }
 
-aexp   : aexp1          { $1 }
+aexp :: { Exp t e }
+    : aexp1             { $1 }
 
-aexp1  : aexp2          { $1 }
+aexp1 :: { Exp t e }
+    : aexp2             { $1 }
 
-aexp2
-    : var               { \(tenv, env, i) -> FVar $1 (fromMaybe (error $ "Unbound variable: `" ++ $1 ++ "'") (Map.lookup $1 env)) }
-    | INTEGER           { \_e -> FLit $1 }
-    | aexp "." UNDERID  { \e -> FProj $3 ($1 e) }
-    | "(" exp ")"       { $2 }
-    | "(" tup_exprs ")" { \(tenv, env, i) -> FTuple (map ($ (tenv, env, i)) $2) }
+aexp2 :: { Exp t e }
+    : var                       { \(tenv, env, i) -> FVar $1 (fromMaybe (error $ "Unbound variable: `" ++ $1 ++ "'") (Map.lookup $1 env)) }
+    | INTEGER                   { \_e -> FLit $1 }
+    | aexp "." UNDERID          { \e -> FProj $3 ($1 e) }
+    | "(" exp ")"               { $2 }
+    | "(" comma_exps ")"        { \(tenv, env, i) -> FTuple (map ($ (tenv, env, i)) $2) }
 
-tup_exprs
-    : exp "," exp       { [$1, $3] }
-    | exp "," tup_exprs { $1:$3    }
+comma_exps :: { [Exp t e] }
+    : exp "," exp               { [$1, $3] }
+    | exp "," comma_exps        { $1:$3    }
 
-typ
+typ :: { Typ t }
     : "forall" tvar "." typ     { \tenv -> FForall (\a -> $4 (Map.insert $2 a tenv)) }
 
     -- Require an atyp on the LHS so that `for A. A -> A` cannot be
@@ -209,48 +221,60 @@ typ
 
     | atyp                      { $1 }
 
-atyp
-    : tvar              { \tenv -> FTVar (fromMaybe (error $ "Unbound type variable: `" ++ $1 ++ "'") (Map.lookup $1 tenv)) }
-    | "Int"             { \_    -> FInt }
-    | "(" typ ")"       { $2 }
-    | "(" tup_typs ")"  { \tenv -> FProduct (map ($ tenv) $2) }
+comma_typs :: { [Typ t] }
+    : typ "," typ               { $1:[$3] }
+    | typ "," comma_typs        { $1:$3   }
 
-tup_typs
-    : typ "," typ       { $1:[$3] }
-    | typ "," tup_typs  { $1:$3   }
+atyp :: { Typ t }
+    : tvar                      { \tenv -> FTVar (fromMaybe (error $ "Unbound type variable: `" ++ $1 ++ "'") (Map.lookup $1 tenv)) }
+    | "Int"                     { \_    -> FInt }
+    | "(" typ ")"               { $2 }
+    | "(" comma_typs ")"        { \tenv -> FProduct (map ($ tenv) $2) }
 
-var  : LOWERID          { $1 }
-tvar : UPPERID          { $1 }
+var :: { String }
+    : LOWERID          { $1 }
 
-varannot : "(" var ":" typ ")"  { ($2, $4) }
+tvar :: { String }
+    : UPPERID          { $1 }
 
-varannots
-    : varannot varannots        { $1:$2 }
-    | {- empty -}               { [] }
-
-tvars
+tvars :: { [String] }
     : tvar tvars        { $1:$2 }
     | {- empty -}       { []    }
 
+var_annot :: { (String, Typ t) }
+    : "(" var ":" typ ")"  { ($2, $4) }
+
+var_annots :: { [(String, Typ t)] }
+    : var_annot var_annots      { $1:$2 }
+    | {- empty -}               { [] }
+
 {
-wrapWithBLams
-    :: forall t e.
-        [String]
-    -> ((Map.Map String t, Map.Map String e, Int) -> PFExp t e)
-    -> ((Map.Map String t, Map.Map String e, Int) -> PFExp t e)
-wrapWithBLams []     expr = expr
-wrapWithBLams (a:as) expr = \(tenv, env, i) -> FBLam (\x -> (wrapWithBLams as expr) (Map.insert a x tenv, env, i))
 
-wrapWithLams
-    :: forall t e.
-       Map.Map String t
-    -> [(String, Map.Map String t -> PFTyp t)]   -- Annotated types
-    -> ((Map.Map String t, Map.Map String e, Int) -> PFExp t e)
-    -> ((Map.Map String t, Map.Map String e, Int) -> PFExp t e)
-wrapWithLams tenv []              expr = expr
-wrapWithLams tenv ((var, typ):xs) expr = \(tenv, env, i) -> FLam (typ tenv) (\x -> (wrapWithLams tenv xs expr) (tenv, Map.insert var x env, i))
+type TEnv t = Map.Map String t
+type Env e  = Map.Map String e
 
-mkFunType :: (Map.Map String t) -> [Map.Map String t -> PFTyp t] -> PFTyp t
+type Exp t e = (TEnv t, Env e, Int) -> PFExp t e
+type Typ t   = TEnv t -> PFTyp t
+
+-- "let" var tvars lbvar_annot lbvar_annots ":" lbtyp "=" lbexp
+data LetBinding t e = LetBinding
+    { lbvar        :: String
+    , lbtvars      :: [String]
+    , lbvar_annot  :: (String, Typ t)
+    , lbvar_annots :: [(String, Typ t)]
+    , lbtyp        :: Typ t
+    , lbexp        :: Exp t e
+    }
+
+withBLams :: [String] -> Exp t e -> Exp t e
+withBLams []     expr = expr
+withBLams (a:as) expr = \(tenv, env, i) -> FBLam (\x -> (withBLams as expr) (Map.insert a x tenv, env, i))
+
+withLams :: TEnv t -> [(String, Typ t)]  -> Exp t e -> Exp t e
+withLams tenv []              expr = expr
+withLams tenv ((var, typ):xs) expr = \(tenv, env, i) -> FLam (typ tenv) (\x -> (withLams tenv xs expr) (tenv, Map.insert var x env, i))
+
+mkFunType :: TEnv t -> [Typ t] -> PFTyp t
 mkFunType tenv []     = error "mkFunType: impossible case reached"
 mkFunType tenv [t]    = t tenv
 mkFunType tenv (t:ts) = FFun (t tenv) (mkFunType tenv ts)
