@@ -32,10 +32,11 @@ import System.IO                (hFlush, stdout)
 
 ------
 
+import Language.ESF.Parser      (reader)
+import Language.TransESFSystemF (transESFSystemF)
 import Language.SystemF.Syntax
-import qualified Language.SystemF.Parser (reader)
 import ClosureF
-import Language.Java.Utils               (ClassName(..), inferClassName)
+import Language.Java.Utils      (ClassName(..), inferClassName)
 
 import BaseTransCFJava
 import ApplyTransCFJava
@@ -157,7 +158,7 @@ prettyJ = putStrLn . prettyPrint
 -- SystemF to Java
 sf2java :: Compilation -> ClassName -> String -> Bool -> String
 sf2java compilation (ClassName className) src stackTr =
-    let (cu, _) = createCU className (compilation (Language.SystemF.Parser.reader src)) stackTr in prettyPrint cu
+    let (cu, _) = createCU className (compilation ((transESFSystemF . Language.ESF.Parser.reader) src)) stackTr in prettyPrint cu
 
 compilesf2java :: Compilation -> FilePath -> FilePath -> Bool -> IO ()
 compilesf2java compilation srcPath outputPath stackTr = do
