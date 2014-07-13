@@ -64,7 +64,7 @@ stackNaive = new (transS $> trans)
 
 -- Stack/Apply translation
 
-adaptApply mix this super = toT $ mix this super
+adaptApply mix' this super = toT $ mix' this super
 
 stackApply :: (MonadState Int m, MonadState Bool m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => TranslateStack m
 stackApply = new ((transS <.> adaptApply transApply) $> trans)

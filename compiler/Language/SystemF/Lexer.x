@@ -1,7 +1,7 @@
 {
-module Language.SystemF.Lexer 
+module Language.SystemF.Lexer
     ( lexer
-    , Token (..) 
+    , Token (..)
     ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
@@ -39,6 +39,12 @@ tokens :-
     else        { \_ -> Else }
     \,          { \_ -> Comma }
 
+    [A-Z] [$alpha $digit \_ \']*  { \s -> UpperId s }
+    [a-z] [$alpha $digit \_ \']*  { \s -> LowerId s }
+    \_ $digit+                    { \s -> UnderId (read (tail s))  }
+
+    $digit+     { \s -> Integer (read s) }
+
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
     \*          { \_ -> PrimOp J.Mult   }
     \/          { \_ -> PrimOp J.Div    }
@@ -46,19 +52,13 @@ tokens :-
     \+          { \_ -> PrimOp J.Add    }
     \-          { \_ -> PrimOp J.Sub    }
     \<          { \_ -> PrimOp J.LThan  }
-    \>          { \_ -> PrimOp J.GThan  }
     \<\=        { \_ -> PrimOp J.LThanE }
+    \>          { \_ -> PrimOp J.GThan  }
     \>\=        { \_ -> PrimOp J.GThanE }
     \=\=        { \_ -> PrimOp J.Equal  }
     \!\=        { \_ -> PrimOp J.NotEq  }
     \&\&        { \_ -> PrimOp J.CAnd   }
     \|\|        { \_ -> PrimOp J.COr    }
-
-    [A-Z] [$alpha $digit \_ \']*  { \s -> UpperId s }
-    [a-z] [$alpha $digit \_ \']*  { \s -> LowerId s }
-    \_ $digit+                    { \s -> UnderId (read (tail s))  }
-
-    $digit+    { \s -> Integer (read s) }
 
 {
 data Token = OParen | CParen
@@ -67,9 +67,9 @@ data Token = OParen | CParen
            | TyInt
            | If0 | Then | Else
            | Comma
-           | PrimOp J.Op 
            | UpperId String | LowerId String | UnderId Int
            | Integer Integer
+           | PrimOp J.Op
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

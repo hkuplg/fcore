@@ -18,8 +18,14 @@ import Language.SystemF.TypeCheck       (infer, unsafeGeneralize)
 }
 
 %name parser
-%tokentype  { Token }
-%error      { parseError }
+%tokentype { Token }
+
+-- The lexical analysis function must have the following type:
+-- lexer :: (Token -> P a) -> P a
+-- %lexer  { lexer }
+
+%monad     { P }
+%error     { parseError }
 
 %token
 
@@ -43,6 +49,12 @@ import Language.SystemF.TypeCheck       (infer, unsafeGeneralize)
     "else"   { Else }
     ","      { Comma }
 
+    UPPERID  { UpperId $$ }
+    LOWERID  { LowerId $$ }
+    UNDERID  { UnderId $$ }
+
+    INTEGER  { Integer $$ }
+
     "*"      { PrimOp J.Mult   }
     "/"      { PrimOp J.Div    }
     "%"      { PrimOp J.Rem    }
@@ -56,11 +68,6 @@ import Language.SystemF.TypeCheck       (infer, unsafeGeneralize)
     "!="     { PrimOp J.NotEq  }
     "&&"     { PrimOp J.CAnd   }
     "||"     { PrimOp J.COr    }
-
-    INTEGER  { Integer $$ }
-    UPPERID  { UpperId $$ }
-    LOWERID  { LowerId $$ }
-    UNDERID  { UnderId $$ }
 
 -- Precedence and associativity directives
 %nonassoc EOF
@@ -175,6 +182,9 @@ exp10 :: { Exp t e }
     | "-" INTEGER %prec UMINUS          { \e -> FLit (-$2) }
     | fexp                              { $1 }
 
+-- There are times when it is more convenient to parse a more general
+-- language than that which is actually intended, and check it later.
+
 letbinding :: { LetBinding t e }
     : var tvars var_annot var_annots ":" typ "=" exp
         { LetBinding { lbvar = $1
@@ -249,6 +259,13 @@ var_annots :: { [(String, Typ t)] }
     | {- empty -}               { [] }
 
 {
+-- The monadic parser
+data P a = POk a | PError String
+
+instance Monad P where
+    POk x      >>= f = f x
+    PError msg >>= f = PError msg
+    return x         = POk x
 
 type TEnv t = Map.Map String t
 type Env e  = Map.Map String e
@@ -258,13 +275,13 @@ type Typ t   = TEnv t -> PFTyp t
 
 -- "let" var tvars lbvar_annot lbvar_annots ":" lbtyp "=" lbexp
 data LetBinding t e = LetBinding
-    { lbvar        :: String
-    , lbtvars      :: [String]
-    , lbvar_annot  :: (String, Typ t)
-    , lbvar_annots :: [(String, Typ t)]
-    , lbtyp        :: Typ t
-    , lbexp        :: Exp t e
-    }
+                    { lbvar        :: String
+                    , lbtvars      :: [String]
+                    , lbvar_annot  :: (String, Typ t)
+                    , lbvar_annots :: [(String, Typ t)]
+                    , lbtyp        :: Typ t
+                    , lbexp        :: Exp t e
+                    }
 
 withBLams :: [String] -> Exp t e -> Exp t e
 withBLams []     expr = expr
@@ -279,9 +296,15 @@ mkFunType tenv []     = error "mkFunType: impossible case reached"
 mkFunType tenv [t]    = t tenv
 mkFunType tenv (t:ts) = FFun (t tenv) (mkFunType tenv ts)
 
-parseError :: [Token] -> a
-parseError tokens = error $ "Parse error before tokens:\n\t" ++ show tokens
+parseError :: [Token] -> P a
+parseError tokens = PError $ "Parse error before tokens:\n\t" ++ show tokens
 
 reader :: String -> PFExp t e
-reader = unsafeGeneralize . (\parser -> parser (Map.empty, Map.empty, 0)) . parser . lexer
+reader src =
+    let tokens = lexer src in
+    case parser tokens of
+        POk e      -> unsafeGeneralize (e emptyEnvs)
+        PError msg -> error msg
+
+    where emptyEnvs = (Map.empty, Map.empty, 0)
 }
