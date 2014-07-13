@@ -43,7 +43,7 @@ import Language.SystemF.TypeCheck       (infer, unsafeGeneralize)
     "and"    { And }
     "in"     { In }
     "fix"    { Fix }
-    "Int"    { TyInt }
+    "Int"    { Int }
     "if0"    { If0 }
     "then"   { Then }
     "else"   { Else }

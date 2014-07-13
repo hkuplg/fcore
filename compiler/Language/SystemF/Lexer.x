@@ -7,7 +7,7 @@ module Language.SystemF.Lexer
 import qualified Language.Java.Syntax as J (Op(..))
 }
 
-%wrapper "basic"
+%wrapper "posn"
 
 $alpha = [A-Za-z]
 $digit = [0-9]
@@ -19,52 +19,52 @@ tokens :-
     "--".*      ;
     "//".*      ;
 
-    \(          { \_ -> OParen }
-    \)          { \_ -> CParen }
-    \/\\        { \_ -> TLam }
-    \\          { \_ -> Lam }
-    \:          { \_ -> Colon }
-    forall      { \_ -> Forall }
-    \-\>        { \_ -> Arrow }
-    \.          { \_ -> Dot }
-    let         { \_ -> Let }
-    rec         { \_ -> Rec }
-    \=          { \_ -> Eq }
-    and         { \_ -> And }
-    in          { \_ -> In }
-    fix         { \_ -> Fix }
-    Int         { \_ -> TyInt }
-    if0         { \_ -> If0 }
-    then        { \_ -> Then }
-    else        { \_ -> Else }
-    \,          { \_ -> Comma }
+    \(          { \_ _ -> OParen }
+    \)          { \_ _ -> CParen }
+    \/\\        { \_ _ -> TLam }
+    \\          { \_ _ -> Lam }
+    \:          { \_ _ -> Colon }
+    forall      { \_ _ -> Forall }
+    \-\>        { \_ _ -> Arrow }
+    \.          { \_ _ -> Dot }
+    let         { \_ _ -> Let }
+    rec         { \_ _ -> Rec }
+    \=          { \_ _ -> Eq }
+    and         { \_ _ -> And }
+    in          { \_ _ -> In }
+    fix         { \_ _ -> Fix }
+    Int         { \_ _ -> Int }
+    if0         { \_ _ -> If0 }
+    then        { \_ _ -> Then }
+    else        { \_ _ -> Else }
+    \,          { \_ _ -> Comma }
 
-    [A-Z] [$alpha $digit \_ \']*  { \s -> UpperId s }
-    [a-z] [$alpha $digit \_ \']*  { \s -> LowerId s }
-    \_ $digit+                    { \s -> UnderId (read (tail s))  }
+    [A-Z] [$alpha $digit \_ \']*  { \_ s -> UpperId s }
+    [a-z] [$alpha $digit \_ \']*  { \_ s -> LowerId s }
+    \_ $digit+                    { \_ s -> UnderId (read (tail s))  }
 
-    $digit+     { \s -> Integer (read s) }
+    $digit+     { \_ s -> Integer (read s) }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
-    \*          { \_ -> PrimOp J.Mult   }
-    \/          { \_ -> PrimOp J.Div    }
-    \%          { \_ -> PrimOp J.Rem    }
-    \+          { \_ -> PrimOp J.Add    }
-    \-          { \_ -> PrimOp J.Sub    }
-    \<          { \_ -> PrimOp J.LThan  }
-    \<\=        { \_ -> PrimOp J.LThanE }
-    \>          { \_ -> PrimOp J.GThan  }
-    \>\=        { \_ -> PrimOp J.GThanE }
-    \=\=        { \_ -> PrimOp J.Equal  }
-    \!\=        { \_ -> PrimOp J.NotEq  }
-    \&\&        { \_ -> PrimOp J.CAnd   }
-    \|\|        { \_ -> PrimOp J.COr    }
+    \*          { \_ _ -> PrimOp J.Mult   }
+    \/          { \_ _ -> PrimOp J.Div    }
+    \%          { \_ _ -> PrimOp J.Rem    }
+    \+          { \_ _ -> PrimOp J.Add    }
+    \-          { \_ _ -> PrimOp J.Sub    }
+    \<          { \_ _ -> PrimOp J.LThan  }
+    \<\=        { \_ _ -> PrimOp J.LThanE }
+    \>          { \_ _ -> PrimOp J.GThan  }
+    \>\=        { \_ _ -> PrimOp J.GThanE }
+    \=\=        { \_ _ -> PrimOp J.Equal  }
+    \!\=        { \_ _ -> PrimOp J.NotEq  }
+    \&\&        { \_ _ -> PrimOp J.CAnd   }
+    \|\|        { \_ _ -> PrimOp J.COr    }
 
 {
 data Token = OParen | CParen
            | TLam | Lam | Colon | Forall | Arrow | Dot
            | Let | Rec | Eq | And | In | Fix
-           | TyInt
+           | Int
            | If0 | Then | Else
            | Comma
            | UpperId String | LowerId String | UnderId Int
