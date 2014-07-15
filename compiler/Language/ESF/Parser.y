@@ -99,8 +99,8 @@ infixexpr :: { Expr }
     | infixexpr "||" infixexpr  { PrimOp J.COr    $1 $3 }
 
 expr10 :: { Expr }
-    : "/\\" tvar "." expr                    { BLam $2 $4  }
-    | "\\" "(" var ":" typ ")" "." expr      { Lam ($3, $5) $8 }
+    : "/\\" tvars "." expr                   { BLam $2 $4  }
+    | "\\" pats_with_annot "." expr          { Lam $2 $4 }
     | "let" recflag and_localbinds "in" expr { Let $2 $3 $5 }
     | "if0" expr "then" expr "else" expr     { If0 $2 $4 $6 }
     | "-" INTEGER %prec UMINUS               { Lit (Integer (-$2)) }
@@ -128,8 +128,25 @@ comma_exprs :: { [Expr] }
     : expr "," expr             { [$1, $3] }
     | expr "," comma_exprs      { $1:$3    }
 
+pat :: { Pat }
+  : var                 { VarPat $1 }
+  | "(" comma_pats ")"  { TuplePat $2 }
+  | "(" pat ")"         { $2 }
+
+comma_pats :: { [Pat] }
+  : pat "," pat         { [$1, $3] }
+  | pat "," comma_pats  { $1:$3    }
+
+pat_with_annot :: { (Pat, Typ) }
+  : "(" pat ":" typ ")"         { ($2, $4) }
+  | "(" pat_with_annot ")"      { $2       }
+
+pats_with_annot :: { [(Pat, Typ)] }
+  : pat_with_annot                      { [$1]  }
+  | pat_with_annot pats_with_annot      { $1:$2 }
+
 localbind :: { LocalBind }
-    : var tvars var_annots "=" expr
+    : var tvars_emp var_annots_emp "=" expr
         { LocalBind { local_id = $1
                     , local_targs = $2
                     , local_args = $3
@@ -138,15 +155,15 @@ localbind :: { LocalBind }
         }
 
 and_localbinds :: { [LocalBind] }
-    : localbind "and" localbind      { [$1, $3] }
+    : localbind                      { [$1] }
     | localbind "and" and_localbinds { $1:$3    }
 
 recflag :: { RecFlag }
-    : "rec"       { Rec }
-    | {- empty -} { NonRec }
+  : "rec"       { Rec }
+  | {- empty -} { NonRec }
 
 typ :: { Typ }
-    : "forall" tvar tvars "." typ       { Forall ($2:$3) $5 }
+    : "forall" tvars "." typ       { Forall $2 $4 }
 
     -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
     -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
@@ -154,15 +171,15 @@ typ :: { Typ }
 
     | atyp              { $1 }
 
-comma_typs :: { [Typ] }
-    : typ "," typ               { $1:[$3] }
-    | typ "," comma_typs        { $1:$3   }
-
 atyp :: { Typ }
     : tvar                      { TVar $1 }
     | "Int"                     { Int }
     | "(" typ ")"               { $2 }
-    | "(" comma_typs ")"        { Product $2 }
+    | "(" comma_typs ")" { Product $2 }
+
+comma_typs :: { [Typ] }
+    : typ "," typ               { $1:[$3] }
+    | typ "," comma_typs        { $1:$3   }
 
 var :: { String }
     : LOWERID           { $1 }
@@ -170,16 +187,19 @@ var :: { String }
 tvar :: { String }
     : UPPERID           { $1 }
 
+tvars_emp :: { [String] }
+  : {- empty -}         { []    }
+  | tvar tvars_emp      { $1:$2 }
+
 tvars :: { [String] }
-    : tvar tvars        { $1:$2 }
-    | {- empty -}       { []    }
+  : tvar tvars_emp  { $1:$2 }
 
 var_annot :: { (String, Typ) }
     : "(" var ":" typ ")"  { ($2, $4) }
 
-var_annots :: { [(String, Typ)] }
-    : var_annot var_annots      { $1:$2 }
-    | {- empty -}               { []    }
+var_annots_emp :: { [(String, Typ)] }
+    : {- empty -}              { []    }
+    | var_annot var_annots_emp { $1:$2 }
 
 {
 -- The monadic parser
