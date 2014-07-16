@@ -1,3 +1,9 @@
+# (External / Non-cabal-specified) Dependencies #
+GHC 7.6.x + cabal-install (put .cabal/bin in your path - e.g. PATH=$PATH:~/.cabal/bin/ )
+
+JVM
+
+
 # How do I get set up? #
 
 The toplevel Makefile sets up commands for running several of the most common tasks of the project, such as building the executable and running tests. To issue a command, run 
