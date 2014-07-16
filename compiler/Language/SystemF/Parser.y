@@ -1,5 +1,5 @@
 {
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RankNTypes, RecordWildCards #-}
 
 module Language.SystemF.Parser where
 
@@ -90,10 +90,10 @@ import Language.SystemF.TypeCheck       (infer, unsafeGeneralize)
 -- Reference for rules:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
-exp :: { Exp t e }
+exp -- :: { forall t e. Exp t e }
     : infixexp %prec EOF        { $1 }
 
-infixexp :: { Exp t e }
+infixexp -- :: { forall t e. Exp t e }
     : exp10                     { $1 }
     | infixexp "*"  infixexp    { \e -> FPrimOp ($1 e) J.Mult   ($3 e) }
     | infixexp "/"  infixexp    { \e -> FPrimOp ($1 e) J.Div    ($3 e) }
@@ -109,7 +109,7 @@ infixexp :: { Exp t e }
     | infixexp "&&" infixexp    { \e -> FPrimOp ($1 e) J.CAnd   ($3 e) }
     | infixexp "||" infixexp    { \e -> FPrimOp ($1 e) J.COr    ($3 e) }
 
-exp10 :: { Exp t e }
+exp10 -- :: { forall t e. Exp t e }
     : "/\\" tvar "." exp                { \(tenv, env, i) -> FBLam (\a -> $4 (Map.insert $2 a tenv, env, i)) }
     | "\\" "(" var ":" typ ")" "." exp  { \(tenv, env, i) -> FLam ($5 tenv) (\x -> $8 (tenv, Map.insert $3 x env, i)) }
 
@@ -123,7 +123,7 @@ exp10 :: { Exp t e }
     | "let" var{-2-} "=" exp{-4-} "in" exp{-6-}
         { \(tenv, env, i) ->
             let e1 = $4 (tenv, env, i) in
-            FApp (FLam (infer i e1) (\x -> $6 (tenv, Map.insert $2 x env, i))) e1
+            FApp (unsafeGeneralize $ FLam (infer i e1) (\x -> $6 (tenv, Map.insert $2 x env, i))) e1
         }
 
     {-
@@ -143,7 +143,7 @@ exp10 :: { Exp t e }
                             (mkFunType tenv (map snd lbvar_annots ++ [lbtyp]))
                      )) (tenv, env, i)
             in
-            FApp (FLam (infer i e3) (\f -> $5 (tenv, Map.insert lbvar f env, i))) e3
+            FApp (unsafeGeneralize $ FLam (infer i e3) (\f -> $5 (tenv, Map.insert lbvar f env, i))) e3
         }
 
     {-
@@ -185,7 +185,7 @@ exp10 :: { Exp t e }
 -- There are times when it is more convenient to parse a more general
 -- language than that which is actually intended, and check it later.
 
-letbinding :: { LetBinding t e }
+letbinding -- :: { forall t e. LetBinding t e }
     : var tvars var_annot var_annots ":" typ "=" exp
         { LetBinding { lbvar = $1
                      , lbtvars = $2
@@ -196,33 +196,33 @@ letbinding :: { LetBinding t e }
                      }
         }
 
-and_letbindings :: { [LetBinding t e] }
+and_letbindings -- :: { forall t e. [LetBinding t e] }
     : letbinding "and" letbinding       { [$1, $3] }
     | letbinding "and" and_letbindings  { $1:$3    }
 
-fexp :: { Exp t e }
+fexp -- :: { forall t e. Exp t e }
     : fexp aexp         { \(tenv, env, i) -> FApp  ($1 (tenv, env, i)) ($2 (tenv, env, i)) }
     | fexp typ          { \(tenv, env, i) -> FTApp ($1 (tenv, env, i)) ($2 tenv) }
     | aexp              { $1 }
 
-aexp :: { Exp t e }
+aexp -- :: { forall t e. Exp t e }
     : aexp1             { $1 }
 
-aexp1 :: { Exp t e }
+aexp1 -- :: { forall t e. Exp t e }
     : aexp2             { $1 }
 
-aexp2 :: { Exp t e }
+aexp2 -- :: { forall t e. Exp t e }
     : var                       { \(tenv, env, i) -> FVar $1 (fromMaybe (error $ "Unbound variable: `" ++ $1 ++ "'") (Map.lookup $1 env)) }
     | INTEGER                   { \_e -> FLit $1 }
     | aexp "." UNDERID          { \e -> FProj $3 ($1 e) }
     | "(" exp ")"               { $2 }
     | "(" comma_exps ")"        { \(tenv, env, i) -> FTuple (map ($ (tenv, env, i)) $2) }
 
-comma_exps :: { [Exp t e] }
+comma_exps -- :: { forall t e. [Exp t e] }
     : exp "," exp               { [$1, $3] }
     | exp "," comma_exps        { $1:$3    }
 
-typ :: { Typ t }
+typ -- :: { forall t. Typ t }
     : "forall" tvar "." typ     { \tenv -> FForall (\a -> $4 (Map.insert $2 a tenv)) }
 
     -- Require an atyp on the LHS so that `for A. A -> A` cannot be
@@ -231,11 +231,11 @@ typ :: { Typ t }
 
     | atyp                      { $1 }
 
-comma_typs :: { [Typ t] }
+comma_typs -- :: { forall t. [Typ t] }
     : typ "," typ               { $1:[$3] }
     | typ "," comma_typs        { $1:$3   }
 
-atyp :: { Typ t }
+atyp -- :: { forall t. Typ t }
     : tvar                      { \tenv -> FTVar (fromMaybe (error $ "Unbound type variable: `" ++ $1 ++ "'") (Map.lookup $1 tenv)) }
     | "Int"                     { \_    -> FInt }
     | "(" typ ")"               { $2 }
@@ -251,10 +251,10 @@ tvars :: { [String] }
     : tvar tvars        { $1:$2 }
     | {- empty -}       { []    }
 
-var_annot :: { (String, Typ t) }
+var_annot -- :: { forall t. (String, Typ t) }
     : "(" var ":" typ ")"  { ($2, $4) }
 
-var_annots :: { [(String, Typ t)] }
+var_annots -- :: { forall t. [(String, Typ t)] }
     : var_annot var_annots      { $1:$2 }
     | {- empty -}               { [] }
 
