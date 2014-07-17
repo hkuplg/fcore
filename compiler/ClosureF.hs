@@ -5,9 +5,6 @@ module ClosureF where
 import Language.Java.Syntax as J
 
 import Language.SystemF.Syntax
-import Language.SystemF.Parser
-
-import Data.Maybe
 
 -- Closure F syntax
 
