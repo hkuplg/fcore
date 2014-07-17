@@ -7,38 +7,16 @@
            , TypeOperators
            #-}
 
-{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
-
 module Main (main, TransMethod) where
-
-import Control.Monad            (when)
-
-import qualified Data.Map  as Map
-
-import Language.Java.Pretty
-import Language.Java.Syntax as J
-
-import System.Cmd               (system)
 
 -- The CmdArgs package
 import System.Console.CmdArgs
 
-import System.Directory         (setCurrentDirectory)
 import System.Environment       (getArgs, withArgs)
 import System.FilePath          (takeFileName)
 import System.IO                (hFlush, stdout)
 
-------
-
-import Language.SystemF.Syntax
-import qualified Language.SystemF.Parser (reader)
-import ClosureF
 import Language.Java.Utils
-
-import BaseTransCFJava
-import ApplyTransCFJava
-
-import Inheritance
 import MonadLib
 import Translations
 

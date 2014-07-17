@@ -6,7 +6,6 @@ module Language.SystemF.TypeCheck
     , infer
     ) where
 
-import Data.Maybe (fromMaybe)
 import qualified Unsafe.Coerce
 
 import Language.SystemF.Syntax

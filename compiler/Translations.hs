@@ -17,18 +17,11 @@ module Translations
     ) where
 
 import Prelude hiding (exp)
-import Control.Monad            (when)
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import Language.Java.Pretty
 import qualified Language.Java.Syntax as J
-
-import System.Console.CmdArgs   -- The CmdArgs package
-import System.Environment       (getArgs, withArgs)
-import System.FilePath          (takeDirectory, takeBaseName, takeFileName, (</>))
-import System.IO                (hFlush, stdout)
 
 ------
 
@@ -104,7 +97,6 @@ stack = new (transS . transMix)
 -}
 
 type M1 = StateT (Map.Map String Int) (State Int)
-
 type M2 = StateT Int (State (Map.Map J.Exp Int))
 type M3 = StateT Int (Writer Bool)
 
