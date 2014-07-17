@@ -130,12 +130,12 @@ comma_exprs :: { [Expr] }
 
 pat :: { Pat }
   : var                 { VarPat $1 }
-  | "(" comma_pats ")"  { TuplePat $2 }
+  -- | "(" comma_pats ")"  { TuplePat $2 }
   | "(" pat ")"         { $2 }
 
-comma_pats :: { [Pat] }
-  : pat "," pat         { [$1, $3] }
-  | pat "," comma_pats  { $1:$3    }
+-- comma_pats :: { [Pat] }
+--   : pat "," pat         { [$1, $3] }
+--   | pat "," comma_pats  { $1:$3    }
 
 pat_with_annot :: { (Pat, Typ) }
   : "(" pat ":" typ ")"         { ($2, $4) }
@@ -146,13 +146,18 @@ pats_with_annot :: { [(Pat, Typ)] }
   | pat_with_annot pats_with_annot      { $1:$2 }
 
 localbind :: { LocalBind }
-    : var tvars_emp var_annots_emp "=" expr
-        { LocalBind { local_id = $1
-                    , local_targs = $2
-                    , local_args = $3
-                    , local_rhs = $5
+    : var tvars_emp var_annots_emp maybe_sig "=" expr
+        { LocalBind { local_id     = $1
+                    , local_targs  = $2
+                    , local_args   = $3
+                    , local_rettyp = $4
+                    , local_rhs    = $6
                     }
         }
+
+maybe_sig :: { Maybe Typ }
+  : ":" typ     { Just $2 }
+  | {- empty -} { Nothing }
 
 and_localbinds :: { [LocalBind] }
     : localbind                      { [$1] }
@@ -194,10 +199,10 @@ tvars_emp :: { [String] }
 tvars :: { [String] }
   : tvar tvars_emp  { $1:$2 }
 
-var_annot :: { (String, Typ) }
-    : "(" var ":" typ ")"  { ($2, $4) }
+var_annot :: { (Pat, Typ) }
+    : "(" var ":" typ ")"  { (VarPat $2, $4) }
 
-var_annots_emp :: { [(String, Typ)] }
+var_annots_emp :: { [(Pat, Typ)] }
     : {- empty -}              { []    }
     | var_annot var_annots_emp { $1:$2 }
 
