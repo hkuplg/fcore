@@ -1,7 +1,10 @@
 {
 {-# LANGUAGE RecordWildCards #-}
 
-module Language.ESF.Parser where
+module Language.ESF.Parser
+  ( parseESF
+  , readESF
+  ) where
 
 import qualified Language.Java.Syntax as J (Op (..))
 
@@ -9,7 +12,7 @@ import Language.ESF.Syntax
 import Language.ESF.Lexer
 }
 
-%name parser
+%name parseESF
 %tokentype { Token }
 %monad     { P }
 %error     { parseError }
@@ -218,8 +221,8 @@ instance Monad P where
 parseError :: [Token] -> P a
 parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
 
-reader :: String -> Expr
-reader src = case (parser . lexer) src of
+readESF :: String -> Expr
+readESF src = case (parseESF . lexESF) src of
                  POk expr   -> expr
                  PError msg -> error msg
 }
