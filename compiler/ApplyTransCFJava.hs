@@ -6,6 +6,7 @@ module ApplyTransCFJava where
 import Prelude hiding (init, last)
 
 import qualified Data.Map as Map
+
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 import ClosureF

@@ -7,6 +7,7 @@ import Prelude hiding (init, last)
 -- import Control.Monad.State
 -- import Control.Monad.Writer
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Language.Java.Syntax as J
 import ClosureF
 -- import Mixins
@@ -192,7 +193,7 @@ genSubst j1 initFun = x
                                                                                let defV1 = initFun tempvarstr n j1
                                                                                return ([defV1], temp1)
 
-trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, selfType :< Translate m) => Base selfType (Translate m)
+trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of
      CVar (Left i,t) ->
@@ -264,11 +265,16 @@ trans self = let this = up self in T {
            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
            let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
                                                   Just no -> var (tempvarstr ++ show no)
-           let maybeCloned = case t of
+           (usedCl :: Set.Set J.Exp) <- get                                       
+           maybeCloned <- case t of
                                        Body _ ->
-                                           nje1
+                                           return nje1
                                        _ ->
-                                           J.MethodInv (J.PrimaryMethodCall (nje1) [] (J.Ident "clone") [])
+                                           if (Set.member nje1 usedCl) then 
+                                                return $ J.MethodInv (J.PrimaryMethodCall (nje1) [] (J.Ident "clone") [])
+                                           else do
+                                                put (Set.insert nje1 usedCl)
+                                                return nje1
 
            let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])
            let nje2 = case (Map.lookup j2 env) of Nothing -> j2

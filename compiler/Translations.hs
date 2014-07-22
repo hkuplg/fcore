@@ -19,6 +19,7 @@ module Translations
 import Prelude hiding (exp)
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import Language.Java.Pretty
 import qualified Language.Java.Syntax as J
@@ -40,12 +41,12 @@ import MonadLib
 
 -- Naive translation
 
-naive :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m) => Translate m
+naive :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => Translate m
 naive = new trans
 
 -- Apply optimization
 
-applyopt :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => ApplyOptTranslate m
+applyopt :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => ApplyOptTranslate m
 applyopt = new (transApply $> trans)
 
 -- Stack translation
@@ -53,14 +54,14 @@ applyopt = new (transApply $> trans)
 --trStack1 :: (MonadState Int m, MonadWriter Bool m) => Mixin (TranslateStack m) (Translate m) (TranslateStack m) -- need to instantiate records
 --trStack1 = transS
 
-stackNaive :: (MonadState Int m, MonadState Bool m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => TranslateStack m
+stackNaive :: (MonadState Int m, MonadState Bool m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => TranslateStack m
 stackNaive = new (transS $> trans)
 
 -- Stack/Apply translation
 
 adaptApply mix' this super = toT $ mix' this super
 
-stackApply :: (MonadState Int m, MonadState Bool m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => TranslateStack m
+stackApply :: (MonadState Int m, MonadState Bool m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => TranslateStack m
 stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
@@ -101,7 +102,7 @@ type M1 = StateT (Map.Map String Int) (State Int)
 type M2 = StateT Int (State (Map.Map J.Exp Int))
 type M3 = StateT Int (Writer Bool)
 
-type MAOpt = StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool))
+type MAOpt = StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool)))
 
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
@@ -161,7 +162,7 @@ compilesf2java compilation srcPath outputPath stackTr = do
 type Compilation = PFExp Int (Var, PCTyp Int) -> (J.Block, J.Exp, PCTyp Int)
 
 -- setting
-type AOptType = StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool))
+type AOptType = StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool)))
 
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
@@ -174,10 +175,10 @@ translateAO = translateM (up aoptinst)
 
 compileAO :: Compilation
 compileAO e =
-  case fst $ runWriter $ evalStateT (evalStateT (translateAO (fexp2cexp e)) 0) Map.empty of
+  case fst $ runWriter $ evalStateT (evalStateT (evalStateT (translateAO (fexp2cexp e)) 0) Map.empty) Set.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
-type NType = StateT Int (State (Map.Map J.Exp Int))
+type NType = StateT Int (StateT (Map.Map J.Exp Int) (State (Set.Set J.Exp)))
 ninst :: Translate NType  -- instantiation; all coinstraints resolved
 ninst = naive
 
@@ -186,10 +187,10 @@ translateN = translateM (up ninst)
 
 compileN :: Compilation
 compileN e =
-  case evalState (evalStateT (translateN (fexp2cexp e)) 0) Map.empty of
+  case evalState (evalStateT (evalStateT (translateN (fexp2cexp e)) 0) Map.empty) Set.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
-type StackType = StateT Bool (StateT Int (StateT (Map.Map J.Exp Int) (Writer Bool)))
+type StackType = StateT Bool (StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool))))
 stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
 stackinst = stackNaive
 
@@ -198,6 +199,6 @@ translateS = translateM (up stackinst)
 
 compileS :: Compilation
 compileS e =
-  case fst $ runWriter $ evalStateT (evalStateT (evalStateT (translateS (fexp2cexp e)) False) 0) Map.empty of
+  case fst $ runWriter $ evalStateT (evalStateT (evalStateT (evalStateT (translateS (fexp2cexp e)) False) 0) Map.empty) Set.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
