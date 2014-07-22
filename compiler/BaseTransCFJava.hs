@@ -62,6 +62,19 @@ whileApplyLoop ctemp tempOut outType = [J.LocalVars [] closureType [J.VarDecl (J
         J.EqualA (J.Cast outType
         (J.ExpName (J.Name [J.Ident $ ctemp,J.Ident "out"])))))])))]
 
+containsNext :: [J.BlockStmt] -> Bool
+containsNext l = foldr (||) False $ map (\x -> case x of (J.BlockStmt (J.ExpStmt (J.Assign (
+                                                                J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"])) J.EqualA _))) -> True
+                                                         _ -> False) l
+
+-- ad-hoc fix for final-returned expressions in Stack translation
+empyClosure outExp = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"])) J.EqualA 
+        (J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody [J.MemberDecl (J.MethodDecl 
+        [J.Annotation (J.MarkerAnnotation {J.annName = J.Name [J.Ident "Override"]}),J.Public] [] (Just (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])))) 
+        (J.Ident "clone") [] [] (J.MethodBody (Just (J.Block [J.BlockStmt (J.Return (Just (J.Lit J.Null)))])))),
+        J.MemberDecl (J.MethodDecl [J.Annotation (J.MarkerAnnotation {J.annName = J.Name [J.Ident "Override"]})] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just (J.Block 
+        [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "out"])) J.EqualA outExp))]))))])))))
+
 createCU :: String -> (J.Block, J.Exp, PCTyp Int) -> Bool -> (J.CompilationUnit, PCTyp Int)
 createCU className (J.Block bs,e,t) stackTran = (cu,t) where
    cu | stackTran = J.CompilationUnit Nothing [] [closureClass,nextClass,stackDecl]
@@ -97,7 +110,7 @@ createCU className (J.Block bs,e,t) stackTran = (cu,t) where
    mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("apply" ++ "()")]])))])
 
-   ass  | stackTran = []
+   ass  | stackTran = if (containsNext bs) then [] else [empyClosure e]
         | otherwise = [J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]
    refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
    classDecl = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
