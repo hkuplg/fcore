@@ -54,14 +54,14 @@ applyopt = new (transApply $> trans)
 --trStack1 :: (MonadState Int m, MonadWriter Bool m) => Mixin (TranslateStack m) (Translate m) (TranslateStack m) -- need to instantiate records
 --trStack1 = transS
 
-stackNaive :: (MonadState Int m, MonadState Bool m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => TranslateStack m
+stackNaive :: (MonadState Int m, MonadReader Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => TranslateStack m
 stackNaive = new (transS $> trans)
 
 -- Stack/Apply translation
 
 adaptApply mix' this super = toT $ mix' this super
 
-stackApply :: (MonadState Int m, MonadState Bool m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => TranslateStack m
+stackApply :: (MonadState Int m, MonadReader Bool m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => TranslateStack m
 stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
@@ -190,7 +190,7 @@ compileN e =
   case evalState (evalStateT (evalStateT (translateN (fexp2cexp e)) 0) Map.empty) Set.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 
-type StackType = StateT Bool (StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool))))
+type StackType = ReaderT Bool (StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool))))
 stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
 stackinst = stackNaive
 
@@ -199,6 +199,6 @@ translateS = translateM (up stackinst)
 
 compileS :: Compilation
 compileS e =
-  case fst $ runWriter $ evalStateT (evalStateT (evalStateT (evalStateT (translateS (fexp2cexp e)) False) 0) Map.empty) Set.empty of
+  case fst $ runWriter $ evalStateT (evalStateT (evalStateT (runReaderT (translateS (fexp2cexp e)) False) 0) Map.empty) Set.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
 

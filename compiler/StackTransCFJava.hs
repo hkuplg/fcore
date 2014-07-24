@@ -39,29 +39,21 @@ nextApply cl tempOut outType = [J.BlockStmt $ J.ExpStmt $ J.Assign (J.NameLhs (J
                 J.LocalVars [] outType [J.VarDecl (J.VarId tempOut) (Just (J.InitExp (J.Lit J.Null)))]]
 
 -- copy-paste from ApplyOpt, TODO: modularize
-transS :: (MonadState Int m, MonadState Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m, MonadWriter Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transS :: (MonadState Int m, MonadReader Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {
   toTS = T {  translateM = \e -> case e of
-       CLam s ->
-           do  tell False
-               put False
-               translateM super e
+       CLam s -> local (&& False) $ translateM super e
 
-       CFix t s ->
-           do  put False
-               translateM super e
+       CFix t s -> local (&& False) $ translateM super e
 
        --CTApp e t -> translateM super e
 
        CFIf0 e1 e2 e3 ->
                 do  n <- get
                     put (n+1)
-                    (genApplys :: Bool) <- get --state before
-                    put True
-                    (s1,j1,t1) <- translateM (up this) (CFPrimOp e1 J.Equal (CFLit 0))
-                    put genApplys
+                    --(genApplys :: Bool) <- ask --state before
+                    (s1,j1,t1) <- local (|| True) $ translateM (up this) (CFPrimOp e1 J.Equal (CFLit 0))
                     (s2,j2,t2) <- translateM (up this) e2
-                    put genApplys
                     (s3,j3,t3) <- translateM (up this) e3
                     let ifvarname = (ifresultstr ++ show n)
                     let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
@@ -71,15 +63,12 @@ transS this super = TS {
 
 --TODO: merge common parts with BaseTransCF
        CApp e1 e2 ->
-           do  tell True
-               (n :: Int) <- get
+           do  (n :: Int) <- get
                put (n+1)
                -- e1 e2, if c then e1 else e2, e1 T
-               (genApplys :: Bool) <- get --state before
-               put True --not last
-               (s1,j1, CForall (Typ t1 g)) <- translateM (up this) e1
-               put True --not last either
-               (s2,j2,t2) <- translateM (up this) e2
+               (genApplys :: Bool) <- ask --state before
+               (s1,j1, CForall (Typ t1 g)) <- local (|| True) $ translateM (up this) e1
+               (s2,j2,t2) <- local (|| True) $ translateM (up this) e2
 
                (env :: Map.Map J.Exp Int) <- get
                let t    = g ()
@@ -125,10 +114,7 @@ transS this super = TS {
 
                return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
 
-       otherwise ->
-            do  tell True
-                put True
-                translateM super e,
+       otherwise -> local (|| True) $ translateM super e,
 
   translateScopeM = \e m -> 
              translateScopeM super e m
