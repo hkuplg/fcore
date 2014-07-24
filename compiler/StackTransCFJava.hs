@@ -53,66 +53,26 @@ transS this super = TS {
                     put (n+1)
                     --(genApplys :: Bool) <- ask --state before
                     (s1,j1,t1) <- local (|| True) $ translateM (up this) (CFPrimOp e1 J.Equal (CFLit 0))
-                    (s2,j2,t2) <- translateM (up this) e2
-                    (s3,j3,t3) <- translateM (up this) e3
-                    let ifvarname = (ifresultstr ++ show n)
-                    let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-                    let ifresdecl = J.LocalVars [] (objType) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
-                    let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
-                    return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)                    -- need to check t2 == t3
+                    genIfBody (up this) e2 e3 j1 s1 n
 
---TODO: merge common parts with BaseTransCF
        CApp e1 e2 ->
-           do  (n :: Int) <- get
-               put (n+1)
-               -- e1 e2, if c then e1 else e2, e1 T
-               (genApplys :: Bool) <- ask --state before
-               (s1,j1, CForall (Typ t1 g)) <- local (|| True) $ translateM (up this) e1
-               (s2,j2,t2) <- local (|| True) $ translateM (up this) e2
-
-               (env :: Map.Map J.Exp Int) <- get
-               let t    = g ()
-               let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-               let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
-                                                      Just no -> var (tempvarstr ++ show no)
-               (usedCl :: Set.Set J.Exp) <- get                                       
-               maybeCloned <- case t of
-                                       Body _ ->
-                                           return nje1
-                                       _ ->
-                                           if (Set.member nje1 usedCl) then 
-                                                return $ J.MethodInv (J.PrimaryMethodCall (nje1) [] (J.Ident "clone") [])
-                                           else do
-                                                put (Set.insert nje1 usedCl)
-                                                return nje1
-
-               let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])
-               let nje2 = case (Map.lookup j2 env) of Nothing -> j2
-                                                      Just no -> var (tempvarstr ++ show no)
-               let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) )
-               let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-               s3 <- case (scope2ctyp t) of CInt ->
-                                                        do (_, loc) <- genSubst j3 initIntCast
-                                                           let h = case loc of J.ExpName (J.Name [z]) -> z
-                                                           let applyCall = if genApplys then (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h boxedIntType) else (nextApply (J.ExpName (J.Name [f])) h boxedIntType)
-                                                           return ([cvar, ass] ++ applyCall)
-                                            CForall (_) ->
-                                                        do (_, loc) <- genSubst j3 initClosure
-                                                           let h = case loc of J.ExpName (J.Name [z]) -> z
-                                                           let applyCall = if genApplys then (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h closureType) else (nextApply (J.ExpName (J.Name [f])) h closureType)
-                                                           return ([cvar, ass] ++ applyCall)
-                                            CTupleType (_) ->
-                                                        do (_, loc) <- genSubst j3 initObjArray
-                                                           let h = case loc of J.ExpName (J.Name [z]) -> z
-                                                           let applyCall = if genApplys then (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h objArrayType) else (nextApply (J.ExpName (J.Name [f])) h objArrayType)
-                                                           return ([cvar, ass] ++ applyCall)
-                                            _ ->
-                                                        do (_, loc) <- genSubst j3 initObj
-                                                           let h = case loc of J.ExpName (J.Name [z]) -> z
-                                                           let applyCall = if genApplys then (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h objType) else (nextApply (J.ExpName (J.Name [f])) h objType)
-                                                           return ([cvar, ass] ++ applyCall)
-
-               return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
+               do  (n :: Int) <- get
+                   put (n+1)
+                   (genApplys :: Bool) <- ask --state before
+                   (s1,j1, CForall (Typ t1 g)) <- local (|| True) $ translateM (up this) e1
+                   (s2,j2,t2) <-  local (|| True) $ translateM (up this) e2
+                   let t    = g ()
+                   let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
+                   cvarass <- getCvarAss t f n j1 j2
+                   let genApply = \x jType -> case x of J.ExpName (J.Name [h]) -> if genApplys then 
+                                                                (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
+                                                                else (nextApply (J.ExpName (J.Name [f])) h jType)
+                                                        _ -> error "expected temporary variable name"
+                                
+                   let genRes = \x -> []
+                   let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
+                   s3 <- getS3 t j3 genApply genRes cvarass
+                   return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
 
        otherwise -> local (|| True) $ translateM super e,
 
