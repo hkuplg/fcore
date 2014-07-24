@@ -135,7 +135,7 @@ refactoredScopeTranslationBit javaExpression statementsBeforeOA currentId nextId
                                         (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration] (Just(J.Block $ [head statementsBeforeOA, fullAssignment]))  nextId))),
                                         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
 
-applyCall = J.InitDecl False $ J.Block [J.BlockStmt $ J.ExpStmt (J.MethodInv (J.MethodCall (J.Name $ [J.Ident "apply"]) []))]
+applyCallI = J.InitDecl False $ J.Block [applyCall]
 
 pullupClosure [J.LocalVars [] rf vd] = case vd of
                                 [J.VarDecl variableId (Just(J.InitExp exp))] -> transf exp
@@ -151,7 +151,7 @@ pullupClosure [J.LocalVars [] rf vd] = case vd of
                                         _ -> defaultDef b
                                     transf (exp) = exp
                                     defaultDef b = (J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody b)))
-                                    applyDef b = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody ([head b, applyCall] ++ (tail b))))
+                                    applyDef b = J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody ([head b, applyCallI] ++ (tail b))))
 
 
 
