@@ -149,17 +149,17 @@ prettyJ = putStrLn . prettyPrint
 -- compileCU className e Nothing = let (cu,t) = createCU className (compile e) Nothing in (prettyJ cu >> print t)
 
 -- SystemF to Java
-sf2java :: Compilation -> ClassName -> String -> Bool -> String
-sf2java compilation (ClassName className) src stackTr =
-    let (cu, _) = createCU className (compilation ((transESF . readESF) src)) stackTr in prettyPrint cu
+sf2java :: Compilation -> ClassName -> String -> String
+sf2java compilation (ClassName className) src =
+    let (cu, _) = compilation className ((transESF . readESF) src) in prettyPrint cu
 
-compilesf2java :: Compilation -> FilePath -> FilePath -> Bool -> IO ()
-compilesf2java compilation srcPath outputPath stackTr = do
+compilesf2java :: Compilation -> FilePath -> FilePath -> IO ()
+compilesf2java compilation srcPath outputPath = do
     src <- readFile srcPath
-    let output = sf2java compilation (ClassName (inferClassName outputPath)) src stackTr
+    let output = sf2java compilation (ClassName (inferClassName outputPath)) src
     writeFile outputPath output
 
-type Compilation = PFExp Int (Var, PCTyp Int) -> (J.Block, J.Exp, PCTyp Int)
+type Compilation = String -> PFExp Int (Var, PCTyp Int) -> (J.CompilationUnit, PCTyp Int)--PFExp Int (Var, PCTyp Int) -> (J.Block, J.Exp, PCTyp Int)
 
 -- setting
 type AOptType = StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool)))
@@ -167,38 +167,32 @@ type AOptType = StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
 
-translate ::  PCExp Int (Var, PCTyp Int) -> MAOpt ([J.BlockStmt], J.Exp, PCTyp Int)
-translate = translateM (up sopt)
+translate :: String -> PCExp Int (Var, PCTyp Int) -> MAOpt (J.CompilationUnit, PCTyp Int)
+translate = createWrap (up sopt)
 
-translateAO :: PCExp Int (Var, PCTyp Int) -> AOptType ([J.BlockStmt], J.Exp, PCTyp Int)
-translateAO = translateM (up aoptinst)
+translateAO :: String -> PCExp Int (Var, PCTyp Int) -> AOptType (J.CompilationUnit, PCTyp Int)
+translateAO = createWrap (up aoptinst)
 
 compileAO :: Compilation
-compileAO e =
-  case fst $ runWriter $ evalStateT (evalStateT (evalStateT (translateAO (fexp2cexp e)) 0) Map.empty) Set.empty of
-      (ss,exp,t) -> (J.Block ss,exp, t)
+compileAO name e = fst $ runWriter $ evalStateT (evalStateT (evalStateT (translateAO name (fexp2cexp e)) 0) Map.empty) Set.empty
 
 type NType = StateT Int (StateT (Map.Map J.Exp Int) (State (Set.Set J.Exp)))
 ninst :: Translate NType  -- instantiation; all coinstraints resolved
 ninst = naive
 
-translateN ::  PCExp Int (Var, PCTyp Int) -> NType ([J.BlockStmt], J.Exp, PCTyp Int)
-translateN = translateM (up ninst)
+translateN :: String -> PCExp Int (Var, PCTyp Int) -> NType (J.CompilationUnit, PCTyp Int)
+translateN = createWrap (up ninst)
 
 compileN :: Compilation
-compileN e =
-  case evalState (evalStateT (evalStateT (translateN (fexp2cexp e)) 0) Map.empty) Set.empty of
-      (ss,exp,t) -> (J.Block ss,exp, t)
+compileN name e = evalState (evalStateT (evalStateT (translateN name (fexp2cexp e)) 0) Map.empty) Set.empty
 
 type StackType = ReaderT Bool (StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool))))
 stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
 stackinst = stackNaive
 
-translateS :: PCExp Int (Var, PCTyp Int) -> StackType ([J.BlockStmt], J.Exp, PCTyp Int)
-translateS = translateM (up stackinst)
+translateS :: String -> PCExp Int (Var, PCTyp Int) -> StackType (J.CompilationUnit, PCTyp Int)
+translateS = createWrap (up stackinst)
 
 compileS :: Compilation
-compileS e =
-  case fst $ runWriter $ evalStateT (evalStateT (evalStateT (runReaderT (translateS (fexp2cexp e)) False) 0) Map.empty) Set.empty of
-      (ss,exp,t) -> (J.Block ss,exp, t)
+compileS name e = fst $ runWriter $ evalStateT (evalStateT (evalStateT (runReaderT (translateS name (fexp2cexp e)) False) 0) Map.empty) Set.empty
 

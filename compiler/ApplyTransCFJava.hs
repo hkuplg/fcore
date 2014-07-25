@@ -96,32 +96,12 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                                                   Just no -> var (tempvarstr ++ show no)
             let cvar = refactoredScopeTranslationBit nje s v n closureCheck -- standardTranslation nje s i n (Set.member n envs)
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
-            {-
-            case m of -- Consider refactoring later?
-              Just (i,t') | last (g (Right i,t')) ->
-                do  put (n+1)
-                    let self = J.Ident (localvarstr ++ show i)
-                    tell False
-                    ((s,je,t1), closureCheck) <- listen $ translateScopeM (up this) (g (Left i,t)) m
-                    (env :: Map.Map J.Exp Int) <- get
-                    let nje = case (Map.lookup je env) of Nothing -> je
-                                                          Just no -> var (tempvarstr ++ show no)
-                    let cvar = refactoredScopeTranslationBit nje s i n closureCheck -- standardTranslation nje s i n (Set.member n envs)
-                    return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
-              otherwise ->
-                do  put (n+2)
-                    let self = J.Ident (localvarstr ++ show (n+1)) -- use another fresh variable
-                    tell False
-                    ((s,je,t1), closureCheck) <- listen $ translateScopeM (up this) (g (Left (n+1),t)) m
-                    (env :: Map.Map J.Exp Int) <- get
-                    let nje = case (Map.lookup je env) of Nothing -> je
-                                                          Just no -> var (tempvarstr ++ show no)
-                    let cvar = refactoredScopeTranslationBit nje s (n+1) n closureCheck
-                    return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
-             -}
+
       otherwise ->
           do tell True
-             translateScopeM super e m
+             translateScopeM super e m,
+             
+     createWrap = \n e -> createWrap super n e
   }}
 
 -- seperating (hopefully) the important bit

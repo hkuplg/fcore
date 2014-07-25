@@ -109,20 +109,6 @@ getClassDecl className bs ass returnType mainbodyDef = J.ClassTypeDecl (J.ClassD
     where
         body = Just (J.Block (bs ++ ass))
 
-createCU :: String -> (J.Block, J.Exp, PCTyp Int) -> Bool -> (J.CompilationUnit, PCTyp Int)
-createCU className (J.Block bs,e,t) stackTran = (cu,t) where
-   cu | stackTran = createCUB [nextClass,stackDecl]
-      | otherwise = createCUB [classDecl]
-
-   stackDecl = getClassDecl className bs (if (containsNext bs) then [] else [empyClosure e]) Nothing (Just $ J.Block $ stackbody t)
-
-   classDecl = getClassDecl className bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) returnType mainbody
-
-   maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
-                                    _ -> J.Cast objType e
-   returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
-                          _ -> Just $ objType   
-
 reduceTTuples :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
 reduceTTuples all = (merged, arrayAssignment, tupleType)
     where
@@ -178,7 +164,8 @@ data Translate m = T {
   translateScopeM ::
     Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) ->
     Maybe (Int,PCTyp Int) ->
-    m ([J.BlockStmt], J.Exp, TScope Int)
+    m ([J.BlockStmt], J.Exp, TScope Int),
+  createWrap :: String -> PCExp Int (Var, PCTyp Int) -> m (J.CompilationUnit, PCTyp Int)
   }
 
 instance Monoid Bool where
@@ -345,5 +332,15 @@ trans self = let this = up self in T {
             let nje = case (Map.lookup je env) of Nothing -> je
                                                   Just no -> var (tempvarstr ++ show no)
             let cvar = standardTranslation nje s v n
-            return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+            return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
+
+  createWrap = \name exp ->
+        do (bs,e,t) <- translateM this exp
+           let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
+                                      _ -> Just $ objType
+           let maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
+                                                _ -> J.Cast objType e
+           let classDecl = getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) returnType mainbody
+           return (createCUB [classDecl], t)
+
     }

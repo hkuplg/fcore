@@ -73,7 +73,7 @@ main = do
                                 Naive    -> compileN
                                 ApplyOpt -> compileAO
                                 Stack -> compileS
-                           ) srcPath outputPath (method == Stack)
+                           ) srcPath outputPath
 
         when (optCompile opts || optCompileAndRun opts) $ withMessageLn "  Compiling Java" $ compileJava outputPath
         when (optCompileAndRun opts) $ withMessage "  Running Java\n  Output: " $ runJava outputPath)

@@ -77,6 +77,10 @@ transS this super = TS {
        otherwise -> local (|| True) $ translateM super e,
 
   translateScopeM = \e m -> 
-             translateScopeM super e m
+             translateScopeM super e m,
+             
+  createWrap = \name exp ->
+        do (bs,e,t) <- translateM (up this) exp
+           let stackDecl = getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) Nothing (Just $ J.Block $ stackbody t)
+           return (createCUB  [nextClass,stackDecl], t)             
   }}
-
