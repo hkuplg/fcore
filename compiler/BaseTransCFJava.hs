@@ -48,34 +48,6 @@ ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $
         refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
         newvar = var ifvarname
 
-whileApplyLoop :: String -> J.Ident -> J.Type -> [J.BlockStmt]
-whileApplyLoop ctemp tempOut outType = [J.LocalVars [] closureType [J.VarDecl (J.VarId $ J.Ident $ ctemp) (Nothing)],
-        J.LocalVars [] outType [J.VarDecl (J.VarId tempOut) (Just (J.InitExp (J.Lit J.Null)))],
-        -- this is a hack, because language-java 0.2.x removed J.Paren
-        --J.Paren $ J.Assign (J.NameLhs (J.Name [J.Ident ctemp]))
-        --        J.EqualA (J.ExpName (J.Name [J.Ident "Next",J.Ident "next"]))
-        J.BlockStmt (J.While (J.BinOp (J.ExpName $ J.Name [J.Ident ("(" ++ ctemp ++ " = " ++ "Next.next" ++ ")")])
-        J.NotEq (J.Lit J.Null)) (J.StmtBlock (J.Block
-        [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"]))
-        J.EqualA (J.Lit J.Null))),
-        J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident $ ctemp,J.Ident "apply"]) []))),
-        J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [tempOut]))
-        J.EqualA (J.Cast outType
-        (J.ExpName (J.Name [J.Ident $ ctemp,J.Ident "out"])))))])))]
-
-containsNext :: [J.BlockStmt] -> Bool
-containsNext l = foldr (||) False $ map (\x -> case x of (J.BlockStmt (J.ExpStmt (J.Assign (
-                                                                J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"])) J.EqualA _))) -> True
-                                                         _ -> False) l
-
--- ad-hoc fix for final-returned expressions in Stack translation
-empyClosure outExp = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"])) J.EqualA 
-        (J.InstanceCreation [] (J.ClassType [(J.Ident "Closure",[])]) [] (Just (J.ClassBody [J.MemberDecl (J.MethodDecl 
-        [J.Annotation (J.MarkerAnnotation {J.annName = J.Name [J.Ident "Override"]}),J.Public] [] (Just (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])))) 
-        (J.Ident "clone") [] [] (J.MethodBody (Just (J.Block [J.BlockStmt (J.Return (Just (J.Lit J.Null)))])))),
-        J.MemberDecl (J.MethodDecl [J.Annotation (J.MarkerAnnotation {J.annName = J.Name [J.Ident "Override"]})] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just (J.Block 
-        [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "out"])) J.EqualA outExp))]))))])))))
-
 field name = J.MemberDecl (J.FieldDecl [] (objType) [
              J.VarDecl (J.VarId (J.Ident name)) Nothing])
 
@@ -84,18 +56,9 @@ app mod b rt en args = J.MemberDecl (J.MethodDecl mod [] (rt) (J.Ident en) args 
 closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
                J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [],app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
 
-nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.ClassBody [J.MemberDecl (J.FieldDecl
-        [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))
-
 applyCall = J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident "apply"]) [])))
 
 refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-
-stackbody t = 
-        applyCall : whileApplyLoop "c" (J.Ident "result") (case t of CInt -> boxedIntType
-                                                                     _ -> objType) ++ [
-               J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
-    (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("result")]])))]
 
 mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
 mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
