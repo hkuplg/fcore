@@ -44,6 +44,10 @@ import Language.ESF.Lexer
 
   INTEGER  { Tinteger $$ }
 
+  JAVATYPE { Tjavatype $$ }
+
+  "new"    { Tnew }
+
   "*"      { Tprimop J.Mult   }
   "/"      { Tprimop J.Div    }
   "%"      { Tprimop J.Rem    }
@@ -108,6 +112,8 @@ expr10 :: { Expr }
     | "if0" expr "then" expr "else" expr     { If0 $2 $4 $6 }
     | "-" INTEGER %prec UMINUS               { Lit (Integer (-$2)) }
     | fexp                                   { $1 }
+    -- Java new Object
+    | "new" JAVATYPE "(" comma_exprs_emp ")" { JNewObj $2 $4 }
 
 fexp :: { Expr }
     : fexp aexp         { App  $1 $2 }
@@ -121,11 +127,18 @@ aexp1 :: { Expr }
     : aexp2             { $1 }
 
 aexp2 :: { Expr }
-    : var                       { Var $1 }
-    | INTEGER                   { Lit (Integer $1) }
-    | aexp "." UNDERID          { Proj $1 $3 }
-    | "(" comma_exprs ")"       { Tuple $2 }
-    | "(" expr ")"              { $2 }
+    : var                                       { Var $1 }
+    | INTEGER                                   { Lit (Integer $1) }
+    | aexp "." UNDERID                          { Proj $1 $3 }
+    -- Java method call
+    | aexp "." LOWERID "(" comma_exprs_emp ")"  { JMethod $1 $3 $5 }
+    | "(" comma_exprs ")"                       { Tuple $2 }
+    | "(" expr ")"                              { $2 }
+
+comma_exprs_emp :: { [Expr] }
+    : {- empty -}   { []   }
+    | expr          { [$1] }
+    | comma_exprs   { $1   }
 
 comma_exprs :: { [Expr] }
     : expr "," expr             { [$1, $3] }
@@ -182,6 +195,7 @@ typ :: { Typ }
 atyp :: { Typ }
     : tvar                      { TVar $1 }
     | "Int"                     { Int }
+    | JAVATYPE                  { JTyp $1 }
     | "(" typ ")"               { $2 }
     | "(" comma_typs ")" { Product $2 }
 

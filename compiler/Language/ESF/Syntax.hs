@@ -9,6 +9,7 @@ import qualified Language.Java.Syntax as J (Op(..))
 data Typ
   = TVar String
   | Int
+  | JTyp String
   | Forall [String] Typ
   | Fun Typ Typ
   | Product [Typ]
@@ -19,17 +20,19 @@ data Lit
   deriving (Eq, Show)
 
 data Expr
-  = Var String -- Variable
-  | Lit Lit    -- Literals
-  | BLam [String] Expr    -- Type lambda abstraction
-  | Lam [(Pat, Typ)] Expr -- Lambda abstraction
-  | TApp Expr Typ  -- Type application
-  | App  Expr Expr -- Application
-  | PrimOp J.Op Expr Expr -- Primitive operation
-  | If0 Expr Expr Expr    -- If expression
-  | Tuple [Expr]  -- Tuples
-  | Proj Expr Int -- Tuple projection
-  | Let RecFlag [LocalBind] Expr -- Let (rec) ... (and) ... in ...
+  = Var String                    -- Variable
+  | Lit Lit                       -- Literals
+  | BLam [String] Expr            -- Type lambda abstraction
+  | Lam [(Pat, Typ)] Expr         -- Lambda abstraction
+  | TApp Expr Typ                 -- Type application
+  | App  Expr Expr                -- Application
+  | PrimOp J.Op Expr Expr         -- Primitive operation
+  | If0 Expr Expr Expr            -- If expression
+  | Tuple [Expr]                  -- Tuples
+  | Proj Expr Int                 -- Tuple projection
+  | Let RecFlag [LocalBind] Expr  -- Let (rec) ... (and) ... in ...
+  | JNewObj String [Expr]         -- New Java object
+  | JMethod Expr String [Expr]    -- Java method call
   deriving (Eq, Show)
 
 newtype Pat

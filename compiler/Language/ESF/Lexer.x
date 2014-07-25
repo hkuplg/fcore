@@ -5,6 +5,7 @@ module Language.ESF.Lexer
     ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
+import JVMTypeQuery
 }
 
 %wrapper "posn"
@@ -37,9 +38,10 @@ tokens :-
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
     \,          { \_ _ -> Tcomma }
+    new         { \_ _ -> Tnew }
 
     [A-Z] [$alpha $digit \_ \']*  { \_ s -> Tupperid s }
-    [a-z] [$alpha $digit \_ \']*  { \_ s -> Tlowerid s }
+    [a-z] [$alpha $digit \_ \']*  { \_ s -> if isJVMType s then Tjavatype s else Tlowerid s }
     \_ $digit+                    { \_ s -> Tunderid (read (tail s))  }
 
     $digit+     { \_ s -> Tinteger (read s) }
@@ -63,7 +65,8 @@ tokens :-
 data Token = Toparen | Tcparen
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot
            | Tlet | Trec | Teq | Tand | Tin
-           | Tint
+           | Tint | Tjavatype String
+           | Tnew
            | Tif0 | Tthen | Telse
            | Tcomma
            | Tupperid String | Tlowerid String | Tunderid Int
