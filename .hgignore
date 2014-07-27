@@ -34,3 +34,8 @@ Session.vim
 *~
 
 .hdevtools.sock
+
+*.log
+*.pdf
+*.dvi
+*.aux

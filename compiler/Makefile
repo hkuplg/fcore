@@ -15,10 +15,10 @@ all : $(lexers) $(parsers)
 # When compiling a grammar with GHC, the -g switch causes an even faster and
 # smaller grammar to be generated.
 $(lexers) : %.hs : %.x
-	alex -g $<
+	alex --ghc $<
 
 $(parsers) : %.hs : %.y
-	happy -i $<
+	happy --info --ghc $<
 
 .PHONY : clean
 clean :
