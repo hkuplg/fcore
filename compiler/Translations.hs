@@ -26,7 +26,7 @@ import qualified Language.Java.Syntax as J
 ------
 
 import Language.ESF.Parser      (reader)
-import Language.TransESF        (transESF)
+import Language.ESF.Translation (transESF)
 import Language.SystemF.Syntax
 import ClosureF
 import Language.Java.Utils      (ClassName(..), inferClassName)

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-binds -fno-warn-unused-matches #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Language.TransESF (transESF) where
+module Language.ESF.Translation (transESF) where
 
 import Language.ESF.Syntax
 import Language.SystemF.Syntax
