@@ -100,7 +100,7 @@ infixexpr :: { Expr }
 
 expr10 :: { Expr }
     : "/\\" tvars "." expr                   { BLam $2 $4  }
-    | "\\" pats_with_annot "." expr          { Lam $2 $4 }
+    | "\\" vars_with_annot "." expr          { Lam $2 $4 }
     | "let" recflag and_localbinds "in" expr { Let $2 $3 $5 }
     | "if0" expr "then" expr "else" expr     { If0 $2 $4 $6 }
     | "-" INTEGER %prec UMINUS               { Lit (Integer (-$2)) }
@@ -128,22 +128,13 @@ comma_exprs :: { [Expr] }
     : expr "," expr             { [$1, $3] }
     | expr "," comma_exprs      { $1:$3    }
 
-pat :: { Pat }
-  : var                 { VarPat $1 }
-  -- | "(" comma_pats ")"  { TuplePat $2 }
-  | "(" pat ")"         { $2 }
+var_with_annot :: { (var, Typ) }
+  : "(" var ":" typ ")"         { ($2, $4) }
+  | "(" var_with_annot ")"      { $2       }
 
--- comma_pats :: { [Pat] }
---   : pat "," pat         { [$1, $3] }
---   | pat "," comma_pats  { $1:$3    }
-
-pat_with_annot :: { (Pat, Typ) }
-  : "(" pat ":" typ ")"         { ($2, $4) }
-  | "(" pat_with_annot ")"      { $2       }
-
-pats_with_annot :: { [(Pat, Typ)] }
-  : pat_with_annot                      { [$1]  }
-  | pat_with_annot pats_with_annot      { $1:$2 }
+vars_with_annot :: { [(var, Typ)] }
+  : var_with_annot                      { [$1]  }
+  | var_with_annot vars_with_annot      { $1:$2 }
 
 localbind :: { LocalBind }
     : var tvars_emp var_annots_emp maybe_sig "=" expr
@@ -186,23 +177,23 @@ comma_typs :: { [Typ] }
     : typ "," typ               { $1:[$3] }
     | typ "," comma_typs        { $1:$3   }
 
-var :: { String }
+var :: { Name }
     : LOWERID           { $1 }
 
-tvar :: { String }
+tvar :: { Name }
     : UPPERID           { $1 }
 
-tvars_emp :: { [String] }
+tvars_emp :: { [Name] }
   : {- empty -}         { []    }
   | tvar tvars_emp      { $1:$2 }
 
-tvars :: { [String] }
+tvars :: { [Name] }
   : tvar tvars_emp  { $1:$2 }
 
-var_annot :: { (Pat, Typ) }
-    : "(" var ":" typ ")"  { (VarPat $2, $4) }
+var_annot :: { (Name, Typ) }
+    : "(" var ":" typ ")"  { ($2, $4) }
 
-var_annots_emp :: { [(Pat, Typ)] }
+var_annots_emp :: { [(Name, Typ)] }
     : {- empty -}              { []    }
     | var_annot var_annots_emp { $1:$2 }
 

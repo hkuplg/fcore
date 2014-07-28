@@ -20,44 +20,43 @@ type Env       = Map.Map String Typ
 transTyp :: Mapping t -> Typ -> PFTyp t
 transTyp tmap = go
   where
-    go (TVar a) =
+    go Int               = FInt
+    go (Fun t1 t2)       = FFun (go t1) (go t2)
+    go (Product ts)      = FProduct (map go ts)
+    go (TVar a)          =
       case Map.lookup a tmap of
-        Just t  -> FTVar t
-        Nothing -> error "transTyp: Type variable lookup failed"
-    go Int                 = FInt
-    go (Forall [] typ)     = go typ
-    go (Forall (a:as) typ) = FForall (\t0 -> transTyp (Map.insert a t0 tmap) (Forall as typ))
-    go (Fun t1 t2)         = FFun (go t1) (go t2)
-    go (Product typs)      = FProduct [go t | t <- typs]
+        Just a' -> FTVar a'
+        Nothing -> error ("transTyp: Lookup failed for type variable " ++ a)
+    go (Forall []     t) = go t
+    go (Forall (a:as) t) = FForall (\a' -> transTyp (Map.insert a a' tmap) (Forall as t))
 
 transExpr :: (Env, Mapping t, Mapping e) -> Expr -> PFExp t e
 transExpr (env, tmap, emap) = go
   where
-    go (Var x) =
+    go (Var x)            =
       case Map.lookup x emap of
         Just e  -> FVar x e
-        Nothing -> error "transExpr: Variable lookup failed"
-    go (Lit (Integer i))   = FLit i
-    go (BLam [] expr)      = go expr
-    go (Lam [] expr)       = go expr
-    go (BLam (a:as) expr)  = FBLam (\t0 -> transExpr (env, Map.insert a t0 tmap, emap) (BLam as expr))
-    go (Lam (p:ps) expr)   = FLam (transTyp tmap t)
-                              (\e0 -> transExpr (env, tmap, Map.insert x e0 emap) (Lam ps expr))
-      where (VarPat x, t)  = p
-    go (TApp e t)          = FTApp (go e) (transTyp tmap t)
-    go (App e1 e2)         = FApp (go e1) (go e2)
-    go (PrimOp op e1 e2)   = FPrimOp (go e1) op (go e2)
-    go (If0 p ifBr elseBr) = FIf0 (go p) (go ifBr) (go elseBr)
-    go (Tuple exprs)       = FTuple [go e | e <- exprs]
-    go (Proj expr i)       = FProj i (go expr)
+        Nothing -> error ("transExpr: Lookup failed for variable " ++ x)
+    go (Lit (Integer i))  = FLit i
+    go (App e1 e2)        = FApp (go e1) (go e2)
+    go (PrimOp op e1 e2)  = FPrimOp (go e1) op (go e2)
+    go (If0 p i e)        = FIf0 (go p) (go i) (go e)
+    go (Tuple es)         = FTuple (map go es)
+    go (Proj expr i)      = FProj i (go expr)
+    go (BLam [] e)        = go e
+    go (BLam (a:as) e)    = FBLam (\a' -> transExpr (env, Map.insert a a' tmap, emap) (BLam as e))
+    go (Lam [] e)         = go e
+    go (Lam ((x,t):as) e) = FLam (transTyp tmap t) (\x' -> transExpr (env, tmap, Map.insert x x' emap) (Lam as e))
+    go (TApp e t)         = FTApp (go e) (transTyp tmap t)
+
 
     --     let rec f1 (x : t) : t' = e1 in e
     -- ~~> let f1 = fix (f1 : t -> t'). \x. e1 in e
     -- ~~> (\(f1 : t -> t'). e) (fix (f1 : t -> t'). \x. e1)
     go (Let Rec [lbind] e) = FApp lam fix
       where
-        (f1, Lam [(VarPat x, t)] e1, Fun _ t') = dsLocalBind Rec env lbind
-        lam = go (Lam [(VarPat f1, Fun t t')] e)
+        (f1, Lam [(x, t)] e1, Fun _ t') = dsLocalBind Rec env lbind
+        lam = go (Lam [(f1, Fun t t')] e)
         fix = FFix (\f1_0 x0 -> transExpr (env, tmap, (Map.insert x x0 . Map.insert f1 f1_0) emap) e1)
                    (transTyp tmap t) (transTyp tmap t')
 
@@ -70,7 +69,7 @@ dsLet :: Env -> Expr -> Expr
 --     let f1 = e1, f2 = e2, f3 = e3 in e
 -- ~~> (\(f1 : infer e1). (\(f2 : infer e2). (\(f3 : infer e3). e) e3) e2) e1
 dsLet env (Let NonRec [] expr)             = expr
-dsLet env (Let NonRec (lbind:lbinds) expr) = App (Lam [(VarPat f1, t1)] inside) e1
+dsLet env (Let NonRec (lbind:lbinds) expr) = App (Lam [(f1, t1)] inside) e1
   where (f1, e1, t1) = dsLocalBind NonRec env lbind
         inside       = dsLet env (Let NonRec lbinds expr)
 
@@ -84,7 +83,7 @@ dsLet env (Let Rec lbinds expr)  = Let Rec [lbind'] expr
     (fs, es, ts) = unzip3 (map (dsLocalBind Rec env) lbinds)
     lbind' = LocalBind { local_id     = intercalate "_" fs -- TODO: Make sure the id is fresh
                        , local_targs  = []
-                       , local_args   = [(VarPat "dummy", Int)] -- TODO: Make sure the id is free
+                       , local_args   = [("dummy", Int)] -- TODO: Make sure the id is free
                        , local_rettyp = Just (Product ts)
                        , local_rhs    = Tuple es
                        }
@@ -120,7 +119,7 @@ infer env = go
     go (Lit (Integer _))     = Int
     go (BLam as expr)        = Forall as (go expr)
     go (Lam [] expr)         = go expr
-    go (Lam ((VarPat x,t):xs) expr) = Fun t (infer (Map.insert x t env) (Lam xs expr))
+    go (Lam ((x,t):xs) expr) = Fun t (infer (Map.insert x t env) (Lam xs expr))
     go (Tuple exprs)         = Product [go e | e <- exprs]
     go (Var x)               = fromMaybe (error $ "infer: Unbound variable `" ++ x ++ "'") (Map.lookup x env)
     go (TApp e _) =
