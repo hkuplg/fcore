@@ -6,7 +6,8 @@ module Language.TransESF (transESF) where
 import Language.ESF.Syntax
 import Language.SystemF.Syntax
 
-import Data.List (intercalate)
+import Data.Maybe       (fromMaybe)
+import Data.List        (intercalate)
 import qualified Data.Map as Map
 
 -- Translate a *typechecked* EFS expression into System F
@@ -40,7 +41,8 @@ transExpr (env, tmap, emap) = go
     go (BLam [] expr)      = go expr
     go (Lam [] expr)       = go expr
     go (BLam (a:as) expr)  = FBLam (\t0 -> transExpr (env, Map.insert a t0 tmap, emap) (BLam as expr))
-    go (Lam (p:ps) expr)   = FLam (transTyp tmap t) (\e0 -> transExpr (env, tmap, Map.insert x e0 emap) (Lam ps expr))
+    go (Lam (p:ps) expr)   = FLam (transTyp tmap t)
+                              (\e0 -> transExpr (env, tmap, Map.insert x e0 emap) (Lam ps expr))
       where (VarPat x, t)  = p
     go (TApp e t)          = FTApp (go e) (transTyp tmap t)
     go (App e1 e2)         = FApp (go e1) (go e2)
@@ -56,10 +58,10 @@ transExpr (env, tmap, emap) = go
       where
         (f1, Lam [(VarPat x, t)] e1, Fun _ t') = dsLocalBind Rec env lbind
         lam = go (Lam [(VarPat f1, Fun t t')] e)
-        fix = FFix (\f1_0 -> \x0 -> transExpr (env, tmap, (Map.insert x x0 . Map.insert f1 f1_0) emap) e1)
+        fix = FFix (\f1_0 x0 -> transExpr (env, tmap, (Map.insert x x0 . Map.insert f1 f1_0) emap) e1)
                    (transTyp tmap t) (transTyp tmap t')
 
-    go e@(Let _ _ _)      = go (dsLet env e)
+    go e@(Let{})      = go (dsLet env e)
 
 -- Eliminate all non-recursive let expressions, and rewrite mutually recursive
 -- let expressions into non-mutually recursive ones
@@ -120,10 +122,7 @@ infer env = go
     go (Lam [] expr)         = go expr
     go (Lam ((VarPat x,t):xs) expr) = Fun t (infer (Map.insert x t env) (Lam xs expr))
     go (Tuple exprs)         = Product [go e | e <- exprs]
-    go (Var x) =
-      case Map.lookup x env of
-        Just t  -> t
-        Nothing -> error ("infer: Unbound variable `" ++ x ++ "'")
+    go (Var x)               = fromMaybe (error $ "infer: Unbound variable `" ++ x ++ "'") (Map.lookup x env)
     go (TApp e _) =
       case go e of
         Forall _ t -> t
@@ -140,13 +139,13 @@ infer env = go
         Product _ -> error "infer: Index out of bound for Proj"
         _         -> error "infer: Expect the first argument of Proj to have type Product"
     go (PrimOp _ e1 e2)
-      | (t1 == t2 && t1 == Int) = Int
-      | t1 /= Int               = error "infer: Expect the first argument of PrimOp to have type Int"
-      | otherwise               = error "infer: Expect the second argument of PrimOp to have type Int"
+      | t1 == t2 && t1 == Int = Int
+      | t1 /= Int             = error "infer: Expect the first argument of PrimOp to have type Int"
+      | otherwise             = error "infer: Expect the second argument of PrimOp to have type Int"
       where t1 = go e1
             t2 = go e2
     go (If0 p ifBr elseBr)
-      | (go p == Int && go ifBr == go elseBr) = go ifBr
+      | go p == Int && go ifBr == go elseBr = go ifBr
       | go p /= Int = error "infer: Expect the predicate of an If expression to have type Int"
       | otherwise   = error "infer: Type mismatch in two branches of an If expression"
     go (Let recFlag lbinds expr) = infer env' expr
@@ -165,9 +164,7 @@ joinTyps [t]    = t
 joinTyps (t:ts) = Fun t (joinTyps ts)
 
 wrapTyp :: ([a] -> Typ -> Typ) -> [a] -> Typ -> Typ
-wrapTyp cons []     expr = expr
-wrapTyp cons (x:xs) expr = cons [x] (wrapTyp cons xs expr)
+wrapTyp cons xs expr = foldr (\x -> cons [x]) expr xs
 
 wrapExpr :: ([a] -> Expr -> Expr) -> [a] -> Expr -> Expr
-wrapExpr cons []     expr = expr
-wrapExpr cons (x:xs) expr = cons [x] (wrapExpr cons xs expr)
+wrapExpr cons xs expr = foldr (\x -> cons [x]) expr xs
