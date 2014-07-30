@@ -13,6 +13,8 @@ import JVMTypeQuery
 $alpha = [A-Za-z]
 $digit = [0-9]
 
+$vchar = [$alpha $digit \_ \']
+
 tokens :-
 
     $white+     ;
@@ -40,9 +42,12 @@ tokens :-
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
 
-    [A-Z] [$alpha $digit \_ \']*  { \_ s -> Tupperid s }
-    [a-z] [$alpha $digit \_ \']*  { \_ s -> if isJVMType s then Tjavatype s else Tlowerid s }
-    \_ $digit+                    { \_ s -> Tunderid (read (tail s))  }
+    -- java.package.path.Classname
+    ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavatype s }
+
+    [A-Z] [$vchar]*     { \_ s -> Tupperid s }
+    [a-z] [$vchar]*     { \_ s -> Tlowerid s }
+    \_ $digit+          { \_ s -> Tunderid (read (tail s))  }
 
     $digit+     { \_ s -> Tinteger (read s) }
 
