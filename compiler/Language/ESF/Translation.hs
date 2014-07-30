@@ -6,16 +6,14 @@ module Language.ESF.Translation (transESF) where
 import Language.ESF.Syntax
 import Language.SystemF.Syntax
 
-import Data.Maybe       (fromMaybe)
+import Data.Maybe       (fromMaybe, fromJust)
 import Data.List        (intercalate)
 import qualified Data.Map as Map
 
--- Translate a *typechecked* EFS expression into System F
 transESF :: Expr -> PFExp t e
-transESF = transExpr (Map.empty, Map.empty, Map.empty)
+transESF = transExpr Map.empty (Map.empty, Map.empty) . dsLet Map.empty
 
-type Mapping a = Map.Map String a
-type Env       = Map.Map String Typ
+-- type Mapping a = Map.Map Name a
 
 transTyp :: Mapping t -> Typ -> PFTyp t
 transTyp tmap = go
@@ -30,8 +28,8 @@ transTyp tmap = go
     go (Forall []     t) = go t
     go (Forall (a:as) t) = FForall (\a' -> transTyp (Map.insert a a' tmap) (Forall as t))
 
-transExpr :: (Env, Mapping t, Mapping e) -> Expr -> PFExp t e
-transExpr (env, tmap, emap) = go
+transExpr :: Env -> (Mapping t, Mapping e) -> Expr -> PFExp t e
+transExpr env (tmap, emap) = go
   where
     go (Var x)            =
       case Map.lookup x emap of
@@ -44,115 +42,159 @@ transExpr (env, tmap, emap) = go
     go (Tuple es)         = FTuple (map go es)
     go (Proj expr i)      = FProj i (go expr)
     go (BLam [] e)        = go e
-    go (BLam (a:as) e)    = FBLam (\a' -> transExpr (env, Map.insert a a' tmap, emap) (BLam as e))
+    go (BLam (a:as) e)    = FBLam (\a' -> transExpr env (Map.insert a a' tmap, emap) (BLam as e))
     go (Lam [] e)         = go e
-    go (Lam ((x,t):as) e) = FLam (transTyp tmap t) (\x' -> transExpr (env, tmap, Map.insert x x' emap) (Lam as e))
+    go (Lam ((x,t):as) e) = FLam (transTyp tmap t) (\x' -> transExpr env (tmap, Map.insert x x' emap) (Lam as e))
     go (TApp e t)         = FTApp (go e) (transTyp tmap t)
 
-
-    --     let rec f1 (x : t) : t' = e1 in e
-    -- ~~> let f1 = fix (f1 : t -> t'). \x. e1 in e
-    -- ~~> (\(f1 : t -> t'). e) (fix (f1 : t -> t'). \x. e1)
-    go (Let Rec [lbind] e) = FApp lam fix
+    --     let rec f (x : t1) : t2 = def in body
+    -- ~~> let f = fix (f : t1 -> t2). \x. def in body
+    -- ~~> (\(f : t1 -> t2). body) (fix (f : t1 -> t2). \x. def)
+    go (Let Rec [lbind] body) = FApp lam fix
       where
-        (f1, Lam [(x, t)] e1, Fun _ t') = dsLocalBind Rec env lbind
-        lam = go (Lam [(f1, Fun t t')] e)
-        fix = FFix (\f1_0 x0 -> transExpr (env, tmap, (Map.insert x x0 . Map.insert f1 f1_0) emap) e1)
-                   (transTyp tmap t) (transTyp tmap t')
+        (f, Lam [(x, t1)] def, Fun _should_equal_t1 t2) = dsLocalBind Rec env lbind
+        lam = go (Lam [(f, Fun t1 t2)] body)
+        fix = FFix (\f' x' -> transExpr env (tmap, (Map.insert x x' . Map.insert f f') emap) def) (transTyp tmap t1) (transTyp tmap t2)
 
-    go e@(Let{})      = go (dsLet env e)
+    go (Let Rec [] _)      = error "transESF: Invariant failed: Let Rec [] _"
+    go (Let Rec (_:_:_) _) = error "transESF: Invariant failed: Let Rec (_:_:_) _"
+    go (Let NonRec _ _)    = error "transESF: Invariant failed: Let NonRec _ _"
 
 -- Eliminate all non-recursive let expressions, and rewrite mutually recursive
 -- let expressions into non-mutually recursive ones
 dsLet :: Env -> Expr -> Expr
-
---     let f1 = e1, f2 = e2, f3 = e3 in e
--- ~~> (\(f1 : infer e1). (\(f2 : infer e2). (\(f3 : infer e3). e) e3) e2) e1
-dsLet env (Let NonRec [] expr)             = expr
-dsLet env (Let NonRec (lbind:lbinds) expr) = App (Lam [(f1, t1)] inside) e1
-  where (f1, e1, t1) = dsLocalBind NonRec env lbind
-        inside       = dsLet env (Let NonRec lbinds expr)
-
---     let rec f1 = e1, f2 = e2, f3 = e3 in e
--- ~~> let rec f (dummy : Int) = (e1, e2, e3) in e
---     [ f1 -> (f 0)._0, f2 -> (f 0)._1, f3 = (f 0)._2 ] inside (e1, e2, e3) and e
-dsLet env (Let Rec [] expr)      = expr
-dsLet env (Let Rec [lbind] expr) = expr
-dsLet env (Let Rec lbinds expr)  = Let Rec [lbind'] expr
+dsLet = go
   where
-    (fs, es, ts) = unzip3 (map (dsLocalBind Rec env) lbinds)
-    lbind' = LocalBind { local_id     = intercalate "_" fs -- TODO: Make sure the id is fresh
-                       , local_targs  = []
-                       , local_args   = [("dummy", Int)] -- TODO: Make sure the id is free
-                       , local_rettyp = Just (Product ts)
-                       , local_rhs    = Tuple es
-                       }
+    --     let f1 = e1, f2 = e2, f3 = e3 in e
+    -- ~~> (\(f1 : infer e1). (\(f2 : infer e2). (\(f3 : infer e3). e) e3) e2) e1
+    go env (Let NonRec [] body)             = body
+    go env (Let NonRec (lbind:lbinds) body) = App (Lam [(f1, t1)] inside) e1
+      where (f1, e1, t1) = dsLocalBind NonRec env lbind
+            inside       = go env (Let NonRec lbinds body)
 
--- data LocalBind = LocalBind
---   { local_id     :: String       -- Identifier
---   , local_targs  :: [String]     -- Type arguments
---   , local_args   :: [(Pat, Typ)] -- Arguments, each annotated with a type
---   , local_rettyp :: Maybe Typ    -- Return type
---   , local_rhs    :: Expr         -- RHS to the "="
---   } deriving (Eq, Show)
+    --     let rec f1 = e1, f2 = e2, f3 = e3 in e
+    -- ~~> let rec f (dummy : Int) : (...) = (e1, e2, e3) in e
+    -- ~~> let rec f (dummy : Int) : (...) =
+    --     [ f1 -> (f 0)._0, f2 -> (f 0)._1, f3 = (f 0)._2 ] inside (e1, e2, e3) and e
+    go env (Let Rec [] body)      = body
+    go env (Let Rec [lbind] body) = Let Rec [lbind] body
+    go env (Let Rec lbinds body)  = Let Rec [lbind'] (Let NonRec [] body)
+      where
+        (fs, es, ts) = unzip3 (map (dsLocalBind Rec env) lbinds)
+        mergedName   = intercalate "_" fs -- TODO Make sure the id is fresh
+        lbind' = LocalBind { local_id     = mergedName
+                           , local_targs  = []
+                           , local_args   = [("dummy", Int)]    -- TODO Make sure the id is free
+                           , local_rettyp = Just (Product ts)
+                           , local_rhs    = Tuple es
+                           }
+    go _ expr = expr
 
-dsLet _ expr = expr
-
+-- Take a localbind and return a triple of the name, value, and type:
+--
 --     f A1 ... An (x1 : T1) ... (xn : Tn) : T = e
 -- ~~> ( f                                             -- name
---     , /\A1. ... /\An. \(x1 : T1). ... \(xn : Tn). e -- value
+--     , /\A1. ... /\An. \(x1 : T1). ... \(xn : Tn). e -- def
 --     , forall A1 ... An. T1 -> ... -> Tn -> T        -- typ
 --     )
-dsLocalBind :: RecFlag -> Env -> LocalBind -> (String, Expr, Typ)
-dsLocalBind recFlag env LocalBind{..} = (name, value, typ)
-  where
-    name  = local_id
-    value = wrapExpr BLam local_targs (wrapExpr Lam local_args local_rhs)
-    typ   = case (recFlag, local_rettyp) of
-              (NonRec, _)        -> infer env value -- TODO: At the moment the annotation for return type is just discarded.
-              (Rec, Just rettyp) -> wrapTyp Forall local_targs (joinTyps ([t | (_, t) <- local_args] ++ [rettyp]))
-              (Rec, Nothing)     -> error "Type annotation required for recursive definitions"
+dsLocalBind :: RecFlag -> Env -> LocalBind -> (Name, Expr, Typ)
+dsLocalBind recFlag env LocalBind{..} =
+  let name = local_id
+      def  = (wrap BLam local_targs . wrap Lam local_args ) local_rhs
+      inferred_type = fromJust $ infer env def
+  in
+  case local_rettyp of
+    Nothing ->
+      case recFlag of
+        Rec    -> error "Return type missing in let rec"
+        NonRec -> (name, def, inferred_type)
+    Just rettyp ->
+      let annoted_type = wrap Forall local_targs $ joinTyps ([t | (_, t) <- local_args] ++ [rettyp]) in
+      case recFlag of
+        Rec    -> (name, def, inferred_type)
+        NonRec ->
+          if annoted_type == inferred_type
+            then (name, def, annoted_type)
+            else error "Type mismatch"
 
-infer :: Env -> Expr -> Typ
-infer env = go
+wellformed :: Map.Map Name Type -> Type -> Bool
+wellformed d (TVar x)      = x `elem` d
+wellformed d  Int          = True
+wellformed d (Forall a t') = wellformed d t'
+wellformed d (Fun t1 t2)   = wellformed t1 && wellformed t2
+wellformed d (Product ts)  = wellformed d `all` ts
+
+infer :: Map.Map Name Typ -> Expr -> Maybe Typ
+infer g d = go
   where
-    go (Lit (Integer _))     = Int
-    go (BLam as expr)        = Forall as (go expr)
-    go (Lam [] expr)         = go expr
-    go (Lam ((x,t):xs) expr) = Fun t (infer (Map.insert x t env) (Lam xs expr))
-    go (Tuple exprs)         = Product [go e | e <- exprs]
-    go (Var x)               = fromMaybe (error $ "infer: Unbound variable `" ++ x ++ "'") (Map.lookup x env)
-    go (TApp e _) =
-      case go e of
-        Forall _ t -> t
-        _          -> error "infer: Expect the first argument of TApp to have type Forall"
-    go (App e1 e2) =
-      case go e1 of
-        Fun argtyp rettyp | go e2 == argtyp -> rettyp
-        Fun argtyp _ -> error ("infer: Couldn't match expected argument type `" ++ show argtyp
-                              ++ "' with actual type `" ++ show (go e2) ++ "'")
-        _            -> error "infer: Expect the first argument App to have type Fun"
-    go (Proj e i) =
-      case go e of
-        Product ts | i < length ts -> ts !! i
-        Product _ -> error "infer: Index out of bound for Proj"
-        _         -> error "infer: Expect the first argument of Proj to have type Product"
-    go (PrimOp _ e1 e2)
-      | t1 == t2 && t1 == Int = Int
-      | t1 /= Int             = error "infer: Expect the first argument of PrimOp to have type Int"
-      | otherwise             = error "infer: Expect the second argument of PrimOp to have type Int"
-      where t1 = go e1
-            t2 = go e2
-    go (If0 p ifBr elseBr)
-      | go p == Int && go ifBr == go elseBr = go ifBr
-      | go p /= Int = error "infer: Expect the predicate of an If expression to have type Int"
-      | otherwise   = error "infer: Type mismatch in two branches of an If expression"
-    go (Let recFlag lbinds expr) = infer env' expr
+    go (Var x) = Map.lookup x vars
+
+    go (Lit (Integer _)) = return Int
+
+    go (BLam as body) = do
+      t_body <- go body
+      return $ Forall as t_body
+
+    go (Lam [] body)           = go body
+    go (Lam ((x,t):args) body) = do
+      t_body <- infer (tvars, Map.insert x t vars) (Lam args body)
+      return $ Fun t t_body
+
+    {-
+      τ ok in Δ   Δ;Γ ⊢ e : ∀α. τ'
+      ----------------------------
+          Δ;Γ ⊢ e[τ] : τ'[τ/α]
+    -}
+    go (TApp e t)
+      | wellformed d t =
+        case go e of
+          Forall [] t'     -> Nothing
+          Forall (a:as) t' -> substFreeTVars (a, t) (Forall as t)
+          _                -> Nothing
+      | otherwise = Nothing
+
+    go (App f arg) = do
+      t_f <- go f
+      case t_f of
+        Fun a b -> do
+          t_arg <- go arg
+          if t_arg == a then return b else Nothing
+        _       -> Nothing
+
+    go (PrimOp _ e1 e2) = do
+      t1 <- go e1
+      t2 <- go e2
+      if t1 == Int && t2 == Int
+        then Int
+        else Nothing
+
+    go (Tuple exprs) = do
+      t_exprs <- mapM go exprs
+      return $ Product t_exprs
+
+    go (Proj e i) = do
+      t_e <- go e
+      case t_e of
+        Product ts ->
+          if i < length ts
+            then ts !! i
+            else Nothing
+        _ -> Nothing
+
+    go (If0 p i e) = do
+      t_p <- go yp
+      t_i <- go i
+      t_e <- go e
+      if t_p == Int && t_i == t_e
+        then return t_i
+        else Nothing
+
+    go (Let recFlag lbinds expr) = infer vars' expr
       where
-        env' = updateEnv [(f,t) | (f,_e,t) <- map (dsLocalBind recFlag env) lbinds] env
+        vars' = updatevars [(f,t) | (f,_e,t) <- map (dsLocalBind recFlag vars) lbinds] vars
           where
-            updateEnv [] env0              = env0
-            updateEnv ((f1, t1):rest) env0 = updateEnv rest (Map.insert f1 t1 env0)
+            updatevars [] vars0              = vars0
+            updatevars ((f1, t1):rest) vars0 = updatevars rest (Map.insert f1 t1 vars0)
 
 -- Utilities
 
@@ -162,8 +204,7 @@ joinTyps []     = error "joinTyps: Empty list"
 joinTyps [t]    = t
 joinTyps (t:ts) = Fun t (joinTyps ts)
 
-wrapTyp :: ([a] -> Typ -> Typ) -> [a] -> Typ -> Typ
-wrapTyp cons xs expr = foldr (\x -> cons [x]) expr xs
+class Wrap a where wrap :: ([b] -> a -> a) -> [b] -> a -> a
 
-wrapExpr :: ([a] -> Expr -> Expr) -> [a] -> Expr -> Expr
-wrapExpr cons xs expr = foldr (\x -> cons [x]) expr xs
+instance Wrap Typ  where wrap cons xs e = foldr (\x -> cons [x]) e xs
+instance Wrap Expr where wrap cons xs t = foldr (\x -> cons [x]) t xs
