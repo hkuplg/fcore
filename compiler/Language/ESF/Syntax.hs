@@ -11,7 +11,7 @@ type Name = String
 data Typ
   = TVar Name
   | Int
-  | Forall [Name] Typ
+  | Forall Name Typ
   | Fun Typ Typ
   | Product [Typ]
   deriving (Eq, Show)
@@ -23,8 +23,8 @@ data Lit
 data Expr
   = Var Name                     -- Variable
   | Lit Lit                      -- Literals
-  | BLam [Name] Expr             -- Type lambda abstraction
-  | Lam [(Name, Typ)] Expr       -- Lambda abstraction
+  | BLam Name Expr               -- Type lambda abstraction
+  | Lam (Name, Typ) Expr         -- Lambda abstraction
   | TApp Expr Typ                -- Type application
   | App  Expr Expr               -- Application
   | PrimOp J.Op Expr Expr        -- Primitive operation

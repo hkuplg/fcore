@@ -99,12 +99,12 @@ infixexpr :: { Expr }
     | infixexpr "||" infixexpr  { PrimOp J.COr    $1 $3 }
 
 expr10 :: { Expr }
-    : "/\\" tvars "." expr                   { BLam $2 $4  }
-    | "\\" vars_with_annot "." expr          { Lam $2 $4 }
-    | "let" recflag and_localbinds "in" expr { Let $2 $3 $5 }
-    | "if0" expr "then" expr "else" expr     { If0 $2 $4 $6 }
-    | "-" INTEGER %prec UMINUS               { Lit (Integer (-$2)) }
-    | fexp                                   { $1 }
+    : "/\\" tvar "." expr                     { BLam $2 $4  }
+    | "\\" var_with_annot "." expr            { Lam $2 $4 }
+    | "let" recflag and_localbinds "in" expr  { Let $2 $3 $5 }
+    | "if0" expr "then" expr "else" expr      { If0 $2 $4 $6 }
+    | "-" INTEGER %prec UMINUS                { Lit (Integer (-$2)) }
+    | fexp                                    { $1 }
 
 fexp :: { Expr }
     : fexp aexp         { App  $1 $2 }
@@ -132,10 +132,6 @@ var_with_annot :: { (var, Typ) }
   : "(" var ":" typ ")"         { ($2, $4) }
   | "(" var_with_annot ")"      { $2       }
 
-vars_with_annot :: { [(var, Typ)] }
-  : var_with_annot                      { [$1]  }
-  | var_with_annot vars_with_annot      { $1:$2 }
-
 localbind :: { LocalBind }
     : var tvars_emp var_annots_emp maybe_sig "=" expr
         { LocalBind { local_id     = $1
@@ -151,15 +147,15 @@ maybe_sig :: { Maybe Typ }
   | {- empty -} { Nothing }
 
 and_localbinds :: { [LocalBind] }
-    : localbind                      { [$1] }
-    | localbind "and" and_localbinds { $1:$3    }
+    : localbind                      { [$1]  }
+    | localbind "and" and_localbinds { $1:$3 }
 
 recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
 
 typ :: { Typ }
-    : "forall" tvars "." typ       { Forall $2 $4 }
+    : "forall" tvar "." typ       { Forall $2 $4 }
 
     -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
     -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
@@ -171,31 +167,28 @@ atyp :: { Typ }
     : tvar                      { TVar $1 }
     | "Int"                     { Int }
     | "(" typ ")"               { $2 }
-    | "(" comma_typs ")" { Product $2 }
+    | "(" comma_typs ")"        { Product $2 }
 
 comma_typs :: { [Typ] }
     : typ "," typ               { $1:[$3] }
     | typ "," comma_typs        { $1:$3   }
+
+tvars_emp :: { [Name] }
+  : {- empty -}         { []    }
+  | tvar tvars_emp      { $1:$2 }
+
+var_annot :: { (Name, Typ) }
+    : "(" var ":" typ ")"       { ($2, $4) }
+
+var_annots_emp :: { [(Name, Typ)] }
+    : {- empty -}               { []    }
+    | var_annot var_annots_emp  { $1:$2 }
 
 var :: { Name }
     : LOWERID           { $1 }
 
 tvar :: { Name }
     : UPPERID           { $1 }
-
-tvars_emp :: { [Name] }
-  : {- empty -}         { []    }
-  | tvar tvars_emp      { $1:$2 }
-
-tvars :: { [Name] }
-  : tvar tvars_emp  { $1:$2 }
-
-var_annot :: { (Name, Typ) }
-    : "(" var ":" typ ")"  { ($2, $4) }
-
-var_annots_emp :: { [(Name, Typ)] }
-    : {- empty -}              { []    }
-    | var_annot var_annots_emp { $1:$2 }
 
 {
 -- The monadic parser

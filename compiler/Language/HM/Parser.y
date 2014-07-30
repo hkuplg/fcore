@@ -1,7 +1,7 @@
 {
 module Language.HM.Parser where
 
-import qualified Data.Map as Map 
+import qualified Data.Map as Map
 
 import Language.HM.Syntax
 import Language.HM.Lexer
@@ -76,7 +76,7 @@ import Language.HM.Lexer
 
 %%
 
-exp 
+exp
     : infixexp %prec EXP        { $1 }
 
 infixexp
@@ -95,7 +95,7 @@ infixexp
     | infixexp "/"  infixexp    { EBinOp Div $1 $3 }
     | infixexp "%"  infixexp    { EBinOp Mod $1 $3 }
 
-exp10 
+exp10
     : "\\" pat pats "->" exp                 { ELam ($2:$3) $5 }
     | "let" var pats "=" exp "in" exp        { ELet ($2, $3, $5) $7 }
     | "let" "rec" var pats "=" exp "in" exp  { ELetRec ($3, $4, $6) $8 }
@@ -108,14 +108,14 @@ fexp
     : fexp aexp         { EApp $1 $2 }
     | aexp              { $1 }
 
-aexp  
+aexp
     : var               { EVar $1 }
     | INTEGER           { ELit (LInteger $1) }
-    | aexp "." UNDERID  { EProj $1 $3 } 
+    | aexp "." UNDERID  { EProj $1 $3 }
     | "(" exp ")"       { $2 }
     | "(" tup_exprs ")" { ETup $2 }
 
-tup_exprs 
+tup_exprs
     : exp "," exp       { $1:[$3] }
     | exp "," tup_exprs { $1:$3   }
 
@@ -127,15 +127,15 @@ typ
     | atyp "->" typ             { \tenv -> TFun ($1 tenv) ($3 tenv) }
     | atyp                      { $1 }
 
-atyp 
-    : tvar              { \tenv -> FTVar (fromMaybe (error $ "Unbound type variable: `" ++ $1 ++ "'") (Map.lookup $1 tenv)) }
+atyp
+    : tvar              { \tenv -> FTVar (fromMaybe (error $ "Not in scope: type variable: `" ++ $1 ++ "'") (Map.lookup $1 tenv)) }
     | "Int"             { \_    -> FInt }
     | "(" typ ")"       { $2 }
 
 tvar : UPPERID       { $1 }
 -}
 
-pats 
+pats
     : pat       { [$1] }
     | pat pats  { $1:$2 }
 
@@ -148,7 +148,7 @@ data P a = Ok a | Error String deriving (Eq, Show)
 
 instance Monad P where
     Ok x      >>= f = f x
-    Error msg >>= f = Error msg 
+    Error msg >>= f = Error msg
     return x        = Ok x
 
 -- parseError :: [Token] -> P a

@@ -23,7 +23,7 @@ free (TPoly (PMono t)) = free (TMono t)
 freeEnv :: Env -> [TVar]
 freeEnv env = concatMap (\(x,s) -> free (TPoly s)) env
 
-type TSubst = [(TVar, Mono)]   
+type TSubst = [(TVar, Mono)]
 
 dom :: [(a, b)] -> [a]
 dom = map fst
@@ -47,7 +47,7 @@ typeExp _env (EVar x) = Just $ TMono (MVar "a") -- lookup x env >>= Just . TPoly
 typeExp env (EApp e0 e1) = do
     t0 <- typeExp env e0
     t1 <- typeExp env e1
-    case t0 of 
+    case t0 of
         (TMono (MApp t t')) -> if t1 == TMono t then Just (TMono t') else Nothing
         _ -> Nothing
 typeExp env (ELam x e) = do
@@ -74,7 +74,7 @@ type2mono (TPoly s) = error "type2mono (TPoly s)"
 
 -- Constraint-based typing (TaPL, Figure 22-1)
 
-type Constraint = (CType, CType) 
+type Constraint = (CType, CType)
 
 -- Types used in constraints, different from `Type`
 data CType = CTLit
@@ -86,7 +86,7 @@ type Context = [(Var, CType)]
 
 -- The type reconstruction monad
 type TR = State Int
- 
+
 -- Generate a fresh type variable.
 uvargen :: TR CType
 uvargen = do n <- get
@@ -94,47 +94,47 @@ uvargen = do n <- get
              return $ CTVar ("a" ++ show n)
 
 ctype :: Context -> Exp -> TR ([Constraint], CType)
-ctype ctx (EVar x) = 
-    case lookup x ctx of 
-        Nothing -> error ("Unbound variable: " ++ x)
+ctype ctx (EVar x) =
+    case lookup x ctx of
+        Nothing -> error ("Not in scope: variable: `" ++ x ++ "'")
         Just t -> return ([], t)
 
 ctype ctx (ELit i) = return ([], CTLit)
 
-ctype ctx (EApp e1 e2) = 
-    do (c1, t1) <- ctype ctx e1 
+ctype ctx (EApp e1 e2) =
+    do (c1, t1) <- ctype ctx e1
        (c2, t2) <- ctype ctx e2
        x <- uvargen
        return (c1 `union` c2 `union` [(t1, CTArr t2 x)], x)
 
-ctype ctx (ELam x e2) = 
+ctype ctx (ELam x e2) =
     do t1 <- uvargen -- annotate x with some fresh type variable t1
        (c2, t2) <- ctype (ctx `union` [(x, t1)]) e2
        return (c2, CTArr t1 t2)
 
 ctype ctx (EUn op e1) = ctype ctx e1
 
-ctype ctx (EBin op e1 e2) = 
+ctype ctx (EBin op e1 e2) =
     do (c1, t1) <- ctype ctx e1
        (c2, t2) <- ctype ctx e2
        let c' = if isLitLitOp op then [(t1, CTLit), (t2, CTLit)] else [(t1, t2)]
        return (c1 `union` c2 `union` c', t1)
 
-ctype ctx (EIf0 e1 e2 e3) = 
+ctype ctx (EIf0 e1 e2 e3) =
     do (c1, t1) <- ctype ctx e1
        (c2, t2) <- ctype ctx e2
        (c3, t3) <- ctype ctx e3
        return (c1 `union` c2 `union` c3 `union` [(t1, CTLit), (t2, t3)], t2)
 
-ctype ctx (ELet x e1 e2) = 
+ctype ctx (ELet x e1 e2) =
     do (c1, t1) <- ctype ctx e1
        (c2, t2) <- ctype ((x, t1):ctx) e2
        return (c1 `union` c2, t2)
 
-ctype ctx (ELetRec bindings e1) = 
+ctype ctx (ELetRec bindings e1) =
     do let vars = map fst bindings
-       if length vars /= length (nub vars) 
-           then error "Duplicate variable names" 
+       if length vars /= length (nub vars)
+           then error "Duplicate variable names"
            else do freshTyVars <- replicateM (length bindings) uvargen
                    let ctx' = zip vars freshTyVars ++ ctx
                    (cs, ts) <- fmap unzip $ zipWithM (\ty (x0, e0) -> do { (c0, t0) <- ctype ctx' e0; return (c0 `union` [(t0, ty)], t0) }) freshTyVars bindings
@@ -142,8 +142,8 @@ ctype ctx (ELetRec bindings e1) =
                    return (foldl union c1 cs, t1)
 
 infer :: Exp -> CType
-infer e = 
-    let (c, t) = evalState (ctype [] e) 0 in 
+infer e =
+    let (c, t) = evalState (ctype [] e) 0 in
     let s = unify c in
     subst s t
 
@@ -180,9 +180,9 @@ unify [] = []
 unify c@((s, t):c')
     | s == t = unify c'
     | otherwise = case (s, t) of
-        (CTVar x, _) -> if x `elem` fv t then raise else unify (substC [(x, t)] c') `composeS` [(x, t)] 
-        (_, CTVar x) -> if x `elem` fv s then raise else unify (substC [(x, s)] c') `composeS` [(x, s)] 
+        (CTVar x, _) -> if x `elem` fv t then raise else unify (substC [(x, t)] c') `composeS` [(x, t)]
+        (_, CTVar x) -> if x `elem` fv s then raise else unify (substC [(x, s)] c') `composeS` [(x, s)]
         (CTArr s1 s2, CTArr t1 t2) -> unify $ c' ++ [(s1, t1), (s2, t2)]
         _ -> raise
-    where 
+    where
         raise = error $ "Cannot unify " ++ show s ++ " and " ++ show t ++ " given constraints:\n" ++ show c
