@@ -8,12 +8,12 @@ import qualified Language.Java.Syntax as J (Op(..))
 
 type Name = String
 
-data Typ
+data Type
   = TVar Name
   | Int
-  | Forall Name Typ
-  | Fun Typ Typ
-  | Product [Typ]
+  | Forall Name Type
+  | Fun Type Type
+  | Product [Type]
   deriving (Eq, Show)
 
 data Lit
@@ -24,8 +24,8 @@ data Expr
   = Var Name                     -- Variable
   | Lit Lit                      -- Literals
   | BLam Name Expr               -- Type lambda abstraction
-  | Lam (Name, Typ) Expr         -- Lambda abstraction
-  | TApp Expr Typ                -- Type application
+  | Lam (Name, Type) Expr         -- Lambda abstraction
+  | TApp Expr Type                -- Type application
   | App  Expr Expr               -- Application
   | PrimOp J.Op Expr Expr        -- Primitive operation
   | If0 Expr Expr Expr           -- If expression
@@ -36,11 +36,11 @@ data Expr
 
 -- f A1 ... An (x : T1) ... (x : Tn) : T = e
 data LocalBind = LocalBind
-  { local_id     :: Name          -- Identifier
-  , local_targs  :: [Name]        -- Type arguments
-  , local_args   :: [(Name, Typ)] -- Arguments, each annotated with a type
-  , local_rettyp :: Maybe Typ     -- Return type
-  , local_rhs    :: Expr          -- RHS to the "="
+  { local_id     :: Name           -- Identifier
+  , local_targs  :: [Name]         -- Type arguments
+  , local_args   :: [(Name, Type)] -- Arguments, each annotated with a type
+  , local_rettyp :: Maybe Type     -- Return type
+  , local_rhs    :: Expr           -- RHS to the "="
   } deriving (Eq, Show)
 
 data RecFlag = Rec | NonRec deriving (Eq, Show)

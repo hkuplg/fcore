@@ -13,10 +13,8 @@ import qualified Data.Map as Map
 transESF :: Expr -> PFExp t e
 transESF = transExpr Map.empty (Map.empty, Map.empty) . dsLet Map.empty
 
--- type Mapping a = Map.Map Name a
-
-transTyp :: Mapping t -> Typ -> PFTyp t
-transTyp tmap = go
+transType :: Map.Map Name t -> Type -> PFTyp t
+transType tmap = go
   where
     go Int               = FInt
     go (Fun t1 t2)       = FFun (go t1) (go t2)
@@ -24,10 +22,10 @@ transTyp tmap = go
     go (TVar a)          =
       case Map.lookup a tmap of
         Just a' -> FTVar a'
-        Nothing -> error ("transTyp: Lookup failed for type variable " ++ a)
-    go (Forall a t)      = FForall (\a' -> transTyp (Map.insert a a' tmap) t)
+        Nothing -> error ("transType: Lookup failed for type variable " ++ a)
+    go (Forall a t)      = FForall (\a' -> transType (Map.insert a a' tmap) t)
 
-transExpr :: Env -> (Mapping t, Mapping e) -> Expr -> PFExp t e
+transExpr :: Map.Map Name Type -> (Map.Map Name t, Map.Map Name e) -> Expr -> PFExp t e
 transExpr env (tmap, emap) = go
   where
     go (Var x)            =
@@ -41,8 +39,8 @@ transExpr env (tmap, emap) = go
     go (Tuple es)         = FTuple (map go es)
     go (Proj expr i)      = FProj i (go expr)
     go (BLam a e)         = FBLam (\a' -> transExpr env (Map.insert a a' tmap, emap) e)
-    go (Lam (x,t) e)      = FLam (transTyp tmap t) (\x' -> transExpr env (tmap, Map.insert x x' emap) e)
-    go (TApp e t)         = FTApp (go e) (transTyp tmap t)
+    go (Lam (x,t) e)      = FLam (transType tmap t) (\x' -> transExpr env (tmap, Map.insert x x' emap) e)
+    go (TApp e t)         = FTApp (go e) (transType tmap t)
 
     --     let rec f (x : t1) : t2 = def in body
     -- ~~> let f = fix (f : t1 -> t2). \x. def in body
@@ -51,7 +49,7 @@ transExpr env (tmap, emap) = go
       where
         (f, Lam [(x, t1)] def, Fun _should_equal_t1 t2) = dsLocalBind Rec env lbind
         lam = go (Lam [(f, Fun t1 t2)] body)
-        fix = FFix (\f' x' -> transExpr env (tmap, (Map.insert x x' . Map.insert f f') emap) def) (transTyp tmap t1) (transTyp tmap t2)
+        fix = FFix (\f' x' -> transExpr env (tmap, (Map.insert x x' . Map.insert f f') emap) def) (transType tmap t1) (transType tmap t2)
 
     go (Let Rec [] _)      = error "transESF: Invariant failed: Let Rec [] _"
     go (Let Rec (_:_:_) _) = error "transESF: Invariant failed: Let Rec (_:_:_) _"
@@ -59,7 +57,7 @@ transExpr env (tmap, emap) = go
 
 -- Eliminate all non-recursive let expressions, and rewrite mutually recursive
 -- let expressions into non-mutually recursive ones
-dsLet :: Env -> Expr -> Expr
+dsLet :: Map.Map Name Type -> Expr -> Expr
 dsLet = go
   where
     --     let f1 = e1, f2 = e2, f3 = e3 in e
@@ -94,7 +92,7 @@ dsLet = go
 --     , /\A1. ... /\An. \(x1 : T1). ... \(xn : Tn). e -- def
 --     , forall A1 ... An. T1 -> ... -> Tn -> T        -- typ
 --     )
-dsLocalBind :: RecFlag -> Env -> LocalBind -> (Name, Expr, Typ)
+dsLocalBind :: RecFlag -> Map.Map Name Type -> LocalBind -> (Name, Expr, Type)
 dsLocalBind recFlag env LocalBind{..} =
   let name = local_id
       def  = (wrap BLam local_targs . wrap Lam local_args ) local_rhs
@@ -106,7 +104,7 @@ dsLocalBind recFlag env LocalBind{..} =
         Rec    -> error "Return type missing in let rec"
         NonRec -> (name, def, inferred_type)
     Just rettyp ->
-      let annoted_type = wrap Forall local_targs $ joinTyps ([t | (_, t) <- local_args] ++ [rettyp]) in
+      let annoted_type = wrap Forall local_targs $ joinTypes ([t | (_, t) <- local_args] ++ [rettyp]) in
       case recFlag of
         Rec    -> (name, def, inferred_type)
         NonRec ->
@@ -115,13 +113,16 @@ dsLocalBind recFlag env LocalBind{..} =
             else error "Type mismatch"
 
 wellformed :: Map.Map Name Type -> Type -> Bool
-wellformed d (TVar x)     = x `elem` d
-wellformed d  Int         = True
-wellformed d (Forall a t) = wellformed d t
-wellformed d (Fun t1 t2)  = wellformed t1 && wellformed t2
-wellformed d (Product ts) = wellformed d `all` ts
+wellformed d t = (`elem` d) `all` freeTypeVars t
 
-infer :: Map.Map Name Typ -> Expr -> Maybe Typ
+freeTypeVars :: Type -> [Name]
+freeTypeVars (TVar x)     = [x]
+freeTypeVars  Int         = []
+freeTypeVars (Forall a t) = delete a (freeTypeVars t)
+freeTypeVars (Fun t1 t2)  = freeTypeVars t1 `union` freeTypeVars t2
+freeTypeVars (Product ts) = foldl (\acc t -> acc `union` freeTypeVars t) [] ts
+
+infer :: Map.Map Name Type -> Expr -> Maybe Type
 infer g d = go
   where
     go (Var x) = Map.lookup x g
@@ -186,20 +187,20 @@ infer g d = go
 
     go (Let recFlag lbinds expr) = infer vars' expr
       where
-        vars' = updatevars [(f,t) | (f,_e,t) <- map (dsLocalBind recFlag vars) lbinds] vars
+        g' = updatevars [(f,t) | (f,_e,t) <- map (dsLocalBind recFlag g) lbinds] vars
           where
             updatevars [] vars0              = vars0
             updatevars ((f1, t1):rest) vars0 = updatevars rest (Map.insert f1 t1 vars0)
 
 -- Utilities
 
--- Take a list of Typ's and return T1 -> T2 -> ... -> Tn
-joinTyps :: [Typ] -> Typ
-joinTyps []     = error "joinTyps: Empty list"
-joinTyps [t]    = t
-joinTyps (t:ts) = Fun t (joinTyps ts)
+-- Take a list of Type's and return T1 -> T2 -> ... -> Tn
+joinTypes :: [Type] -> Type
+joinTypes []     = error "joinTypes: Empty list"
+joinTypes [t]    = t
+joinTypes (t:ts) = Fun t (joinTypes ts)
 
 class Wrap a where wrap :: ([b] -> a -> a) -> [b] -> a -> a
 
-instance Wrap Typ  where wrap cons xs e = foldr (\x -> cons [x]) e xs
+instance Wrap Type  where wrap cons xs e = foldr (\x -> cons [x]) e xs
 instance Wrap Expr where wrap cons xs t = foldr (\x -> cons [x]) t xs
