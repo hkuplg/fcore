@@ -253,9 +253,8 @@ trans self = let this = up self in T {
            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
            cvarass <- getCvarAss t f n j1 j2
            let genApply = \x y -> [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))]
-           let genRes = \x -> x
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           s3 <- getS3 t j3 genApply genRes cvarass
+           s3 <- getS3 t j3 genApply id cvarass
 
            return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
 
