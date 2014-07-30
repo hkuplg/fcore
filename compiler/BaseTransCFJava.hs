@@ -149,31 +149,18 @@ genSubst j1 initFun = x
                                                                                let defV1 = initFun tempvarstr n j1
                                                                                return ([defV1], temp1)
 
-getS3 t j3 genApply genRes cvarass  = case (scope2ctyp t) of
-                                        CInt -> do 
-                                                (result, rj) <- genSubst j3 initIntCast
-                                                let apply = genApply rj boxedIntType
-                                                let rest = genRes result                                                
-                                                let r = cvarass ++ apply ++ rest
-                                                return r
-                                        CForall (_) -> do 
-                                                (result, rj) <- genSubst j3 initClosure
-                                                let apply = genApply rj closureType
-                                                let rest = genRes result                                                           
-                                                let r = cvarass ++ apply ++ rest
-                                                return r
-                                        CTupleType _ -> do 
-                                                (result, rj) <- genSubst j3 initObjArray
-                                                let apply = genApply rj objArrayType
-                                                let rest = genRes result        
-                                                let r = cvarass ++ apply ++ rest
-                                                return r
-                                        _ -> do
-                                                (result, rj) <- genSubst j3 initObj
-                                                let apply = genApply rj objType
-                                                let rest = genRes result                                                           
-                                                let r = cvarass ++ apply ++ rest
-                                                return r                                                      
+chooseCastBox CInt            = (initIntCast,boxedIntType)
+chooseCastBox (CForall _)     = (initClosure,closureType)
+chooseCastBox (CTupleType _)  = (initObjArray,objArrayType)
+chooseCastBox _               = (initObj,objType)
+
+getS3 t j3 genApply genRes cvarass  =
+  do let (cast,typ) = chooseCastBox (scope2ctyp t)
+     (result, rj) <- genSubst j3 cast
+     let apply = genApply rj typ
+     let rest = genRes result                                                           
+     let r = cvarass ++ apply ++ rest
+     return r 
 
 getCvarAss t f n j1 j2 = do
                    (env :: Map.Map J.Exp Int) <- get

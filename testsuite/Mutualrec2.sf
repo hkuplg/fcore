@@ -26,4 +26,4 @@ let rec evenodd (dummy : Int) : (Int -> Int, Int -> Int) =
     , \(n : Int). if0 n then 0 else if0 n-1 then 1 else (evenodd 88)._1 (n-1)
     )
 in
-(evenodd 88)._1 7
+(evenodd 88)._0 7
