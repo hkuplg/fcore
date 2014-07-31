@@ -106,8 +106,8 @@ transS this super = TS {
                                                         _ -> error "expected temporary variable name"
                                 
                    let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-                   s3 <- getS3 t j3 genApply (const []) cvarass
-                   return (s1 ++ s2 ++ s3, j3, scope2ctyp t) -- need to check t1 == t2
+                   (s3, nje3) <- getS3 t j3 genApply (const []) cvarass
+                   return (s1 ++ s2 ++ s3, nje3, scope2ctyp t) -- need to check t1 == t2
 
        otherwise -> local (|| True) $ translateM super e,
 

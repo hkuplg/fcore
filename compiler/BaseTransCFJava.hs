@@ -140,6 +140,7 @@ genSubst j1 initFun = x
          where
              x = do (env1 :: Map.Map J.Exp Int) <- get
                     case j1 of J.Lit e -> return ([], j1)
+                               J.ExpName _ -> return ([], j1)
                                    --FieldAccess (PrimaryFieldAccess...  or J.ExpName
                                _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (tempvarstr ++ show e))
                                                                  Nothing -> do (n :: Int) <- get
@@ -155,12 +156,14 @@ chooseCastBox (CTupleType _)  = (initObjArray,objArrayType)
 chooseCastBox _               = (initObj,objType)
 
 getS3 t j3 genApply genRes cvarass  =
-  do let (cast,typ) = chooseCastBox (scope2ctyp t)
-     (result, rj) <- genSubst j3 cast
-     let apply = genApply rj typ
-     let rest = genRes result                                                           
+  do (n :: Int) <- get
+     put (n+1)
+     let (cast,typ) = chooseCastBox (scope2ctyp t)
+
+     let apply = genApply (var (tempvarstr ++ show n)) typ
+     let rest = genRes [cast tempvarstr n j3]                                                           
      let r = cvarass ++ apply ++ rest
-     return r 
+     return (r, var (tempvarstr ++ show n)) 
 
 getCvarAss t f n j1 j2 = do
                    (env :: Map.Map J.Exp Int) <- get
@@ -196,7 +199,8 @@ trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Se
 trans self = let this = up self in T {
   translateM = \e -> case e of
      CVar (Left i,t) ->
-        do return ([],var (localvarstr ++ show i ++ "." ++ localvarstr), t)
+     
+        do return ([],J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr), t)
 
      CVar (Right i, t) ->
        do return ([],var (localvarstr ++ show i), t)
@@ -254,9 +258,9 @@ trans self = let this = up self in T {
            cvarass <- getCvarAss t f n j1 j2
            let genApply = \x y -> [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))]
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           s3 <- getS3 t j3 genApply id cvarass
+           (s3, nje3) <- getS3 t j3 genApply id cvarass
 
-           return (s1 ++ s2 ++ s3, j3, scope2ctyp t), -- need to check t1 == t2
+           return (s1 ++ s2 ++ s3, nje3, scope2ctyp t), -- need to check t1 == t2
 
 
   translateScopeM = \e m -> case e of
