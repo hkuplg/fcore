@@ -4,15 +4,19 @@
 
 module Language.ESF.Syntax where
 
+import Data.List (intersperse)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Language.Java.Syntax as J (Op(..))
+import Text.PrettyPrint.Leijen
 
 type Name = String
 
 data Type
   = TVar Name
   | Int
-  | Forall Name Type
   | Fun Type Type
+  | Forall Name Type
   | Product [Type]
   deriving (Eq, Show)
 
@@ -20,27 +24,40 @@ data Lit
   = Integer Integer -- later maybe Bool | Char
   deriving (Eq, Show)
 
-data Expr
+data Term
   = Var Name                     -- Variable
   | Lit Lit                      -- Literals
-  | BLam Name Expr               -- Type lambda abstraction
-  | Lam (Name, Type) Expr         -- Lambda abstraction
-  | TApp Expr Type                -- Type application
-  | App  Expr Expr               -- Application
-  | PrimOp J.Op Expr Expr        -- Primitive operation
-  | If0 Expr Expr Expr           -- If expression
-  | Tuple [Expr]                 -- Tuples
-  | Proj Expr Int                -- Tuple projection
-  | Let RecFlag [LocalBind] Expr -- Let (rec) ... (and) ... in ...
+  | Lam (Name, Type) Term        -- Lambda abstraction
+  | App  Term Term               -- Application
+  | BLam Name Term               -- Type lambda abstraction
+  | TApp Term Type               -- Type application
+  | Tuple [Term]                 -- Tuples
+  | Proj Term Int                -- Tuple projection
+  | PrimOp Term J.Op Term        -- Primitive operation
+  | If0 Term Term Term           -- If expression
+  | Let RecFlag [Bind] Term -- Let (rec) ... (and) ... in ...
   deriving (Eq, Show)
 
 -- f A1 ... An (x : T1) ... (x : Tn) : T = e
-data LocalBind = LocalBind
-  { local_id     :: Name           -- Identifier
-  , local_targs  :: [Name]         -- Type arguments
-  , local_args   :: [(Name, Type)] -- Arguments, each annotated with a type
-  , local_rettyp :: Maybe Type     -- Return type
-  , local_rhs    :: Expr           -- RHS to the "="
+data Bind = Bind
+  { bindId       :: Name           -- Identifier
+  , bindTargs    :: [Name]         -- Type arguments
+  , bindArgs     :: [(Name, Type)] -- Arguments, each annotated with a type
+  , bindRhs      :: Term           -- RHS to the "="
+  , bindRhsAnnot :: Maybe Type     -- Type of the RHS
   } deriving (Eq, Show)
 
 data RecFlag = Rec | NonRec deriving (Eq, Show)
+
+type TypeContext  = Set.Set Name
+type ValueContext = Map.Map Name Type
+
+prettyShow :: Pretty a => a -> String
+prettyShow = show . pretty
+
+instance Pretty Type where
+  pretty (TVar a)     = text a
+  pretty Int          = text "Int"
+  pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
+  pretty (Forall a t) = parens $ text "forall" <+> text a <> char '.' <+> pretty t
+  pretty (Product ts) = parens $ sep $ intersperse (text " ,") (map pretty ts)

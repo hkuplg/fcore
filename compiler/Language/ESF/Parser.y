@@ -79,82 +79,82 @@ import Language.ESF.Lexer
 -- Reference for rules:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
-expr :: { Expr }
-     : infixexpr %prec EOF      { $1 }
+term :: { Term }
+     : infixterm %prec EOF      { $1 }
 
-infixexpr :: { Expr }
-    : expr10                    { $1 }
-    | infixexpr "*"  infixexpr  { PrimOp J.Mult   $1 $3 }
-    | infixexpr "/"  infixexpr  { PrimOp J.Div    $1 $3 }
-    | infixexpr "%"  infixexpr  { PrimOp J.Rem    $1 $3 }
-    | infixexpr "+"  infixexpr  { PrimOp J.Add    $1 $3 }
-    | infixexpr "-"  infixexpr  { PrimOp J.Sub    $1 $3 }
-    | infixexpr "<"  infixexpr  { PrimOp J.LThan  $1 $3 }
-    | infixexpr "<=" infixexpr  { PrimOp J.LThanE $1 $3 }
-    | infixexpr ">"  infixexpr  { PrimOp J.GThan  $1 $3 }
-    | infixexpr ">=" infixexpr  { PrimOp J.GThanE $1 $3 }
-    | infixexpr "==" infixexpr  { PrimOp J.Equal  $1 $3 }
-    | infixexpr "!=" infixexpr  { PrimOp J.NotEq  $1 $3 }
-    | infixexpr "&&" infixexpr  { PrimOp J.CAnd   $1 $3 }
-    | infixexpr "||" infixexpr  { PrimOp J.COr    $1 $3 }
+infixterm :: { Term }
+    : term10                    { $1 }
+    | infixterm "*"  infixterm  { PrimOp $1 J.Mult   $3 }
+    | infixterm "/"  infixterm  { PrimOp $1 J.Div    $3 }
+    | infixterm "%"  infixterm  { PrimOp $1 J.Rem    $3 }
+    | infixterm "+"  infixterm  { PrimOp $1 J.Add    $3 }
+    | infixterm "-"  infixterm  { PrimOp $1 J.Sub    $3 }
+    | infixterm "<"  infixterm  { PrimOp $1 J.LThan  $3 }
+    | infixterm "<=" infixterm  { PrimOp $1 J.LThanE $3 }
+    | infixterm ">"  infixterm  { PrimOp $1 J.GThan  $3 }
+    | infixterm ">=" infixterm  { PrimOp $1 J.GThanE $3 }
+    | infixterm "==" infixterm  { PrimOp $1 J.Equal  $3 }
+    | infixterm "!=" infixterm  { PrimOp $1 J.NotEq  $3 }
+    | infixterm "&&" infixterm  { PrimOp $1 J.CAnd   $3 }
+    | infixterm "||" infixterm  { PrimOp $1 J.COr    $3 }
 
-expr10 :: { Expr }
-    : "/\\" tvar "." expr                     { BLam $2 $4  }
-    | "\\" var_with_annot "." expr            { Lam $2 $4 }
-    | "let" recflag and_localbinds "in" expr  { Let $2 $3 $5 }
-    | "if0" expr "then" expr "else" expr      { If0 $2 $4 $6 }
-    | "-" INTEGER %prec UMINUS                { Lit (Integer (-$2)) }
-    | fexp                                    { $1 }
+term10 :: { Term }
+    : "/\\" tvar "." term                 { BLam $2 $4  }
+    | "\\" var_with_annot "." term        { Lam $2 $4 }
+    | "let" recflag and_binds "in" term   { Let $2 $3 $5 }
+    | "if0" term "then" term "else" term  { If0 $2 $4 $6 }
+    | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
+    | fexp                                { $1 }
 
-fexp :: { Expr }
+fexp :: { Term }
     : fexp aexp         { App  $1 $2 }
     | fexp typ          { TApp $1 $2 }
     | aexp              { $1 }
 
-aexp :: { Expr }
+aexp :: { Term }
     : aexp1             { $1 }
 
-aexp1 :: { Expr }
+aexp1 :: { Term }
     : aexp2             { $1 }
 
-aexp2 :: { Expr }
+aexp2 :: { Term }
     : var                       { Var $1 }
     | INTEGER                   { Lit (Integer $1) }
     | aexp "." UNDERID          { Proj $1 $3 }
-    | "(" comma_exprs ")"       { Tuple $2 }
-    | "(" expr ")"              { $2 }
+    | "(" comma_terms ")"       { Tuple $2 }
+    | "(" term ")"              { $2 }
 
-comma_exprs :: { [Expr] }
-    : expr "," expr             { [$1, $3] }
-    | expr "," comma_exprs      { $1:$3    }
+comma_terms :: { [Term] }
+    : term "," term             { [$1, $3] }
+    | term "," comma_terms      { $1:$3    }
 
-var_with_annot :: { (var, Typ) }
+var_with_annot :: { (Name, Type) }
   : "(" var ":" typ ")"         { ($2, $4) }
   | "(" var_with_annot ")"      { $2       }
 
-localbind :: { LocalBind }
-    : var tvars_emp var_annots_emp maybe_sig "=" expr
-        { LocalBind { local_id     = $1
-                    , local_targs  = $2
-                    , local_args   = $3
-                    , local_rettyp = $4
-                    , local_rhs    = $6
-                    }
+bind :: { Bind }
+    : var tvars_emp var_annots_emp maybe_sig "=" term
+        { Bind { bindId       = $1
+               , bindTargs    = $2
+               , bindArgs     = $3
+               , bindRhs      = $6
+               , bindRhsAnnot = $4
+               }
         }
 
-maybe_sig :: { Maybe Typ }
+maybe_sig :: { Maybe Type }
   : ":" typ     { Just $2 }
   | {- empty -} { Nothing }
 
-and_localbinds :: { [LocalBind] }
-    : localbind                      { [$1]  }
-    | localbind "and" and_localbinds { $1:$3 }
+and_binds :: { [Bind] }
+    : bind                      { [$1]  }
+    | bind "and" and_binds      { $1:$3 }
 
 recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
 
-typ :: { Typ }
+typ :: { Type }
     : "forall" tvar "." typ       { Forall $2 $4 }
 
     -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
@@ -163,13 +163,13 @@ typ :: { Typ }
 
     | atyp              { $1 }
 
-atyp :: { Typ }
+atyp :: { Type }
     : tvar                      { TVar $1 }
     | "Int"                     { Int }
     | "(" typ ")"               { $2 }
     | "(" comma_typs ")"        { Product $2 }
 
-comma_typs :: { [Typ] }
+comma_typs :: { [Type] }
     : typ "," typ               { $1:[$3] }
     | typ "," comma_typs        { $1:$3   }
 
@@ -177,10 +177,10 @@ tvars_emp :: { [Name] }
   : {- empty -}         { []    }
   | tvar tvars_emp      { $1:$2 }
 
-var_annot :: { (Name, Typ) }
+var_annot :: { (Name, Type) }
     : "(" var ":" typ ")"       { ($2, $4) }
 
-var_annots_emp :: { [(Name, Typ)] }
+var_annots_emp :: { [(Name, Type)] }
     : {- empty -}               { []    }
     | var_annot var_annots_emp  { $1:$2 }
 
@@ -202,8 +202,8 @@ instance Monad P where
 parseError :: [Token] -> P a
 parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
 
-reader :: String -> Expr
+reader :: String -> Term
 reader src = case (parser . lexer) src of
-                 POk expr   -> expr
+                 POk term   -> term
                  PError msg -> error msg
 }
