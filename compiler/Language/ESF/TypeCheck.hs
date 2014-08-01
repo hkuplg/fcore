@@ -39,14 +39,12 @@ inferWith (d, g) = go
 
     go (BLam a e)
       | a `Set.member` d = Nothing
-      | otherwise  = do
-        t <- inferWith (Set.insert a d, g) e
-        return $ Forall a t
+      | otherwise        = do t <- inferWith (Set.insert a d, g) e
+                              return $ Forall a t
 
     go (Lam (x,t) e)
-      | wellformed d t = do
-        t' <- inferWith (d, Map.insert x t g) e
-        return $ Fun t t'
+      | wellformed d t = do t' <- inferWith (d, Map.insert x t g) e
+                            return $ Fun t t'
       | otherwise      = Nothing
 
     {-
@@ -55,16 +53,16 @@ inferWith (d, g) = go
           Δ;Γ ⊢ e[τ] : τ'[τ/α]
     -}
     go (TApp e t)
-      | wellformed d t = do
-        t1 <- go e
-        case t1 of
-          Forall a t' -> return $ substFreeTVars (a, t) t'
-          _           -> Nothing
-      | otherwise = Nothing
+      | wellformed d t = do t1 <- go e
+                            case t1 of
+                              Forall a t' -> return $ substFreeTVars (a, t) t'
+                              _           -> Nothing
+      | otherwise      = Nothing
 
-    go (Tuple es) = do
-      ts <- mapM go es
-      return $ Product ts
+    go (Tuple es)
+      | length es < 2 = Nothing
+      | otherwise     = do ts <- mapM go es
+                           return $ Product ts
 
     go (Proj e i) = do
       t <- go e
@@ -95,10 +93,11 @@ inferWith (d, g) = go
 
     go (Let recFlag bs e) = do
       checkDup (map bindId bs)
-      -- TODO should also do inference for mutual rec
-      bindIdTypes <- forM bs (\Bind{..} -> do { t <- typeBindId recFlag (d, g) Bind{..}
-                                              ; return (bindId, t)
-                                              })
+      -- TODO: should check types agree with each other
+      bindIdTypes <- forM bs (\Bind{..} ->
+        do { t <- typeBindId recFlag (d, g) Bind{..}
+           ; return (bindId, t)
+           })
       inferWith (d, Map.fromList bindIdTypes `Map.union` g) e
 
 typeBindId :: RecFlag -> (TypeContext, ValueContext) -> Bind -> Maybe Type
@@ -115,13 +114,16 @@ typeBindId recFlag (d, g) Bind{..} = do
         then return t
         else Nothing
     (Rec, Nothing)     -> Nothing
-    (Rec, Just rhsTyp) -> return $ wrap Forall bindTargs $ wrap Fun [t' | (_,t') <- bindArgs] rhsTyp
+    (Rec, Just rhsTyp) ->
+      return $ wrap Forall bindTargs $ wrap Fun [t' | (_,t') <- bindArgs] rhsTyp
 
---     f A1 ... An (x1 : T1) ... (xn : Tn) : T = e
--- ~~> (f, /\A1. ... /\An. \(x1 : T1). ... \(xn : Tn). e), T)
---      Provided that:
---      (1) A1, ..., An are all distinct, and
---      (2) x1, ..., xn are all distinct.
+-- TODO: BUG: if any of A1, ..., An is in the free variables of t1, ..., tn
+{-      f A1 ... An (x1 : t1) ... (xn : tn) : t = e
+        ~> (f, /\A1. ... /\An. \(x1 : t1). ... \(xn : tn). e), t)
+
+        Provided that:
+          (1) A1, ..., An are all distinct, and
+          (2) x1, ..., xn are all distinct.     -}
 dsBind :: Bind -> Maybe (Name, Term, Maybe Type)
 dsBind Bind{..} = do
   checkDup bindTargs
@@ -146,14 +148,13 @@ substFreeTVars (x, r) = go
     go (Product ts) = Product (map go ts)
     go (Forall a t)
       | a == x                     = Forall a t
-      | a `Set.member` freeTVars r = Forall a t -- The freshness condition
+      | a `Set.member` freeTVars r = Forall a t -- The freshness condition, crucial!
       | otherwise                  = Forall a (go t)
 
 checkDup :: Ord a => [a] -> Maybe ()
-checkDup xs =
-  case findFirstDup xs of
-    Just _  -> Nothing
-    Nothing -> Just ()
+checkDup xs = case findFirstDup xs of
+                Just _  -> Nothing
+                Nothing -> Just ()
 
 findFirstDup :: Ord a => [a] -> Maybe a
 findFirstDup xs = go xs Set.empty

@@ -25,16 +25,16 @@ data Lit
   deriving (Eq, Show)
 
 data Term
-  = Var Name                     -- Variable
-  | Lit Lit                      -- Literals
-  | Lam (Name, Type) Term        -- Lambda abstraction
-  | App  Term Term               -- Application
-  | BLam Name Term               -- Type lambda abstraction
-  | TApp Term Type               -- Type application
-  | Tuple [Term]                 -- Tuples
-  | Proj Term Int                -- Tuple projection
-  | PrimOp Term J.Op Term        -- Primitive operation
-  | If0 Term Term Term           -- If expression
+  = Var Name                -- Variable
+  | Lit Lit                 -- Literals
+  | Lam (Name, Type) Term   -- Lambda abstraction
+  | App  Term Term          -- Application
+  | BLam Name Term          -- Type lambda abstraction
+  | TApp Term Type          -- Type application
+  | Tuple [Term]            -- Tuples
+  | Proj Term Int           -- Tuple projection
+  | PrimOp Term J.Op Term   -- Primitive operation
+  | If0 Term Term Term      -- If expression
   | Let RecFlag [Bind] Term -- Let (rec) ... (and) ... in ...
   deriving (Eq, Show)
 

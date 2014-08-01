@@ -35,15 +35,17 @@ data PFExp t e =
     | FLam (PFTyp t) (e -> PFExp t e)
     | FTApp (PFExp t e) (PFTyp t)
     | FApp  (PFExp t e) (PFExp t e)
-    | FPrimOp (PFExp t e) (J.Op) (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
+    | FPrimOp (PFExp t e) J.Op (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
     | FLit PrimLit
     | FIf0 (PFExp t e) (PFExp t e) (PFExp t e)
     | FTuple [PFExp t e]
     | FProj Int (PFExp t e)
 
-    -- fix (y : t1 -> t2). \x. e
+    -- fix x (x1 : t1) : t2. e
+    -- Or the new syntax:
+    -- fix (x : t1 -> t2). \x1. e
     | FFix (e -> e -> PFExp t e)
            (PFTyp t) -- t1
-           (PFTyp t) -- t2, the entire expression has type t1 -> t2
+           (PFTyp t) -- t2
 
 newtype Exp = HideExp { revealExp :: forall t e. PFExp t e }
