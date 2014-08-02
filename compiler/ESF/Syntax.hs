@@ -9,7 +9,7 @@ module ESF.Syntax
   , Type(..)
   , eqType
   , Lit(..)
-  , Term(..)
+  , Expr(..)
   , RecFlag(..)
   , Bind(..)
   , TypeContext
@@ -41,28 +41,28 @@ data Lit
   = Integer Integer -- later maybe Bool | Char
   deriving (Eq, Show)
 
-data Term
+data Expr
   = Var Name                -- Variable
   | Lit Lit                 -- Literals
-  | Lam (Name, Type) Term   -- Lambda abstraction
-  | App  Term Term          -- Application
-  | BLam Name Term          -- Type lambda abstraction
-  | TApp Term Type          -- Type application
-  | Tuple [Term]            -- Tuples
-  | Proj Term Int           -- Tuple projection
-  | PrimOp Term J.Op Term   -- Primitive operation
-  | If0 Term Term Term      -- If expression
-  | Let RecFlag [Bind] Term -- Let (rec) ... (and) ... in ...
-  deriving (Show)
+  | Lam (Name, Type) Expr   -- Lambda abstraction
+  | App  Expr Expr          -- Application
+  | BLam Name Expr          -- Type lambda abstraction
+  | TApp Expr Type          -- Type application
+  | Tuple [Expr]            -- Tuples
+  | Proj Expr Int           -- Tuple projection
+  | PrimOp Expr J.Op Expr   -- Primitive operation
+  | If0 Expr Expr Expr      -- If expression
+  | Let RecFlag [Bind] Expr -- Let (rec) ... (and) ... in ...
+  deriving (Eq, Show)
 
 -- f A1 ... An (x : T1) ... (x : Tn) : T = e
 data Bind = Bind
   { bindId       :: Name           -- Identifier
   , bindTargs    :: [Name]         -- Type arguments
   , bindArgs     :: [(Name, Type)] -- Arguments, each annotated with a type
-  , bindRhs      :: Term           -- RHS to the "="
+  , bindRhs      :: Expr           -- RHS to the "="
   , bindRhsAnnot :: Maybe Type     -- Type of the RHS
-  } deriving (Show)
+  } deriving (Eq, Show)
 
 data RecFlag = Rec | NonRec deriving (Eq, Show)
 
@@ -76,7 +76,7 @@ instance Pretty Type where
   pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
   pretty (Product ts) = tupled (map pretty ts)
 
-instance Pretty Term where
+instance Pretty Expr where
   pretty (Var x) = text x
   pretty (Lit (Integer n)) = integer n
   pretty (BLam a e) = parens $ text "/\\" <> text a <> dot <+> pretty e

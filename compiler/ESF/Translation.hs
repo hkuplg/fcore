@@ -19,8 +19,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- Translate a typechecked ESF expression into System F
-transESF :: Term -> PFExp t e
-transESF = transNfExp . transTerm
+transESF :: Expr -> PFExp t e
+transESF = transNfExp . transExpr
 
 transType :: Map.Map Name t -> Type -> PFTyp t
 transType d = go
@@ -70,8 +70,8 @@ transNfExpWith (d, g) = go
         (transType d t1)
         (transType d t2)
 
-transTerm :: Term -> NfExp
-transTerm = go
+transExpr :: Expr -> NfExp
+transExpr = go
   where
     go (Var x)             = NfVar x
     go (Lit (Integer n))   = NfLit n
@@ -90,10 +90,10 @@ transTerm = go
         ~> (\(f1 : infer e1). e) e1     -}
     -- go (Let NonRec [b] e) =
     --   case dsBind b of
-    --     Nothing -> invariantFailed "transTermWith" ("dsBind failed for " ++ show b)
+    --     Nothing -> invariantFailed "transExpr" ("dsBind failed for " ++ show b)
     --     Just (f1, e1, _) ->
     --       case inferWith (d,g) e1 of
-    --         Nothing -> invariantFailed "transTermWith"
+    --         Nothing -> invariantFailed "transExpr"
     --                      ("Type inference failed for " ++ show e1)
     --         Just t1 -> NfApp (NfLam (f1, t1) (go e)) (go e1)
 
@@ -115,14 +115,14 @@ transTerm = go
     --       f' = intercalate "_" fs -- TODO: make sure f' is fresh
     --       e' = Tuple es
     --       t' = fromMaybe
-    --              (invariantFailed "transTermWith" ("Failed to typecheck " ++ show e'))
+    --              (invariantFailed "transExpr" ("Failed to typecheck " ++ show e'))
     --              (inferWith (d,g) e')
     --       ss  = zipWith (\f i -> (f, NfProj i (NfVar f'))) fs [0..length fs - 1]
     --       (fs, es, _) = unzip3 $
     --         map
     --           (\b ->
     --             fromMaybe
-    --               (invariantFailed "transTermWith" ("dsBind failed for " ++ show b))
+    --               (invariantFailed "transExpr" ("dsBind failed for " ++ show b))
     --               (dsBind b)
     --           bs)
 

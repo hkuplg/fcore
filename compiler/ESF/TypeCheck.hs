@@ -27,7 +27,7 @@ type Tc = Either TypeError
 data TypeError
   = NotInScope { msg      :: String }
   | General    { msg      :: String }
-  | Mismatch   { term     :: Term
+  | Mismatch   { term     :: Expr
                , expected :: Type
                , actual   :: Type
                }
@@ -61,10 +61,10 @@ freeTyVars (Forall a t) = Set.delete a (freeTyVars t)
 freeTyVars (Fun t1 t2)  = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (Product ts) = Set.unions (map freeTyVars ts)
 
-infer :: Term -> Tc Type
+infer :: Expr -> Tc Type
 infer = inferWith (Set.empty, Map.empty)
 
-inferWith :: (TypeContext, ValueContext) -> Term -> Tc Type
+inferWith :: (TypeContext, ValueContext) -> Expr -> Tc Type
 inferWith (d, g) = go
   where
     go (Var x) =
@@ -224,7 +224,7 @@ inferWith (d, g) = go
         Provided that:
           (1) A1, ..., An are all distinct, and
           (2) x1, ..., xn are all distinct.     -}
-dsBind :: Bind -> Tc (Name, Term, Maybe Type)
+dsBind :: Bind -> Tc (Name, Expr, Maybe Type)
 dsBind Bind{..} = do
   checkForDup "type arguments" bindTargs
   checkForDup "arguments"      [x | (x, _) <- bindArgs]
