@@ -86,7 +86,7 @@ substFree (i, t) (FProduct ts) = FProduct (map (substFree (i, t)) ts)
 {-
 inferWithEnv :: (t1, t2, [(String, PFTyp t)]) -> PFExp t e -> PFTyp t
 inferWithEnv (tenv, env, venv) e = case e of
-    FVar s _        -> fromMaybe (error $ "Unbound variable: `" ++ s ++ "'") (lookup s venv)
+    FVar s _        -> fromMaybe (error $ "Not in scope: variable: `" ++ s ++ "'") (lookup s venv)
     FBLam f         -> FForall (inferWithEnv (tenv, env, venv) . f)
     FLam t f        -> error "FLam" -- FFun t (inferWithEnv (tenv, env, venv) $ f 0) -- TODO
     FApp e1 e2      -> let te1 = inferWithEnv (tenv, env, venv) e1
