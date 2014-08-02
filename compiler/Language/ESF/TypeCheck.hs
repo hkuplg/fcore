@@ -150,7 +150,7 @@ inferWith (d, g) = go
             else Left Mismatch { term = e3, expected = t2, actual = t3 }
         _   -> Left Mismatch { term = e1, expected = Int, actual = t1 }
 
-    -- TODO: refactor
+    -- TODO: refactor Let Rec and Let NonRec
     go (Let Rec bs e) = do
       checkForDup "identifiers" (map bindId bs)
       sigs <-
@@ -185,6 +185,37 @@ inferWith (d, g) = go
                           , actual   = inferredRhsTyp
                           })
       inferWith (d, sigs `Map.union` g) e
+
+    go (Let NonRec bs e) = do
+      checkForDup "identifiers" (map bindId bs)
+      defined <-
+        foldM
+          (\acc Bind{..} -> do
+            let d_local = Set.fromList bindTargs
+                g_local = Map.fromList bindArgs
+            inferredRhsTyp <- inferWith
+                                ( d_local `Set.union` d
+                                , g_local `Map.union` g
+                                )
+                                bindRhs
+            case bindRhsAnnot of
+              Nothing -> return ()
+              Just claimedRhsTyp -> do
+                unless (claimedRhsTyp `eqType` inferredRhsTyp) $
+                  Left Mismatch { term     = bindRhs
+                                , expected = claimedRhsTyp
+                                , actual   = inferredRhsTyp
+                                }
+            return $
+              Map.insert
+                bindId
+                (wrap Forall bindTargs $
+                  wrap Fun [t | (_,t) <- bindArgs]
+                    inferredRhsTyp)
+                acc)
+          Map.empty
+          bs
+      inferWith (d, defined `Map.union` g) e
 
 -- TODO: BUG: if any of A1, ..., An is in the free variables of t1, ..., tn
 {-      f A1 ... An (x1 : t1) ... (xn : tn) : t = e

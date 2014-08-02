@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-unused-matches #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Language.ESF.Translation
@@ -9,31 +8,27 @@ module Language.ESF.Translation
 import qualified Language.Java.Syntax as J (Op(..))
 
 import Language.ESF.Syntax
+import Language.ESF.TypeCheck
 
 import Language.SystemF.Syntax
 
-import Text.PrettyPrint.Leijen
-
-import Data.Maybe       (fromMaybe)
+import Data.Maybe       (fromJust)
 import Data.List        (intercalate)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+-- Translate a typechecked ESF expression into System F
 transESF :: Term -> PFExp t e
-transESF e = case infer e of
-               Left err -> error $ show (pretty err)
-               Right _  -> (transNfExp . transTerm) e
+transESF = transNfExp . transTerm
 
 transType :: Map.Map Name t -> Type -> PFTyp t
 transType d = go
   where
+    go (TyVar a)    = FTVar $ fromJust (Map.lookup a d)
     go  Int         = FInt
     go (Fun t1 t2)  = FFun (go t1) (go t2)
     go (Product ts) = FProduct (map go ts)
-    go (TyVar a)     = case Map.lookup a d of
-                        Just a' -> FTVar a'
-                        Nothing -> invariantFailed "transType" ("Lookup failed for type variable " ++ a)
     go (Forall a t) = FForall (\a' -> transType (Map.insert a a' d) t)
 
 -- System F (normal representation) closures
@@ -57,29 +52,26 @@ transNfExp = transNfExpWith (Map.empty, Map.empty)
 transNfExpWith :: (Map.Map Name t, Map.Map Name e) -> NfExp -> PFExp t e
 transNfExpWith (d, g) = go
   where
-    go (NfVar x)              =
-      case Map.lookup x g of
-        Just e  -> FVar x e
-        Nothing -> invariantFailed "transNfExpWith" ("Lookup failed for variable " ++ x)
-    go (NfLit i)              = FLit i
+    go (NfVar x)              = FVar "" (fromJust (Map.lookup x g)) -- TODO: no name
+    go (NfLit n)              = FLit n
     go (NfApp e1 e2)          = FApp (go e1) (go e2)
     go (NfPrimOp e1 op e2)    = FPrimOp (go e1) op (go e2)
     go (NfIf0 p i e)          = FIf0 (go p) (go i) (go e)
     go (NfTuple es)           = FTuple (map go es)
     go (NfProj i e)           = FProj i (go e)
     go (NfBLam a e)           = FBLam (\a' -> transNfExpWith (Map.insert a a' d, g) e)
-    go (NfLam (x,t) e)        = FLam (transType d t)
-                                    (\x' -> transNfExpWith (d, Map.insert x x' g) e)
+    go (NfLam (x,t) e)        = FLam
+                                  (transType d t)
+                                  (\x' -> transNfExpWith (d, Map.insert x x' g) e)
     go (NfTApp e t)           = FTApp (go e) (transType d t)
     go (NfFix x (x1,t1) t2 e) =
-      FFix (\x' x1' -> transNfExpWith (d, (Map.insert x1 x1' . Map.insert x x') g) e)
-           (transType d t1) (transType d t2)
+      FFix
+        (\x' x1' -> transNfExpWith (d, (Map.insert x1 x1' . Map.insert x x') g) e)
+        (transType d t1)
+        (transType d t2)
 
 transTerm :: Term -> NfExp
-transTerm = transTermWith (Set.empty, Map.empty)
-
-transTermWith :: (TypeContext, ValueContext) -> Term -> NfExp
-transTermWith (d, g) = go
+transTerm = go
   where
     go (Var x)             = NfVar x
     go (Lit (Integer n))   = NfLit n
@@ -96,14 +88,14 @@ transTermWith (d, g) = go
     {-  Translation rule:
         let f1 = e1 in e
         ~> (\(f1 : infer e1). e) e1     -}
-    go (Let NonRec [b] e) =
-      case dsBind b of
-        Nothing -> invariantFailed "transTermWith" ("dsBind failed for " ++ show b)
-        Just (f1, e1, _) -> -- TODO: make use of the annotation
-          case inferWith (d,g) e1 of
-            Nothing -> invariantFailed "transTermWith"
-                         ("Type inference failed for " ++ show e1)
-            Just t1 -> NfApp (NfLam (f1, t1) (go e)) (go e1)
+    -- go (Let NonRec [b] e) =
+    --   case dsBind b of
+    --     Nothing -> invariantFailed "transTermWith" ("dsBind failed for " ++ show b)
+    --     Just (f1, e1, _) ->
+    --       case inferWith (d,g) e1 of
+    --         Nothing -> invariantFailed "transTermWith"
+    --                      ("Type inference failed for " ++ show e1)
+    --         Just t1 -> NfApp (NfLam (f1, t1) (go e)) (go e1)
 
     {-  Note that rewriting simultaneous let expressions by nesting is wrong.
         A counter-example:
@@ -117,68 +109,76 @@ transTermWith (d, g) = go
         ~> let f' = (e1, ..., en) in e [f'._0, ..., f'._(n-1) / f1, ..., fn]
            (let f' = e' in e)
         ~> (\(f' : infer e'). e[...]) e'        -}
-    go (Let NonRec bs@(_:_:_) e) =
-      NfLam (f', t') (substMulti ss $ go e) `NfApp` go e'
-        where
-          f' = intercalate "_" fs -- TODO: make sure f' is fresh
-          e' = Tuple es
-          t' = fromMaybe
-                 (invariantFailed "transTermWith" ("Failed to typecheck " ++ show e'))
-                 (inferWith (d,g) e')
-          ss  = zipWith (\f i -> (f, NfProj i (NfVar f'))) fs [0..length fs - 1]
-          (fs, es, _) = unzip3 $
-            map
-              (\b ->
-                fromMaybe
-                  (invariantFailed "transTermWith" ("dsBind failed for " ++ show b))
-                  (dsBind b)
-              bs)
+    -- go (Let NonRec bs@(_:_:_) e) =
+    --   NfLam (f', t') (substMulti ss $ go e) `NfApp` go e'
+    --     where
+    --       f' = intercalate "_" fs -- TODO: make sure f' is fresh
+    --       e' = Tuple es
+    --       t' = fromMaybe
+    --              (invariantFailed "transTermWith" ("Failed to typecheck " ++ show e'))
+    --              (inferWith (d,g) e')
+    --       ss  = zipWith (\f i -> (f, NfProj i (NfVar f'))) fs [0..length fs - 1]
+    --       (fs, es, _) = unzip3 $
+    --         map
+    --           (\b ->
+    --             fromMaybe
+    --               (invariantFailed "transTermWith" ("dsBind failed for " ++ show b))
+    --               (dsBind b)
+    --           bs)
 
     {- Translation rule:
         let rec f1 = e1, ..., fn = en in e
-        ~> let f' = fix f' (dummy:Int) : (t1, ..., tn). (e1[...], ..., en[...]) in e[...]
-           (let f' = e' in e)
-        ~> (\(f' : Int -> (t1, ..., tn)). e[...]) e'[...]       -}
+        ~> let y = fix y (dummy:Int) : (t1, ..., tn). (e1[...], ..., en[...]) in e[...]
+           (let y = fix in e)
+        ~> (\(y : Int -> (t1, ..., tn)). e[...]) fix[...]       -}
     -- TODO: note that currently it's possible that the tuple contains only one item
     -- TODO: really semantics-preserving with call-by-value?
     -- TODO: optimize for recursive let's with a single binding
-    go (Let Rec bs@(_:_) e) =
-      NfLam (f', Int `Fun` Product ts) (substMulti ss $ go e) `NfApp` substMulti ss e'
+    go (Let recFlag bs@(_:_) e) =
+      case recFlag of
+        Rec ->
+          NfLam
+            (y, Int `Fun` Product ts)
+            (substMulti ss $ go e) `NfApp` substMulti ss fix
+        NonRec ->
+          NfLam
+            (y, Int `Fun` Product ts)
+            (substMulti ss $ go e) `NfApp` fix
         where
-          f' = intercalate "_" (map bindId bs) -- TODO: make sure f' is fresh
-          e' = NfFix f' ("dummy", Int) (Product ts) (NfTuple $ map (substMulti ss . go) es)
+          y = '_' : intercalate "_" (map bindId bs) -- TODO: make sure y is free
+          fix = NfFix
+                  y ("_dummy", Int) (Product ts) -- TODO: make sure _dummy is free
+                  (NfTuple $ map (substMulti ss . go) es)
           ts = map
-                 (\Bind{..} ->
-                   case bindRhsAnnot of
-                     Nothing     -> invariantFailed "transTerm"
-                                    "Missing type signature for right hand side"
-                     Just rhsTyp ->
-                       wrap Forall bindTargs $ wrap Fun [t' | (_,t') <- bindArgs] rhsTyp)
+                 (\Bind{..} -> wrap Forall bindTargs $
+                                 wrap Fun [t' | (_,t') <- bindArgs] $
+                                   fromJust bindRhsAnnot)
                 bs
-          -- fi -> (f' 0)._(i-1)
-          ss  = zipWith (\f i -> (f, NfProj i (NfVar f' `NfApp` NfLit 0)))
-                  fs [0..length fs - 1]
-          (fs, es, _) = unzip3 $
-            map
-              (\b -> fromMaybe
-                       (invariantFailed "transTermWith" ("dsBind failed for " ++ show b))
-                       (dsBind b)
-              bs)
+          es = map
+                (\Bind{..} -> wrap BLam bindTargs $
+                                wrap Lam bindArgs
+                                  bindRhs)
+                bs
+          -- Substitutes: fi -> (y 0)._(i-1)
+          ss = zipWith
+                (\f i -> (f, NfProj i (NfVar y `NfApp` NfLit 0)))
+                (map bindId bs)
+                [0..length bs - 1]
 
 freeVars :: NfExp -> Set.Set Name
-freeVars (NfVar x)              = Set.singleton x
-freeVars (NfBLam _ e)           = freeVars e
-freeVars (NfLam (x,_) e)        = Set.delete x (freeVars e)
-freeVars (NfTApp e t)           = freeVars e
-freeVars (NfApp e1 e2)          = freeVars e1 `Set.union` freeVars e2
-freeVars (NfPrimOp e1 _ e2)     = freeVars e1 `Set.union` freeVars e2
-freeVars (NfLit _)              = Set.empty
-freeVars (NfIf0 e1 e2 e3)       = freeVars e1 `Set.union`
-                                  freeVars e2 `Set.union`
-                                  freeVars e3
-freeVars (NfTuple es)           = Set.unions [ freeVars e | e <- es ]
-freeVars (NfProj i e)           = freeVars e
-freeVars (NfFix x (x1,t1) t2 e) = (Set.delete x . Set.delete x1) (freeVars e)
+freeVars (NfVar x)            = Set.singleton x
+freeVars (NfBLam _a e)        = freeVars e
+freeVars (NfLam (x,_t) e)     = Set.delete x (freeVars e)
+freeVars (NfTApp e _t)        = freeVars e
+freeVars (NfApp e1 e2)        = freeVars e1 `Set.union` freeVars e2
+freeVars (NfPrimOp e1 _op e2) = freeVars e1 `Set.union` freeVars e2
+freeVars (NfLit _n)           = Set.empty
+freeVars (NfIf0 e1 e2 e3)     = freeVars e1 `Set.union`
+                                freeVars e2 `Set.union`
+                                freeVars e3
+freeVars (NfTuple es)         = Set.unions [ freeVars e | e <- es ]
+freeVars (NfProj _i e)        = freeVars e
+freeVars (NfFix x (x1,_t1) _t2 e) = (Set.delete x . Set.delete x1) (freeVars e)
 
 substMulti :: [(Name, NfExp)] -> NfExp -> NfExp
 substMulti ss x = foldl (flip subst) x ss
