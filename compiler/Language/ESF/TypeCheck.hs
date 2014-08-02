@@ -1,66 +1,123 @@
+{-# OPTIONS_GHC -fwarn-unused-binds #-}
 {-# LANGUAGE RecordWildCards #-}
-module Language.ESF.TypeCheck where
 
-import Control.Monad
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+{- "GHC type checks programs in their original Haskell form before the desugarer converts
+   them into Core code. This complicates the type checker as it has to handle the much more
+   verbose Haskell AST, but it improves error messages, as those message are based on the
+   same structure that the user sees." -}
+
+module Language.ESF.TypeCheck where
 
 import Language.ESF.Syntax
 
+import Control.Monad
+
+import Text.PrettyPrint.Leijen
+
+import Data.Maybe       (fromJust)
+import Data.List        (intercalate)
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+
 -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
 
-wellformed :: TypeContext -> Type -> Bool
-wellformed d t = freeTVars t `Set.isSubsetOf` d
+-- The monad for typechecking
+type Tc = Either TypeError
 
-freeTVars :: Type -> Set.Set Name
-freeTVars (TVar x)     = Set.singleton x
-freeTVars  Int         = Set.empty
-freeTVars (Forall a t) = Set.delete a (freeTVars t)
-freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
-freeTVars (Product ts) = Set.unions (map freeTVars ts)
+data TypeError
+  = NotInScope { msg      :: String }
+  | General    { msg      :: String }
+  | Mismatch   { term     :: Term
+               , expected :: Type
+               , actual   :: Type
+               }
 
-infer :: Term -> Maybe Type
+instance Pretty TypeError where
+  pretty Mismatch{..} =
+    text "Type mismatch:" <$>
+    text "Expected:" <+> pretty expected <$>
+    text "Actual:"   <+> pretty actual <$>
+    text "In the expression:" <+> pretty term
+  pretty NotInScope{..} = text "Not in scope:" <+> string msg
+  pretty General{..}    = string msg
+
+q :: String -> String
+q x = "`" ++ x ++ "'"
+
+checkWellformed :: TypeContext -> Type -> Tc ()
+checkWellformed d t =
+  let s = freeTyVars t `Set.difference` d in
+  unless (Set.null s) $
+    Left
+      NotInScope { msg = "type variable" ++
+                         (if Set.size s > 1 then "s" else "") ++
+                         " " ++ intercalate ", " (map q (Set.toList s))
+                 }
+
+freeTyVars :: Type -> Set.Set Name
+freeTyVars (TyVar x)    = Set.singleton x
+freeTyVars  Int         = Set.empty
+freeTyVars (Forall a t) = Set.delete a (freeTyVars t)
+freeTyVars (Fun t1 t2)  = freeTyVars t1 `Set.union` freeTyVars t2
+freeTyVars (Product ts) = Set.unions (map freeTyVars ts)
+
+infer :: Term -> Tc Type
 infer = inferWith (Set.empty, Map.empty)
 
-inferWith :: (TypeContext, ValueContext) -> Term -> Maybe Type
+inferWith :: (TypeContext, ValueContext) -> Term -> Tc Type
 inferWith (d, g) = go
   where
-    go (Var x) = Map.lookup x g
+    go (Var x) =
+      case Map.lookup x g of
+        Just t  -> return t
+        Nothing -> Left NotInScope { msg = "variable " ++ q x }
 
     go (Lit (Integer _)) = return Int
 
     go (App e1 e2) = do
-      t <- go e1
+      t  <- go e1
+      t' <- go e2
       case t of
-        Fun t1 t2 -> do
-          t' <- go e2
-          if t' == t1 then return t2 else Nothing
-        _         -> Nothing
+        Fun t1 t2 | t' == t1 -> return t2
+        Fun t1 _ -> Left Mismatch { term = e2, expected = t1, actual = t' }
+        _        -> Left Mismatch { term = e1
+                                  , expected = Fun t' (TyVar "_")
+                                  , actual = t
+                                  }
 
     go (BLam a e)
-      | a `Set.member` d = Nothing
+      | a `Set.member` d = Left
+                            General { msg = "This type variable " ++ q a ++
+                                            " shadows an existing type variable" ++
+                                            " in an outer scope"
+                                    }
       | otherwise        = do t <- inferWith (Set.insert a d, g) e
                               return $ Forall a t
 
-    go (Lam (x,t) e)
-      | wellformed d t = do t' <- inferWith (d, Map.insert x t g) e
-                            return $ Fun t t'
-      | otherwise      = Nothing
+    go (Lam (x,t) e) = do
+      checkWellformed d t
+      t' <- inferWith (d, Map.insert x t g) e
+      return (Fun t t')
 
     {-
       τ ok in Δ   Δ;Γ ⊢ e : ∀α. τ'
       ----------------------------
           Δ;Γ ⊢ e[τ] : τ'[τ/α]
     -}
-    go (TApp e t)
-      | wellformed d t = do t1 <- go e
-                            case t1 of
-                              Forall a t' -> return $ substFreeTVars (a, t) t'
-                              _           -> Nothing
-      | otherwise      = Nothing
+    go (TApp e t) = do
+      checkWellformed d t
+      t1 <- go e
+      case t1 of
+        Forall a t' -> return $ substFreeTyVars (a, t) t'
+        _           -> Left Mismatch { term     = TApp e t
+                                     , expected = Forall "_" (TyVar "_")
+                                     , actual   = t1
+                                     }
 
     go (Tuple es)
-      | length es < 2 = Nothing
+      | length es < 2 = invariantFailed
+                          "inferWith"
+                          ("fewer than two items in the tuple " ++ show (Tuple es))
       | otherwise     = do ts <- mapM go es
                            return $ Product ts
 
@@ -70,15 +127,17 @@ inferWith (d, g) = go
         Product ts ->
           if 1 <= i && i <= length ts
             then return $ ts !! (i - 1)
-            else Nothing
-        _          -> Nothing
+            else Left General { msg = "Index too large in projection" }
+        _          ->
+          Left General { msg = "Projection of a term that is not of product type" }
 
     go (PrimOp e1 _p e2) = do
       t1 <- go e1
       t2 <- go e2
       case (t1, t2) of
         (Int, Int) -> return Int
-        _          -> Nothing
+        (Int, _  ) -> Left Mismatch { term = e2, expected = Int, actual = t2 }
+        (_  , _  ) -> Left Mismatch { term = e1, expected = Int, actual = t1 }
 
     go (If0 e1 e2 e3) = do
       t1 <- go e1
@@ -88,34 +147,44 @@ inferWith (d, g) = go
           t3 <- go e3
           if t2 == t3
             then return t2
-            else Nothing
-        _   -> Nothing
+            else Left Mismatch { term = e3, expected = t2, actual = t3 }
+        _   -> Left Mismatch { term = e1, expected = Int, actual = t1 }
 
-    go (Let recFlag bs e) = do
-      checkDup (map bindId bs)
-      -- TODO: should check types agree with each other
-      bindIdTypes <- forM bs (\Bind{..} ->
-        do { t <- typeBindId recFlag (d, g) Bind{..}
-           ; return (bindId, t)
-           })
-      inferWith (d, Map.fromList bindIdTypes `Map.union` g) e
-
-typeBindId :: RecFlag -> (TypeContext, ValueContext) -> Bind -> Maybe Type
-typeBindId recFlag (d, g) Bind{..} = do
-  (_, e, _) <- dsBind Bind{..}
-  t <- inferWith (d, g) e
-  case (recFlag, bindRhsAnnot) of
-    (NonRec, Nothing)     -> return t
-    (NonRec, Just rhsTyp) -> do
-      let d' = Set.fromList bindTargs `Set.union` d
-          g' = Map.fromList bindArgs `Map.union` g
-      inferredRhsTyp <- inferWith (d', g') bindRhs
-      if rhsTyp == inferredRhsTyp
-        then return t
-        else Nothing
-    (Rec, Nothing)     -> Nothing
-    (Rec, Just rhsTyp) ->
-      return $ wrap Forall bindTargs $ wrap Fun [t' | (_,t') <- bindArgs] rhsTyp
+    -- TODO: refactor
+    go (Let Rec bs e) = do
+      checkForDup "identifiers" (map bindId bs)
+      sigs <-
+        foldM
+          (\acc Bind{..} -> do
+            checkForDup "type arguments" bindTargs
+            checkForDup "arguments"      [x | (x, _) <- bindArgs]
+            case bindRhsAnnot of
+              Nothing ->
+                Left General { msg = "Missing type annotation for the right hand side" }
+              Just rhsTyp ->
+                return $
+                  Map.insert
+                    bindId
+                    (wrap Forall bindTargs $ wrap Fun [t | (_,t) <- bindArgs] rhsTyp)
+                    acc)
+          Map.empty
+          bs
+      forM_
+        bs
+        (\Bind{..} -> do
+          let d_local = Set.fromList bindTargs
+              g_local = Map.fromList bindArgs
+          inferredRhsTyp <- inferWith
+                              ( d_local `Set.union` d
+                              , g_local `Map.union` sigs `Map.union` g
+                              )
+                              bindRhs
+          unless (fromJust bindRhsAnnot `eqType` inferredRhsTyp) $
+            Left Mismatch { term     = bindRhs
+                          , expected = fromJust bindRhsAnnot
+                          , actual   = inferredRhsTyp
+                          })
+      inferWith (d, sigs `Map.union` g) e
 
 -- TODO: BUG: if any of A1, ..., An is in the free variables of t1, ..., tn
 {-      f A1 ... An (x1 : t1) ... (xn : tn) : t = e
@@ -124,10 +193,10 @@ typeBindId recFlag (d, g) Bind{..} = do
         Provided that:
           (1) A1, ..., An are all distinct, and
           (2) x1, ..., xn are all distinct.     -}
-dsBind :: Bind -> Maybe (Name, Term, Maybe Type)
+dsBind :: Bind -> Tc (Name, Term, Maybe Type)
 dsBind Bind{..} = do
-  checkDup bindTargs
-  checkDup [x | (x, _) <- bindArgs]
+  checkForDup "type arguments" bindTargs
+  checkForDup "arguments"      [x | (x, _) <- bindArgs]
   return (bindId, def, bindRhsAnnot)
     where
       def  = (wrap BLam bindTargs . wrap Lam bindArgs) bindRhs
@@ -137,24 +206,25 @@ wrap cons xs t = foldr cons t xs
 
 -- Capture-avoiding substitution
 -- http://en.wikipedia.org/wiki/Lambda_calculus#Capture-avoiding_substitutions
-substFreeTVars :: (Name, Type) -> Type -> Type
-substFreeTVars (x, r) = go
+substFreeTyVars :: (Name, Type) -> Type -> Type
+substFreeTyVars (x, r) = go
   where
-    go (TVar a)
+    go (TyVar a)
       | a == x      = r
-      | otherwise   = TVar a
+      | otherwise   = TyVar a
     go Int          = Int
     go (Fun t1 t2)  = Fun (go t1) (go t2)
     go (Product ts) = Product (map go ts)
     go (Forall a t)
-      | a == x                     = Forall a t
-      | a `Set.member` freeTVars r = Forall a t -- The freshness condition, crucial!
-      | otherwise                  = Forall a (go t)
+      | a == x                      = Forall a t
+      | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
+      | otherwise                   = Forall a (go t)
 
-checkDup :: Ord a => [a] -> Maybe ()
-checkDup xs = case findFirstDup xs of
-                Just _  -> Nothing
-                Nothing -> Just ()
+checkForDup :: String -> [Name] -> Tc ()
+checkForDup what xs =
+  case findFirstDup xs of
+    Just x  -> Left General { msg = "Duplicate " ++ what ++ ": " ++ q x }
+    Nothing -> return ()
 
 findFirstDup :: Ord a => [a] -> Maybe a
 findFirstDup xs = go xs Set.empty

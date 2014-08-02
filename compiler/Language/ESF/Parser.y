@@ -164,7 +164,7 @@ typ :: { Type }
     | atyp              { $1 }
 
 atyp :: { Type }
-    : tvar                      { TVar $1 }
+    : tvar                      { TyVar $1 }
     | "Int"                     { Int }
     | "(" typ ")"               { $2 }
     | "(" comma_typs ")"        { Product $2 }
