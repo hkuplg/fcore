@@ -4,7 +4,7 @@
 
 {-# LANGUAGE RecordWildCards #-}
 
-module Language.ESF.Syntax
+module ESF.Syntax
   ( Name
   , Type(..)
   , eqType

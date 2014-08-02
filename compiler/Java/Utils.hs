@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
-module Language.Java.Utils 
+module Java.Utils
     ( compileJava
     , runJava
     , inferOutputPath

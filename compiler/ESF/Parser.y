@@ -1,12 +1,12 @@
 {
 {-# LANGUAGE RecordWildCards #-}
 
-module Language.ESF.Parser where
+module ESF.Parser where
 
 import qualified Language.Java.Syntax as J (Op (..))
 
-import Language.ESF.Syntax
-import Language.ESF.Lexer
+import ESF.Syntax
+import ESF.Lexer
 }
 
 %name parser

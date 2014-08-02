@@ -1,5 +1,5 @@
 {
-module Language.ESF.Lexer
+module ESF.Lexer
     ( lexer
     , Token(..)
     ) where

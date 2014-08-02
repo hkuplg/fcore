@@ -6,9 +6,9 @@
    verbose Haskell AST, but it improves error messages, as those message are based on the
    same structure that the user sees." -}
 
-module Language.ESF.TypeCheck where
+module ESF.TypeCheck where
 
-import Language.ESF.Syntax
+import ESF.Syntax
 
 import Control.Monad
 

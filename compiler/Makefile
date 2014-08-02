@@ -3,11 +3,11 @@
 languages = ESF
 
 # Append "/Lexer.hs" & prepend "Language" to language names
-lexers  = $(languages:%=Language/%/Lexer.hs)
+lexers  = $(languages:%=%/Lexer.hs)
 
 # Append "/Parser.hs" & prepend "Language" to language names
-parsers     = $(languages:%=Language/%/Parser.hs)
-parserinfos = $(languages:%=Language/%/Parser.info)
+parsers     = $(languages:%=%/Parser.hs)
+parserinfos = $(languages:%=%/Parser.info)
 
 .PHONY : all
 all : $(lexers) $(parsers)

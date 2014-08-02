@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-matches -fno-warn-unused-binds #-}
 {-# LANGUAGE FlexibleInstances, RankNTypes #-}
 
-module Language.SystemF.Syntax
+module SystemF.Syntax
     ( PFTyp(..)
     , PrimLit
     , PFExp(..)

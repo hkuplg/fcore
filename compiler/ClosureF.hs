@@ -4,7 +4,7 @@ module ClosureF where
 
 import Language.Java.Syntax as J
 
-import Language.SystemF.Syntax
+import SystemF.Syntax
 
 -- Closure F syntax
 

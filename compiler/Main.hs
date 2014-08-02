@@ -16,7 +16,7 @@ import System.Environment       (getArgs, withArgs)
 import System.FilePath          (takeFileName)
 import System.IO                (hFlush, stdout)
 
-import Language.Java.Utils
+import Java.Utils
 import MonadLib
 import Translations
 

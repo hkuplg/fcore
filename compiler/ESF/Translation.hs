@@ -1,16 +1,16 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Language.ESF.Translation
+module ESF.Translation
   ( transESF
   ) where
 
 
 import qualified Language.Java.Syntax as J (Op(..))
 
-import Language.ESF.Syntax
-import Language.ESF.TypeCheck
+import ESF.Syntax
+import ESF.TypeCheck
 
-import Language.SystemF.Syntax
+import SystemF.Syntax
 
 import Data.Maybe       (fromJust)
 import Data.List        (intercalate)
