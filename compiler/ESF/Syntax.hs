@@ -6,7 +6,9 @@
 
 module ESF.Syntax
   ( Type(..)
-  , eqType
+  , alphaEqTy
+  , substFreeTyVars
+  , freeTyVars
   , Lit(..)
   , Expr(..)
   , RecFlag(..)
@@ -29,14 +31,11 @@ data Type
   | Fun Type Type
   | Forall String Type
   | Product [Type]
-  deriving (Eq, Show)
-
-eqType :: Type -> Type -> Bool
-eqType = (==)
+  deriving (Show)
 
 data Lit
   = Integer Integer -- later maybe Bool | Char
-  deriving (Eq, Show)
+  deriving (Show)
 
 data Expr e
   = Var e                          -- Variable
@@ -50,7 +49,7 @@ data Expr e
   | PrimOp (Expr e) J.Op (Expr e)  -- Primitive operation
   | If0 (Expr e) (Expr e) (Expr e) -- If expression
   | Let RecFlag [Bind e] (Expr e)  -- Let (rec) ... (and) ... in ...
-  deriving (Eq, Show)
+  deriving (Show)
 
 -- f A1 ... An (x : T1) ... (x : Tn) : T = e
 data Bind e = Bind
@@ -59,12 +58,45 @@ data Bind e = Bind
   , bindArgs     :: [(String, Type)] -- Arguments, each annotated with a type
   , bindRhs      :: Expr e           -- RHS to the "="
   , bindRhsAnnot :: Maybe Type       -- Type of the RHS
-  } deriving (Eq, Show)
+  } deriving (Show)
 
-data RecFlag = Rec | NonRec deriving (Eq, Show)
+data RecFlag = Rec | NonRec deriving (Show)
 
 type TypeContext  = Set.Set String
 type ValueContext = Map.Map String Type
+
+alphaEqTy :: Type -> Type -> Bool
+alphaEqTy (TyVar a)      (TyVar b)      = a == b
+alphaEqTy  Int            Int           = True
+alphaEqTy (Fun t1 t2)    (Fun t3 t4)    = t1 `alphaEqTy` t3 && t2 `alphaEqTy` t4
+alphaEqTy (Product ts1)  (Product ts2)  = length ts1 == length ts2 &&
+                                            (\(t1,t2) -> t1 `alphaEqTy` t2)
+                                              `all` zip ts1 ts2
+alphaEqTy (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `alphaEqTy` t1
+alphaEqTy  _              _             = False
+
+-- Capture-avoiding substitution
+-- http://en.wikipedia.org/wiki/Lambda_calculus#Capture-avoiding_substitutions
+substFreeTyVars :: (String, Type) -> Type -> Type
+substFreeTyVars (x, r) = go
+  where
+    go (TyVar a)
+      | a == x      = r
+      | otherwise   = TyVar a
+    go Int          = Int
+    go (Fun t1 t2)  = Fun (go t1) (go t2)
+    go (Product ts) = Product (map go ts)
+    go (Forall a t)
+      | a == x                      = Forall a t
+      | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
+      | otherwise                   = Forall a (go t)
+
+freeTyVars :: Type -> Set.Set String
+freeTyVars (TyVar x)    = Set.singleton x
+freeTyVars  Int         = Set.empty
+freeTyVars (Forall a t) = Set.delete a (freeTyVars t)
+freeTyVars (Fun t1 t2)  = freeTyVars t1 `Set.union` freeTyVars t2
+freeTyVars (Product ts) = Set.unions (map freeTyVars ts)
 
 instance Pretty Type where
   pretty (TyVar a)    = text a

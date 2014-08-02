@@ -54,13 +54,6 @@ checkWellformed d t =
                          " " ++ intercalate ", " (map q (Set.toList s))
                  }
 
-freeTyVars :: Type -> Set.Set String
-freeTyVars (TyVar x)    = Set.singleton x
-freeTyVars  Int         = Set.empty
-freeTyVars (Forall a t) = Set.delete a (freeTyVars t)
-freeTyVars (Fun t1 t2)  = freeTyVars t1 `Set.union` freeTyVars t2
-freeTyVars (Product ts) = Set.unions (map freeTyVars ts)
-
 type TcExpr = Expr (String, Type)
 
 infer :: Expr String -> Tc (TcExpr, Type)
@@ -80,7 +73,7 @@ inferWith (d, g) = go
       (e1', t)  <- go e1
       (e2', t') <- go e2
       case t of
-        Fun t1 t2 | t' == t1 -> return (App e1' e2', t2)
+        Fun t1 t2 | t' `alphaEqTy` t1 -> return (App e1' e2', t2) -- TODO: need var renaming?
         Fun t1 _ -> Left Mismatch { term = e2, expected = t1, actual = t' }
         _        -> Left Mismatch { term = e1
                                   , expected = Fun t' (TyVar "_")
@@ -147,7 +140,7 @@ inferWith (d, g) = go
         Int -> do
           (e2', t2) <- go e2
           (e3', t3) <- go e3
-          if t2 == t3
+          if t2 `alphaEqTy` t3
             then return (If0 e1' e2' e3', t2)
             else Left Mismatch { term = e3, expected = t2, actual = t3 }
         _   -> Left Mismatch { term = e1, expected = Int, actual = t1 }
@@ -179,7 +172,7 @@ inferWith (d, g) = go
             let d_local = Set.fromList bindTargs
                 g_local = Map.fromList bindArgs
             (rhs', inferredRhsTyp) <- inferWith (d_local `Set.union` d, g_local `Map.union` sigs `Map.union` g) bindRhs
-            unless (fromJust bindRhsAnnot `eqType` inferredRhsTyp) $
+            unless (fromJust bindRhsAnnot `alphaEqTy` inferredRhsTyp) $
               Left Mismatch { term     = bindRhs
                             , expected = fromJust bindRhsAnnot
                             , actual   = inferredRhsTyp
@@ -203,7 +196,7 @@ inferWith (d, g) = go
             case bindRhsAnnot of
               Nothing -> return ()
               Just claimedRhsTyp ->
-                unless (claimedRhsTyp `eqType` inferredRhsTyp) $
+                unless (claimedRhsTyp `alphaEqTy` inferredRhsTyp) $
                   Left Mismatch { term     = bindRhs
                                 , expected = claimedRhsTyp
                                 , actual   = inferredRhsTyp
@@ -246,22 +239,6 @@ dsBind Bind{..} = do
 
 wrap :: (b -> a -> a) -> [b] -> a -> a
 wrap cons xs t = foldr cons t xs
-
--- Capture-avoiding substitution
--- http://en.wikipedia.org/wiki/Lambda_calculus#Capture-avoiding_substitutions
-substFreeTyVars :: (String, Type) -> Type -> Type
-substFreeTyVars (x, r) = go
-  where
-    go (TyVar a)
-      | a == x      = r
-      | otherwise   = TyVar a
-    go Int          = Int
-    go (Fun t1 t2)  = Fun (go t1) (go t2)
-    go (Product ts) = Product (map go ts)
-    go (Forall a t)
-      | a == x                      = Forall a t
-      | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
-      | otherwise                   = Forall a (go t)
 
 checkForDup :: String -> [String] -> Tc ()
 checkForDup what xs =
