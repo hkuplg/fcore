@@ -5,6 +5,7 @@
            , OverlappingInstances
            , RankNTypes
            , TypeOperators
+           , RecordWildCards
            #-}
 
 module Main (main, TransMethod) where
@@ -24,7 +25,8 @@ data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
     , optSourceFiles   :: [String]
-    , optDebug         :: Bool
+    , optShowOpts      :: Bool
+    , optDumpTcExpr    :: Bool
     , optTransMethod   :: TransMethod
     } deriving (Eq, Show, Data, Typeable)
 
@@ -34,7 +36,8 @@ optionsSpec :: Options
 optionsSpec = Options
     { optCompile       = False &= explicit &= name "c" &= name "compile"         &= help "Compile Java source"
     , optCompileAndRun = False &= explicit &= name "r" &= name "compile-and-run" &= help "Compile & run Java source"
-    , optDebug         = False &= explicit &= name "d" &= name "debug"           &= help "Show debug information"
+    , optShowOpts         = False &= explicit &= name "d" &= name "debug"           &= help "Show the parsed options"
+    , optDumpTcExpr    = False &= explicit &= name "dumptcexpr" &= help "Dump typechecked ESF expression"
     , optSourceFiles   = []    &= args     &= typ "<source files>"
     , optTransMethod   = ApplyOpt
                       &= explicit &= name "m" &= name "method"
@@ -61,19 +64,22 @@ main :: IO ()
 main = do
     rawArgs <- getArgs
     -- If the user did not specify any arguments, pretend as "--help" was given
-    opts <- (if null rawArgs then withArgs ["--help"] else id) getOpts
-    when (optDebug opts) $ putStrLn (show opts ++ "\n")
-    forM_ (optSourceFiles opts) (\srcPath -> do
+    Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
+    when (optShowOpts) $ putStrLn (show Options{..} ++ "\n")
+    forM_
+      (optSourceFiles)
+      (\srcPath -> do
         putStrLn (takeFileName srcPath)
         let outputPath = inferOutputPath srcPath
 
-        let method = optTransMethod opts
-        withMessageLn (concat ["  Compiling System F to Java using ", show method, " ( ", outputPath, " )"]) $
-            compilesf2java (case method of
-                                Naive    -> compileN
-                                ApplyOpt -> compileAO
-                                Stack -> compileS
-                           ) srcPath outputPath
+        let method = optTransMethod
+        withMessageLn
+          (concat ["  Compiling System F to Java using ", show method, " ( ", outputPath, " )"]) $
+            compilesf2java
+              (case method of Naive    -> compileN
+                              ApplyOpt -> compileAO
+                              Stack    -> compileS)
+              srcPath outputPath
 
-        when (optCompile opts || optCompileAndRun opts) $ withMessageLn "  Compiling Java" $ compileJava outputPath
-        when (optCompileAndRun opts) $ withMessage "  Running Java\n  Output: " $ runJava outputPath)
+        when (optCompile || optCompileAndRun) $ withMessageLn "  Compiling Java" $ compileJava outputPath
+        when (optCompileAndRun) $ withMessage "  Running Java\n  Output: " $ runJava outputPath)

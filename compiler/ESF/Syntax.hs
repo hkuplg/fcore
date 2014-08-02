@@ -41,7 +41,7 @@ data Lit
 data Expr e
   = Var e                          -- Variable
   | Lit Lit                        -- Literals
-  | Lam (e, Type) (Expr e)         -- Lambda abstraction
+  | Lam (String, Type) (Expr e)    -- Lambda abstraction
   | App  (Expr e) (Expr e)         -- Application
   | BLam String (Expr e)             -- Type lambda abstraction
   | TApp (Expr e) Type             -- Type application
@@ -54,11 +54,11 @@ data Expr e
 
 -- f A1 ... An (x : T1) ... (x : Tn) : T = e
 data Bind e = Bind
-  { bindId       :: e           -- Identifier
-  , bindTargs    :: [String]      -- Type arguments
-  , bindArgs     :: [(e, Type)] -- Arguments, each annotated with a type
-  , bindRhs      :: Expr e      -- RHS to the "="
-  , bindRhsAnnot :: Maybe Type  -- Type of the RHS
+  { bindId       :: e                -- Identifier
+  , bindTargs    :: [String]         -- Type arguments
+  , bindArgs     :: [(String, Type)] -- Arguments, each annotated with a type
+  , bindRhs      :: Expr e           -- RHS to the "="
+  , bindRhsAnnot :: Maybe Type       -- Type of the RHS
   } deriving (Eq, Show)
 
 data RecFlag = Rec | NonRec deriving (Eq, Show)

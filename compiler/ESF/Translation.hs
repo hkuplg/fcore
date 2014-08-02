@@ -1,7 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module ESF.Translation
-  ( transESF
+  ( transTcESF
   ) where
 
 
@@ -12,15 +12,15 @@ import ESF.TypeCheck
 
 import SystemF.Syntax
 
-import Data.Maybe       (fromJust)
+import Data.Maybe       (fromJust, fromMaybe)
 import Data.List        (intercalate)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- Translate a typechecked ESF expression into System F
-transESF :: Expr String -> PFExp t e
-transESF = transNfExp . transExpr
+transTcESF :: Expr (String, Type) -> PFExp t e
+transTcESF = transNFExp . transTcExpr
 
 transType :: Map.Map String t -> Type -> PFTyp t
 transType d = go
@@ -31,58 +31,61 @@ transType d = go
     go (Product ts) = FProduct (map go ts)
     go (Forall a t) = FForall (\a' -> transType (Map.insert a a' d) t)
 
--- System F (normal representation) closures
-data NfExp =
-      NfVar String
-    | NfBLam String NfExp
-    | NfLam (String, Type) NfExp
-    | NfTApp NfExp Type
-    | NfApp NfExp NfExp
-    | NfPrimOp NfExp J.Op NfExp
-    | NfLit PrimLit
-    | NfIf0 NfExp NfExp NfExp
-    | NfTuple [NfExp]
-    | NfProj Int NfExp
+-- System F (normal representation)
+data NFExp =
+      NVar String
+    | NBLam String NFExp
+    | NLam (String, Type) NFExp
+    | NTApp NFExp Type
+    | NApp NFExp NFExp
+    | NPrimOp NFExp J.Op NFExp
+    | NLit PrimLit
+    | NIf0 NFExp NFExp NFExp
+    | NTuple [NFExp]
+    | NProj Int NFExp
     -- fix x (x1 : t1) : t2. e
-    | NfFix String (String, Type) Type NfExp
+    | NFix String (String, Type) Type NFExp
 
-transNfExp :: NfExp -> PFExp t e
-transNfExp = transNfExpWith (Map.empty, Map.empty)
+transNFExp :: NFExp -> PFExp t e
+transNFExp = transNFExpWith (Map.empty, Map.empty)
 
-transNfExpWith :: (Map.Map String t, Map.Map String e) -> NfExp -> PFExp t e
-transNfExpWith (d, g) = go
+transNFExpWith :: (Map.Map String t, Map.Map String e) -> NFExp -> PFExp t e
+transNFExpWith (d, g) = go
   where
-    go (NfVar x)              = FVar "" (fromJust (Map.lookup x g)) -- TODO: no name
-    go (NfLit n)              = FLit n
-    go (NfApp e1 e2)          = FApp (go e1) (go e2)
-    go (NfPrimOp e1 op e2)    = FPrimOp (go e1) op (go e2)
-    go (NfIf0 p i e)          = FIf0 (go p) (go i) (go e)
-    go (NfTuple es)           = FTuple (map go es)
-    go (NfProj i e)           = FProj i (go e)
-    go (NfBLam a e)           = FBLam (\a' -> transNfExpWith (Map.insert a a' d, g) e)
-    go (NfLam (x,t) e)        = FLam
+    -- TODO: use fromJust
+    go (NVar x)              = FVar "" (fromMaybe
+                                         (error $ "transNFExpWith: NVar" ++ x ++ show (map fst (Map.toList g)))
+                                         (Map.lookup x g)) -- TODO: no name
+    go (NLit n)              = FLit n
+    go (NApp e1 e2)          = FApp (go e1) (go e2)
+    go (NPrimOp e1 op e2)    = FPrimOp (go e1) op (go e2)
+    go (NIf0 p i e)          = FIf0 (go p) (go i) (go e)
+    go (NTuple es)           = FTuple (map go es)
+    go (NProj i e)           = FProj i (go e)
+    go (NBLam a e)           = FBLam (\a' -> transNFExpWith (Map.insert a a' d, g) e)
+    go (NLam (x,t) e)        = FLam
                                   (transType d t)
-                                  (\x' -> transNfExpWith (d, Map.insert x x' g) e)
-    go (NfTApp e t)           = FTApp (go e) (transType d t)
-    go (NfFix x (x1,t1) t2 e) =
+                                  (\x' -> transNFExpWith (d, Map.insert x x' g) e)
+    go (NTApp e t)           = FTApp (go e) (transType d t)
+    go (NFix x (x1,t1) t2 e) =
       FFix
-        (\x' x1' -> transNfExpWith (d, (Map.insert x1 x1' . Map.insert x x') g) e)
+        (\x' x1' -> transNFExpWith (d, (Map.insert x1 x1' . Map.insert x x') g) e)
         (transType d t1)
         (transType d t2)
 
-transExpr :: Expr String -> NfExp
-transExpr = go
+transTcExpr :: Expr (String, Type) -> NFExp
+transTcExpr = go
   where
-    go (Var x)             = NfVar x
-    go (Lit (Integer n))   = NfLit n
-    go (Lam (x, t) e)      = NfLam (x, t) (go e)
-    go (App e1 e2)         = NfApp (go e1) (go e2)
-    go (BLam a e)          = NfBLam a (go e)
-    go (TApp e t)          = NfTApp (go e) t
-    go (Tuple ts)          = NfTuple (map go ts)
-    go (Proj e i)          = NfProj i (go e)
-    go (PrimOp e1 op e2)   = NfPrimOp (go e1) op (go e2)
-    go (If0 e1 e2 e3)      = NfIf0 (go e1) (go e2) (go e3)
+    go (Var (x,_t))        = NVar x
+    go (Lit (Integer n))   = NLit n
+    go (Lam (x, t) e)      = NLam (x, t) (go e)
+    go (App e1 e2)         = NApp (go e1) (go e2)
+    go (BLam a e)          = NBLam a (go e)
+    go (TApp e t)          = NTApp (go e) t
+    go (Tuple ts)          = NTuple (map go ts)
+    go (Proj e i)          = NProj i (go e)
+    go (PrimOp e1 op e2)   = NPrimOp (go e1) op (go e2)
+    go (If0 e1 e2 e3)      = NIf0 (go e1) (go e2) (go e3)
     go (Let _ [] e)        = go e
 
     {-  Translation rule:
@@ -90,12 +93,12 @@ transExpr = go
         ~> (\(f1 : infer e1). e) e1     -}
     -- go (Let NonRec [b] e) =
     --   case dsBind b of
-    --     Nothing -> invariantFailed "transExpr" ("dsBind failed for " ++ show b)
+    --     Nothing -> invariantFailed "transTcExpr" ("dsBind failed for " ++ show b)
     --     Just (f1, e1, _) ->
     --       case inferWith (d,g) e1 of
-    --         Nothing -> invariantFailed "transExpr"
+    --         Nothing -> invariantFailed "transTcExpr"
     --                      ("Type inference failed for " ++ show e1)
-    --         Just t1 -> NfApp (NfLam (f1, t1) (go e)) (go e1)
+    --         Just t1 -> NApp (NLam (f1, t1) (go e)) (go e1)
 
     {-  Note that rewriting simultaneous let expressions by nesting is wrong.
         A counter-example:
@@ -110,19 +113,19 @@ transExpr = go
            (let f' = e' in e)
         ~> (\(f' : infer e'). e[...]) e'        -}
     -- go (Let NonRec bs@(_:_:_) e) =
-    --   NfLam (f', t') (substMulti ss $ go e) `NfApp` go e'
+    --   NLam (f', t') (substMulti ss $ go e) `NApp` go e'
     --     where
     --       f' = intercalate "_" fs -- TODO: make sure f' is fresh
     --       e' = Tuple es
     --       t' = fromMaybe
-    --              (invariantFailed "transExpr" ("Failed to typecheck " ++ show e'))
+    --              (invariantFailed "transTcExpr" ("Failed to typecheck " ++ show e'))
     --              (inferWith (d,g) e')
-    --       ss  = zipWith (\f i -> (f, NfProj i (NfVar f'))) fs [0..length fs - 1]
+    --       ss  = zipWith (\f i -> (f, NProj i (NVar f'))) fs [0..length fs - 1]
     --       (fs, es, _) = unzip3 $
     --         map
     --           (\b ->
     --             fromMaybe
-    --               (invariantFailed "transExpr" ("dsBind failed for " ++ show b))
+    --               (invariantFailed "transTcExpr" ("dsBind failed for " ++ show b))
     --               (dsBind b)
     --           bs)
 
@@ -135,25 +138,14 @@ transExpr = go
     -- TODO: really semantics-preserving with call-by-value?
     -- TODO: optimize for recursive let's with a single binding
     go (Let recFlag bs@(_:_) e) =
-      case recFlag of
-        Rec ->
-          NfLam
-            (y, Int `Fun` Product ts)
-            (substMulti ss $ go e) `NfApp` substMulti ss fix
-        NonRec ->
-          NfLam
-            (y, Int `Fun` Product ts)
-            (substMulti ss $ go e) `NfApp` fix
+      NLam (y, Int `Fun` Product ts) (substMulti ss $ go e) `NApp` fix
         where
-          y = '_' : intercalate "_" (map bindId bs) -- TODO: make sure y is free
-          fix = NfFix
+          -- TODO: make sure y is free
+          y = '_' : intercalate "_" [ f | (f,_t) <- map bindId bs ]
+          fix = NFix
                   y ("_dummy", Int) (Product ts) -- TODO: make sure _dummy is free
-                  (NfTuple $ map (substMulti ss . go) es)
-          ts = map
-                 (\Bind{..} -> wrap Forall bindTargs $
-                                 wrap Fun [t' | (_,t') <- bindArgs] $
-                                   fromJust bindRhsAnnot)
-                bs
+                  (NTuple $ map (case recFlag of { Rec -> substMulti ss; NonRec -> id } . go) es)
+          ts = [ t | (_,t) <- map bindId bs ]
           es = map
                 (\Bind{..} -> wrap BLam bindTargs $
                                 wrap Lam bindArgs
@@ -161,54 +153,54 @@ transExpr = go
                 bs
           -- Substitutes: fi -> (y 0)._(i-1)
           ss = zipWith
-                (\f i -> (f, NfProj i (NfVar y `NfApp` NfLit 0)))
-                (map bindId bs)
+                (\f i -> (f, NProj i (NVar y `NApp` NLit 0)))
+                [ f | (f,_t) <- map bindId bs ]
                 [0..length bs - 1]
 
-freeVars :: NfExp -> Set.Set String
-freeVars (NfVar x)            = Set.singleton x
-freeVars (NfBLam _a e)        = freeVars e
-freeVars (NfLam (x,_t) e)     = Set.delete x (freeVars e)
-freeVars (NfTApp e _t)        = freeVars e
-freeVars (NfApp e1 e2)        = freeVars e1 `Set.union` freeVars e2
-freeVars (NfPrimOp e1 _op e2) = freeVars e1 `Set.union` freeVars e2
-freeVars (NfLit _n)           = Set.empty
-freeVars (NfIf0 e1 e2 e3)     = freeVars e1 `Set.union`
+freeVars :: NFExp -> Set.Set String
+freeVars (NVar x)            = Set.singleton x
+freeVars (NBLam _a e)        = freeVars e
+freeVars (NLam (x,_t) e)     = Set.delete x (freeVars e)
+freeVars (NTApp e _t)        = freeVars e
+freeVars (NApp e1 e2)        = freeVars e1 `Set.union` freeVars e2
+freeVars (NPrimOp e1 _op e2) = freeVars e1 `Set.union` freeVars e2
+freeVars (NLit _n)           = Set.empty
+freeVars (NIf0 e1 e2 e3)     = freeVars e1 `Set.union`
                                 freeVars e2 `Set.union`
                                 freeVars e3
-freeVars (NfTuple es)         = Set.unions [ freeVars e | e <- es ]
-freeVars (NfProj _i e)        = freeVars e
-freeVars (NfFix x (x1,_t1) _t2 e) = (Set.delete x . Set.delete x1) (freeVars e)
+freeVars (NTuple es)         = Set.unions [ freeVars e | e <- es ]
+freeVars (NProj _i e)        = freeVars e
+freeVars (NFix x (x1,_t1) _t2 e) = (Set.delete x . Set.delete x1) (freeVars e)
 
-substMulti :: [(String, NfExp)] -> NfExp -> NfExp
+substMulti :: [(String, NFExp)] -> NFExp -> NFExp
 substMulti ss x = foldl (flip subst) x ss
 
 -- Capture-avoiding substitution
 -- http://en.wikipedia.org/wiki/Lambda_calculus#Capture-avoiding_substitutions
-subst :: (String, NfExp) -> NfExp -> NfExp
+subst :: (String, NFExp) -> NFExp -> NFExp
 subst (x, r) = go
   where
-    go (NfVar a)
+    go (NVar a)
       | a == x    = r
-      | otherwise = NfVar a
-    go (NfLam (y,t) e)
-      | y == x                    = NfLam (y,t) e
-      | y `Set.member` freeVars r = NfLam (y,t) e -- The freshness condition, crucial!
-      | otherwise                 = NfLam (y,t) (go e)
+      | otherwise = NVar a
+    go (NLam (y,t) e)
+      | y == x                    = NLam (y,t) e
+      | y `Set.member` freeVars r = NLam (y,t) e -- The freshness condition, crucial!
+      | otherwise                 = NLam (y,t) (go e)
 
     -- TODO: verify
-    go (NfFix y (y1, t1) t2 e)
-      | y == x                     = NfFix y (y1, t1) t2 e
-      | y1 == x                    = NfFix y (y1, t1) t2 e
-      | y  `Set.member` freeVars r = NfFix y (y1, t1) t2 e
-      | y1 `Set.member` freeVars r = NfFix y (y1, t1) t2 e
-      | otherwise                  = NfFix y (y1, t1) t2 (go e)
+    go (NFix y (y1, t1) t2 e)
+      | y == x                     = NFix y (y1, t1) t2 e
+      | y1 == x                    = NFix y (y1, t1) t2 e
+      | y  `Set.member` freeVars r = NFix y (y1, t1) t2 e
+      | y1 `Set.member` freeVars r = NFix y (y1, t1) t2 e
+      | otherwise                  = NFix y (y1, t1) t2 (go e)
 
-    go (NfBLam a e)        = NfBLam a (go e)
-    go (NfTApp e t)        = NfTApp (go e) t
-    go (NfApp e1 e2)       = NfApp (go e1) (go e2)
-    go (NfPrimOp e1 op e2) = NfPrimOp (go e1) op (go e2)
-    go (NfLit n)           = NfLit n
-    go (NfTuple es)        = NfTuple (map go es)
-    go (NfProj i e)        = NfProj i (go e)
-    go (NfIf0 e1 e2 e3)    = NfIf0 (go e1) (go e2) (go e3)
+    go (NBLam a e)        = NBLam a (go e)
+    go (NTApp e t)        = NTApp (go e) t
+    go (NApp e1 e2)       = NApp (go e1) (go e2)
+    go (NPrimOp e1 op e2) = NPrimOp (go e1) op (go e2)
+    go (NLit n)           = NLit n
+    go (NTuple es)        = NTuple (map go es)
+    go (NProj i e)        = NProj i (go e)
+    go (NIf0 e1 e2 e3)    = NIf0 (go e1) (go e2) (go e3)

@@ -61,24 +61,26 @@ freeTyVars (Forall a t) = Set.delete a (freeTyVars t)
 freeTyVars (Fun t1 t2)  = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (Product ts) = Set.unions (map freeTyVars ts)
 
-infer :: Expr String -> Tc Type
+type TcExpr = Expr (String, Type)
+
+infer :: Expr String -> Tc (TcExpr, Type)
 infer = inferWith (Set.empty, Map.empty)
 
-inferWith :: (TypeContext, ValueContext) -> Expr String -> Tc Type
+inferWith :: (TypeContext, ValueContext) -> Expr String -> Tc (TcExpr, Type)
 inferWith (d, g) = go
   where
     go (Var x) =
       case Map.lookup x g of
-        Just t  -> return t
+        Just t  -> return (Var (x,t), t)
         Nothing -> Left NotInScope { msg = "variable " ++ q x }
 
-    go (Lit (Integer _)) = return Int
+    go (Lit (Integer n)) = return (Lit (Integer n), Int)
 
     go (App e1 e2) = do
-      t  <- go e1
-      t' <- go e2
+      (e1', t)  <- go e1
+      (e2', t') <- go e2
       case t of
-        Fun t1 t2 | t' == t1 -> return t2
+        Fun t1 t2 | t' == t1 -> return (App e1' e2', t2)
         Fun t1 _ -> Left Mismatch { term = e2, expected = t1, actual = t' }
         _        -> Left Mismatch { term = e1
                                   , expected = Fun t' (TyVar "_")
@@ -91,13 +93,13 @@ inferWith (d, g) = go
                                             " shadows an existing type variable" ++
                                             " in an outer scope"
                                     }
-      | otherwise        = do t <- inferWith (Set.insert a d, g) e
-                              return $ Forall a t
+      | otherwise        = do (e', t) <- inferWith (Set.insert a d, g) e
+                              return (BLam a e', Forall a t)
 
     go (Lam (x,t) e) = do
       checkWellformed d t
-      t' <- inferWith (d, Map.insert x t g) e
-      return (Fun t t')
+      (e', t') <- inferWith (d, Map.insert x t g) e
+      return (Lam (x,t) e', Fun t t')
 
     {-
       τ ok in Δ   Δ;Γ ⊢ e : ∀α. τ'
@@ -106,9 +108,9 @@ inferWith (d, g) = go
     -}
     go (TApp e t) = do
       checkWellformed d t
-      t1 <- go e
+      (e', t1) <- go e
       case t1 of
-        Forall a t' -> return $ substFreeTyVars (a, t) t'
+        Forall a t' -> return (TApp e' t, substFreeTyVars (a, t) t')
         _           -> Left Mismatch { term     = TApp e t
                                      , expected = Forall "_" (TyVar "_")
                                      , actual   = t1
@@ -118,41 +120,42 @@ inferWith (d, g) = go
       | length es < 2 = invariantFailed
                           "inferWith"
                           ("fewer than two items in the tuple " ++ show (Tuple es))
-      | otherwise     = do ts <- mapM go es
-                           return $ Product ts
+      | otherwise     = do (es', ts) <- mapAndUnzipM go es
+                           return (Tuple es', Product ts)
 
     go (Proj e i) = do
-      t <- go e
+      (e', t) <- go e
       case t of
         Product ts ->
-          if 1 <= i && i <= length ts
-            then return $ ts !! (i - 1)
+          if 0 <= i && i <= length ts - 1
+            then return (Proj e' i, ts !! i)
             else Left General { msg = "Index too large in projection" }
         _          ->
           Left General { msg = "Projection of a term that is not of product type" }
 
-    go (PrimOp e1 _p e2) = do
-      t1 <- go e1
-      t2 <- go e2
+    go (PrimOp e1 op e2) = do
+      (e1', t1) <- go e1
+      (e2', t2) <- go e2
       case (t1, t2) of
-        (Int, Int) -> return Int
+        (Int, Int) -> return (PrimOp e1' op e2', Int)
         (Int, _  ) -> Left Mismatch { term = e2, expected = Int, actual = t2 }
         (_  , _  ) -> Left Mismatch { term = e1, expected = Int, actual = t1 }
 
     go (If0 e1 e2 e3) = do
-      t1 <- go e1
+      (e1', t1) <- go e1
       case t1 of
         Int -> do
-          t2 <- go e2
-          t3 <- go e3
+          (e2', t2) <- go e2
+          (e3', t3) <- go e3
           if t2 == t3
-            then return t2
+            then return (If0 e1' e2' e3', t2)
             else Left Mismatch { term = e3, expected = t2, actual = t3 }
         _   -> Left Mismatch { term = e1, expected = Int, actual = t1 }
 
     -- TODO: refactor Let Rec and Let NonRec
     go (Let Rec bs e) = do
       checkForDup "identifiers" (map bindId bs)
+
       sigs <-
         foldM
           (\acc Bind{..} -> do
@@ -169,35 +172,34 @@ inferWith (d, g) = go
                     acc)
           Map.empty
           bs
-      forM_
-        bs
-        (\Bind{..} -> do
-          let d_local = Set.fromList bindTargs
-              g_local = Map.fromList bindArgs
-          inferredRhsTyp <- inferWith
-                              ( d_local `Set.union` d
-                              , g_local `Map.union` sigs `Map.union` g
-                              )
-                              bindRhs
-          unless (fromJust bindRhsAnnot `eqType` inferredRhsTyp) $
-            Left Mismatch { term     = bindRhs
-                          , expected = fromJust bindRhsAnnot
-                          , actual   = inferredRhsTyp
-                          })
-      inferWith (d, sigs `Map.union` g) e
+      bs' <-
+        forM
+          bs
+          (\Bind{..} -> do
+            let d_local = Set.fromList bindTargs
+                g_local = Map.fromList bindArgs
+            (rhs', inferredRhsTyp) <- inferWith (d_local `Set.union` d, g_local `Map.union` sigs `Map.union` g) bindRhs
+            unless (fromJust bindRhsAnnot `eqType` inferredRhsTyp) $
+              Left Mismatch { term     = bindRhs
+                            , expected = fromJust bindRhsAnnot
+                            , actual   = inferredRhsTyp
+                            }
+            return Bind { bindId = (bindId, fromJust $ Map.lookup bindId sigs)
+                        , bindRhs = rhs'
+                        , ..
+                        })
+      (e', t) <- inferWith (d, sigs `Map.union` g) e
+      return (Let Rec bs' e', t)
 
+    -- TODO: refactor
     go (Let NonRec bs e) = do
       checkForDup "identifiers" (map bindId bs)
-      defined <-
+      sigs <-
         foldM
           (\acc Bind{..} -> do
             let d_local = Set.fromList bindTargs
                 g_local = Map.fromList bindArgs
-            inferredRhsTyp <- inferWith
-                                ( d_local `Set.union` d
-                                , g_local `Map.union` g
-                                )
-                                bindRhs
+            (_rhs', inferredRhsTyp) <- inferWith (d_local `Set.union` d, g_local `Map.union` g) bindRhs
             case bindRhsAnnot of
               Nothing -> return ()
               Just claimedRhsTyp ->
@@ -209,13 +211,23 @@ inferWith (d, g) = go
             return $
               Map.insert
                 bindId
-                (wrap Forall bindTargs $
-                  wrap Fun [t | (_,t) <- bindArgs]
-                    inferredRhsTyp)
+                (wrap Forall bindTargs $ wrap Fun [t | (_,t) <- bindArgs] inferredRhsTyp)
                 acc)
           Map.empty
           bs
-      inferWith (d, defined `Map.union` g) e
+      bs' <-
+        forM
+          bs
+          (\Bind{..} -> do
+            let d_local = Set.fromList bindTargs
+                g_local = Map.fromList bindArgs
+            (rhs', _inferredRhsTyp) <- inferWith (d_local `Set.union` d, g_local `Map.union` g) bindRhs
+            return Bind { bindId = (bindId, fromJust $ Map.lookup bindId sigs)
+                        , bindRhs = rhs'
+                        , ..
+                        })
+      (e', t) <- inferWith (d, sigs `Map.union` g) e
+      return (Let NonRec bs' e', t)
 
 -- TODO: BUG: if any of A1, ..., An is in the free variables of t1, ..., tn
 {-      f A1 ... An (x1 : t1) ... (xn : tn) : t = e

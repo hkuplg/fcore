@@ -16,18 +16,9 @@ module Translations
     , compilesf2java
     ) where
 
-import Prelude hiding (exp)
-
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-
-import Language.Java.Pretty
-import qualified Language.Java.Syntax as J
-
-------
-
 import ESF.Parser      (reader)
-import ESF.Translation (transESF)
+import ESF.Translation (transTcESF)
+import ESF.TypeCheck   (infer)
 import SystemF.Syntax
 import ClosureF
 import Java.Utils      (ClassName(..), inferClassName)
@@ -38,6 +29,18 @@ import StackTransCFJava
 
 import Inheritance
 import MonadLib
+
+import qualified Language.Java.Syntax as J
+import Language.Java.Pretty
+
+import Text.PrettyPrint.Leijen
+
+import qualified Data.Map as Map
+import qualified Data.Set as Set
+
+import Prelude hiding (exp)
+
+-- import Debug.Trace      (trace)
 
 -- Naive translation
 
@@ -138,7 +141,7 @@ sopt = stack
 translate e = translateM (to sopt) e
 -}
 
-prettyJ :: Pretty a => a -> IO ()
+prettyJ :: Language.Java.Pretty.Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
 -- compilePretty :: PFExp Int (Var, PCTyp Int) -> IO ()
@@ -151,7 +154,14 @@ prettyJ = putStrLn . prettyPrint
 -- SystemF to Java
 sf2java :: Compilation -> ClassName -> String -> String
 sf2java compilation (ClassName className) src =
-    let (cu, _) = compilation className ((transESF . ESF.Parser.reader) src) in prettyPrint cu
+  let uncheckedESF = ESF.Parser.reader src in
+  case ESF.TypeCheck.infer uncheckedESF of
+    Left typeError         -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
+    Right (checkedESF, _t) ->
+      -- trace ("\n\n" ++ show checkedESF ++ "\n\n") $
+      let sf = transTcESF checkedESF in
+      let (cu, _) = compilation className sf in
+      prettyPrint cu
 
 compilesf2java :: Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java compilation srcPath outputPath = do
