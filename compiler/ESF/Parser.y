@@ -79,10 +79,10 @@ import ESF.Lexer
 -- Reference for rules:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
-term :: { Expr }
+term :: { Expr String }
      : infixterm %prec EOF      { $1 }
 
-infixterm :: { Expr }
+infixterm :: { Expr String }
     : term10                    { $1 }
     | infixterm "*"  infixterm  { PrimOp $1 J.Mult   $3 }
     | infixterm "/"  infixterm  { PrimOp $1 J.Div    $3 }
@@ -98,7 +98,7 @@ infixterm :: { Expr }
     | infixterm "&&" infixterm  { PrimOp $1 J.CAnd   $3 }
     | infixterm "||" infixterm  { PrimOp $1 J.COr    $3 }
 
-term10 :: { Expr }
+term10 :: { Expr String }
     : "/\\" tvar "." term                 { BLam $2 $4  }
     | "\\" var_with_annot "." term        { Lam $2 $4 }
     | "let" recflag and_binds "in" term   { Let $2 $3 $5 }
@@ -106,33 +106,33 @@ term10 :: { Expr }
     | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
     | fexp                                { $1 }
 
-fexp :: { Expr }
+fexp :: { Expr String }
     : fexp aexp         { App  $1 $2 }
     | fexp typ          { TApp $1 $2 }
     | aexp              { $1 }
 
-aexp :: { Expr }
+aexp :: { Expr String }
     : aexp1             { $1 }
 
-aexp1 :: { Expr }
+aexp1 :: { Expr String }
     : aexp2             { $1 }
 
-aexp2 :: { Expr }
+aexp2 :: { Expr String }
     : var                       { Var $1 }
     | INTEGER                   { Lit (Integer $1) }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" comma_terms ")"       { Tuple $2 }
     | "(" term ")"              { $2 }
 
-comma_terms :: { [Expr] }
+comma_terms :: { [Expr String] }
     : term "," term             { [$1, $3] }
     | term "," comma_terms      { $1:$3    }
 
-var_with_annot :: { (Name, Type) }
+var_with_annot :: { (String, Type) }
   : "(" var ":" typ ")"         { ($2, $4) }
   | "(" var_with_annot ")"      { $2       }
 
-bind :: { Bind }
+bind :: { Bind String }
     : var tvars_emp var_annots_emp maybe_sig "=" term
         { Bind { bindId       = $1
                , bindTargs    = $2
@@ -146,7 +146,7 @@ maybe_sig :: { Maybe Type }
   : ":" typ     { Just $2 }
   | {- empty -} { Nothing }
 
-and_binds :: { [Bind] }
+and_binds :: { [Bind String] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
 
@@ -173,21 +173,21 @@ comma_typs :: { [Type] }
     : typ "," typ               { $1:[$3] }
     | typ "," comma_typs        { $1:$3   }
 
-tvars_emp :: { [Name] }
+tvars_emp :: { [String] }
   : {- empty -}         { []    }
   | tvar tvars_emp      { $1:$2 }
 
-var_annot :: { (Name, Type) }
+var_annot :: { (String, Type) }
     : "(" var ":" typ ")"       { ($2, $4) }
 
-var_annots_emp :: { [(Name, Type)] }
+var_annots_emp :: { [(String, Type)] }
     : {- empty -}               { []    }
     | var_annot var_annots_emp  { $1:$2 }
 
-var :: { Name }
+var :: { String }
     : LOWERID           { $1 }
 
-tvar :: { Name }
+tvar :: { String }
     : UPPERID           { $1 }
 
 {
@@ -202,7 +202,7 @@ instance Monad P where
 parseError :: [Token] -> P a
 parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
 
-reader :: String -> Expr
+reader :: String -> Expr String
 reader src = case (parser . lexer) src of
                  POk term   -> term
                  PError msg -> error msg

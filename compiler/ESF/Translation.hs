@@ -19,10 +19,10 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- Translate a typechecked ESF expression into System F
-transESF :: Expr -> PFExp t e
+transESF :: Expr String -> PFExp t e
 transESF = transNfExp . transExpr
 
-transType :: Map.Map Name t -> Type -> PFTyp t
+transType :: Map.Map String t -> Type -> PFTyp t
 transType d = go
   where
     go (TyVar a)    = FTVar $ fromJust (Map.lookup a d)
@@ -33,9 +33,9 @@ transType d = go
 
 -- System F (normal representation) closures
 data NfExp =
-      NfVar Name
-    | NfBLam Name NfExp
-    | NfLam (Name, Type) NfExp
+      NfVar String
+    | NfBLam String NfExp
+    | NfLam (String, Type) NfExp
     | NfTApp NfExp Type
     | NfApp NfExp NfExp
     | NfPrimOp NfExp J.Op NfExp
@@ -44,12 +44,12 @@ data NfExp =
     | NfTuple [NfExp]
     | NfProj Int NfExp
     -- fix x (x1 : t1) : t2. e
-    | NfFix Name (Name, Type) Type NfExp
+    | NfFix String (String, Type) Type NfExp
 
 transNfExp :: NfExp -> PFExp t e
 transNfExp = transNfExpWith (Map.empty, Map.empty)
 
-transNfExpWith :: (Map.Map Name t, Map.Map Name e) -> NfExp -> PFExp t e
+transNfExpWith :: (Map.Map String t, Map.Map String e) -> NfExp -> PFExp t e
 transNfExpWith (d, g) = go
   where
     go (NfVar x)              = FVar "" (fromJust (Map.lookup x g)) -- TODO: no name
@@ -70,7 +70,7 @@ transNfExpWith (d, g) = go
         (transType d t1)
         (transType d t2)
 
-transExpr :: Expr -> NfExp
+transExpr :: Expr String -> NfExp
 transExpr = go
   where
     go (Var x)             = NfVar x
@@ -165,7 +165,7 @@ transExpr = go
                 (map bindId bs)
                 [0..length bs - 1]
 
-freeVars :: NfExp -> Set.Set Name
+freeVars :: NfExp -> Set.Set String
 freeVars (NfVar x)            = Set.singleton x
 freeVars (NfBLam _a e)        = freeVars e
 freeVars (NfLam (x,_t) e)     = Set.delete x (freeVars e)
@@ -180,12 +180,12 @@ freeVars (NfTuple es)         = Set.unions [ freeVars e | e <- es ]
 freeVars (NfProj _i e)        = freeVars e
 freeVars (NfFix x (x1,_t1) _t2 e) = (Set.delete x . Set.delete x1) (freeVars e)
 
-substMulti :: [(Name, NfExp)] -> NfExp -> NfExp
+substMulti :: [(String, NfExp)] -> NfExp -> NfExp
 substMulti ss x = foldl (flip subst) x ss
 
 -- Capture-avoiding substitution
 -- http://en.wikipedia.org/wiki/Lambda_calculus#Capture-avoiding_substitutions
-subst :: (Name, NfExp) -> NfExp -> NfExp
+subst :: (String, NfExp) -> NfExp -> NfExp
 subst (x, r) = go
   where
     go (NfVar a)

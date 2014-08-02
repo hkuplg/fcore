@@ -5,8 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module ESF.Syntax
-  ( Name
-  , Type(..)
+  ( Type(..)
   , eqType
   , Lit(..)
   , Expr(..)
@@ -24,13 +23,11 @@ import Text.PrettyPrint.Leijen
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-type Name = String
-
 data Type
-  = TyVar Name
+  = TyVar String
   | Int
   | Fun Type Type
-  | Forall Name Type
+  | Forall String Type
   | Product [Type]
   deriving (Eq, Show)
 
@@ -41,33 +38,33 @@ data Lit
   = Integer Integer -- later maybe Bool | Char
   deriving (Eq, Show)
 
-data Expr
-  = Var Name                -- Variable
-  | Lit Lit                 -- Literals
-  | Lam (Name, Type) Expr   -- Lambda abstraction
-  | App  Expr Expr          -- Application
-  | BLam Name Expr          -- Type lambda abstraction
-  | TApp Expr Type          -- Type application
-  | Tuple [Expr]            -- Tuples
-  | Proj Expr Int           -- Tuple projection
-  | PrimOp Expr J.Op Expr   -- Primitive operation
-  | If0 Expr Expr Expr      -- If expression
-  | Let RecFlag [Bind] Expr -- Let (rec) ... (and) ... in ...
+data Expr e
+  = Var e                          -- Variable
+  | Lit Lit                        -- Literals
+  | Lam (e, Type) (Expr e)         -- Lambda abstraction
+  | App  (Expr e) (Expr e)         -- Application
+  | BLam String (Expr e)             -- Type lambda abstraction
+  | TApp (Expr e) Type             -- Type application
+  | Tuple [Expr e]                 -- Tuples
+  | Proj (Expr e) Int              -- Tuple projection
+  | PrimOp (Expr e) J.Op (Expr e)  -- Primitive operation
+  | If0 (Expr e) (Expr e) (Expr e) -- If expression
+  | Let RecFlag [Bind e] (Expr e)  -- Let (rec) ... (and) ... in ...
   deriving (Eq, Show)
 
 -- f A1 ... An (x : T1) ... (x : Tn) : T = e
-data Bind = Bind
-  { bindId       :: Name           -- Identifier
-  , bindTargs    :: [Name]         -- Type arguments
-  , bindArgs     :: [(Name, Type)] -- Arguments, each annotated with a type
-  , bindRhs      :: Expr           -- RHS to the "="
-  , bindRhsAnnot :: Maybe Type     -- Type of the RHS
+data Bind e = Bind
+  { bindId       :: e           -- Identifier
+  , bindTargs    :: [String]      -- Type arguments
+  , bindArgs     :: [(e, Type)] -- Arguments, each annotated with a type
+  , bindRhs      :: Expr e      -- RHS to the "="
+  , bindRhsAnnot :: Maybe Type  -- Type of the RHS
   } deriving (Eq, Show)
 
 data RecFlag = Rec | NonRec deriving (Eq, Show)
 
-type TypeContext  = Set.Set Name
-type ValueContext = Map.Map Name Type
+type TypeContext  = Set.Set String
+type ValueContext = Map.Map String Type
 
 instance Pretty Type where
   pretty (TyVar a)    = text a
@@ -76,13 +73,13 @@ instance Pretty Type where
   pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
   pretty (Product ts) = tupled (map pretty ts)
 
-instance Pretty Expr where
-  pretty (Var x) = text x
+instance Pretty e => Pretty (Expr e) where
+  pretty (Var x) = pretty x
   pretty (Lit (Integer n)) = integer n
   pretty (BLam a e) = parens $ text "/\\" <> text a <> dot <+> pretty e
   pretty (Lam (x,t) e) =
     parens $
-      backslash <> parens (text x <+> colon <+> pretty t) <> dot <+>
+      backslash <> parens (pretty x <+> colon <+> pretty t) <> dot <+>
       pretty e
   pretty (TApp e t) = parens $ pretty e <+> pretty t
   pretty (App e1 e2) = parens $ pretty e1 <+> pretty e2
@@ -102,11 +99,11 @@ instance Pretty Expr where
     text "in" <+>
     pretty e
 
-instance Pretty Bind where
+instance Pretty e => Pretty (Bind e) where
   pretty Bind{..} =
-    text bindId <+>
+    pretty bindId <+>
     hsep (map pretty bindTargs) <+>
-    hsep (map (\(x,t) -> parens (text x <+> colon <+> pretty t)) bindArgs) <+>
+    hsep (map (\(x,t) -> parens (pretty x <+> colon <+> pretty t)) bindArgs) <+>
     case bindRhsAnnot of { Nothing -> empty; Just t -> colon <+> pretty t } <+>
     equals <+>
     pretty bindRhs

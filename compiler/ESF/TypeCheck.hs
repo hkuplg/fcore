@@ -22,17 +22,17 @@ import qualified Data.Set as Set
 -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
 
 -- The monad for typechecking
-type Tc = Either TypeError
+type Tc = Either (TypeError String)
 
-data TypeError
+data TypeError e
   = NotInScope { msg      :: String }
   | General    { msg      :: String }
-  | Mismatch   { term     :: Expr
+  | Mismatch   { term     :: Expr e
                , expected :: Type
                , actual   :: Type
                }
 
-instance Pretty TypeError where
+instance Pretty e => Pretty (TypeError e) where
   pretty Mismatch{..} =
     text "Type mismatch:" <$>
     text "Expected:" <+> pretty expected <$>
@@ -54,17 +54,17 @@ checkWellformed d t =
                          " " ++ intercalate ", " (map q (Set.toList s))
                  }
 
-freeTyVars :: Type -> Set.Set Name
+freeTyVars :: Type -> Set.Set String
 freeTyVars (TyVar x)    = Set.singleton x
 freeTyVars  Int         = Set.empty
 freeTyVars (Forall a t) = Set.delete a (freeTyVars t)
 freeTyVars (Fun t1 t2)  = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (Product ts) = Set.unions (map freeTyVars ts)
 
-infer :: Expr -> Tc Type
+infer :: Expr String -> Tc Type
 infer = inferWith (Set.empty, Map.empty)
 
-inferWith :: (TypeContext, ValueContext) -> Expr -> Tc Type
+inferWith :: (TypeContext, ValueContext) -> Expr String -> Tc Type
 inferWith (d, g) = go
   where
     go (Var x) =
@@ -200,7 +200,7 @@ inferWith (d, g) = go
                                 bindRhs
             case bindRhsAnnot of
               Nothing -> return ()
-              Just claimedRhsTyp -> do
+              Just claimedRhsTyp ->
                 unless (claimedRhsTyp `eqType` inferredRhsTyp) $
                   Left Mismatch { term     = bindRhs
                                 , expected = claimedRhsTyp
@@ -224,7 +224,7 @@ inferWith (d, g) = go
         Provided that:
           (1) A1, ..., An are all distinct, and
           (2) x1, ..., xn are all distinct.     -}
-dsBind :: Bind -> Tc (Name, Expr, Maybe Type)
+dsBind :: Bind String -> Tc (String, Expr String, Maybe Type)
 dsBind Bind{..} = do
   checkForDup "type arguments" bindTargs
   checkForDup "arguments"      [x | (x, _) <- bindArgs]
@@ -237,7 +237,7 @@ wrap cons xs t = foldr cons t xs
 
 -- Capture-avoiding substitution
 -- http://en.wikipedia.org/wiki/Lambda_calculus#Capture-avoiding_substitutions
-substFreeTyVars :: (Name, Type) -> Type -> Type
+substFreeTyVars :: (String, Type) -> Type -> Type
 substFreeTyVars (x, r) = go
   where
     go (TyVar a)
@@ -251,7 +251,7 @@ substFreeTyVars (x, r) = go
       | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
       | otherwise                   = Forall a (go t)
 
-checkForDup :: String -> [Name] -> Tc ()
+checkForDup :: String -> [String] -> Tc ()
 checkForDup what xs =
   case findFirstDup xs of
     Just x  -> Left General { msg = "Duplicate " ++ what ++ ": " ++ q x }
