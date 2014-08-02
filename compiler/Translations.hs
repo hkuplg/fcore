@@ -26,8 +26,8 @@ import qualified Language.Java.Syntax as J
 
 ------
 
-import Language.ESF.Parser      (readESF)
-import Language.TransESF        (transESF)
+import Language.ESF.Parser      (reader)
+import Language.ESF.Translation (transESF)
 import Language.SystemF.Syntax
 import ClosureF
 import Language.Java.Utils      (ClassName(..), inferClassName)
@@ -151,7 +151,7 @@ prettyJ = putStrLn . prettyPrint
 -- SystemF to Java
 sf2java :: Compilation -> ClassName -> String -> String
 sf2java compilation (ClassName className) src =
-    let (cu, _) = compilation className ((transESF . readESF) src) in prettyPrint cu
+    let (cu, _) = compilation className ((transESF . Language.ESF.Parser.reader) src) in prettyPrint cu
 
 compilesf2java :: Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java compilation srcPath outputPath = do

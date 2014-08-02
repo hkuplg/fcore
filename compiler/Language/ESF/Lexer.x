@@ -1,6 +1,6 @@
 {
 module Language.ESF.Lexer
-    ( lexESF
+    ( lexer
     , Token(..)
     ) where
 
@@ -71,6 +71,6 @@ data Token = Toparen | Tcparen
            | Tprimop J.Op
            deriving (Eq, Show)
 
-lexESF :: String -> [Token]
-lexESF = alexScanTokens
+lexer :: String -> [Token]
+lexer = alexScanTokens
 }
