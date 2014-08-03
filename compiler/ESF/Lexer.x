@@ -45,7 +45,7 @@ tokens :-
     new         { \_ _ -> Tnew }
 
     -- java.package.path.Classname
-    ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavatype s }
+    ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavaclass s }
 
     [A-Z] [$vchar]*     { \_ s -> Tupperid s }
     [a-z] [$vchar]*     { \_ s -> Tlowerid s }
@@ -72,7 +72,7 @@ tokens :-
 data Token = Toparen | Tcparen
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot
            | Tlet | Trec | Teq | Tand | Tin
-           | Tint | Tjavatype String
+           | Tint | Tjavaclass String
            | Tnew
            | Tif0 | Tthen | Telse
            | Tcomma

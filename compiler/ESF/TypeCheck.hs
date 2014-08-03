@@ -10,6 +10,8 @@ module ESF.TypeCheck where
 
 import ESF.Syntax
 
+import JVMTypeQuery
+
 import Control.Monad
 
 import Text.PrettyPrint.Leijen

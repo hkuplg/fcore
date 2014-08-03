@@ -31,6 +31,7 @@ data Type
   | Fun Type Type
   | Forall String Type
   | Product [Type]
+  | JClass String
   deriving (Show)
 
 data Lit
@@ -49,6 +50,8 @@ data Expr e
   | PrimOp (Expr e) J.Op (Expr e)  -- Primitive operation
   | If0 (Expr e) (Expr e) (Expr e) -- If expression
   | Let RecFlag [Bind e] (Expr e)  -- Let (rec) ... (and) ... in ...
+  | JNewObj String [Expr e]          -- New Java object
+  | JMethod (Expr e) String [Expr e] -- Java method call
   deriving (Show)
 
 -- f A1 ... An (x : T1) ... (x : Tn) : T = e
@@ -84,6 +87,7 @@ substFreeTyVars (x, r) = go
       | a == x      = r
       | otherwise   = TyVar a
     go Int          = Int
+    go (JClass c )  = JClass c
     go (Fun t1 t2)  = Fun (go t1) (go t2)
     go (Product ts) = Product (map go ts)
     go (Forall a t)
@@ -94,6 +98,7 @@ substFreeTyVars (x, r) = go
 freeTyVars :: Type -> Set.Set String
 freeTyVars (TyVar x)    = Set.singleton x
 freeTyVars  Int         = Set.empty
+freeTyVars (JClass _)   = Set.empty
 freeTyVars (Forall a t) = Set.delete a (freeTyVars t)
 freeTyVars (Fun t1 t2)  = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (Product ts) = Set.unions (map freeTyVars ts)
@@ -104,6 +109,7 @@ instance Pretty Type where
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
   pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
   pretty (Product ts) = tupled (map pretty ts)
+  pretty (JClass c)   = text c
 
 instance Pretty e => Pretty (Expr e) where
   pretty (Var x) = pretty x
@@ -130,6 +136,8 @@ instance Pretty e => Pretty (Expr e) where
     encloseSep empty empty (softline <> text "and" <> space) (map pretty bs) <+>
     text "in" <+>
     pretty e
+  pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
+  pretty (JMethod e m args) = pretty e <> dot <> text m <> tupled (map pretty args)
 
 instance Pretty e => Pretty (Bind e) where
   pretty Bind{..} =

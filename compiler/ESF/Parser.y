@@ -39,6 +39,9 @@ import ESF.Lexer
   LOWERID  { Tlowerid $$ }
   UNDERID  { Tunderid $$ }
 
+  JAVACLASS { Tjavaclass $$ }
+  "new"     { Tnew }
+
   INTEGER  { Tinteger $$ }
 
   "*"      { Tprimop J.Mult   }
@@ -79,32 +82,34 @@ import ESF.Lexer
 -- Reference for rules:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
-term :: { Expr String }
-     : infixterm %prec EOF      { $1 }
+expr :: { Expr String }
+     : infixexpr %prec EOF      { $1 }
 
-infixterm :: { Expr String }
-    : term10                    { $1 }
-    | infixterm "*"  infixterm  { PrimOp $1 J.Mult   $3 }
-    | infixterm "/"  infixterm  { PrimOp $1 J.Div    $3 }
-    | infixterm "%"  infixterm  { PrimOp $1 J.Rem    $3 }
-    | infixterm "+"  infixterm  { PrimOp $1 J.Add    $3 }
-    | infixterm "-"  infixterm  { PrimOp $1 J.Sub    $3 }
-    | infixterm "<"  infixterm  { PrimOp $1 J.LThan  $3 }
-    | infixterm "<=" infixterm  { PrimOp $1 J.LThanE $3 }
-    | infixterm ">"  infixterm  { PrimOp $1 J.GThan  $3 }
-    | infixterm ">=" infixterm  { PrimOp $1 J.GThanE $3 }
-    | infixterm "==" infixterm  { PrimOp $1 J.Equal  $3 }
-    | infixterm "!=" infixterm  { PrimOp $1 J.NotEq  $3 }
-    | infixterm "&&" infixterm  { PrimOp $1 J.CAnd   $3 }
-    | infixterm "||" infixterm  { PrimOp $1 J.COr    $3 }
+infixexpr :: { Expr String }
+    : expr10                    { $1 }
+    | infixexpr "*"  infixexpr  { PrimOp $1 J.Mult   $3 }
+    | infixexpr "/"  infixexpr  { PrimOp $1 J.Div    $3 }
+    | infixexpr "%"  infixexpr  { PrimOp $1 J.Rem    $3 }
+    | infixexpr "+"  infixexpr  { PrimOp $1 J.Add    $3 }
+    | infixexpr "-"  infixexpr  { PrimOp $1 J.Sub    $3 }
+    | infixexpr "<"  infixexpr  { PrimOp $1 J.LThan  $3 }
+    | infixexpr "<=" infixexpr  { PrimOp $1 J.LThanE $3 }
+    | infixexpr ">"  infixexpr  { PrimOp $1 J.GThan  $3 }
+    | infixexpr ">=" infixexpr  { PrimOp $1 J.GThanE $3 }
+    | infixexpr "==" infixexpr  { PrimOp $1 J.Equal  $3 }
+    | infixexpr "!=" infixexpr  { PrimOp $1 J.NotEq  $3 }
+    | infixexpr "&&" infixexpr  { PrimOp $1 J.CAnd   $3 }
+    | infixexpr "||" infixexpr  { PrimOp $1 J.COr    $3 }
 
-term10 :: { Expr String }
-    : "/\\" tvar "." term                 { BLam $2 $4  }
-    | "\\" var_with_annot "." term        { Lam $2 $4 }
-    | "let" recflag and_binds "in" term   { Let $2 $3 $5 }
-    | "if0" term "then" term "else" term  { If0 $2 $4 $6 }
+expr10 :: { Expr String }
+    : "/\\" tvar "." expr                 { BLam $2 $4  }
+    | "\\" var_with_annot "." expr        { Lam $2 $4 }
+    | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
+    | "if0" expr "then" expr "else" expr  { If0 $2 $4 $6 }
     | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
     | fexp                                { $1 }
+    -- Java new Object
+    | "new" JAVACLASS "(" comma_exprs_emp ")" { JNewObj $2 $4 }
 
 fexp :: { Expr String }
     : fexp aexp         { App  $1 $2 }
@@ -121,19 +126,26 @@ aexp2 :: { Expr String }
     : var                       { Var $1 }
     | INTEGER                   { Lit (Integer $1) }
     | aexp "." UNDERID          { Proj $1 $3 }
-    | "(" comma_terms ")"       { Tuple $2 }
-    | "(" term ")"              { $2 }
+    | "(" comma_exprs ")"       { Tuple $2 }
+    | "(" expr ")"              { $2 }
+    -- Java method call
+    | aexp "." LOWERID "(" comma_exprs_emp ")"  { JMethod $1 $3 $5 }
 
-comma_terms :: { [Expr String] }
-    : term "," term             { [$1, $3] }
-    | term "," comma_terms      { $1:$3    }
+comma_exprs :: { [Expr String] }
+    : expr "," expr             { [$1, $3] }
+    | expr "," comma_exprs      { $1:$3    }
+
+comma_exprs_emp :: { [Expr String] }
+    : {- empty -}   { []   }
+    | expr          { [$1] }
+    | comma_exprs   { $1   }
 
 var_with_annot :: { (String, Type) }
   : "(" var ":" typ ")"         { ($2, $4) }
   | "(" var_with_annot ")"      { $2       }
 
 bind :: { Bind String }
-    : var tvars_emp var_annots_emp maybe_sig "=" term
+    : var tvars_emp var_annots_emp maybe_sig "=" expr
         { Bind { bindId       = $1
                , bindTargs    = $2
                , bindArgs     = $3
@@ -168,6 +180,7 @@ atyp :: { Type }
     | "Int"                     { Int }
     | "(" typ ")"               { $2 }
     | "(" comma_typs ")"        { Product $2 }
+    | JAVACLASS                 { JClass $1 }
 
 comma_typs :: { [Type] }
     : typ "," typ               { $1:[$3] }
@@ -204,6 +217,6 @@ parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
 
 reader :: String -> Expr String
 reader src = case (parser . lexer) src of
-                 POk term   -> term
+                 POk expr   -> expr
                  PError msg -> error msg
 }
