@@ -7,12 +7,15 @@ module ESF.Lexer
     ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
+import JVMTypeQuery
 }
 
 %wrapper "posn"
 
 $alpha = [A-Za-z]
 $digit = [0-9]
+
+$vchar = [$alpha $digit \_ \']
 
 tokens :-
 
@@ -39,10 +42,14 @@ tokens :-
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
     \,          { \_ _ -> Tcomma }
+    new         { \_ _ -> Tnew }
 
-    [A-Z] [$alpha $digit \_ \']*  { \_ s -> Tupperid s }
-    [a-z] [$alpha $digit \_ \']*  { \_ s -> Tlowerid s }
-    \_ $digit+                    { \_ s -> Tunderid (read (tail s))  }
+    -- java.package.path.Classname
+    ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavatype s }
+
+    [A-Z] [$vchar]*     { \_ s -> Tupperid s }
+    [a-z] [$vchar]*     { \_ s -> Tlowerid s }
+    \_ $digit+          { \_ s -> Tunderid (read (tail s))  }
 
     $digit+     { \_ s -> Tinteger (read s) }
 
@@ -65,7 +72,8 @@ tokens :-
 data Token = Toparen | Tcparen
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot
            | Tlet | Trec | Teq | Tand | Tin
-           | Tint
+           | Tint | Tjavatype String
+           | Tnew
            | Tif0 | Tthen | Telse
            | Tcomma
            | Tupperid String | Tlowerid String | Tunderid Int
