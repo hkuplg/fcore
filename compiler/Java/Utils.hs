@@ -8,7 +8,7 @@ module Java.Utils
     , ClassName(..)
     ) where
 
-import System.Cmd               (system)
+import System.Process           (system)
 import System.Directory         (setCurrentDirectory)
 import System.FilePath          (takeDirectory, takeBaseName, (</>))
 ------

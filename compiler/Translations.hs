@@ -17,8 +17,8 @@ module Translations
     ) where
 
 import ESF.Parser      (reader)
-import ESF.Translation (transTcESF)
 import ESF.TypeCheck   (infer)
+import Desugar         (desugarTcExpr)
 import SystemF.Syntax
 import ClosureF
 import Java.Utils      (ClassName(..), inferClassName)
@@ -154,12 +154,12 @@ prettyJ = putStrLn . prettyPrint
 -- SystemF to Java
 sf2java :: Compilation -> ClassName -> String -> String
 sf2java compilation (ClassName className) src =
-  let uncheckedESF = ESF.Parser.reader src in
-  case ESF.TypeCheck.infer uncheckedESF of
+  let expr = ESF.Parser.reader src in
+  case ESF.TypeCheck.infer expr of
     Left typeError         -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
-    Right (checkedESF, _t) ->
-      -- trace ("\n\n" ++ show checkedESF ++ "\n\n") $
-      let sf = transTcESF checkedESF in
+    Right (tcExpr, _t) ->
+      -- trace ("\n\n" ++ show tcExpr ++ "\n\n") $
+      let sf = desugarTcExpr tcExpr in
       let (cu, _) = compilation className sf in
       prettyPrint cu
 

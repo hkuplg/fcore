@@ -5,17 +5,22 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module ESF.Syntax
-  ( Type(..)
-  , alphaEqTy
-  , substFreeTyVars
-  , freeTyVars
-  , Lit(..)
+  ( Bind(..)
   , Expr(..)
+  , Lit(..)
+  , Name
+  , RdrExpr
   , RecFlag(..)
-  , Bind(..)
+  , TcBinds
+  , TcExpr
+  , Type(..)
   , TypeContext
   , ValueContext
+  , alphaEqTy
+  , freeTyVars
   , invariantFailed
+  , substFreeTyVars
+  , wrap
   ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
@@ -25,48 +30,57 @@ import Text.PrettyPrint.Leijen
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+type Name = String
+type TcId = (Name, Type)
+
 data Type
-  = TyVar String
+  = TyVar Name
   | Int
   | Fun Type Type
-  | Forall String Type
+  | Forall Name Type
   | Product [Type]
-  | JClass String
-  deriving (Show)
+  | JClass Name
+  deriving (Eq, Show)
+
+data Expr id
+  = Var id                             -- Variable
+  | Lit Lit                            -- Literals
+  | Lam (Name, Type) (Expr id)         -- Lambda abstraction
+  | App  (Expr id) (Expr id)           -- Application
+  | BLam Name (Expr id)                -- Type lambda abstraction
+  | TApp (Expr id) Type                -- Type application
+  | Tuple [Expr id]                    -- Tuples
+  | Proj (Expr id) Int                 -- Tuple projection
+  | PrimOp (Expr id) J.Op (Expr id)    -- Primitive operation
+  | If0 (Expr id) (Expr id) (Expr id)  -- If expression
+  | Let RecFlag [Bind id] (Expr id)    -- Let (rec) ... (and) ... in ...
+  | LetOut RecFlag TcBinds (Expr TcId) -- Post typecheck only
+  | JNewObj Name [Expr id]             -- New Java object
+  | JMethod (Expr id) Name [Expr id]   -- Java method call
+  deriving (Eq, Show)
+
+type RdrExpr = Expr Name
+type TcExpr  = Expr TcId
 
 data Lit
   = Integer Integer -- later maybe Bool | Char
-  deriving (Show)
+  deriving (Eq, Show)
 
-data Expr e
-  = Var e                          -- Variable
-  | Lit Lit                        -- Literals
-  | Lam (String, Type) (Expr e)    -- Lambda abstraction
-  | App  (Expr e) (Expr e)         -- Application
-  | BLam String (Expr e)             -- Type lambda abstraction
-  | TApp (Expr e) Type             -- Type application
-  | Tuple [Expr e]                 -- Tuples
-  | Proj (Expr e) Int              -- Tuple projection
-  | PrimOp (Expr e) J.Op (Expr e)  -- Primitive operation
-  | If0 (Expr e) (Expr e) (Expr e) -- If expression
-  | Let RecFlag [Bind e] (Expr e)  -- Let (rec) ... (and) ... in ...
-  | JNewObj String [Expr e]          -- New Java object
-  | JMethod (Expr e) String [Expr e] -- Java method call
-  deriving (Show)
 
--- f A1 ... An (x : T1) ... (x : Tn) : T = e
-data Bind e = Bind
-  { bindId       :: e                -- Identifier
-  , bindTargs    :: [String]         -- Type arguments
-  , bindArgs     :: [(String, Type)] -- Arguments, each annotated with a type
-  , bindRhs      :: Expr e           -- RHS to the "="
-  , bindRhsAnnot :: Maybe Type       -- Type of the RHS
-  } deriving (Show)
+type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
 
-data RecFlag = Rec | NonRec deriving (Show)
+data Bind id = Bind
+  { bindId       :: id             -- Identifier
+  , bindTargs    :: [Name]         -- Type arguments
+  , bindArgs     :: [(Name, Type)] -- Arguments, each annotated with a type
+  , bindRhs      :: Expr id        -- RHS to the "="
+  , bindRhsAnnot :: Maybe Type     -- Type of the RHS
+  } deriving (Eq, Show)
 
-type TypeContext  = Set.Set String
-type ValueContext = Map.Map String Type
+data RecFlag = Rec | NonRec deriving (Eq, Show)
+
+type TypeContext  = Set.Set Name
+type ValueContext = Map.Map Name Type
 
 alphaEqTy :: Type -> Type -> Bool
 alphaEqTy (TyVar a)      (TyVar b)      = a == b
@@ -78,9 +92,7 @@ alphaEqTy (Product ts1)  (Product ts2)  = length ts1 == length ts2 &&
 alphaEqTy (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `alphaEqTy` t1
 alphaEqTy  _              _             = False
 
--- Capture-avoiding substitution
--- http://en.wikipedia.org/wiki/Lambda_calculus#Capture-avoiding_substitutions
-substFreeTyVars :: (String, Type) -> Type -> Type
+substFreeTyVars :: (Name, Type) -> Type -> Type
 substFreeTyVars (x, r) = go
   where
     go (TyVar a)
@@ -95,7 +107,7 @@ substFreeTyVars (x, r) = go
       | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
       | otherwise                   = Forall a (go t)
 
-freeTyVars :: Type -> Set.Set String
+freeTyVars :: Type -> Set.Set Name
 freeTyVars (TyVar x)    = Set.singleton x
 freeTyVars  Int         = Set.empty
 freeTyVars (JClass _)   = Set.empty
@@ -111,7 +123,7 @@ instance Pretty Type where
   pretty (Product ts) = tupled (map pretty ts)
   pretty (JClass c)   = text c
 
-instance Pretty e => Pretty (Expr e) where
+instance Pretty id => Pretty (Expr id) where
   pretty (Var x) = pretty x
   pretty (Lit (Integer n)) = integer n
   pretty (BLam a e) = parens $ text "/\\" <> text a <> dot <+> pretty e
@@ -139,7 +151,7 @@ instance Pretty e => Pretty (Expr e) where
   pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
   pretty (JMethod e m args) = pretty e <> dot <> text m <> tupled (map pretty args)
 
-instance Pretty e => Pretty (Bind e) where
+instance Pretty id => Pretty (Bind id) where
   pretty Bind{..} =
     pretty bindId <+>
     hsep (map pretty bindTargs) <+>
@@ -154,3 +166,6 @@ instance Pretty RecFlag where
 
 invariantFailed :: String -> String -> a
 invariantFailed location msg = error ("Invariant failed in " ++ location ++ ": " ++ msg)
+
+wrap :: (b -> a -> a) -> [b] -> a -> a
+wrap cons xs t = foldr cons t xs

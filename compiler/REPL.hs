@@ -3,7 +3,7 @@ module Main (main) where
 import ESF.Syntax
 import ESF.Parser       (reader)
 import ESF.TypeCheck
-import ESF.Translation  (transESF)
+import ESF.Translation  (transTcExpr)
 
 import SystemF.Syntax
 import SystemF.Pretty
@@ -25,5 +25,5 @@ repl = forever $ do
     Left err -> print (pretty err)
     Right t  -> do
       print (pretty esf </> text "::" <+> pretty t)
-      let sf = transESF esf :: PFExp Int Int
+      let sf = transTcExpr esf :: PFExp Int Int
       putStrLn $ SystemF.Pretty.prettyPrint sf

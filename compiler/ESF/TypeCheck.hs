@@ -6,7 +6,9 @@
    verbose Haskell AST, but it improves error messages, as those message are based on the
    same structure that the user sees." -}
 
-module ESF.TypeCheck where
+module ESF.TypeCheck
+  ( infer
+  ) where
 
 import ESF.Syntax
 
@@ -17,14 +19,13 @@ import Control.Monad
 import Text.PrettyPrint.Leijen
 
 import Data.Maybe       (fromJust)
-import Data.List        (intercalate)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
 
 -- The monad for typechecking
-type Tc = Either (TypeError String)
+type Tc = Either (TypeError Name)
 
 data TypeError e
   = NotInScope { msg      :: String }
@@ -37,37 +38,30 @@ data TypeError e
 instance Pretty e => Pretty (TypeError e) where
   pretty Mismatch{..} =
     text "Type mismatch:" <$>
-    text "Expected:" <+> pretty expected <$>
-    text "Actual:"   <+> pretty actual <$>
+    text "Expected type:" <+> pretty expected <$>
+    text "  Actual type:" <+> pretty actual <$>
     text "In the expression:" <+> pretty term
   pretty NotInScope{..} = text "Not in scope:" <+> string msg
   pretty General{..}    = string msg
 
-q :: String -> String
+q :: Name -> String
 q x = "`" ++ x ++ "'"
 
 checkWellformed :: TypeContext -> Type -> Tc ()
 checkWellformed d t =
   let s = freeTyVars t `Set.difference` d in
   unless (Set.null s) $
-    Left
-      NotInScope { msg = "type variable" ++
-                         (if Set.size s > 1 then "s" else "") ++
-                         " " ++ intercalate ", " (map q (Set.toList s))
-                 }
+    Left NotInScope { msg = "type variable " ++ q (head $ Set.toList s) }
 
-type TcExpr = Expr (String, Type)
-
-infer :: Expr String -> Tc (TcExpr, Type)
+infer :: RdrExpr -> Tc (TcExpr, Type)
 infer = inferWith (Set.empty, Map.empty)
 
-inferWith :: (TypeContext, ValueContext) -> Expr String -> Tc (TcExpr, Type)
+inferWith :: (TypeContext, ValueContext) -> RdrExpr -> Tc (TcExpr, Type)
 inferWith (d, g) = go
   where
-    go (Var x) =
-      case Map.lookup x g of
-        Just t  -> return (Var (x,t), t)
-        Nothing -> Left NotInScope { msg = "variable " ++ q x }
+    go (Var x) = case Map.lookup x g of
+                   Just t  -> return (Var (x,t), t)
+                   Nothing -> Left NotInScope { msg = "variable " ++ q x }
 
     go (Lit (Integer n)) = return (Lit (Integer n), Int)
 
@@ -83,11 +77,10 @@ inferWith (d, g) = go
                                   }
 
     go (BLam a e)
-      | a `Set.member` d = Left
-                            General { msg = "This type variable " ++ q a ++
-                                            " shadows an existing type variable" ++
-                                            " in an outer scope"
-                                    }
+      | a `Set.member` d = Left General { msg = "This type variable " ++ q a ++
+                                                " shadows an existing type variable" ++
+                                                " in an outer scope"
+                                        }
       | otherwise        = do (e', t) <- inferWith (Set.insert a d, g) e
                               return (BLam a e', Forall a t)
 
@@ -147,100 +140,59 @@ inferWith (d, g) = go
             else Left Mismatch { term = e3, expected = t2, actual = t3 }
         _   -> Left Mismatch { term = e1, expected = Int, actual = t1 }
 
-    -- TODO: refactor Let Rec and Let NonRec
-    go (Let Rec bs e) = do
-      checkForDup "identifiers" (map bindId bs)
-
-      sigs <-
-        foldM
-          (\acc Bind{..} -> do
-            checkForDup "type arguments" bindTargs
-            checkForDup "arguments"      [x | (x, _) <- bindArgs]
-            case bindRhsAnnot of
-              Nothing ->
-                Left General { msg = "Missing type annotation for the right hand side" }
-              Just rhsTyp ->
-                return $
-                  Map.insert
-                    bindId
-                    (wrap Forall bindTargs $ wrap Fun [t | (_,t) <- bindArgs] rhsTyp)
-                    acc)
-          Map.empty
-          bs
-      bs' <-
-        forM
-          bs
-          (\Bind{..} -> do
-            let d_local = Set.fromList bindTargs
-                g_local = Map.fromList bindArgs
-            (rhs', inferredRhsTyp) <- inferWith (d_local `Set.union` d, g_local `Map.union` sigs `Map.union` g) bindRhs
-            unless (fromJust bindRhsAnnot `alphaEqTy` inferredRhsTyp) $
-              Left Mismatch { term     = bindRhs
-                            , expected = fromJust bindRhsAnnot
-                            , actual   = inferredRhsTyp
-                            }
-            return Bind { bindId = (bindId, fromJust $ Map.lookup bindId sigs)
-                        , bindRhs = rhs'
-                        , ..
-                        })
-      (e', t) <- inferWith (d, sigs `Map.union` g) e
-      return (Let Rec bs' e', t)
-
-    -- TODO: refactor
     go (Let NonRec bs e) = do
-      checkForDup "identifiers" (map bindId bs)
-      sigs <-
-        foldM
-          (\acc Bind{..} -> do
-            let d_local = Set.fromList bindTargs
-                g_local = Map.fromList bindArgs
-            (_rhs', inferredRhsTyp) <- inferWith (d_local `Set.union` d, g_local `Map.union` g) bindRhs
-            case bindRhsAnnot of
-              Nothing -> return ()
-              Just claimedRhsTyp ->
-                unless (claimedRhsTyp `alphaEqTy` inferredRhsTyp) $
-                  Left Mismatch { term     = bindRhs
-                                , expected = claimedRhsTyp
-                                , actual   = inferredRhsTyp
-                                }
-            return $
-              Map.insert
-                bindId
-                (wrap Forall bindTargs $ wrap Fun [t | (_,t) <- bindArgs] inferredRhsTyp)
-                acc)
-          Map.empty
-          bs
+      checkBinds bs
       bs' <-
-        forM
-          bs
-          (\Bind{..} -> do
-            let d_local = Set.fromList bindTargs
-                g_local = Map.fromList bindArgs
-            (rhs', _inferredRhsTyp) <- inferWith (d_local `Set.union` d, g_local `Map.union` g) bindRhs
-            return Bind { bindId = (bindId, fromJust $ Map.lookup bindId sigs)
-                        , bindRhs = rhs'
-                        , ..
-                        })
-      (e', t) <- inferWith (d, sigs `Map.union` g) e
-      return (Let NonRec bs' e', t)
+        forM bs (\Bind{..} ->
+          do let d_local = Set.fromList bindTargs
+                 g_local = Map.fromList bindArgs
+             (rhs, inferredRhsTy) <- inferWith (d_local `Set.union` d, g_local `Map.union` g) bindRhs
+             case bindRhsAnnot of
+               Nothing -> return ()
+               Just claimedRhsTy ->
+                 unless (claimedRhsTy `alphaEqTy` inferredRhsTy) $
+                   Left Mismatch { term = bindRhs, expected = claimedRhsTy, actual = inferredRhsTy }
+             return ( bindId
+                    , wrap Forall bindTargs $ wrap Fun [t | (_,t) <- bindArgs] inferredRhsTy
+                    , wrap BLam bindTargs $ wrap Lam bindArgs rhs
+                    ))
+      let (fs, ts, _es) = unzip3 bs'
+      (e', t) <- inferWith (d, Map.fromList (zip fs ts) `Map.union` g) e
+      return (LetOut NonRec bs' e', t)
 
--- TODO: BUG: if any of A1, ..., An is in the free variables of t1, ..., tn
-{-      f A1 ... An (x1 : t1) ... (xn : tn) : t = e
-        ~> (f, /\A1. ... /\An. \(x1 : t1). ... \(xn : tn). e), t)
+    go (Let Rec bs e) = do
+      checkBinds bs
+      sigs <-
+        liftM Map.fromList $
+          forM bs (\Bind{..} ->
+            do case bindRhsAnnot of
+                 Nothing    -> Left General { msg = "Missing type annotation for the right hand side" }
+                 Just rhsTy -> return (bindId, wrap Forall bindTargs $ wrap Fun [t | (_,t) <- bindArgs] rhsTy))
+      bs' <-
+        forM bs (\Bind{..} ->
+          do let d_local = Set.fromList bindTargs
+                 g_local = Map.fromList bindArgs
+             (rhs, inferredRhsTy) <- inferWith (d_local `Set.union` d, g_local `Map.union` sigs `Map.union` g) bindRhs
+             let claimedRhsTy = fromJust bindRhsAnnot
+             unless (claimedRhsTy `alphaEqTy` inferredRhsTy) $
+               Left Mismatch { term = bindRhs, expected = claimedRhsTy, actual = inferredRhsTy }
+             return ( bindId
+                    , wrap Forall bindTargs $ wrap Fun [t | (_,t) <- bindArgs] inferredRhsTy
+                    , wrap BLam bindTargs $ wrap Lam bindArgs rhs
+                    ))
+      let (fs, ts, _es) = unzip3 bs'
+      (e', t) <- inferWith (d, Map.fromList (zip fs ts) `Map.union` g) e
+      return (LetOut Rec bs' e', t)
 
-        Provided that:
-          (1) A1, ..., An are all distinct, and
-          (2) x1, ..., xn are all distinct.     -}
-dsBind :: Bind String -> Tc (String, Expr String, Maybe Type)
-dsBind Bind{..} = do
-  checkForDup "type arguments" bindTargs
-  checkForDup "arguments"      [x | (x, _) <- bindArgs]
-  return (bindId, def, bindRhsAnnot)
-    where
-      def  = (wrap BLam bindTargs . wrap Lam bindArgs) bindRhs
+    go (LetOut{..}) = error (invariantFailed "inferWith" (show (LetOut{..} :: RdrExpr)))
 
-wrap :: (b -> a -> a) -> [b] -> a -> a
-wrap cons xs t = foldr cons t xs
+-- TODO
+checkBinds :: [Bind Name] -> Tc ()
+checkBinds bs =
+  do checkForDup "identifiers" (map bindId bs)
+     forM_ bs (\Bind{..} ->
+       do checkForDup "type arguments" bindTargs
+          checkForDup "arguments"      [x | (x, _) <- bindArgs])
 
 checkForDup :: String -> [String] -> Tc ()
 checkForDup what xs =
