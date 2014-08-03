@@ -148,6 +148,12 @@ instance Pretty id => Pretty (Expr id) where
     encloseSep empty empty (softline <> text "and" <> space) (map pretty bs) <+>
     text "in" <+>
     pretty e
+  pretty (LetOut recFlag bs e) =
+    text "let" <+> pretty recFlag <+>
+    encloseSep empty empty (softline <> text "and" <> space)
+      (map (\(f1,t1,e1) -> text f1 <+> colon <+> pretty t1 <+> equals <+> pretty e1) bs) <+>
+    text "in" <+>
+    pretty e
   pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
   pretty (JMethod e m args) = pretty e <> dot <> text m <> tupled (map pretty args)
 

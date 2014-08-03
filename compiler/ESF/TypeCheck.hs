@@ -28,12 +28,13 @@ import qualified Data.Set as Set
 type Tc = Either (TypeError Name)
 
 data TypeError e
-  = NotInScope { msg      :: String }
-  | General    { msg      :: String }
-  | Mismatch   { term     :: Expr e
-               , expected :: Type
-               , actual   :: Type
-               }
+  = NotInScope  { msg       :: String }
+  | General     { msg       :: String }
+  | NotAJVMType { className :: String }
+  | Mismatch    { term      :: Expr e
+                , expected  :: Type
+                , actual    :: Type
+                }
 
 instance Pretty e => Pretty (TypeError e) where
   pretty Mismatch{..} =
@@ -41,13 +42,15 @@ instance Pretty e => Pretty (TypeError e) where
     text "Expected type:" <+> pretty expected <$>
     text "  Actual type:" <+> pretty actual <$>
     text "In the expression:" <+> pretty term
-  pretty NotInScope{..} = text "Not in scope:" <+> string msg
-  pretty General{..}    = string msg
+  pretty NotInScope{..}  = text "Not in scope:" <+> string msg
+  pretty General{..}     = string msg
+  pretty (NotAJVMType c) = text (q c) <+> text "is not a JVM type"
 
 q :: Name -> String
 q x = "`" ++ x ++ "'"
 
 checkWellformed :: TypeContext -> Type -> Tc ()
+checkWellformed d (JClass c) = unless (isJVMType c) (Left (NotAJVMType c))
 checkWellformed d t =
   let s = freeTyVars t `Set.difference` d in
   unless (Set.null s) $
@@ -132,12 +135,18 @@ inferWith (d, g) = go
     go (If0 e1 e2 e3) = do
       (e1', t1) <- go e1
       case t1 of
-        Int -> do
-          (e2', t2) <- go e2
-          (e3', t3) <- go e3
-          if t2 `alphaEqTy` t3
-            then return (If0 e1' e2' e3', t2)
-            else Left Mismatch { term = e3, expected = t2, actual = t3 }
+        Int ->
+          do (e2', t2) <- go e2
+             (e3', t3) <- go e3
+             if t2 `alphaEqTy` t3
+               then return (If0 e1' e2' e3', t2)
+               else Left Mismatch { term = e3, expected = t2, actual = t3 }
+        JClass "java.lang.Integer" ->
+          do (e2', t2) <- go e2
+             (e3', t3) <- go e3
+             if t2 `alphaEqTy` t3
+               then return (If0 e1' e2' e3', t2)
+               else Left Mismatch { term = e3, expected = t2, actual = t3 }
         _   -> Left Mismatch { term = e1, expected = Int, actual = t1 }
 
     go (Let NonRec bs e) = do
@@ -185,6 +194,13 @@ inferWith (d, g) = go
       return (LetOut Rec bs' e', t)
 
     go (LetOut{..}) = error (invariantFailed "inferWith" (show (LetOut{..} :: RdrExpr)))
+
+    go (JNewObj c args)
+      | isJVMType c = do (args', _) <- mapAndUnzipM go args
+                         return (JNewObj c args', JClass c)
+      | otherwise   = Left (NotAJVMType c)
+
+    go (JMethod e m args) = undefined
 
 -- TODO
 checkBinds :: [Bind Name] -> Tc ()
