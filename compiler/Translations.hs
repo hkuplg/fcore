@@ -13,6 +13,7 @@ module Translations
     , compileN
     , compileAO
     , compileS
+    , compileBench
     , compilesf2java
     ) where
 
@@ -26,6 +27,7 @@ import Java.Utils      (ClassName(..), inferClassName)
 import BaseTransCFJava
 import ApplyTransCFJava
 import StackTransCFJava
+import BenchGenCF2J
 
 import Inheritance
 import MonadLib
@@ -59,6 +61,10 @@ applyopt = new (transApply $> trans)
 
 stackNaive :: (MonadState Int m, MonadReader Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => TranslateStack m
 stackNaive = new (transS $> trans)
+
+-- Benchmark-link generation
+benchGen :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => BenchGenTranslate m
+benchGen = new (transBench $> trans)
 
 -- Stack/Apply translation
 
@@ -206,3 +212,11 @@ translateS = createWrap (up stackinst)
 compileS :: Compilation
 compileS name e = fst $ runWriter $ evalStateT (evalStateT (evalStateT (runReaderT (translateS name (fexp2cexp e)) False) 0) Map.empty) Set.empty
 
+benchinst :: BenchGenTranslate NType  -- instantiation; all coinstraints resolved
+benchinst = benchGen
+
+translateBench :: String -> PCExp Int (Var, PCTyp Int) -> NType (J.CompilationUnit, PCTyp Int)
+translateBench = createWrap (up benchinst)
+
+compileBench :: Compilation
+compileBench name e = evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty

@@ -30,7 +30,7 @@ data Options = Options
     , optTransMethod   :: TransMethod
     } deriving (Eq, Show, Data, Typeable)
 
-data TransMethod = Naive | ApplyOpt | Stack deriving (Eq, Show, Data, Typeable)
+data TransMethod = Naive | ApplyOpt | Stack | Bench deriving (Eq, Show, Data, Typeable)
 
 optionsSpec :: Options
 optionsSpec = Options
@@ -78,7 +78,8 @@ main = do
             compilesf2java
               (case method of Naive    -> compileN
                               ApplyOpt -> compileAO
-                              Stack    -> compileS)
+                              Stack    -> compileS
+                              Bench    -> compileBench)
               srcPath outputPath
 
         when (optCompile || optCompileAndRun) $ withMessageLn "  Compiling Java" $ compileJava outputPath
