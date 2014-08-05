@@ -156,10 +156,7 @@ getS3 t j3 genApply genRes cvarass  =
      return (r, var (tempvarstr ++ show n)) 
 
 getCvarAss t f n j1 j2 = do
-                   --(env :: Map.Map J.Exp Int) <- get
-                   --let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
-                   --                                       Just no -> var (tempvarstr ++ show no)
-                   let nje1 = J.Cast closureType j1
+                   let nje1 = j1
                    (usedCl :: Set.Set J.Exp) <- get                                       
                    maybeCloned <- case t of
                                                Body _ ->
@@ -170,8 +167,6 @@ getCvarAss t f n j1 j2 = do
                                                    else do
                                                         put (Set.insert nje1 usedCl)
                                                         return nje1
-                   --let nje2 = case (Map.lookup j2 env) of Nothing -> j2
-                   --                                       Just no -> var (tempvarstr ++ show no)
                    let nje2 = j2                   
 
                    let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])
