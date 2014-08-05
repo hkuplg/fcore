@@ -198,7 +198,7 @@ compileN name e = evalState (evalStateT (evalStateT (translateN name (fexp2cexp 
 
 type StackType = ReaderT Bool (StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool))))
 stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
-stackinst = stackNaive
+stackinst = stackApply--stackNaive
 
 translateS :: String -> PCExp Int (Var, PCTyp Int) -> StackType (J.CompilationUnit, PCTyp Int)
 translateS = createWrap (up stackinst)
