@@ -142,18 +142,22 @@ genSubst j1 initFun = x
                     case j1 of J.Lit e -> return ([], j1)
                                J.ExpName _ -> return ([], j1)
                                    --FieldAccess (PrimaryFieldAccess...  or J.ExpName
-                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (tempvarstr ++ show e))
+                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (tempvarstr ++ show e) {- j1 -})
                                                                  Nothing -> do (n :: Int) <- get
                                                                                put (n+1)
                                                                                let temp1 = var (tempvarstr ++ show n)
                                                                                put (Map.insert j1 n env1)
                                                                                let defV1 = initFun tempvarstr n j1
-                                                                               return ([defV1], temp1)
-
+                                                                               return  {-([],j1)-} ([defV1], temp1 {- j1 -})
 chooseCastBox CInt            = (initIntCast,boxedIntType)
 chooseCastBox (CForall _)     = (initClosure,closureType)
 chooseCastBox (CTupleType _)  = (initObjArray,objArrayType)
 chooseCastBox _               = (initObj,objType)
+
+chooseCast CInt            = boxedIntType
+chooseCast (CForall _)     = closureType
+chooseCast (CTupleType _)  = objArrayType
+chooseCast _               = objType
 
 getS3 t j3 genApply genRes cvarass  =
   do (n :: Int) <- get
@@ -166,9 +170,10 @@ getS3 t j3 genApply genRes cvarass  =
      return (r, var (tempvarstr ++ show n)) 
 
 getCvarAss t f n j1 j2 = do
-                   (env :: Map.Map J.Exp Int) <- get
-                   let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
-                                                          Just no -> var (tempvarstr ++ show no)
+                   --(env :: Map.Map J.Exp Int) <- get
+                   --let nje1 = case (Map.lookup j1 env) of Nothing -> J.Cast closureType j1
+                   --                                       Just no -> var (tempvarstr ++ show no)
+                   let nje1 = J.Cast closureType j1
                    (usedCl :: Set.Set J.Exp) <- get                                       
                    maybeCloned <- case t of
                                                Body _ ->
@@ -179,9 +184,10 @@ getCvarAss t f n j1 j2 = do
                                                    else do
                                                         put (Set.insert nje1 usedCl)
                                                         return nje1
-                   let nje2 = case (Map.lookup j2 env) of Nothing -> j2
-                                                          Just no -> var (tempvarstr ++ show no)
-        
+                   --let nje2 = case (Map.lookup j2 env) of Nothing -> j2
+                   --                                       Just no -> var (tempvarstr ++ show no)
+                   let nje2 = j2                   
+
                    let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])
                    let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) )
                    return [cvar, ass]                                                     
@@ -197,33 +203,40 @@ genIfBody this e2 e3 j1 s1 n = do
 
 --(J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA
 
-assignVar n e = J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "n"])) J.EqualA e)
+assignVar n e t = J.LocalVars [] (J.RefType (refType "String")) [J.VarDecl (J.VarId $ J.Ident ("x" ++ show n)) (Just (J.InitExp e))]
 
 trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of
      CVar (Left i,t) ->
         do (n :: Int) <- get
-           put (n+1)    
-           return ([],J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr), t)
+           put (n+1)  
+           let (f,c) = chooseCastBox t  
+           let je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr)
+           return ([f "x" n je],  {-var ("x" ++ show n)-} J.Cast c $ je , t) -- redundant statement for now
 
      CVar (Right i, t) ->
        do return ([],var (localvarstr ++ show i), t)
 
      CFLit e    ->
-       return ([],J.Lit $ J.Int e, CInt)
+       return ([],J.Lit $ J.Int e, CInt) 
 
      CFPrimOp e1 op e2 ->
-       do  (s1,j1,t1) <- translateM this e1
+       do  --(n :: Int) <- get
+           --put (n+1)
+           (s1,j1,t1) <- translateM this e1
            (s3, jf1) <- genSubst j1 initIntCast
            (s2,j2,t2) <- translateM this e2
            (s4, jf2) <- genSubst j2 initIntCast
-           return (s1 ++ s2 ++ s3 ++ s4, J.BinOp jf1 op jf2, t1)
+           let je = J.BinOp j1 op j2 
+           --let (f,_) = chooseCastBox t1
+           return (s1 ++ s2 ++ s3 ++ s4 {-++ [f "x" n je]-}, J.BinOp jf1 op jf2 {- var ("x" ++ show n) -}, t1)  -- type being returned will be wrong for operators like "<"
 
      CFIf0 e1 e2 e3 ->
         do  n <- get
             put (n+1)
-            (s1,j1,t1) <- translateM this (CFPrimOp e1 J.Equal (CFLit 0))
+            (s1,j1,t1) <- {-translateM this e1-} translateM this (CFPrimOp e1 J.Equal (CFLit 0)) 
+            --let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
             genIfBody this e2 e3 j1 s1 n
 
      CFTuple tuple ->
@@ -231,11 +244,12 @@ trans self = let this = up self in T {
 
      CFProj i e ->
        do (s1,j1,t) <- translateM this e
-          (s2, j2) <- genSubst j1 initObjArray
-          let fj = J.ArrayAccess (J.ArrayIndex j2 (J.Lit (J.Int $ toInteger i)))
+          -- (s2, j2) <- genSubst j1 initObjArray  
+          let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger i))) -- this is not type correct, right?
           let ft = case t of CTupleType ts -> ts!!i
                              _ -> error "expected tuple type"
-          return (s1 ++ s2, fj, ft)
+          let c = chooseCast ft
+          return (s1 {-++ s2-}, J.Cast c $ fj, ft)
 
      CTApp e t ->
        do  n <- get
@@ -286,9 +300,10 @@ trans self = let this = up self in T {
             let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
             put n'
             (s,je,t1) <- translateScopeM this (g (Left v,t)) Nothing
-            (env :: Map.Map J.Exp Int) <- get
-            let nje = case (Map.lookup je env) of Nothing -> je
-                                                  Just no -> var (tempvarstr ++ show no)
+            --(env :: Map.Map J.Exp Int) <- get
+            --let nje = case (Map.lookup je env) of Nothing -> je
+            --                                      Just no -> var (tempvarstr ++ show no)
+            let nje = je
             let cvar = standardTranslation nje s v n
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
 
