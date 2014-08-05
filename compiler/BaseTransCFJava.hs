@@ -213,7 +213,7 @@ trans self = let this = up self in T {
            put (n+1)  
            let (f,c) = chooseCastBox t  
            let je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr)
-           return ([f "x" n je],  {-var ("x" ++ show n)-} J.Cast c $ je , t) -- redundant statement for now
+           return ([f "x" n je], {- var ("x" ++ show n) -} J.Cast c $ je, t) -- redundant statement for now
 
      CVar (Right i, t) ->
        do return ([],var (localvarstr ++ show i), t)
@@ -225,19 +225,20 @@ trans self = let this = up self in T {
        do  --(n :: Int) <- get
            --put (n+1)
            (s1,j1,t1) <- translateM this e1
-           (s3, jf1) <- genSubst j1 initIntCast
+           (s3, jf1) <- genSubst j1 initIntCast 
            (s2,j2,t2) <- translateM this e2
-           (s4, jf2) <- genSubst j2 initIntCast
+           -- (s4, jf2) <- genSubst j2 initIntCast
            let je = J.BinOp j1 op j2 
            --let (f,_) = chooseCastBox t1
-           return (s1 ++ s2 ++ s3 ++ s4 {-++ [f "x" n je]-}, J.BinOp jf1 op jf2 {- var ("x" ++ show n) -}, t1)  -- type being returned will be wrong for operators like "<"
+           return (s1 ++ s2 ++ s3 {-++ s4 -} {-++ [f "x" n je]-}, J.BinOp jf1 op j2 {- var ("x" ++ show n) -}, t1)  -- type being returned will be wrong for operators like "<"
 
      CFIf0 e1 e2 e3 ->
         do  n <- get
             put (n+1)
-            (s1,j1,t1) <- {-translateM this e1-} translateM this (CFPrimOp e1 J.Equal (CFLit 0)) 
-            --let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
-            genIfBody this e2 e3 j1 s1 n
+            (s1,j1,t1) <- {- translateM this e1 -} translateM this (CFPrimOp e1 J.Equal (CFLit 0))
+            --(s2, jf1) <- genSubst j1 initIntCast 
+            --let j1' = J.BinOp jf1 J.Equal (J.Lit (J.Int 0))
+            genIfBody this e2 e3 j1 (s1) n
 
      CFTuple tuple ->
        liftM reduceTTuples $ mapM (translateM this) tuple
