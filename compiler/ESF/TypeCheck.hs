@@ -150,7 +150,7 @@ inferWith (d, g) = go
         _   -> Left Mismatch { term = e1, expected = Int, actual = t1 }
 
     go (Let NonRec bs e) = do
-      checkBinds bs
+      checkBinds d bs
       bs' <-
         forM bs (\Bind{..} ->
           do let d_local = Set.fromList bindTargs
@@ -170,13 +170,13 @@ inferWith (d, g) = go
       return (LetOut NonRec bs' e', t)
 
     go (Let Rec bs e) = do
-      checkBinds bs
+      checkBinds d bs
       sigs <-
         liftM Map.fromList $
           forM bs (\Bind{..} ->
-            do case bindRhsAnnot of
-                 Nothing    -> Left General { msg = "Missing type annotation for the right hand side" }
-                 Just rhsTy -> return (bindId, wrap Forall bindTargs $ wrap Fun [t | (_,t) <- bindArgs] rhsTy))
+            case bindRhsAnnot of
+              Nothing    -> Left General { msg = "Missing type annotation for the right hand side" }
+              Just rhsTy -> return (bindId, wrap Forall bindTargs $ wrap Fun [t | (_,t) <- bindArgs] rhsTy))
       bs' <-
         forM bs (\Bind{..} ->
           do let d_local = Set.fromList bindTargs
@@ -202,13 +202,15 @@ inferWith (d, g) = go
 
     go (JMethod e m args) = undefined
 
--- TODO
-checkBinds :: [Bind Name] -> Tc ()
-checkBinds bs =
+checkBinds :: TypeContext -> [Bind Name] -> Tc ()
+checkBinds d bs =
   do checkForDup "identifiers" (map bindId bs)
      forM_ bs (\Bind{..} ->
        do checkForDup "type arguments" bindTargs
-          checkForDup "arguments"      [x | (x, _) <- bindArgs])
+          checkForDup "arguments"      [x | (x, _) <- bindArgs]
+          forM_ bindArgs (\(_,t) ->
+            do let d' = Set.fromList bindTargs `Set.union` d
+               checkWellformed d' t))
 
 checkForDup :: String -> [String] -> Tc ()
 checkForDup what xs =
