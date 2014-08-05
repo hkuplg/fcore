@@ -142,13 +142,13 @@ genSubst j1 initFun = x
                     case j1 of J.Lit e -> return ([], j1)
                                J.ExpName _ -> return ([], j1)
                                    --FieldAccess (PrimaryFieldAccess...  or J.ExpName
-                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (tempvarstr ++ show e) {- j1 -})
+                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (tempvarstr ++ show e) )
                                                                  Nothing -> do (n :: Int) <- get
                                                                                put (n+1)
                                                                                let temp1 = var (tempvarstr ++ show n)
                                                                                put (Map.insert j1 n env1)
                                                                                let defV1 = initFun tempvarstr n j1
-                                                                               return  {-([],j1)-} ([defV1], temp1 {- j1 -})
+                                                                               return  ([defV1],j1) {- ([defV1], temp1 ) -}
 chooseCastBox CInt            = (initIntCast,boxedIntType)
 chooseCastBox (CForall _)     = (initClosure,closureType)
 chooseCastBox (CTupleType _)  = (initObjArray,objArrayType)
@@ -225,7 +225,7 @@ trans self = let this = up self in T {
        do  --(n :: Int) <- get
            --put (n+1)
            (s1,j1,t1) <- translateM this e1
-           (s3, jf1) <- genSubst j1 initIntCast 
+           (s3, jf1) <- genSubst j1 initIntCast -- only point where we depend on Map for correct behaviour! 
            (s2,j2,t2) <- translateM this e2
            -- (s4, jf2) <- genSubst j2 initIntCast
            let je = J.BinOp j1 op j2 
@@ -237,8 +237,8 @@ trans self = let this = up self in T {
             put (n+1)
             (s1,j1,t1) <- {- translateM this e1 -} translateM this (CFPrimOp e1 J.Equal (CFLit 0))
             --(s2, jf1) <- genSubst j1 initIntCast 
-            --let j1' = J.BinOp jf1 J.Equal (J.Lit (J.Int 0))
-            genIfBody this e2 e3 j1 (s1) n
+            let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
+            genIfBody this e2 e3 j1 s1 n
 
      CFTuple tuple ->
        liftM reduceTTuples $ mapM (translateM this) tuple
