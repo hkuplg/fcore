@@ -79,7 +79,7 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
         arrayAssignment = J.ArrayCreateInit (objType) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
         tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
 
-initStuff tempvarstr n j t = J.LocalVars [] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just (exp))])
+initStuff tempvarstr n j t = J.LocalVars [] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just exp)])
     where
         exp | t == objType = J.InitExp j
             | otherwise = J.InitExp $ J.Cast t j
@@ -142,7 +142,7 @@ genSubst j1 initFun = x
                     case j1 of J.Lit e -> return ([], j1)
                                J.ExpName _ -> return ([], j1)
                                    --FieldAccess (PrimaryFieldAccess...  or J.ExpName
-                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (tempvarstr ++ show e) )
+                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (tempvarstr ++ show e) {-j1-} )
                                                                  Nothing -> do (n :: Int) <- get
                                                                                put (n+1)
                                                                                let temp1 = var (tempvarstr ++ show n)
@@ -205,15 +205,15 @@ genIfBody this e2 e3 j1 s1 n = do
 
 assignVar n e t = J.LocalVars [] (J.RefType (refType "String")) [J.VarDecl (J.VarId $ J.Ident ("x" ++ show n)) (Just (J.InitExp e))]
 
-trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m, selfType :< Translate m) => Base selfType (Translate m)
+trans :: (MonadState Int m, MonadState (Set.Set J.Exp) m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of
      CVar (Left i,t) ->
         do (n :: Int) <- get
            put (n+1)  
-           let (f,c) = chooseCastBox t  
+           --let (f,c) = chooseCastBox t  
            let je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr)
-           return ([f "x" n je], {- var ("x" ++ show n) -} J.Cast c $ je, t) -- redundant statement for now
+           return ([{-f "x" n je-}], {-var (localvarstr ++ show n)-} J.Cast (chooseCast t) $ je , t) -- redundant statement for now
 
      CVar (Right i, t) ->
        do return ([],var (localvarstr ++ show i), t)
@@ -222,35 +222,31 @@ trans self = let this = up self in T {
        return ([],J.Lit $ J.Int e, CInt) 
 
      CFPrimOp e1 op e2 ->
-       do  --(n :: Int) <- get
-           --put (n+1)
+       do  (n :: Int) <- get
+           put (n+1)
            (s1,j1,t1) <- translateM this e1
-           (s3, jf1) <- genSubst j1 initIntCast -- only point where we depend on Map for correct behaviour! 
            (s2,j2,t2) <- translateM this e2
-           -- (s4, jf2) <- genSubst j2 initIntCast
            let je = J.BinOp j1 op j2 
-           --let (f,_) = chooseCastBox t1
-           return (s1 ++ s2 ++ s3 {-++ s4 -} {-++ [f "x" n je]-}, J.BinOp jf1 op j2 {- var ("x" ++ show n) -}, t1)  -- type being returned will be wrong for operators like "<"
+           let (f,_) = chooseCastBox t1 -- redundant cast! Just need to assign the variable.
+           return (s1 ++ s2 ++ [f "x" n je], var (localvarstr ++ show n), t1)  -- type being returned will be wrong for operators like "<"
 
      CFIf0 e1 e2 e3 ->
         do  n <- get
             put (n+1)
-            (s1,j1,t1) <- {- translateM this e1 -} translateM this (CFPrimOp e1 J.Equal (CFLit 0))
-            --(s2, jf1) <- genSubst j1 initIntCast 
+            (s1,j1,t1) <- translateM this e1
             let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
-            genIfBody this e2 e3 j1 s1 n
+            genIfBody this e2 e3 j1' s1 n
 
      CFTuple tuple ->
        liftM reduceTTuples $ mapM (translateM this) tuple
 
      CFProj i e ->
        do (s1,j1,t) <- translateM this e
-          -- (s2, j2) <- genSubst j1 initObjArray  
-          let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger i))) -- this is not type correct, right?
+          let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger i))) 
           let ft = case t of CTupleType ts -> ts!!i
                              _ -> error "expected tuple type"
           let c = chooseCast ft
-          return (s1 {-++ s2-}, J.Cast c $ fj, ft)
+          return (s1, J.Cast c $ fj, ft)
 
      CTApp e t ->
        do  n <- get
@@ -291,7 +287,7 @@ trans self = let this = up self in T {
 
       Kind f ->
         do  n <- get
-            --put (n+1) -- needed?
+            put (n+1) -- needed?
             (s,je,t1) <- translateScopeM this (f n) m
             return (s,je, Kind (\a -> substScope n (CTVar a) t1))
 
@@ -301,9 +297,6 @@ trans self = let this = up self in T {
             let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
             put n'
             (s,je,t1) <- translateScopeM this (g (Left v,t)) Nothing
-            --(env :: Map.Map J.Exp Int) <- get
-            --let nje = case (Map.lookup je env) of Nothing -> je
-            --                                      Just no -> var (tempvarstr ++ show no)
             let nje = je
             let cvar = standardTranslation nje s v n
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
@@ -312,9 +305,7 @@ trans self = let this = up self in T {
         do (bs,e,t) <- translateM this exp
            let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
-           let maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
-                                                _ -> J.Cast objType e
-           let classDecl = getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) returnType mainbody
+           let classDecl = getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) returnType mainbody
            return (createCUB [classDecl], t)
 
     }

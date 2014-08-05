@@ -75,7 +75,7 @@ stackbody t =
 nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.ClassBody [J.MemberDecl (J.FieldDecl
         [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))
 
-transS :: (MonadState Int m, MonadReader Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transS :: (MonadState Int m, MonadReader Bool m, MonadState (Set.Set J.Exp) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {
   toTS = T {  translateM = \e -> case e of
        CLam s -> local (&& False) $ translateM super e
@@ -87,9 +87,9 @@ transS this super = TS {
        CFIf0 e1 e2 e3 ->
                 do  n <- get
                     put (n+1)
-                    --(genApplys :: Bool) <- ask --state before
-                    (s1,j1,t1) <- local (|| True) $ translateM (up this) (CFPrimOp e1 J.Equal (CFLit 0))
-                    genIfBody (up this) e2 e3 j1 s1 n
+                    (s1,j1,t1) <- local (|| True) $ translateM (up this) e1
+                    let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
+                    genIfBody (up this) e2 e3 j1' s1 n
 
        CApp e1 e2 ->
                do  (n :: Int) <- get
