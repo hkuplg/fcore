@@ -135,20 +135,6 @@ instance Monoid Bool where
     mempty = False
     mappend a b = a
 
-genSubst :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m) => J.Exp -> ([Char] -> Int -> J.Exp -> J.BlockStmt) -> m ([J.BlockStmt], J.Exp)
-genSubst j1 initFun = x
-         where
-             x = do (env1 :: Map.Map J.Exp Int) <- get
-                    case j1 of J.Lit e -> return ([], j1)
-                               J.ExpName _ -> return ([], j1)
-                                   --FieldAccess (PrimaryFieldAccess...  or J.ExpName
-                               _ -> case (Map.lookup j1 env1) of Just e -> return ([], var (tempvarstr ++ show e) {-j1-} )
-                                                                 Nothing -> do (n :: Int) <- get
-                                                                               put (n+1)
-                                                                               let temp1 = var (tempvarstr ++ show n)
-                                                                               put (Map.insert j1 n env1)
-                                                                               let defV1 = initFun tempvarstr n j1
-                                                                               return  ([defV1],j1) {- ([defV1], temp1 ) -}
 chooseCastBox CInt            = (initIntCast,boxedIntType)
 chooseCastBox (CForall _)     = (initClosure,closureType)
 chooseCastBox (CTupleType _)  = (initObjArray,objArrayType)
