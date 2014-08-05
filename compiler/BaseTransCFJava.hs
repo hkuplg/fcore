@@ -123,11 +123,11 @@ standardTranslation javaExpression statementsBeforeOA currentId nextId = [(J.Loc
 data Translate m = T {
   translateM ::
      PCExp Int (Var, PCTyp Int) ->
-     m ([J.BlockStmt], J.Exp, PCTyp Int),
+     m ([J.BlockStmt], J.Exp {-Int-}, PCTyp Int),
   translateScopeM ::
     Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) ->
     Maybe (Int,PCTyp Int) ->
-    m ([J.BlockStmt], J.Exp, TScope Int),
+    m ([J.BlockStmt], J.Exp {-Int-}, TScope Int),
   createWrap :: String -> PCExp Int (Var, PCTyp Int) -> m (J.CompilationUnit, PCTyp Int)
   }
 
@@ -195,12 +195,17 @@ genIfBody this e2 e3 j1 s1 n = do
             let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
             return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)  -- need to check t2 == t3   
 
+--(J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA
+
+assignVar n e = J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "n"])) J.EqualA e)
+
 trans :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of
      CVar (Left i,t) ->
-     
-        do return ([],J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr), t)
+        do (n :: Int) <- get
+           put (n+1)    
+           return ([],J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr), t)
 
      CVar (Right i, t) ->
        do return ([],var (localvarstr ++ show i), t)
