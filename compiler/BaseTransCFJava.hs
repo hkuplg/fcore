@@ -115,10 +115,13 @@ jexp init body idCF =
 
 currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
 outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-standardTranslation javaExpression statementsBeforeOA currentId nextId = [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
-                                        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
-                                        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId))),
-                                        J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
+standardTranslation javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId = 
+   let (f,_) = chooseCastBox currentTyp
+       je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show currentId])) (J.Ident localvarstr)
+   in [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
+        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
+        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block ([f localvarstr freshVar je] ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId))),
+        J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
 
 data Translate m = T {
   translateM ::
@@ -158,7 +161,7 @@ getS3 t j3 genApply genRes cvarass  =
 getCvarAss t f n j1 j2 = do
                    let nje1 = j1
                    (usedCl :: Set.Set J.Exp) <- get                                       
-                   maybeCloned <- case t of
+                   maybeCloned <-  case t of
                                                Body _ ->
                                                    return nje1
                                                _ ->
@@ -190,11 +193,11 @@ trans :: (MonadState Int m, MonadState (Set.Set J.Exp) m, selfType :< Translate 
 trans self = let this = up self in T {
   translateM = \e -> case e of
      CVar (Left i,t) ->
-        do (n :: Int) <- get
-           put (n+1)  
+        do --(n :: Int) <- get
+           --put (n+1)  
            --let (f,c) = chooseCastBox t  
-           let je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr)
-           return ([{-f "x" n je-}], {-var (localvarstr ++ show n)-} J.Cast (chooseCast t) $ je , t) -- redundant statement for now
+           --let je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr)
+           return ([{-f localvarstr n je-}], var (localvarstr ++ show i) {- J.Cast (chooseCast t) $ je -}, t) -- redundant statement for now
 
      CVar (Right i, t) ->
        do return ([],var (localvarstr ++ show i), t)
@@ -209,7 +212,7 @@ trans self = let this = up self in T {
            (s2,j2,t2) <- translateM this e2
            let je = J.BinOp j1 op j2 
            let (f,_) = chooseCastBox t1 -- redundant cast! Just need to assign the variable.
-           return (s1 ++ s2 ++ [f "x" n je], var (localvarstr ++ show n), t1)  -- type being returned will be wrong for operators like "<"
+           return (s1 ++ s2 ++ [f localvarstr n je], var (localvarstr ++ show n), t1)  -- type being returned will be wrong for operators like "<"
 
      CFIf0 e1 e2 e3 ->
         do  n <- get
@@ -276,10 +279,10 @@ trans self = let this = up self in T {
         do  n <- get
             let f       = J.Ident (localvarstr ++ show n) -- use a fresh variable
             let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
-            put n'
-            (s,je,t1) <- translateScopeM this (g (Left v,t)) Nothing
+            put (n' + 1)
+            (s,je,t1) <- translateScopeM this (g (Left n',t)) Nothing
             let nje = je
-            let cvar = standardTranslation nje s v n
+            let cvar = standardTranslation nje s (v,t) n' n
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
 
   createWrap = \name exp ->
