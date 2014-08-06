@@ -7,7 +7,7 @@ module ESF.Lexer
     ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
-import JVMTypeQuery
+
 }
 
 %wrapper "posn"
