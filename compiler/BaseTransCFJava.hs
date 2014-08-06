@@ -196,7 +196,7 @@ trans self = let this = up self in T {
             let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
             genIfBody this e2 e3 j1' s1 n
      
-     -- A simple optimization for tuples of size 1      
+     -- A simple optimization for tuples of size 1  (DOES NOT NEED TO BE FORMALIZED)    
      CFTuple [e] -> 
        do  (s1,j1,t1) <- translateM this e
            return (s1,j1,CTupleType [t1])
@@ -208,7 +208,7 @@ trans self = let this = up self in T {
      CFProj i e ->
        do (s1,j1,t) <- translateM this e
           case t of 
-             -- A simple optimization for tuples of size 1
+             -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)
              CTupleType [t] -> return (s1,j1,t)
              -- otherwise: (not optimized)
              CTupleType ts  -> 
