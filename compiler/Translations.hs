@@ -40,6 +40,8 @@ import qualified Data.Set as Set
 
 import Prelude hiding (exp)
 
+import Control.Monad.Trans.Except (runExceptT)
+
 -- import Debug.Trace      (trace)
 
 -- Naive translation
@@ -152,21 +154,21 @@ prettyJ = putStrLn . prettyPrint
 -- compileCU className e Nothing = let (cu,t) = createCU className (compile e) Nothing in (prettyJ cu >> print t)
 
 -- SystemF to Java
-sf2java :: Compilation -> ClassName -> String -> String
+sf2java :: Compilation -> ClassName -> String -> IO String
 sf2java compilation (ClassName className) src =
-  let expr = ESF.Parser.reader src in
-  case ESF.TypeCheck.infer expr of
-    Left typeError         -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
-    Right (tcExpr, _t) ->
-      -- trace ("\n\n" ++ show tcExpr ++ "\n\n") $
-      let sf = desugarTcExpr tcExpr in
-      let (cu, _) = compilation className sf in
-      prettyPrint cu
+  do let expr = ESF.Parser.reader src
+     result <- runExceptT $ ESF.TypeCheck.infer expr
+     case result of
+       Left typeError       -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
+       Right (tcExpr, _t)   -> 
+         do let sf = desugarTcExpr tcExpr
+            let (cu, _) = compilation className sf
+            return $ prettyPrint cu
 
 compilesf2java :: Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java compilation srcPath outputPath = do
     src <- readFile srcPath
-    let output = sf2java compilation (ClassName (inferClassName outputPath)) src
+    output <- sf2java compilation (ClassName (inferClassName outputPath)) src
     writeFile outputPath output
 
 type Compilation = String -> PFExp Int (Var, PCTyp Int) -> (J.CompilationUnit, PCTyp Int)--PFExp Int (Var, PCTyp Int) -> (J.Block, J.Exp, PCTyp Int)
