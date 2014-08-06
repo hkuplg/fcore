@@ -6,8 +6,6 @@ import Prelude hiding (init, last)
 
 -- import Control.Monad.State
 -- import Control.Monad.Writer
-import qualified Data.Map as Map
-import qualified Data.Set as Set
 import qualified Language.Java.Syntax as J
 import ClosureF
 -- import Mixins
@@ -53,8 +51,10 @@ field name = J.MemberDecl (J.FieldDecl [] (objType) [
 
 app mod b rt en args = J.MemberDecl (J.MethodDecl mod [] (rt) (J.Ident en) args [] (J.MethodBody b))
 
+{-
 closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
-               J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [],app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
+               J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [] {-,app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []-}]))
+-}
 
 applyCall = J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident "apply"]) [])))
 
@@ -64,8 +64,8 @@ mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "St
 mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("apply" ++ "()")]])))])
 
-createCUB compDef = cu where
-   cu = J.CompilationUnit Nothing [] ([closureClass] ++ compDef)
+createCUB this compDef = cu where
+   cu = J.CompilationUnit Nothing [] ([closureClass this] ++ compDef)
 
 getClassDecl className bs ass returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
     (J.ClassBody [app [J.Static] body returnType "apply" [], app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
@@ -100,11 +100,10 @@ last (Body _)  = True
 
 instCreat i = J.InstanceCreation [] (J.ClassType [(J.Ident ("Fun" ++ show i),[])]) [] Nothing
 
-jexp init body idCF =
-       J.ClassBody (init ++  [
-          J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body)),
-          J.MemberDecl (J.MethodDecl [J.Public] [] (Just closureType) (J.Ident "clone") [] [] (J.MethodBody cloneBody))
-       ])
+jexp init body idCF generateClone =
+       J.ClassBody (init ++  [J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body))] ++
+          (if generateClone then [J.MemberDecl (J.MethodDecl [J.Public] [] (Just closureType) (J.Ident "clone") [] [] (J.MethodBody cloneBody))] else [])
+       )
         where
             cloneBody = Just (J.Block [J.LocalVars [] (closureType) [J.VarDecl (J.VarId (J.Ident "c"))
                 (Just $ J.InitExp $ instCreat idCF)],J.BlockStmt
@@ -115,12 +114,12 @@ jexp init body idCF =
 
 currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
 outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-standardTranslation javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId = 
+standardTranslation javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId generateClone = 
    let (f,_) = chooseCastBox currentTyp
        je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show currentId])) (J.Ident localvarstr)
    in [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
         (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
-        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block ([f localvarstr freshVar je] ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId))),
+        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block ([f localvarstr freshVar je] ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId generateClone))),
         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
 
 data Translate m = T {
@@ -131,7 +130,8 @@ data Translate m = T {
     Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) ->
     Maybe (Int,PCTyp Int) ->
     m ([J.BlockStmt], J.Exp {-Int-}, TScope Int),
-  createWrap :: String -> PCExp Int (Var, PCTyp Int) -> m (J.CompilationUnit, PCTyp Int)
+  createWrap :: String -> PCExp Int (Var, PCTyp Int) -> m (J.CompilationUnit, PCTyp Int),
+  closureClass :: J.TypeDecl
   }
 
 instance Monoid Bool where
@@ -157,25 +157,7 @@ getS3 t j3 genApply genRes cvarass  =
      let apply = genApply (var (tempvarstr ++ show n)) typ
      let rest = genRes [cast tempvarstr n j3]                                                           
      let r = cvarass ++ apply ++ rest
-     return (r, var (tempvarstr ++ show n)) 
-
-getCvarAss t f n j1 j2 = do
-                   let nje1 = j1
-                   (usedCl :: Set.Set J.Exp) <- get                                       
-                   maybeCloned <-  case t of
-                                               Body _ ->
-                                                   return nje1
-                                               _ ->
-                                                   if (Set.member nje1 usedCl) then 
-                                                        return $ J.MethodInv (J.PrimaryMethodCall (nje1) [] (J.Ident "clone") [])
-                                                   else do
-                                                        put (Set.insert nje1 usedCl)
-                                                        return nje1
-                   let nje2 = j2                   
-
-                   let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])
-                   let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA nje2) )
-                   return [cvar, ass]                                                     
+     return (r, var (tempvarstr ++ show n))   
 
 genIfBody this e2 e3 j1 s1 n = do 
             (s2,j2,t2) <- translateM this e2
@@ -190,7 +172,7 @@ genIfBody this e2 e3 j1 s1 n = do
 
 assignVar n e t = J.LocalVars [] (chooseCast t) [J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show n)) (Just (J.InitExp e))]
 
-trans :: (MonadState Int m, MonadState (Set.Set J.Exp) m, selfType :< Translate m) => Base selfType (Translate m)
+trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of
      CVar (i, t) ->
@@ -205,7 +187,6 @@ trans self = let this = up self in T {
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            let je = J.BinOp j1 op j2 
-           -- let (f,_) = chooseCastBox t1 -- redundant cast! Just need to assign the variable.
            return (s1 ++ s2 ++ [assignVar n je CInt], var (localvarstr ++ show n), CInt)  -- type being returned will be wrong for operators like "<"
 
      CFIf0 e1 e2 e3 ->
@@ -258,7 +239,9 @@ trans self = let this = up self in T {
            (s2,j2,t2) <- translateM this e2
            let t    = g ()
            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-           cvarass <- getCvarAss t f n j1 j2
+           --cvarass <- getCvarAss t f n j1 j2
+           let cvarass = [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
+                           J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )]                                         
            let genApply = \x y -> [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))]
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
            (s3, nje3) <- getS3 t j3 genApply id cvarass
@@ -284,7 +267,7 @@ trans self = let this = up self in T {
             put (n' + 1)
             (s,je,t1) <- translateScopeM this (g (n',t)) Nothing
             let nje = je
-            let cvar = standardTranslation nje s (v,t) n' n
+            let cvar = standardTranslation nje s (v,t) n' n False -- do not generate clone method
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
 
   createWrap = \name exp ->
@@ -292,6 +275,9 @@ trans self = let this = up self in T {
            let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
            let classDecl = getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) returnType mainbody
-           return (createCUB [classDecl], t)
+           return (createCUB this [classDecl], t),
+   
+  closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
+                 J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [] {-,app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []-}]))
 
     }

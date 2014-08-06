@@ -75,7 +75,7 @@ stackbody t =
 nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.ClassBody [J.MemberDecl (J.FieldDecl
         [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))
 
-transS :: (MonadState Int m, MonadReader Bool m, MonadState (Set.Set J.Exp) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transS :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {
   toTS = T {  translateM = \e -> case e of
        CLam s -> local (&& False) $ translateM super e
@@ -99,7 +99,9 @@ transS this super = TS {
                    (s2,j2,t2) <-  local (|| True) $ translateM (up this) e2
                    let t    = g ()
                    let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-                   cvarass <- getCvarAss t f n j1 j2
+                   -- cvarass <- getCvarAss t f n j1 j2
+                   let cvarass = [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
+                           J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )]                                    
                    let genApply = \x jType -> case x of J.ExpName (J.Name [h]) -> if genApplys then 
                                                                 (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
                                                                 else (nextApply (J.ExpName (J.Name [f])) h jType)
@@ -117,5 +119,7 @@ transS this super = TS {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
            let stackDecl = getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) Nothing (Just $ J.Block $ stackbody t)
-           return (createCUB  [nextClass,stackDecl], t)             
+           return (createCUB  super [nextClass,stackDecl], t),
+
+  closureClass = closureClass super             
   }}

@@ -5,13 +5,13 @@ module ApplyTransCFJava where
 
 import Prelude hiding (init, last)
 
-import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import qualified Language.Java.Syntax as J
 import ClosureF
 -- import Mixins
 import Inheritance
-import BaseTransCFJava
+import BaseTransCFJava 
 import StringPrefixes
 import MonadLib
 
@@ -22,6 +22,23 @@ instance (:<) (ApplyOptTranslate m) (Translate m) where
 
 instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where --reflexivity
    up              = id
+
+-- To be used if we decide to implement full applyOpt
+getCvarAss t f n j1 j2 = do
+                   (usedCl :: Set.Set J.Exp) <- get                                       
+                   maybeCloned <-  case t of
+                                               Body _ ->
+                                                   return j1
+                                               _ ->
+                                                   if (Set.member j1 usedCl) then 
+                                                        return $ J.MethodInv (J.PrimaryMethodCall (j1) [] (J.Ident "clone") [])
+                                                   else do
+                                                        put (Set.insert j1 usedCl)
+                                                        return j1
+                                      
+                   let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])
+                   let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )
+                   return [cvar, ass]                                                   
 
 -- main translation function
 transApply :: (MonadState Int m, MonadWriter Bool m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
@@ -54,14 +71,17 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
           do tell True
              translateScopeM super e m,
              
-     createWrap = \n e -> createWrap super n e
+     createWrap = \n e -> createWrap super n e,
+    
+     closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
+                    J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [] ,app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
   }}
 
--- seperating (hopefully) the important bit
+-- TODO: need to fix this function (currently just doing naive)
 refactoredScopeTranslationBit javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId closureCheck = completeClosure
     where
         currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show currentId) (Just (J.InitExp J.This))]
-        completeClosure {-| closureCheck -}  = standardTranslation javaExpression statementsBeforeOA (currentId, currentTyp) freshVar nextId
+        completeClosure {-| closureCheck -}  = standardTranslation javaExpression statementsBeforeOA (currentId, currentTyp) freshVar nextId True -- generate clone
                         {-| otherwise =
                            let (f,_) = chooseCastBox currentTyp
                                je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show currentId])) (J.Ident localvarstr)
