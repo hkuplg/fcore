@@ -4,25 +4,15 @@ module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 import Prelude hiding (init, last)
 
--- import Control.Monad.State
--- import Control.Monad.Writer
 import qualified Language.Java.Syntax as J
 import ClosureF
--- import Mixins
 import Inheritance
 import StringPrefixes
 import MonadLib
 
 
-{-
-class (:<) (f :: (* -> *) -> *) g  where
-   to :: f m -> g m
-   override :: f m -> (g m -> g m) -> f m -- needed to do proper overriding of methods, when we only know we inherit from a subtype. When we know the exact type of the supertype, then this method is not needed.
--}
-
 instance (:<) (Translate m) (Translate m) where
    up = id
---   override fm f = f fm
 
 -- Closure F to Java
 
@@ -144,10 +134,11 @@ chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of 
 chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
 chooseCastBox _                 = (initObj,objType)
 
-javaType CInt            = boxedIntType
-javaType (CForall _)     = closureType
-javaType (CTupleType _)  = objArrayType
-javaType _               = objType
+javaType CInt              = boxedIntType
+javaType (CForall _)       = closureType
+javaType (CTupleType [t])  = javaType t
+javaType (CTupleType _)    = objArrayType
+javaType _                 = objType
 
 getS3 t j3 genApply genRes cvarass  =
   do (n :: Int) <- get
