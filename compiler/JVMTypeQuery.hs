@@ -1,55 +1,43 @@
-module JVMTypeQuery (isJVMType, hasConstructor, hasMethod) where 
+module JVMTypeQuery (getConnection, isJVMType, hasConstructor, hasMethod) where 
 
--- 
-import System.IO.Unsafe (unsafePerformIO)
 import Data.Char (isSpace, toLower)
--- 
 import Network.Socket hiding (send, sendTo, recv, recvFrom)
 import Network.Socket.ByteString
 import qualified Data.ByteString.Char8 as C
 
 
--- 
-client :: String   -- addr
-       -> Int      -- port
-       -> String   -- data
-       -> String   -- result
-client host port dat = unsafePerformIO $ withSocketsDo $ 
-  do  addrInfo <- getAddrInfo Nothing (Just host) (Just $ show port)
+--
+getConnection :: IO Socket
+getConnection = withSocketsDo $ 
+  do  addrInfo <- getAddrInfo Nothing (Just "127.0.0.1") (Just "12345")
       let serverAddr = head addrInfo
       sock <- socket (addrFamily serverAddr) Stream defaultProtocol
       connect sock (addrAddress serverAddr)
-      sendAll sock (C.pack dat)
-      ret <- recv sock 1024
-      sClose sock
-      --putStr "Received "
-      --C.putStrLn ret
-      return (C.unpack ret)
-
-
--- if a string is true
-isTrue :: String -> Bool
-isTrue s = "true" == (map toLower $ filter (not . isSpace) s)
+      return sock
 
 
 -- send data & get result back
-doQuery :: [String] -> String
-doQuery args = client "127.0.0.1" 12345 (unwords args ++ "$")
+doQuery :: Socket -> [String] -> IO Bool
+doQuery sock args =
+  let dat = (unwords args ++ "$") in
+  do  sendAll sock (C.pack dat)
+      ret <- recv sock 1024
+      return ("true" == (map toLower $ filter (not . isSpace) $ C.unpack ret))
 
 
 -- isJVMType "java.lang.String"
 
-isJVMType :: String -> Bool
-isJVMType name = isTrue $ doQuery ["queryType", name]
+isJVMType :: Socket -> String -> IO Bool
+isJVMType sock name = doQuery sock ["queryType", name]
 
 
 -- "java.lang.String" `hasConstructor` ["java.lang.String"]
 
-hasConstructor :: String -> [String] -> Bool
-hasConstructor className args = isTrue $ doQuery $ ["queryNew", className] ++ args
+hasConstructor :: Socket -> String -> [String] -> IO Bool
+hasConstructor sock className args = doQuery sock $ ["queryNew", className] ++ args
 
 
 -- hasMethod "java.lang.Integer" "toString" []
 
-hasMethod :: String -> String -> [String] -> Bool
-hasMethod className methodName args = isTrue $ doQuery $ ["queryMethod", className, methodName] ++ args
+hasMethod :: Socket -> String -> String -> [String] -> IO Bool
+hasMethod sock className methodName args = doQuery sock $ ["queryMethod", className, methodName] ++ args
