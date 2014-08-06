@@ -144,10 +144,10 @@ chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of 
 chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
 chooseCastBox _                 = (initObj,objType)
 
-chooseCast CInt            = boxedIntType
-chooseCast (CForall _)     = closureType
-chooseCast (CTupleType _)  = objArrayType
-chooseCast _               = objType
+javaType CInt            = boxedIntType
+javaType (CForall _)     = closureType
+javaType (CTupleType _)  = objArrayType
+javaType _               = objType
 
 getS3 t j3 genApply genRes cvarass  =
   do (n :: Int) <- get
@@ -164,13 +164,13 @@ genIfBody this e2 e3 j1 s1 n = do
             (s3,j3,t3) <- translateM this e3
             let ifvarname = (ifresultstr ++ show n)
             let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-            let ifresdecl = J.LocalVars [] (objType) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
+            let ifresdecl = J.LocalVars [] (javaType t2) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
             let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
             return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)  -- need to check t2 == t3   
 
 --(J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA
 
-assignVar n e t = J.LocalVars [] (chooseCast t) [J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show n)) (Just (J.InitExp e))]
+assignVar n e t = J.LocalVars [] (javaType t) [J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show n)) (Just (J.InitExp e))]
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
@@ -213,7 +213,7 @@ trans self = let this = up self in T {
              -- otherwise: (not optimized)
              CTupleType ts  -> 
                let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger i))) 
-               in return (s1, J.Cast (chooseCast (ts!!i)) fj, ts!!i)
+               in return (s1, J.Cast (javaType (ts!!i)) fj, ts!!i)
              otherwise -> error "expected tuple type"
 
      CTApp e t ->
