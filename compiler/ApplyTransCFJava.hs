@@ -46,7 +46,7 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
             let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
             put (n' + 1)
             let self = J.Ident (localvarstr ++ show v)
-            ((s,je,t1), closureCheck :: Bool) <- listen $ translateScopeM (up this) (g (Left n',t)) Nothing
+            ((s,je,t1), closureCheck :: Bool) <- listen $ translateScopeM (up this) (g (n',t)) Nothing
             let cvar = refactoredScopeTranslationBit je s (v,t) n' n closureCheck
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 

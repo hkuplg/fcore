@@ -92,7 +92,7 @@ initClosure tempvarstr n j = initStuff tempvarstr n j closureType
 
 initObjArray tempvarstr n j = initStuff tempvarstr n j objArrayType
 
-type Var = Either Int Int -- left -> standard variable; right -> recursive variable
+type Var = Int -- Either Int Int left -> standard variable; right -> recursive variable
 
 last (Typ _ _) = False
 last (Kind f)  = last (f 0)
@@ -138,10 +138,11 @@ instance Monoid Bool where
     mempty = False
     mappend a b = a
 
-chooseCastBox CInt            = (initIntCast,boxedIntType)
-chooseCastBox (CForall _)     = (initClosure,closureType)
-chooseCastBox (CTupleType _)  = (initObjArray,objArrayType)
-chooseCastBox _               = (initObj,objType)
+chooseCastBox CInt              = (initIntCast,boxedIntType)
+chooseCastBox (CForall _)       = (initClosure,closureType)
+chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
+chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
+chooseCastBox _                 = (initObj,objType)
 
 chooseCast CInt            = boxedIntType
 chooseCast (CForall _)     = closureType
@@ -187,32 +188,25 @@ genIfBody this e2 e3 j1 s1 n = do
 
 --(J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA
 
-assignVar n e t = J.LocalVars [] (J.RefType (refType "String")) [J.VarDecl (J.VarId $ J.Ident ("x" ++ show n)) (Just (J.InitExp e))]
+assignVar n e t = J.LocalVars [] (chooseCast t) [J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show n)) (Just (J.InitExp e))]
 
 trans :: (MonadState Int m, MonadState (Set.Set J.Exp) m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of
-     CVar (Left i,t) ->
-        do --(n :: Int) <- get
-           --put (n+1)  
-           --let (f,c) = chooseCastBox t  
-           --let je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show i])) (J.Ident localvarstr)
-           return ([{-f localvarstr n je-}], var (localvarstr ++ show i) {- J.Cast (chooseCast t) $ je -}, t) -- redundant statement for now
-
-     CVar (Right i, t) ->
+     CVar (i, t) ->
        do return ([],var (localvarstr ++ show i), t)
 
      CFLit e    ->
        return ([],J.Lit $ J.Int e, CInt) 
 
-     CFPrimOp e1 op e2 ->
+     CFPrimOp e1 op e2 -> -- Int -> Int -> Int only for now!
        do  (n :: Int) <- get
            put (n+1)
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            let je = J.BinOp j1 op j2 
-           let (f,_) = chooseCastBox t1 -- redundant cast! Just need to assign the variable.
-           return (s1 ++ s2 ++ [f localvarstr n je], var (localvarstr ++ show n), t1)  -- type being returned will be wrong for operators like "<"
+           -- let (f,_) = chooseCastBox t1 -- redundant cast! Just need to assign the variable.
+           return (s1 ++ s2 ++ [assignVar n je CInt], var (localvarstr ++ show n), CInt)  -- type being returned will be wrong for operators like "<"
 
      CFIf0 e1 e2 e3 ->
         do  n <- get
@@ -220,17 +214,26 @@ trans self = let this = up self in T {
             (s1,j1,t1) <- translateM this e1
             let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
             genIfBody this e2 e3 j1' s1 n
+     
+     -- A simple optimization for tuples of size 1      
+     CFTuple [e] -> 
+       do  (s1,j1,t1) <- translateM this e
+           return (s1,j1,CTupleType [t1])
 
+     -- otherwise: (not optimized)
      CFTuple tuple ->
        liftM reduceTTuples $ mapM (translateM this) tuple
 
      CFProj i e ->
        do (s1,j1,t) <- translateM this e
-          let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger i))) 
-          let ft = case t of CTupleType ts -> ts!!i
-                             _ -> error "expected tuple type"
-          let c = chooseCast ft
-          return (s1, J.Cast c $ fj, ft)
+          case t of 
+             -- A simple optimization for tuples of size 1
+             CTupleType [t] -> return (s1,j1,t)
+             -- otherwise: (not optimized)
+             CTupleType ts  -> 
+               let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger i))) 
+               in return (s1, J.Cast (chooseCast (ts!!i)) fj, ts!!i)
+             otherwise -> error "expected tuple type"
 
      CTApp e t ->
        do  n <- get
@@ -245,7 +248,7 @@ trans self = let this = up self in T {
      CFix t s   ->
        do  (n :: Int) <- get
            put (n+1)
-           (s, je, t') <- translateScopeM this (s (Right n,t)) (Just (n,t)) -- weird!
+           (s, je, t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
            return (s,je, CForall t')
 
      CApp e1 e2 ->
@@ -264,7 +267,6 @@ trans self = let this = up self in T {
 
 
   translateScopeM = \e m -> case e of
-
       Body t ->
         do  (s,je, t1) <- translateM this t
             return (s,je, Body t1)
@@ -280,7 +282,7 @@ trans self = let this = up self in T {
             let f       = J.Ident (localvarstr ++ show n) -- use a fresh variable
             let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
             put (n' + 1)
-            (s,je,t1) <- translateScopeM this (g (Left n',t)) Nothing
+            (s,je,t1) <- translateScopeM this (g (n',t)) Nothing
             let nje = je
             let cvar = standardTranslation nje s (v,t) n' n
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
