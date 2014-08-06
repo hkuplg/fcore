@@ -149,6 +149,14 @@ showPCExp (CApp e1 e2) n  = showPCExp e1 n ++ " " ++ showPCExp e2 n
 showPCExp (CTApp e t) n   = showPCExp e n ++ " " ++ showPCTyp t n
 showPCExp (CFix t f) n    = "TODO!"
 
+--showTScpe s n
+--(_ : Int) (_ : Int) . Int
+--showTScope (Typ t f) n
+--(_ : Int) 
+--    showTScope (f ()) (n)
+--      (_ : Int) . Int
+
+
 instance Show (PCTyp Int) where
    show e = showPCTyp e 0
 

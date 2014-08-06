@@ -68,7 +68,8 @@ createCUB compDef = cu where
    cu = J.CompilationUnit Nothing [] ([closureClass] ++ compDef)
 
 getClassDecl className bs ass returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
-    (J.ClassBody [app [J.Static] body returnType "apply" [], app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
+    (J.ClassBody [app [J.Static] body returnType "apply" [], 
+      app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
     where
         body = Just (J.Block (bs ++ ass))
 
