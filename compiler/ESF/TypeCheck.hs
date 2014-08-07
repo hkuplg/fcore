@@ -207,11 +207,28 @@ inferWith sock (d, g) = go
 
     go (JNewObj c args) = do ok <- liftIO $ isJVMType sock c
                              if ok
-                               then do (args', _) <- mapAndUnzipM go args
-                                       return (JNewObj c args', JClass c)
+                               then do (args', typs') <- mapAndUnzipM go args
+                                       strArgs <- checkJavaArgs typs'
+                                       ok' <- liftIO $ hasConstructor sock c strArgs
+                                       if ok'
+                                         then return (JNewObj c args', JClass c)
+                                         else throwE (General "TODO")
                                else throwE (NotAJVMType c)
 
-    go (JMethod e m args) = undefined
+    go (JMethod e m args) = do (e', t') <- go e
+                               case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
+                                                           strArgs <- checkJavaArgs typs'
+                                                           retName <- liftIO $ methodRetType sock cls m strArgs
+                                                           case retName of Just r  -> return (JMethod e' m args', JClass r)
+                                                                           Nothing -> throwE (General "TODO")
+                                          _          -> throwE (General "TODO")
+
+
+checkJavaArgs :: [Type] -> TCMonad [Name]
+checkJavaArgs t = mapM check t
+  where
+    check (JClass name) = return name
+    check _             = throwE (General "TODO") 
 
 
 checkBinds :: Socket -> TypeContext -> [Bind Name] -> TCMonad ()

@@ -93,15 +93,15 @@ class ServerThread extends Thread {
 
         //for(int i = 0; i < words.length; i++) System.out.println(words[i]);
 
-        boolean result = false;
+        Object result = false;
 
-        if (args[0].equals("queryType")) {
+        if (args[0].equals("qType")) {
             result = Worker.queryType(args[1]);
 
-        } else if (args[0].equals("queryNew")) {
+        } else if (args[0].equals("qConstructor")) {
             result = Worker.queryNew(args[1], Arrays.copyOfRange(args, 2, args.length));
 
-        } else if (args[0].equals("queryMethod")) {
+        } else if (args[0].equals("qMethod")) {
             result = Worker.queryMethod(args[1], args[2], Arrays.copyOfRange(args, 3, args.length));
 
         } else {
@@ -109,7 +109,8 @@ class ServerThread extends Thread {
 
         }
 
-        byte[] r = result ? "true".getBytes() : "false".getBytes();
+        byte[] r = result.toString().getBytes();
+        //byte[] r = result ? "true".getBytes() : "false".getBytes();
         println("Send: " + new String(r));
 
         return r;
@@ -152,15 +153,16 @@ class Worker {
     }
 
     
-    public static boolean queryMethod(String classFullName, String methodName, String... methodArgs) {
+    public static String queryMethod(String classFullName, String methodName, String... methodArgs) {
+        String ret;
         try {
             Class<?> c = Class.forName(classFullName);
             Class<?>[] argClasses = getClassArray(methodArgs);
-            c.getMethod(methodName, argClasses);
+            ret = c.getMethod(methodName, argClasses).getReturnType().getName();
         } catch (Exception e) {
-            return false;
+            return "$";
         }
-        return true;
+        return ret;
     }
     
 
