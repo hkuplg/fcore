@@ -32,13 +32,17 @@ import Control.Monad.IO.Class (liftIO)
 type TCMonad = ExceptT (TypeError Name) IO
 
 data TypeError e
-  = NotInScope  { msg       :: String }
-  | General     { msg       :: String }
-  | NotAJVMType { className :: String }
-  | Mismatch    { term      :: Expr e
-                , expected  :: Type
-                , actual    :: Type
-                }
+  = NotInScope        { msg       :: String }
+  | General           { msg       :: String }
+  | NotAJVMType       { className :: String }
+  | NoSuchConstructor { argsInfo  :: [Expr e] }
+  | NoSuchMethod      { mName     :: String   
+                      , argsInfo  :: [Expr e]
+                      }
+  | Mismatch          { term      :: Expr e
+                      , expected  :: Type
+                      , actual    :: Type
+                      }
 
 instance Pretty e => Pretty (TypeError e) where
   pretty Mismatch{..} =
@@ -212,7 +216,7 @@ inferWith sock (d, g) = go
                                        ok' <- liftIO $ hasConstructor sock c strArgs
                                        if ok'
                                          then return (JNewObj c args', JClass c)
-                                         else throwE (General "TODO")
+                                         else throwE (NoSuchConstructor args)
                                else throwE (NotAJVMType c)
 
     go (JMethod e m args) = do (e', t') <- go e
@@ -220,7 +224,7 @@ inferWith sock (d, g) = go
                                                            strArgs <- checkJavaArgs typs'
                                                            retName <- liftIO $ methodRetType sock cls m strArgs
                                                            case retName of Just r  -> return (JMethod e' m args', JClass r)
-                                                                           Nothing -> throwE (General "TODO")
+                                                                           Nothing -> throwE NoSuchMethod { mName = m, argsInfo = args }
                                           _          -> throwE (General "TODO")
 
 
