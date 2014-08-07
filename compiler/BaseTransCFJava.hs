@@ -212,8 +212,8 @@ trans self = let this = up self in T {
              CTupleType [t] -> return (s1,j1,t)
              -- otherwise: (not optimized)
              CTupleType ts  -> 
-               let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger i))) 
-               in return (s1, J.Cast (chooseCast (ts!!i)) fj, ts!!i)
+               let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger (i-1)))) 
+               in return (s1, J.Cast (chooseCast (ts!!(i-1))) fj, ts!!(i-1))
              otherwise -> error "expected tuple type"
 
      CTApp e t ->

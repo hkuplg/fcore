@@ -132,8 +132,8 @@ inferWith sock (d, g) = go
       (e', t) <- go e
       case t of
         Product ts ->
-          if 0 <= i && i <= length ts - 1
-            then return (Proj e' i, ts !! i)
+          if 1 <= i && i <= length ts
+            then return (Proj e' i, ts !! (i-1))
             else throwE General { msg = "Index too large in projection" }
         _          ->
           throwE General { msg = "Projection of a term that is not of product type" }
