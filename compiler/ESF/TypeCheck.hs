@@ -34,7 +34,7 @@ type TCMonad = ExceptT (TypeError Name) IO
 data TypeError e
   = NotInScope        { msg       :: String }
   | General           { msg       :: String }
-  | NotAJVMType       { className :: String }
+  | NotAJVMType       { msg       :: String }
   | NoSuchConstructor { argsInfo  :: [Expr e] }
   | NoSuchMethod      { mName     :: String   
                       , argsInfo  :: [Expr e]
@@ -225,14 +225,14 @@ inferWith sock (d, g) = go
                                                            retName <- liftIO $ methodRetType sock cls m strArgs
                                                            case retName of Just r  -> return (JMethod e' m args', JClass r)
                                                                            Nothing -> throwE NoSuchMethod { mName = m, argsInfo = args }
-                                          _          -> throwE (General "TODO")
+                                          otherType  -> throwE $ NotAJVMType $ show otherType
 
 
 checkJavaArgs :: [Type] -> TCMonad [Name]
-checkJavaArgs t = mapM check t
+checkJavaArgs = mapM check
   where
     check (JClass name) = return name
-    check _             = throwE (General "TODO") 
+    check otherType     = throwE $ NotAJVMType $ show otherType 
 
 
 checkBinds :: Socket -> TypeContext -> [Bind Name] -> TCMonad ()
