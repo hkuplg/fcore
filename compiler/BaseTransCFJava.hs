@@ -79,7 +79,7 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
         arrayAssignment = J.ArrayCreateInit (objType) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
         tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
 
-initStuff tempvarstr n j t = J.LocalVars [] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just exp)])
+initStuff tempvarstr n j t = J.LocalVars [J.Final] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just exp)])
     where
         exp | t == objType = J.InitExp j
             | otherwise = J.InitExp $ J.Cast t j
