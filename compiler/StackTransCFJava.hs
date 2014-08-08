@@ -75,7 +75,7 @@ stackbody t =
 nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.ClassBody [J.MemberDecl (J.FieldDecl
         [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))
 
-transS :: (MonadState Int m, MonadReader Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transS :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {
   toTS = T {  translateM = \e -> case e of
        CLam s -> local (&& False) $ translateM super e
@@ -87,9 +87,9 @@ transS this super = TS {
        CFIf0 e1 e2 e3 ->
                 do  n <- get
                     put (n+1)
-                    --(genApplys :: Bool) <- ask --state before
-                    (s1,j1,t1) <- local (|| True) $ translateM (up this) (CFPrimOp e1 J.Equal (CFLit 0))
-                    genIfBody (up this) e2 e3 j1 s1 n
+                    (s1,j1,t1) <- local (|| True) $ translateM (up this) e1
+                    let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
+                    genIfBody (up this) e2 e3 j1' s1 n
 
        CApp e1 e2 ->
                do  (n :: Int) <- get
@@ -99,7 +99,9 @@ transS this super = TS {
                    (s2,j2,t2) <-  local (|| True) $ translateM (up this) e2
                    let t    = g ()
                    let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-                   cvarass <- getCvarAss t f n j1 j2
+                   -- cvarass <- getCvarAss t f n j1 j2
+                   let cvarass = [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
+                           J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )]                                    
                    let genApply = \x jType -> case x of J.ExpName (J.Name [h]) -> if genApplys then 
                                                                 (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
                                                                 else (nextApply (J.ExpName (J.Name [f])) h jType)
@@ -117,5 +119,7 @@ transS this super = TS {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
            let stackDecl = getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) Nothing (Just $ J.Block $ stackbody t)
-           return (createCUB  [nextClass,stackDecl], t)             
+           return (createCUB  super [nextClass,stackDecl], t),
+
+  closureClass = closureClass super             
   }}

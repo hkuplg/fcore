@@ -13,4 +13,4 @@ let rec fact (n : Int) (count : Int) : Int =
     else if0 count then fact n 500
     else fact (n - 1) (count - 1)
 in
-fact
+fact 10 500

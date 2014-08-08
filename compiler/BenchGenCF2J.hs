@@ -92,7 +92,7 @@ getScopeType (Kind f) n = 0 : (map (+1) (getScopeType (f n) (n)))
 getScopeType (Typ t f) n = 0 : (map (+1) (getScopeType (f ()) 0))
 getScopeType _ _= []
 
-transBench :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m, selfType :< BenchGenTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslate m)
+transBench :: (MonadState Int m, selfType :< BenchGenTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslate m)
 transBench this super = TB {
   toTB = T { 
 
@@ -110,8 +110,9 @@ transBench this super = TB {
                                                 _ -> J.Cast objType e
            let paraType = getParaType t
            let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType testfuncBody returnType mainbody
-           return (createCUB [classDecl], t)
+           return (createCUB super [classDecl], t),
 
-  }
+    closureClass = closureClass super 
+   }
 }
 

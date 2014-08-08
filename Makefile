@@ -10,7 +10,7 @@ compiler :
 	cabal install
 
 .PHONY : test
-test :
+test : parsers
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
  
 .PHONY : parsers

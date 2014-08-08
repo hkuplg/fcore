@@ -10,4 +10,4 @@ let rec fact (acc : Int) (n : Int) : Int =
     if0 n then acc
     else fact (acc * n) (n - 1)
 in
-fact
+fact 1 10

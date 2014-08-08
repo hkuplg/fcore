@@ -204,7 +204,7 @@ compileN name e = evalState (evalStateT (evalStateT (translateN name (fexp2cexp 
 
 type StackType = ReaderT Bool (StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool))))
 stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
-stackinst = stackNaive
+stackinst = stackApply--stackNaive
 
 translateS :: String -> PCExp Int (Var, PCTyp Int) -> StackType (J.CompilationUnit, PCTyp Int)
 translateS = createWrap (up stackinst)
@@ -219,4 +219,4 @@ translateBench :: String -> PCExp Int (Var, PCTyp Int) -> NType (J.CompilationUn
 translateBench = createWrap (up benchinst)
 
 compileBench :: Compilation
-compileBench name e = evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+compileBench name e = evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty

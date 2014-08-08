@@ -3,4 +3,4 @@ let rec
 and
   odd (n:Int) : Int = if0 n then 0 else even (n-1)
 in
-even
+odd 12
