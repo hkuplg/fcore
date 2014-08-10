@@ -40,18 +40,18 @@ import qualified Data.Set as Set
 
 import Prelude hiding (exp)
 
-import Control.Monad.Trans.Except (runExceptT)
+import Control.Monad.Trans.Error (runErrorT)
 
 -- import Debug.Trace      (trace)
 
 -- Naive translation
 
-naive :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => Translate m
+naive :: (MonadState Int m) => Translate m
 naive = new trans
 
 -- Apply optimization
 
-applyopt :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => ApplyOptTranslate m
+applyopt :: (MonadState Int m, MonadReader InitVars m, MonadWriter Bool m) => ApplyOptTranslate m
 applyopt = new (transApply $> trans)
 
 -- Stack translation
@@ -59,14 +59,14 @@ applyopt = new (transApply $> trans)
 --trStack1 :: (MonadState Int m, MonadWriter Bool m) => Mixin (TranslateStack m) (Translate m) (TranslateStack m) -- need to instantiate records
 --trStack1 = transS
 
-stackNaive :: (MonadState Int m, MonadReader Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => TranslateStack m
+stackNaive :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
 stackNaive = new (transS $> trans)
 
 -- Stack/Apply translation
 
 adaptApply mix' this super = toT $ mix' this super
 
-stackApply :: (MonadState Int m, MonadReader Bool m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => TranslateStack m
+stackApply :: (MonadState Int m, MonadReader InitVars m, MonadReader Bool m, MonadWriter Bool m) => TranslateStack m
 stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
@@ -104,10 +104,10 @@ stack = new (transS . transMix)
 -}
 
 type M1 = StateT (Map.Map String Int) (State Int)
-type M2 = StateT Int (State (Map.Map J.Exp Int))
+type M2 = State Int 
 type M3 = StateT Int (Writer Bool)
 
-type MAOpt = StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool)))
+type MAOpt = StateT Int (Writer Bool)
 
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
@@ -157,7 +157,7 @@ prettyJ = putStrLn . prettyPrint
 sf2java :: Compilation -> ClassName -> String -> IO String
 sf2java compilation (ClassName className) src =
   do let expr = ESF.Parser.reader src
-     result <- runExceptT $ ESF.TypeCheck.infer expr
+     result <- runErrorT $ ESF.TypeCheck.infer expr
      case result of
        Left typeError       -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
        Right (tcExpr, _t)   -> 
@@ -174,7 +174,7 @@ compilesf2java compilation srcPath outputPath = do
 type Compilation = String -> PFExp Int (Var, PCTyp Int) -> (J.CompilationUnit, PCTyp Int)--PFExp Int (Var, PCTyp Int) -> (J.Block, J.Exp, PCTyp Int)
 
 -- setting
-type AOptType = StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool)))
+type AOptType = StateT Int (ReaderT InitVars (Writer Bool))
 
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
@@ -186,9 +186,9 @@ translateAO :: String -> PCExp Int (Var, PCTyp Int) -> AOptType (J.CompilationUn
 translateAO = createWrap (up aoptinst)
 
 compileAO :: Compilation
-compileAO name e = fst $ runWriter $ evalStateT (evalStateT (evalStateT (translateAO name (fexp2cexp e)) 0) Map.empty) Set.empty
+compileAO name e = fst $ runWriter $ runReaderT (evalStateT (translateAO name (fexp2cexp e)) 0) []
 
-type NType = StateT Int (StateT (Map.Map J.Exp Int) (State (Set.Set J.Exp)))
+type NType = State Int
 ninst :: Translate NType  -- instantiation; all coinstraints resolved
 ninst = naive
 
@@ -196,15 +196,16 @@ translateN :: String -> PCExp Int (Var, PCTyp Int) -> NType (J.CompilationUnit, 
 translateN = createWrap (up ninst)
 
 compileN :: Compilation
-compileN name e = evalState (evalStateT (evalStateT (translateN name (fexp2cexp e)) 0) Map.empty) Set.empty
+compileN name e = evalState (translateN name (fexp2cexp e)) 0
 
-type StackType = ReaderT Bool (StateT Int (StateT (Map.Map J.Exp Int) (StateT (Set.Set J.Exp) (Writer Bool))))
+type StackType = ReaderT Bool (ReaderT InitVars (StateT Int (Writer Bool)))
+
 stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
-stackinst = stackApply--stackNaive
+stackinst = stackApply --stackNaive
 
 translateS :: String -> PCExp Int (Var, PCTyp Int) -> StackType (J.CompilationUnit, PCTyp Int)
 translateS = createWrap (up stackinst)
 
 compileS :: Compilation
-compileS name e = fst $ runWriter $ evalStateT (evalStateT (evalStateT (runReaderT (translateS name (fexp2cexp e)) False) 0) Map.empty) Set.empty
+compileS name e = fst $ runWriter $ evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) False) []) 0
 

@@ -13,6 +13,8 @@ import MonadLib
 instance (:<) (Translate m) (Translate m) where
    up = id
 
+type InitVars = [J.BlockStmt]                 
+
 -- Closure F to Java
 
 var x = J.ExpName (J.Name [J.Ident x])
@@ -103,12 +105,12 @@ jexp init body idCF generateClone =
 
 currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
 outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-standardTranslation javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId generateClone = 
-   let (f,_) = chooseCastBox currentTyp
+standardTranslation javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId initVars generateClone = 
+   {-let (f,_) = chooseCastBox currentTyp
        je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show currentId])) (J.Ident localvarstr)
-   in [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
+   in-} [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
         (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
-        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block ([f localvarstr freshVar je] ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId generateClone))),
+        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block ({-[f localvarstr freshVar je] ++-} initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId generateClone))),
         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
 
 data Translate m = T {
@@ -161,6 +163,10 @@ genIfBody this e2 e3 j1 s1 n = do
 --(J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA
 
 assignVar varId e t = J.LocalVars [] (javaType t) [J.VarDecl (J.VarId $ J.Ident varId) (Just (J.InitExp e))]
+
+fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ varId])) (J.Ident fieldId)
+
+inputFieldAccess varId = fieldAccess varId localvarstr
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
@@ -257,7 +263,8 @@ trans self = let this = up self in T {
             put (n' + 1)
             (s,je,t1) <- translateScopeM this (g (n',t)) Nothing
             let nje = je
-            let cvar = standardTranslation nje s (v,t) n' n False -- do not generate clone method
+            let initVars = [(initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t))]
+            let cvar = standardTranslation nje s (v,t) n' n initVars False -- do not generate clone method
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
 
   createWrap = \name exp ->

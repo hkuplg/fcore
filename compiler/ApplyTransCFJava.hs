@@ -38,10 +38,10 @@ getCvarAss t f n j1 j2 = do
                                       
                    let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])
                    let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )
-                   return [cvar, ass]                                                   
+                   return [cvar, ass]                                    
 
 -- main translation function
-transApply :: (MonadState Int m, MonadWriter Bool m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
+transApply :: (MonadState Int m, MonadWriter Bool m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
 transApply this super = NT {toT = T { --override this (\trans -> trans {
   translateM = \e -> case e of
        CLam s ->
@@ -64,13 +64,16 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
             put (n' + 1)
             let self = J.Ident (localvarstr ++ show v)
             let nextInClosure = g (n',t)
-            -- let js = initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t)
-            ((s,je,t1), closureCheck :: Bool) <- listen $ translateScopeM (up this) nextInClosure Nothing
-            let cvar = case last nextInClosure of -- last?
-                          True -> standardTranslation je s (v, t) n' n True
-                          False -> standardTranslation je s (v, t) n' n True
+            (initVars :: InitVars) <- ask
+            let js = (initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t)) 
+            -- ((s,je,t1), closureCheck :: Bool) <- listen $ translateScopeM (up this) nextInClosure Nothing
+            (cvar,t1) <- case last nextInClosure of -- last?
+                         True -> do   (s,je,t1) <- local (\(_ :: InitVars) -> []) $ translateScopeM (up this) nextInClosure Nothing
+                                      return (standardTranslation je s (v, t) n' n (js:initVars) True,t1)
+                         False -> do  (s,je,t1) <- local (\_ -> js:initVars) $ translateScopeM (up this) nextInClosure Nothing
+                                      return (refactoredScopeTranslationBit je s (v, t) n' n,t1)
             --let cvar = refactoredScopeTranslationBit je s (v,t) n' n closureCheck
-            return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
+            return (cvar, J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
       otherwise ->
           do tell True
@@ -82,20 +85,11 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
                     J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [] ,app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
   }}
 
-fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ varId])) (J.Ident fieldId)
-
-inputFieldAccess varId = fieldAccess varId localvarstr
-
--- TODO: need to fix this function (currently just doing naive)
-refactoredScopeTranslationBit javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId closureCheck = completeClosure
+refactoredScopeTranslationBit javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId = completeClosure
     where
         currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show currentId) (Just (J.InitExp J.This))]
-        completeClosure | closureCheck   = standardTranslation javaExpression statementsBeforeOA (currentId, currentTyp) freshVar nextId True -- generate clone
-                        | otherwise =
-                           {-let (f,_) = chooseCastBox currentTyp
-                               je = inputFieldAccess (localvarstr ++ show currentId) 
-                           in-} [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
-                                 (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration, J.InitDecl False (J.Block $ ({-[f localvarstr freshVar je] ++-} statementsBeforeOA ++ [outputAssignment javaExpression]))] (Just $ J.Block [])  nextId True))),
+        completeClosure = [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
+                                 (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration, J.InitDecl False (J.Block $ (statementsBeforeOA ++ [outputAssignment javaExpression]))] (Just $ J.Block [])  nextId True))),
                                         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])] 
         
 
