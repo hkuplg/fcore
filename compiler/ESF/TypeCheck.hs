@@ -23,7 +23,7 @@ import Data.Maybe       (fromJust)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Network.Socket (Socket)
+import Network.Socket (Socket, sClose)
 import Control.Monad.IO.Class (liftIO)
 
 -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
@@ -70,7 +70,9 @@ checkWellformed sock d t =
 
 infer :: RdrExpr -> TCMonad (TcExpr, Type)
 infer e = do sock <- liftIO $ getConnection
-             inferWith sock (Set.empty, Map.empty) e
+             ret <- inferWith sock (Set.empty, Map.empty) e
+             liftIO $ sClose sock
+             return ret
 
 
 inferWith :: Socket -> (TypeContext, ValueContext) -> RdrExpr -> TCMonad (TcExpr, Type)

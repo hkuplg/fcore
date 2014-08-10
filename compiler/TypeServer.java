@@ -64,10 +64,11 @@ class ServerThread extends Thread {
 
     public void run() {
         len = 0;
+        println("Start");
         try {
             while (true) {
                 int b = is.read();
-                if (b == -1) continue;
+                if (b == -1) break;
                 //System.out.println(b);
                 if ((char)b == END_CHAR) {
                     os.write(gao());
@@ -80,6 +81,8 @@ class ServerThread extends Thread {
             }
         } catch (IOException e) {
             e.printStackTrace();
+        } finally {
+            println("Exit");
         }
     }
 
