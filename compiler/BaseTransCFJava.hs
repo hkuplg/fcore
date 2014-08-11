@@ -125,10 +125,6 @@ data Translate m = T {
   closureClass :: J.TypeDecl
   }
 
-instance Monoid Bool where
-    mempty = False
-    mappend a b = a
-
 chooseCastBox CInt              = (initIntCast,boxedIntType)
 chooseCastBox (CForall _)       = (initClosure,closureType)
 chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1

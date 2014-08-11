@@ -41,20 +41,9 @@ getCvarAss t f n j1 j2 = do
                    return [cvar, ass]                                    
 
 -- main translation function
-transApply :: (MonadState Int m, MonadWriter Bool m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
-transApply this super = NT {toT = T { --override this (\trans -> trans {
-  translateM = \e -> case e of
-       CLam s ->
-           do  tell True
-               translateM super e
-
-       CApp e1 e2 ->
-           do  tell True -- not doing the apply elimination, only pulling up closures to initialization for the moment
-               translateM super e
-
-       otherwise ->
-            do  tell False
-                translateM super e,
+transApply :: (MonadState Int m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
+transApply this super = NT {toT = T { 
+  translateM = translateM super,
 
   translateScopeM = \e m -> case e of
       Typ t g ->
@@ -66,20 +55,16 @@ transApply this super = NT {toT = T { --override this (\trans -> trans {
             let nextInClosure = g (n',t)
             (initVars :: InitVars) <- ask
             let js = (initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t)) 
-            -- ((s,je,t1), closureCheck :: Bool) <- listen $ translateScopeM (up this) nextInClosure Nothing
             (cvar,t1) <- case last nextInClosure of -- last?
                          True -> do   (s,je,t1) <- local (\(_ :: InitVars) -> []) $ translateScopeM (up this) nextInClosure Nothing
                                       return (standardTranslation je s (v, t) n' n (js:initVars) True,t1)
                          False -> do  (s,je,t1) <- local (\_ -> js:initVars) $ translateScopeM (up this) nextInClosure Nothing
                                       return (refactoredScopeTranslationBit je s (v, t) n' n,t1)
-            --let cvar = refactoredScopeTranslationBit je s (v,t) n' n closureCheck
             return (cvar, J.ExpName (J.Name [f]), Typ t (\_ -> t1) )
 
-      otherwise ->
-          do tell True
-             translateScopeM super e m,
+      otherwise -> translateScopeM super e m,
              
-     createWrap = \n e -> createWrap super n e,
+     createWrap = createWrap super,
     
      closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
                     J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [] ,app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
@@ -93,4 +78,4 @@ refactoredScopeTranslationBit javaExpression statementsBeforeOA (currentId,curre
                                         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])] 
         
 
-applyCallI = J.InitDecl False $ J.Block [applyCall]
+-- applyCallI = J.InitDecl False $ J.Block [applyCall]
