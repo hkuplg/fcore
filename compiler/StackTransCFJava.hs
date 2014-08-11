@@ -91,7 +91,7 @@ transS this super = TS {
                     let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
                     genIfBody (up this) e2 e3 j1' s1 n
 
-       CApp e1 e2 ->
+       CApp e1 e2 -> -- also replaces the functionality of ApplyOpt
                do  (n :: Int) <- get
                    put (n+1)
                    (genApplys :: Bool) <- ask --state before
