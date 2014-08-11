@@ -14,6 +14,9 @@ import ESF.Syntax
 
 import JVMTypeQuery
 
+import System.IO
+import System.Process
+
 import Control.Monad
 import Control.Monad.Trans.Error
 
@@ -23,7 +26,6 @@ import Data.Maybe       (fromJust)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Network.Socket (Socket, sClose)
 import Control.Monad.IO.Class (liftIO)
 
 -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
@@ -64,24 +66,26 @@ q x = "`" ++ x ++ "'"
 --throwE :: TypeError Name -> TCMonad ()
 --throwE te = throwError . show . pretty te
 
-checkWellformed :: Socket -> TypeContext -> Type -> TCMonad ()
-checkWellformed sock d (JClass c) = do ok <- liftIO $ isJVMType sock c
-                                       unless ok (throwError (NotAJVMType c))
-checkWellformed sock d t =
+checkWellformed :: (Handle, Handle) -> TypeContext -> Type -> TCMonad ()
+checkWellformed io _ (JClass c) = do ok <- liftIO $ isJVMType io c
+                                     unless ok (throwError (NotAJVMType c))
+checkWellformed _  d t =
   let s = freeTyVars t `Set.difference` d in
   unless (Set.null s) $
     throwError NotInScope { msg = "type variable " ++ q (head $ Set.toList s) }
 
 
 infer :: RdrExpr -> TCMonad (TcExpr, Type)
-infer e = do sock <- liftIO $ getConnection
-             ret <- inferWith sock (Set.empty, Map.empty) e
-             liftIO $ sClose sock
+infer e = do (Just inp, Just out, _, proch) <- liftIO $ createProcess (proc "java" ["Test"]){std_in = CreatePipe, std_out = CreatePipe}
+             liftIO $ hSetBuffering inp NoBuffering
+             liftIO $ hSetBuffering out NoBuffering
+             ret <- inferWith (inp, out) (Set.empty, Map.empty) e
+             liftIO $ terminateProcess proch
              return ret
 
 
-inferWith :: Socket -> (TypeContext, ValueContext) -> RdrExpr -> TCMonad (TcExpr, Type)
-inferWith sock (d, g) = go
+inferWith :: (Handle, Handle) -> (TypeContext, ValueContext) -> RdrExpr -> TCMonad (TcExpr, Type)
+inferWith io (d, g) = go
   where
     go (Var x) = case Map.lookup x g of
                    Just t  -> return (Var (x,t), t)
@@ -105,12 +109,12 @@ inferWith sock (d, g) = go
                                                   " shadows an existing type variable" ++
                                                   " in an outer scope"
                                           }
-      | otherwise        = do (e', t) <- inferWith sock (Set.insert a d, g) e
+      | otherwise        = do (e', t) <- inferWith io (Set.insert a d, g) e
                               return (BLam a e', Forall a t)
 
     go (Lam (x,t) e) = do
-      checkWellformed sock d t
-      (e', t') <- inferWith sock (d, Map.insert x t g) e
+      checkWellformed io d t
+      (e', t') <- inferWith io (d, Map.insert x t g) e
       return (Lam (x,t) e', Fun t t')
 
     {-
@@ -119,7 +123,7 @@ inferWith sock (d, g) = go
           Δ;Γ ⊢ e[τ] : τ'[τ/α]
     -}
     go (TApp e t) = do
-      checkWellformed sock d t
+      checkWellformed io d t
       (e', t1) <- go e
       case t1 of
         Forall a t' -> return (TApp e' t, substFreeTyVars (a, t) t')
@@ -171,12 +175,12 @@ inferWith sock (d, g) = go
         _   -> throwError Mismatch { term = e1, expected = Int, actual = t1 }
 
     go (Let NonRec bs e) = do
-      checkBinds sock d bs
+      checkBinds io d bs
       bs' <-
         forM bs (\Bind{..} ->
           do let d_local = Set.fromList bindTargs
                  g_local = Map.fromList bindArgs
-             (rhs, inferredRhsTy) <- inferWith sock (d_local `Set.union` d, g_local `Map.union` g) bindRhs
+             (rhs, inferredRhsTy) <- inferWith io (d_local `Set.union` d, g_local `Map.union` g) bindRhs
              case bindRhsAnnot of
                Nothing -> return ()
                Just claimedRhsTy ->
@@ -187,11 +191,11 @@ inferWith sock (d, g) = go
                     , wrap BLam bindTargs $ wrap Lam bindArgs rhs
                     ))
       let (fs, ts, _es) = unzip3 bs'
-      (e', t) <- inferWith sock (d, Map.fromList (zip fs ts) `Map.union` g) e
+      (e', t) <- inferWith io (d, Map.fromList (zip fs ts) `Map.union` g) e
       return (LetOut NonRec bs' e', t)
 
     go (Let Rec bs e) = do
-      checkBinds sock d bs
+      checkBinds io d bs
       sigs <-
         liftM Map.fromList $
           forM bs (\Bind{..} ->
@@ -202,7 +206,7 @@ inferWith sock (d, g) = go
         forM bs (\Bind{..} ->
           do let d_local = Set.fromList bindTargs
                  g_local = Map.fromList bindArgs
-             (rhs, inferredRhsTy) <- inferWith sock (d_local `Set.union` d, g_local `Map.union` sigs `Map.union` g) bindRhs
+             (rhs, inferredRhsTy) <- inferWith io (d_local `Set.union` d, g_local `Map.union` sigs `Map.union` g) bindRhs
              let claimedRhsTy = fromJust bindRhsAnnot
              unless (claimedRhsTy `alphaEqTy` inferredRhsTy) $
                throwError Mismatch { term = bindRhs, expected = claimedRhsTy, actual = inferredRhsTy }
@@ -211,16 +215,16 @@ inferWith sock (d, g) = go
                     , wrap BLam bindTargs $ wrap Lam bindArgs rhs
                     ))
       let (fs, ts, _es) = unzip3 bs'
-      (e', t) <- inferWith sock (d, Map.fromList (zip fs ts) `Map.union` g) e
+      (e', t) <- inferWith io (d, Map.fromList (zip fs ts) `Map.union` g) e
       return (LetOut Rec bs' e', t)
 
     go (LetOut{..}) = error (invariantFailed "inferWith" (show (LetOut{..} :: RdrExpr)))
 
-    go (JNewObj c args) = do ok <- liftIO $ isJVMType sock c
+    go (JNewObj c args) = do ok <- liftIO $ isJVMType io c
                              if ok
                                then do (args', typs') <- mapAndUnzipM go args
                                        strArgs <- checkJavaArgs typs'
-                                       ok' <- liftIO $ hasConstructor sock c strArgs
+                                       ok' <- liftIO $ hasConstructor io c strArgs
                                        if ok'
                                          then return (JNewObj c args', JClass c)
                                          else throwError (NoSuchConstructor args)
@@ -229,7 +233,7 @@ inferWith sock (d, g) = go
     go (JMethod e m args) = do (e', t') <- go e
                                case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
                                                            strArgs <- checkJavaArgs typs'
-                                                           retName <- liftIO $ methodRetType sock cls m strArgs
+                                                           retName <- liftIO $ methodRetType io cls m strArgs
                                                            case retName of Just r  -> return (JMethod e' m args', JClass r)
                                                                            Nothing -> throwError NoSuchMethod { mName = m, argsInfo = args }
                                           otherType  -> throwError $ NotAJVMType $ show otherType
@@ -242,15 +246,15 @@ checkJavaArgs = mapM check
     check otherType     = throwError $ NotAJVMType $ show otherType 
 
 
-checkBinds :: Socket -> TypeContext -> [Bind Name] -> TCMonad ()
-checkBinds sock d bs =
+checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TCMonad ()
+checkBinds io d bs =
   do checkForDup "identifiers" (map bindId bs)
      forM_ bs (\Bind{..} ->
        do checkForDup "type arguments" bindTargs
           checkForDup "arguments"      [x | (x, _) <- bindArgs]
           forM_ bindArgs (\(_,t) ->
             do let d' = Set.fromList bindTargs `Set.union` d
-               checkWellformed sock d' t))
+               checkWellformed io d' t))
 
 
 checkForDup :: String -> [String] -> TCMonad ()
