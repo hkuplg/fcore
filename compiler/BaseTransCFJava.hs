@@ -4,25 +4,16 @@ module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 import Prelude hiding (init, last)
 
--- import Control.Monad.State
--- import Control.Monad.Writer
 import qualified Language.Java.Syntax as J
 import ClosureF
--- import Mixins
 import Inheritance
 import StringPrefixes
 import MonadLib
 
-
-{-
-class (:<) (f :: (* -> *) -> *) g  where
-   to :: f m -> g m
-   override :: f m -> (g m -> g m) -> f m -- needed to do proper overriding of methods, when we only know we inherit from a subtype. When we know the exact type of the supertype, then this method is not needed.
--}
-
 instance (:<) (Translate m) (Translate m) where
    up = id
---   override fm f = f fm
+
+type InitVars = [J.BlockStmt]                 
 
 -- Closure F to Java
 
@@ -79,7 +70,7 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
         arrayAssignment = J.ArrayCreateInit (objType) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
         tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
 
-initStuff tempvarstr n j t = J.LocalVars [] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just exp)])
+initStuff tempvarstr n j t = J.LocalVars [J.Final] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just exp)])
     where
         exp | t == objType = J.InitExp j
             | otherwise = J.InitExp $ J.Cast t j
@@ -114,12 +105,12 @@ jexp init body idCF generateClone =
 
 currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
 outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-standardTranslation javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId generateClone = 
-   let (f,_) = chooseCastBox currentTyp
+standardTranslation javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId initVars generateClone = 
+   {-let (f,_) = chooseCastBox currentTyp
        je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show currentId])) (J.Ident localvarstr)
-   in [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
+   in-} [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
         (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
-        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block ([f localvarstr freshVar je] ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId generateClone))),
+        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block ({-[f localvarstr freshVar je] ++-} initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId generateClone))),
         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
 
 data Translate m = T {
@@ -144,10 +135,11 @@ chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of 
 chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
 chooseCastBox _                 = (initObj,objType)
 
-chooseCast CInt            = boxedIntType
-chooseCast (CForall _)     = closureType
-chooseCast (CTupleType _)  = objArrayType
-chooseCast _               = objType
+javaType CInt            = boxedIntType
+javaType (CForall _)     = closureType
+javaType (CTupleType [t]) = javaType t -- optimization for tuples of size 1
+javaType (CTupleType _)  = objArrayType
+javaType _               = objType
 
 getS3 t j3 genApply genRes cvarass  =
   do (n :: Int) <- get
@@ -164,13 +156,17 @@ genIfBody this e2 e3 j1 s1 n = do
             (s3,j3,t3) <- translateM this e3
             let ifvarname = (ifresultstr ++ show n)
             let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-            let ifresdecl = J.LocalVars [] (objType) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
-            let  (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
+            let ifresdecl = J.LocalVars [] (javaType t2) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
+            let (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
             return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)  -- need to check t2 == t3   
 
 --(J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA
 
-assignVar n e t = J.LocalVars [] (chooseCast t) [J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show n)) (Just (J.InitExp e))]
+assignVar varId e t = J.LocalVars [] (javaType t) [J.VarDecl (J.VarId $ J.Ident varId) (Just (J.InitExp e))]
+
+fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ varId])) (J.Ident fieldId)
+
+inputFieldAccess varId = fieldAccess varId localvarstr
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
@@ -187,7 +183,7 @@ trans self = let this = up self in T {
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            let je = J.BinOp j1 op j2 
-           return (s1 ++ s2 ++ [assignVar n je CInt], var (localvarstr ++ show n), CInt)  -- type being returned will be wrong for operators like "<"
+           return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je CInt], var (localvarstr ++ show n), CInt)  -- type being returned will be wrong for operators like "<"
 
      CFIf0 e1 e2 e3 ->
         do  n <- get
@@ -196,7 +192,7 @@ trans self = let this = up self in T {
             let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
             genIfBody this e2 e3 j1' s1 n
      
-     -- A simple optimization for tuples of size 1      
+     -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)     
      CFTuple [e] -> 
        do  (s1,j1,t1) <- translateM this e
            return (s1,j1,CTupleType [t1])
@@ -208,12 +204,12 @@ trans self = let this = up self in T {
      CFProj i e ->
        do (s1,j1,t) <- translateM this e
           case t of 
-             -- A simple optimization for tuples of size 1
+             -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED) 
              CTupleType [t] -> return (s1,j1,t)
              -- otherwise: (not optimized)
              CTupleType ts  -> 
                let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger (i-1)))) 
-               in return (s1, J.Cast (chooseCast (ts!!(i-1))) fj, ts!!(i-1))
+               in return (s1, J.Cast (javaType (ts!!(i-1))) fj, ts!!(i-1))
              otherwise -> error "expected tuple type"
 
      CTApp e t ->
@@ -267,7 +263,8 @@ trans self = let this = up self in T {
             put (n' + 1)
             (s,je,t1) <- translateScopeM this (g (n',t)) Nothing
             let nje = je
-            let cvar = standardTranslation nje s (v,t) n' n False -- do not generate clone method
+            let initVars = [(initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t))]
+            let cvar = standardTranslation nje s (v,t) n' n initVars False -- do not generate clone method
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
 
   createWrap = \name exp ->

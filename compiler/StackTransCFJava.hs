@@ -82,7 +82,7 @@ transS this super = TS {
 
        CFix t s -> local (&& False) $ translateM super e
 
-       --CTApp e t -> translateM super e
+       CTApp _ _ -> local (&& False) $ translateM super e
 
        CFIf0 e1 e2 e3 ->
                 do  n <- get
