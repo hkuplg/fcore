@@ -6,6 +6,7 @@
            , RankNTypes
            , TypeOperators
            , RecordWildCards
+           , TemplateHaskell 
            #-}
 
 module Main (main, TransMethod) where
@@ -13,9 +14,11 @@ module Main (main, TransMethod) where
 -- The CmdArgs package
 import System.Console.CmdArgs
 
-import System.Environment       (getArgs, withArgs)
-import System.FilePath          (takeFileName)
-import System.IO                (hFlush, stdout)
+import System.Environment        (getArgs, withArgs)
+import System.FilePath           (takeFileName)
+import System.IO
+import Data.FileEmbed            (embedFile)
+import qualified Data.ByteString (ByteString, writeFile)
 
 import Java.Utils
 import MonadLib
@@ -60,12 +63,19 @@ withMessage msg act = do { putStr msg; hFlush stdout; act }
 withMessageLn :: String -> IO () -> IO ()
 withMessageLn msg act = do { withMessage msg act; putStrLn "" }
 
+typeServerBytes :: Data.ByteString.ByteString
+typeServerBytes = $(embedFile "TypeServer.class")
+
 main :: IO ()
 main = do
     rawArgs <- getArgs
     -- If the user did not specify any arguments, pretend as "--help" was given
     Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
     when (optShowOpts) $ putStrLn (show Options{..} ++ "\n")
+
+    -- Write the bytes of TypeServer to file and run it
+    Data.ByteString.writeFile "./TypeServer.class" typeServerBytes
+          
     forM_
       (optSourceFiles)
       (\srcPath -> do
@@ -83,3 +93,4 @@ main = do
 
         when (optCompile || optCompileAndRun) $ withMessageLn "  Compiling Java" $ compileJava outputPath
         when (optCompileAndRun) $ withMessage "  Running Java\n  Output: " $ runJava outputPath)
+
