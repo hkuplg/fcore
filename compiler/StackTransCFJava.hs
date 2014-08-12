@@ -82,7 +82,7 @@ transS this super = TS {
 
        CFix t s -> local (&& False) $ translateM super e
 
-       --CTApp e t -> translateM super e
+       CTApp _ _ -> local (&& False) $ translateM super e
 
        CFIf0 e1 e2 e3 ->
                 do  n <- get
@@ -91,30 +91,27 @@ transS this super = TS {
                     let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
                     genIfBody (up this) e2 e3 j1' s1 n
 
-       CApp e1 e2 ->
-               do  (n :: Int) <- get
-                   put (n+1)
-                   (genApplys :: Bool) <- ask --state before
-                   (s1,j1, CForall (Typ t1 g)) <- local (|| True) $ translateM (up this) e1
-                   (s2,j2,t2) <-  local (|| True) $ translateM (up this) e2
-                   let t    = g ()
-                   let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-                   -- cvarass <- getCvarAss t f n j1 j2
-                   let cvarass = [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
-                           J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )]                                    
-                   let genApply = \x jType -> case x of J.ExpName (J.Name [h]) -> if genApplys then 
-                                                                (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
-                                                                else (nextApply (J.ExpName (J.Name [f])) h jType)
-                                                        _ -> error "expected temporary variable name"
-                                
-                   let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-                   (s3, nje3) <- getS3 t j3 genApply (const []) cvarass
-                   return (s1 ++ s2 ++ s3, nje3, scope2ctyp t) -- need to check t1 == t2
+       CApp e1 e2 -> translateApply (up this) (local (|| True) $ translateM (up this) e1) (local (|| True) $ translateM (up this) e2)
 
        otherwise -> local (|| True) $ translateM super e,
 
-  translateScopeM = \e m -> 
-             translateScopeM super e m,
+  translateScopeM = translateScopeM super,
+
+  translateApply = translateApply super,
+
+  getCvarAss = getCvarAss super,
+
+  genApply = \f t x jType -> 
+      do (genApplys :: Bool) <- ask 
+         (n :: Int) <- get
+         put (n+1)
+         case x of 
+            J.ExpName (J.Name [h]) -> if genApplys then 
+                                         return (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
+                                      else return (nextApply (J.ExpName (J.Name [f])) h jType)
+            _ -> error "expected temporary variable name" ,
+
+  genRes = \s -> return [],
              
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp

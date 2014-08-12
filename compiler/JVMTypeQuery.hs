@@ -1,55 +1,35 @@
-module JVMTypeQuery (isJVMType, hasConstructor, hasMethod) where 
+module JVMTypeQuery (isJVMType, hasConstructor, methodRetType) where 
 
--- 
-import System.IO.Unsafe (unsafePerformIO)
 import Data.Char (isSpace, toLower)
--- 
-import Network.Socket hiding (send, sendTo, recv, recvFrom)
-import Network.Socket.ByteString
-import qualified Data.ByteString.Char8 as C
-
-
--- 
-client :: String   -- addr
-       -> Int      -- port
-       -> String   -- data
-       -> String   -- result
-client host port dat = unsafePerformIO $ withSocketsDo $ 
-  do  addrInfo <- getAddrInfo Nothing (Just host) (Just $ show port)
-      let serverAddr = head addrInfo
-      sock <- socket (addrFamily serverAddr) Stream defaultProtocol
-      connect sock (addrAddress serverAddr)
-      sendAll sock (C.pack dat)
-      ret <- recv sock 1024
-      sClose sock
-      --putStr "Received "
-      --C.putStrLn ret
-      return (C.unpack ret)
-
-
--- if a string is true
-isTrue :: String -> Bool
-isTrue s = "true" == (map toLower $ filter (not . isSpace) s)
+import System.IO
 
 
 -- send data & get result back
-doQuery :: [String] -> String
-doQuery args = client "127.0.0.1" 12345 (unwords args ++ "$")
+doQuery :: (Handle, Handle) -> [String] -> IO String
+doQuery (inp, out) args = do hPutStrLn inp $ unwords args
+                             hGetLine out
+
+--
+
+isTrue :: IO String -> IO Bool
+isTrue str = str >>= (\s -> return $ "true" == map toLower (filter (not . isSpace) s))
+
+--
+
+isJVMType :: (Handle, Handle) -> String -> IO Bool
+isJVMType io name = isTrue $ doQuery io ["qType", name]
 
 
--- isJVMType "java.lang.String"
+--
 
-isJVMType :: String -> Bool
-isJVMType name = isTrue $ doQuery ["queryType", name]
-
-
--- "java.lang.String" `hasConstructor` ["java.lang.String"]
-
-hasConstructor :: String -> [String] -> Bool
-hasConstructor className args = isTrue $ doQuery $ ["queryNew", className] ++ args
+hasConstructor :: (Handle, Handle) -> String -> [String] -> IO Bool
+hasConstructor io className args = isTrue $ doQuery io $ ["qConstructor", className] ++ args
 
 
--- hasMethod "java.lang.Integer" "toString" []
+--
 
-hasMethod :: String -> String -> [String] -> Bool
-hasMethod className methodName args = isTrue $ doQuery $ ["queryMethod", className, methodName] ++ args
+methodRetType :: (Handle, Handle) -> String -> String -> [String] -> IO (Maybe String)
+methodRetType io className methodName args = 
+  do ret <- doQuery io $ ["qMethod", className, methodName] ++ args
+     return $ if ret == "$" then Nothing else Just ret
+

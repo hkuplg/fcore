@@ -86,7 +86,7 @@ variable renaming. An example:
                        zipWith
                          (\f i -> (f, Right (FProj i (FVar "" y))))
                          fs
-                         [0..length bs - 1]
+                         [1..length bs]
 
 {-
    let rec f1 = e1, ..., fn = en in e
@@ -113,4 +113,4 @@ variable renaming. An example:
                          zipWith
                           (\f i -> (f, Right (FProj i (FApp (FVar "" y) (FLit 0)))))
                           fs
-                          [0..length bs - 1]
+                          [1..length bs]
