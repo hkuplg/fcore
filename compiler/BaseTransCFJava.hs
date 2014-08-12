@@ -116,11 +116,16 @@ standardTranslation javaExpression statementsBeforeOA (currentId,currentTyp) fre
 data Translate m = T {
   translateM ::
      PCExp Int (Var, PCTyp Int) ->
-     m ([J.BlockStmt], J.Exp {-Int-}, PCTyp Int),
+     m ([J.BlockStmt], J.Exp, PCTyp Int),
   translateScopeM ::
     Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) ->
     Maybe (Int,PCTyp Int) ->
-    m ([J.BlockStmt], J.Exp {-Int-}, TScope Int),
+    m ([J.BlockStmt], J.Exp, TScope Int),
+  translateApply ::  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int),
+  genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> m [J.BlockStmt],
+  genRes :: [J.BlockStmt] -> m [J.BlockStmt],
+  getCvarAss :: TScope Int -> J.Ident -> J.Exp -> J.Exp -> m [J.BlockStmt],
+  -- getS3 :: TScope Int -> J.Exp -> (J.Exp -> J.Type -> [J.BlockStmt]) -> ([J.BlockStmt] -> [J.BlockStmt]) -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
   createWrap :: String -> PCExp Int (Var, PCTyp Int) -> m (J.CompilationUnit, PCTyp Int),
   closureClass :: J.TypeDecl
   }
@@ -137,13 +142,12 @@ javaType (CTupleType [t]) = javaType t -- optimization for tuples of size 1
 javaType (CTupleType _)  = objArrayType
 javaType _               = objType
 
-getS3 t j3 genApply genRes cvarass  =
+getS3 this f t j3 cvarass =
   do (n :: Int) <- get
      put (n+1)
      let (cast,typ) = chooseCastBox (scope2ctyp t)
-
-     let apply = genApply (var (tempvarstr ++ show n)) typ
-     let rest = genRes [cast tempvarstr n j3]                                                           
+     apply <- genApply this f t (var (tempvarstr ++ show n)) typ
+     rest <- genRes this [cast tempvarstr n j3]                                                           
      let r = cvarass ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))   
 
@@ -163,6 +167,8 @@ assignVar varId e t = J.LocalVars [] (javaType t) [J.VarDecl (J.VarId $ J.Ident 
 fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ varId])) (J.Ident fieldId)
 
 inputFieldAccess varId = fieldAccess varId localvarstr
+
+
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
@@ -224,22 +230,7 @@ trans self = let this = up self in T {
            (s, je, t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
            return (s,je, CForall t')
 
-     CApp e1 e2 ->
-       do  (n :: Int) <- get
-           put (n+1)
-           (s1,j1, CForall (Typ t1 g)) <- translateM this e1
-           (s2,j2,t2) <- translateM this e2
-           let t    = g ()
-           let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-           --cvarass <- getCvarAss t f n j1 j2
-           let cvarass = [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
-                           J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )]                                         
-           let genApply = \x y -> [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))]
-           let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           (s3, nje3) <- getS3 t j3 genApply id cvarass
-
-           return (s1 ++ s2 ++ s3, nje3, scope2ctyp t), -- need to check t1 == t2
-
+     CApp e1 e2 -> translateApply this (translateM this e1) (translateM this e2),
 
   translateScopeM = \e m -> case e of
       Body t ->
@@ -262,6 +253,26 @@ trans self = let this = up self in T {
             let initVars = [(initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t))]
             let cvar = standardTranslation nje s (v,t) n' n initVars False -- do not generate clone method
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
+
+  translateApply = \m1 m2 -> 
+       do  (n :: Int) <- get
+           put (n+1)
+           (s1,j1, CForall (Typ t1 g)) <- m1
+           (s2,j2,t2) <- m2
+           let t    = g ()
+           let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
+           cvarass <- getCvarAss (up this) t f j1 j2
+           let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
+           (s3, nje3) <- getS3 (up this) f t j3 cvarass
+           return (s1 ++ s2 ++ s3, nje3, scope2ctyp t),
+
+  genApply = \f t x y -> return [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))],
+
+  genRes = return,
+
+  getCvarAss = \t f j1 j2 -> 
+     return [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
+              J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )],
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM this exp
