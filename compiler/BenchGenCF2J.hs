@@ -6,12 +6,15 @@ import Prelude hiding (init, last)
 
 import qualified Language.Java.Syntax as J
 import Inheritance
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+--import qualified Data.Map as Map
+--import qualified Data.Set as Set
 import ClosureF
 import BaseTransCFJava
 import StringPrefixes
 import MonadLib
+
+import Language.Java.Pretty
+import Text.PrettyPrint.Leijen
 
 data BenchGenTranslate m = TB {
   toTB :: Translate m -- supertype is a subtype of Translate (later on at least)
@@ -62,7 +65,7 @@ testfuncBody paraType =
 			[ closureInit c0, 
 			  paraAssign  c0 x0 , 
 			  invokeApply c0, 
-			  closurePass c0 c1, 
+			  closurePass c1 c0, 
 			  paraAssign c1 x1, 
 			  invokeApply c1, 
 			  retRes "Integer" c1]
@@ -92,6 +95,13 @@ getScopeType (Kind f) n = 0 : (map (+1) (getScopeType (f n) (n)))
 getScopeType (Typ t f) n = 0 : (map (+1) (getScopeType (f ()) 0))
 getScopeType _ _= []
 
+benchmarkPackage name = Just (J.PackageDecl (J.Name [(J.Ident name)]))
+
+createCUB this compDef = cu where
+   cu = J.CompilationUnit (benchmarkPackage "benchmark") [] ([closureClass this] ++ compDef)
+
+
+
 transBench :: (MonadState Int m, selfType :< BenchGenTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslate m)
 transBench this super = TB {
   toTB = T { 
@@ -110,7 +120,7 @@ transBench this super = TB {
                                                 _ -> J.Cast objType e
            let paraType = getParaType t
            let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType testfuncBody returnType mainbody
-           return (createCUB super [classDecl], t),
+           return (BenchGenCF2J.createCUB super [classDecl], t), 
 
     closureClass = closureClass super 
    }

@@ -174,6 +174,11 @@ compilesf2java compilation srcPath outputPath = do
     src <- readFile srcPath
     let output = sf2java compilation (ClassName (inferClassName outputPath)) src
     writeFile outputPath output
+    --let closureClassDef = closureClass compilation
+    --writeFile "Closure.java" (prettyPrint closureClassDef)
+
+--abstractClosureClass compilation = prettyPrint $ closureClass (up benchinst)
+
 
 type Compilation = String -> PFExp Int (Var, PCTyp Int) -> (J.CompilationUnit, PCTyp Int)--PFExp Int (Var, PCTyp Int) -> (J.Block, J.Exp, PCTyp Int)
 
@@ -217,6 +222,17 @@ benchinst = benchGen
 
 translateBench :: String -> PCExp Int (Var, PCTyp Int) -> NType (J.CompilationUnit, PCTyp Int)
 translateBench = createWrap (up benchinst)
+
+--closureBench :: NType (J.TypeDecl)
+--closureBench = closureClass (up benchinst)
+
+--compileClosureBench = evalState (evalStateT (evalStateT closureBench 0) Map.empty) Set.empty--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+
+
+--genClosure :: J.CompilationUnit
+--genClosure = (J.CompilationUnit (Just (J.PackageDecl (J.Name [(J.Ident "benchmark")]))) 
+--                                                [] [(closureClass)])
+
 
 compileBench :: Compilation
 compileBench name e = evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
