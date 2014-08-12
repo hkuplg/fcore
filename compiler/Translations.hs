@@ -13,7 +13,8 @@ module Translations
     , compileN
     , compileAO
     , compileS
-    , compileBench
+    , compileBN
+    , compileBS
     , compilesf2java
     ) where
 
@@ -28,6 +29,7 @@ import BaseTransCFJava
 import ApplyTransCFJava
 import StackTransCFJava
 import BenchGenCF2J
+import BenchGenStack
 
 import Inheritance
 import MonadLib
@@ -65,8 +67,17 @@ stackNaive :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
 stackNaive = new (transS $> trans)
 
 -- Benchmark-link generation
-benchGen :: (MonadState Int m, MonadState (Map.Map J.Exp Int) m, MonadState (Set.Set J.Exp) m) => BenchGenTranslate m
+
+benchGen :: (MonadState Int m) => BenchGenTranslate m
 benchGen = new (transBench $> trans)
+
+inheritTransStack mix' this super = toTS $ mix' this super
+
+benchGenStack :: (MonadState Int m, MonadReader Bool m) => BenchGenTranslateStack m
+benchGenStack = new ((transBenchStack <.> inheritTransStack transS) $> trans)
+
+instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
+  up = TS . toTBS
 
 -- Stack/Apply translation
 
@@ -220,11 +231,13 @@ translateS = createWrap (up stackinst)
 compileS :: Compilation
 compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) False) []) Set.empty) 0
 
+-- Bench Naive
 benchinst :: BenchGenTranslate NType  -- instantiation; all coinstraints resolved
 benchinst = benchGen
 
 translateBench :: String -> PCExp Int (Var, PCTyp Int) -> NType (J.CompilationUnit, PCTyp Int)
 translateBench = createWrap (up benchinst)
+
 
 --closureBench :: NType (J.TypeDecl)
 --closureBench = closureClass (up benchinst)
@@ -236,6 +249,32 @@ translateBench = createWrap (up benchinst)
 --genClosure = (J.CompilationUnit (Just (J.PackageDecl (J.Name [(J.Ident "benchmark")]))) 
 --                                                [] [(closureClass)])
 
+-- Bench naive+ applyopt
+translateBenchOpt = translateBench
 
-compileBench :: Compilation
-compileBench name e = evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+-- Bench stack
+benchstackinst :: BenchGenTranslateStack StackType  -- instantiation; all coinstraints resolved
+benchstackinst = benchGenStack -- stack naive
+
+translateBenchStack :: String -> PCExp Int (Var, PCTyp Int) -> StackType (J.CompilationUnit, PCTyp Int)
+translateBenchStack = createWrap (up benchstackinst)
+
+
+
+-- TODO Bench stack + applyopt
+-- translateBSA
+
+translateBenchStackOpt = translateBenchStack
+
+compileBN :: Bool -> Compilation
+compileBN False = \name e -> evalState (translateBench name (fexp2cexp e)) 0--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+compileBN True = \name e -> evalState (translateBench name (fexp2cexp e)) 0--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+
+
+-- BenchGenStack
+
+compileBS :: Bool -> Compilation
+compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) False) []) Set.empty) 0
+compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) False) []) Set.empty) 0
+
+

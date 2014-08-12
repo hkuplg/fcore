@@ -33,7 +33,7 @@ data Options = Options
     , optTransMethod   :: TransMethod
     } deriving (Eq, Show, Data, Typeable)
 
-data TransMethod = Naive | ApplyOpt | Stack | Bench deriving (Eq, Show, Data, Typeable)
+data TransMethod = Naive | ApplyOpt | Stack | BenchN | BenchS | BenchNA | BenchSA deriving (Eq, Show, Data, Typeable)
 
 optionsSpec :: Options
 optionsSpec = Options
@@ -89,9 +89,11 @@ main = do
               (case method of Naive    -> compileN
                               ApplyOpt -> compileAO
                               Stack    -> compileS
-                              Bench    -> compileBench)
+                              BenchN    -> compileBN False
+                              BenchS    -> compileBS False
+                              BenchNA   -> compileBN True
+                              BenchSA   -> compileBS True)
               srcPath outputPath
-
         when (optCompile || optCompileAndRun) $ withMessageLn "  Compiling Java" $ compileJava outputPath
         when (optCompileAndRun) $ withMessage "  Running Java\n  Output: " $ runJava outputPath)
 

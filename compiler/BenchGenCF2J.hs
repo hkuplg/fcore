@@ -122,7 +122,15 @@ transBench this super = TB {
            let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType testfuncBody returnType mainbody
            return (BenchGenCF2J.createCUB super [classDecl], t), 
 
-    closureClass = closureClass super 
+  closureClass = closureClass super,
+
+  translateApply = translateApply super,
+
+  genApply = genApply super, 
+
+  genRes = genRes super,
+
+  getCvarAss = getCvarAss super
    }
 }
 
