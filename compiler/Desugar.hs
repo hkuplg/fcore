@@ -89,27 +89,28 @@ variable renaming. An example:
                          [1..length bs]
 
 {-
-   let f A1...An (x1 : t1) : t2 = e in body
-~> let f = /\A1...An. fix f (x1 : t1) : t2. e in body
+   let f : forall A1...An. (x1 : t1) -> t2 = e in body
+~> let f = /\A1...An. fix f (x1 : t1) : t2. peeled_e in body
 ~> (\(f : forall A1...An. t1 -> t2). body)
-     (/\A1...An. fix f (x1 : t1) : t2. e)
+     (/\A1...An. fix y (x1 : t1) : t2. peeled_e)
 -}
-    -- go (LetOut Rec [(f,t,e)] body) =
-    --   FApp
-    --     (FLam
-    --       (transType d t)
-    --       (\f' -> dsTcExpr (d, addToEnv [(f,Left f')] g) body))
-    --     (FFix
-    --       (\f' x1' -> dsTcExpr (d, addToEnv [(f, Left f'), (x1, Left x1')] g) e)
-    --       (transType d t1)
-    --       (transType d t2))
-    --       where
-    --         addToEnv bindings g = foldr (\(x,x') acc -> Map.insert x x' acc) g bindings
-    --         (as, Just (x1, t1), t2) = peel ([],Nothing) (e,t)
-    --           where
-    --             peel (as, Nothing) (BLam _ e, Forall a t)   = peel (as ++ [a], Nothing) (e, t)
-    --             peel (as, Nothing) (Lam (x1,t1) e, Fun _ t) = (as, Just (x1,t1), t)
-    --             peel  _             _                       = invariantFailed "peel" ""
+    go (LetOut Rec [(f,t,e)] body) =
+      FApp
+        (FLam
+          (transType d t)
+          (\f' -> dsTcExpr (d, addToEnv [(f,Left f')] g) body))
+        (FFix
+          (\f' x1' -> dsTcExpr (d, addToEnv [(f, Left f'), (x1, Left x1')] g) peeled_e)
+          (transType d t1)
+          (transType d t2))
+          where
+            addToEnv bindings g = foldr (\(x,x') acc -> Map.insert x x' acc) g bindings
+            (as, Just (x1, t1), t2, peeled_e) = peel ([],Nothing) (e,t)
+              where
+                peel (as, Nothing) (BLam _ e, Forall a t)   = peel (as ++ [a], Nothing) (e, t)
+                peel (as, Nothing) (Lam (x1,t1) e, Fun _ t) = (as, Just (x1,t1), t, e)
+                peel  _             _                       =
+                  invariantFailed "peel" "The given expression doesn't seem to typecheck"
 
 {-
    let rec f1 = e1, ..., fn = en in e
