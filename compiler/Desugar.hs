@@ -89,11 +89,28 @@ variable renaming. An example:
                          [1..length bs]
 
 {-
-   let f : forall A1...An. (x1 : t1) -> t2 = e in body
-~> let f = /\A1...An. fix f (x1 : t1) : t2. peeled_e in body
+   let f : forall A1...An. t1 -> t2 = e@(\(x : t1). peeled_e) in body
+                                      ^
+Inside the marked e, f is polymorphic.
+
+~> let f = /\A1...An. (fix f (x1 : t1) : t2. peeled_e) in body
+                                             ^
+However, f no longer is polymorphic inside peeled_e as the type variables A1...An has
+been instantiated. If inside the original e, f is instantiated with different sets of
+type variables, then after this rewriting the expression no longer typechecks.
+
+Conclusion: this rewriting cannot allow type variables in the RHS of the binding.
+
 ~> (\(f : forall A1...An. t1 -> t2). body)
      (/\A1...An. fix y (x1 : t1) : t2. peeled_e)
 -}
+    go (LetOut Rec [(f,t@(Fun _ _),e)] body) = dsLetRecDirect (d,g) (LetOut Rec [(f,t,e)] body)
+    go (LetOut Rec [(f,t,e)] body)           = dsLetRecEncode (d,g) (LetOut Rec [(f,t,e)] body)
+    go (LetOut Rec bs body)                  = dsLetRecEncode (d,g) (LetOut Rec bs body)
+
+dsLetRecDirect :: DsEnv t e -> TcExpr -> PFExp t e
+dsLetRecDirect (d,g) = go
+  where
     go (LetOut Rec [(f,t,e)] body) =
       FApp
         (FLam
@@ -105,12 +122,10 @@ variable renaming. An example:
           (transType d t2))
           where
             addToEnv bindings g = foldr (\(x,x') acc -> Map.insert x x' acc) g bindings
-            (as, Just (x1, t1), t2, peeled_e) = peel ([],Nothing) (e,t)
+            (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
               where
-                peel (as, Nothing) (BLam _ e, Forall a t)   = peel (as ++ [a], Nothing) (e, t)
-                peel (as, Nothing) (Lam (x1,t1) e, Fun _ t) = (as, Just (x1,t1), t, e)
-                peel  _             _                       =
-                  invariantFailed "peel" "The given expression doesn't seem to typecheck"
+                peel Nothing (Lam (x1,t1) e, Fun _ t) = (Just (x1,t1), t, e)
+                peel _ _ = invariantFailed "peel" "I cannot peel an expression that is not a function"
 
 {-
    let rec f1 = e1, ..., fn = en in e
@@ -118,6 +133,9 @@ variable renaming. An example:
 ~> (\(y : Int -> (t1, ..., tn)). e[*])
      (fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*])
 -}
+dsLetRecEncode :: DsEnv t e -> TcExpr -> PFExp t e
+dsLetRecEncode (d,g) = go
+  where
     go (LetOut Rec bs@(_:_) e) =
       FApp
         (FLam
@@ -136,6 +154,7 @@ variable renaming. An example:
             -- Substitution: fi -> (y 0)._(i-1)
             g' = \y -> Map.fromList
                          (zipWith
+                          -- TODO: better var name
                           (\f i -> (f, Right (FProj i (FApp (FVar "" y) (FLit 0)))))
                           fs
                           [1..length bs])
