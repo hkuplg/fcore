@@ -6,7 +6,6 @@ import Prelude hiding (init, last)
 
 import qualified Language.Java.Syntax as J
 import ClosureF
--- import Mixins
 import Inheritance
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -70,8 +69,8 @@ nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.Cl
         [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))
 
 transS :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
-transS this super = TS {
-  toTS = super {  translateM = \e -> case e of
+transS this super = TS {toTS = super {  
+  translateM = \e -> case e of
        CLam s           -> local (&& False) $ translateM super e
        CFix t s         -> local (&& False) $ translateM super e
        CTApp _ _        -> local (&& False) $ translateM super e
@@ -84,7 +83,7 @@ transS this super = TS {
          (n :: Int) <- get
          put (n+1)
          case x of 
-            J.ExpName (J.Name [h]) -> if genApplys then 
+            J.ExpName (J.Name [h]) -> if genApplys then -- relies on translated code!
                                          return (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
                                       else return (nextApply (J.ExpName (J.Name [f])) h jType)
             _ -> error "expected temporary variable name" ,
