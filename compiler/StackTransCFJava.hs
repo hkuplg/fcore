@@ -6,11 +6,11 @@ import Prelude hiding (init, last)
 
 import qualified Language.Java.Syntax as J
 import ClosureF
--- import Mixins
 import Inheritance
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import BaseTransCFJava
+import ApplyTransCFJava (countAbs)
 import StringPrefixes
 import MonadLib
 
@@ -69,9 +69,9 @@ stackbody t =
 nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.ClassBody [J.MemberDecl (J.FieldDecl
         [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))
 
-transS :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
-transS this super = TS {
-  toTS = super {  translateM = \e -> case e of
+transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transS this super = TS {toTS = super {  
+  translateM = \e -> case e of
        CLam s           -> local (&& False) $ translateM super e
        CFix t s         -> local (&& False) $ translateM super e
        CTApp _ _        -> local (&& False) $ translateM super e
@@ -84,16 +84,23 @@ transS this super = TS {
          (n :: Int) <- get
          put (n+1)
          case x of 
-            J.ExpName (J.Name [h]) -> if genApplys then 
+            J.ExpName (J.Name [h]) -> if genApplys then -- relies on translated code!
                                          return (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
                                       else return (nextApply (J.ExpName (J.Name [f])) h jType)
             _ -> error "expected temporary variable name" ,
 
-  genRes = \s -> return [],
+  genRes = \t s -> return [],
              
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
            let stackDecl = getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) Nothing (Just $ J.Block $ stackbody t)
-           return (createCUB  super [nextClass,stackDecl], t)
+           return (createCUB  (up this :: Translate m) [nextClass,stackDecl], t)
              
+  }}
+
+-- Alternative version of transS that interacts with the Apply translation
+
+transSA :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transSA this super = TS {toTS = (up (transS this super)) {
+   genRes = \t s -> if (countAbs t == 0) then return [] else genRes super t s
   }}
