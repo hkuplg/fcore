@@ -106,13 +106,14 @@ jexp init body idCF generateClone =
 
 currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
 outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
-standardTranslation javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId initVars generateClone = 
-   {-let (f,_) = chooseCastBox currentTyp
-       je = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ localvarstr ++ show currentId])) (J.Ident localvarstr)
-   in-} [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
+
+{-
+translateScopeTyp javaExpression statementsBeforeOA currentId nextId initVars generateClone = 
+     [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
         (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
-        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block ({-[f localvarstr freshVar je] ++-} initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId generateClone))),
+        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId generateClone))),
         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
+-}
 
 data Translate m = T {
   translateM ::
@@ -123,8 +124,11 @@ data Translate m = T {
     Maybe (Int,PCTyp Int) ->
     m ([J.BlockStmt], J.Exp, TScope Int),
   translateApply ::  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int),
+  translateIf ::  m ([J.BlockStmt], J.Exp, PCTyp Int) -> m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int),
+  translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, TScope Int) -> m ([J.BlockStmt], TScope Int), 
   genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> m [J.BlockStmt],
   genRes :: [J.BlockStmt] -> m [J.BlockStmt],
+  genClone :: m Bool,
   getCvarAss :: TScope Int -> J.Ident -> J.Exp -> J.Exp -> m [J.BlockStmt],
   -- getS3 :: TScope Int -> J.Exp -> (J.Exp -> J.Type -> [J.BlockStmt]) -> ([J.BlockStmt] -> [J.BlockStmt]) -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
   createWrap :: String -> PCExp Int (Var, PCTyp Int) -> m (J.CompilationUnit, PCTyp Int),
@@ -152,9 +156,9 @@ getS3 this f t j3 cvarass =
      let r = cvarass ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))   
 
-genIfBody this e2 e3 j1 s1 n = do 
-            (s2,j2,t2) <- translateM this e2
-            (s3,j3,t3) <- translateM this e3
+genIfBody this m2 m3 j1 s1 n = do 
+            (s2,j2,t2) <- m2 {-translateM this e2-}
+            (s3,j3,t3) <- m3 {-translateM this e3-}
             let ifvarname = (ifresultstr ++ show n)
             let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
             let ifresdecl = J.LocalVars [] (javaType t2) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
@@ -168,8 +172,6 @@ assignVar varId e t = J.LocalVars [] (javaType t) [J.VarDecl (J.VarId $ J.Ident 
 fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ varId])) (J.Ident fieldId)
 
 inputFieldAccess varId = fieldAccess varId localvarstr
-
-
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
@@ -188,12 +190,7 @@ trans self = let this = up self in T {
            let je = J.BinOp j1 op j2 
            return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je CInt], var (localvarstr ++ show n), CInt)  -- type being returned will be wrong for operators like "<"
 
-     CFIf0 e1 e2 e3 ->
-        do  n <- get
-            put (n+1)
-            (s1,j1,t1) <- translateM this e1
-            let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
-            genIfBody this e2 e3 j1' s1 n
+     CFIf0 e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3) 
      
      -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)     
      CFTuple [e] -> 
@@ -249,10 +246,9 @@ trans self = let this = up self in T {
             let f       = J.Ident (localvarstr ++ show n) -- use a fresh variable
             let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
             put (n' + 1)
-            (s,je,t1) <- translateScopeM this (g (n',t)) Nothing
-            let nje = je
-            let initVars = [(initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t))]
-            let cvar = standardTranslation nje s (v,t) n' n initVars False -- do not generate clone method
+            let nextInClosure = g (n',t)
+            let js = (initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t)) 
+            (cvar,t1) <- translateScopeTyp this v n [js] nextInClosure (translateScopeM this nextInClosure Nothing) 
             return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
 
   translateApply = \m1 m2 -> 
@@ -267,6 +263,22 @@ trans self = let this = up self in T {
            (s3, nje3) <- getS3 (up this) f t j3 cvarass
            return (s1 ++ s2 ++ s3, nje3, scope2ctyp t),
 
+  translateIf = \m1 m2 m3 ->
+        do  n <- get
+            put (n+1)
+            (s1,j1,t1) <- m1 {- translateM this e1 -}
+            let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
+            genIfBody this m2 m3 j1' s1 n,
+
+  translateScopeTyp = \currentId nextId initVars nextInClosure m ->
+     do b <- genClone this
+        (statementsBeforeOA,javaExpression,t1) <- m
+        return ([(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
+                 (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
+                 (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId b))),
+                 J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])],t1),
+
+
   genApply = \f t x y -> return [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))],
 
   genRes = return,
@@ -274,6 +286,8 @@ trans self = let this = up self in T {
   getCvarAss = \t f j1 j2 -> 
      return [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
               J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )],
+
+  genClone = return False, -- do not generate clone method
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM this exp

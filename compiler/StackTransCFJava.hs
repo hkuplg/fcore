@@ -6,7 +6,6 @@ import Prelude hiding (init, last)
 
 import qualified Language.Java.Syntax as J
 import ClosureF
--- import Mixins
 import Inheritance
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -20,15 +19,9 @@ data TranslateStack m = TS {
 
 instance {-(r :< Translate m) =>-} (:<) (TranslateStack m) (Translate m) where
    up              = up . toTS
---   override (TS fm ts) f  = TS (override fm f) ts
 
 instance (:<) (TranslateStack m) (TranslateStack m) where -- reflexivity
   up = id
-
-{-
-instance (r :< TranslateStack m) => (:<) r (Translate m) where -- transitivity
-  up = up . up
--}
 
 whileApplyLoop :: String -> J.Ident -> J.Type -> [J.BlockStmt]
 whileApplyLoop ctemp tempOut outType = [J.LocalVars [] closureType [J.VarDecl (J.VarId $ J.Ident $ ctemp) (Nothing)],
@@ -76,37 +69,21 @@ nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.Cl
         [J.Static] (closureType) [J.VarDecl (J.VarId (J.Ident "next")) (Just (J.InitExp (J.Lit J.Null)))])]))
 
 transS :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
-transS this super = TS {
-  toTS = T {  translateM = \e -> case e of
-       CLam s -> local (&& False) $ translateM super e
-
-       CFix t s -> local (&& False) $ translateM super e
-
-       CTApp _ _ -> local (&& False) $ translateM super e
-
-       CFIf0 e1 e2 e3 ->
-                do  n <- get
-                    put (n+1)
-                    (s1,j1,t1) <- local (|| True) $ translateM (up this) e1
-                    let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
-                    genIfBody (up this) e2 e3 j1' s1 n
-
-       CApp e1 e2 -> translateApply (up this) (local (|| True) $ translateM (up this) e1) (local (|| True) $ translateM (up this) e2)
-
-       otherwise -> local (|| True) $ translateM super e,
-
-  translateScopeM = translateScopeM super,
-
-  translateApply = translateApply super,
-
-  getCvarAss = getCvarAss super,
+transS this super = TS {toTS = super {  
+  translateM = \e -> case e of
+       CLam s           -> local (&& False) $ translateM super e
+       CFix t s         -> local (&& False) $ translateM super e
+       CTApp _ _        -> local (&& False) $ translateM super e
+       CFIf0 e1 e2 e3   -> translateIf (up this) (local (|| True) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
+       CApp e1 e2       -> translateApply (up this) (local (|| True) $ translateM (up this) e1) (local (|| True) $ translateM (up this) e2)
+       otherwise        -> local (|| True) $ translateM super e,
 
   genApply = \f t x jType -> 
       do (genApplys :: Bool) <- ask 
          (n :: Int) <- get
          put (n+1)
          case x of 
-            J.ExpName (J.Name [h]) -> if genApplys then 
+            J.ExpName (J.Name [h]) -> if genApplys then -- relies on translated code!
                                          return (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
                                       else return (nextApply (J.ExpName (J.Name [f])) h jType)
             _ -> error "expected temporary variable name" ,
@@ -116,7 +93,6 @@ transS this super = TS {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
            let stackDecl = getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) Nothing (Just $ J.Block $ stackbody t)
-           return (createCUB  super [nextClass,stackDecl], t),
-
-  closureClass = closureClass super             
+           return (createCUB  super [nextClass,stackDecl], t)
+             
   }}
