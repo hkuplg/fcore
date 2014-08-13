@@ -18,16 +18,6 @@ import MonadLib
 import Language.Java.Pretty
 import Text.PrettyPrint.Leijen
 
-data BenchGenTranslateStack m = TBS {
-  toTBS :: Translate m -- supertype is a subtype of Translate (later on at least)
-}
-
-instance (:<) (BenchGenTranslateStack m) (Translate m) where
-   up = up . toTBS
-
-instance (:<) (BenchGenTranslateStack m) (BenchGenTranslateStack m) where -- reflexivity
-  up = id
-
 
 --apply();
 methodInvoke id args = (J.BlockStmt $ J.ExpStmt $ J.MethodInv $ J.MethodCall (J.Name [(J.Ident id)]) args)
@@ -38,10 +28,20 @@ localVarDef id = (J.LocalVars [] closureType
 				Nothing])
 
 --Object result = null;
-resultDef = (J.LocalVars [] closureType
+resultDef = (J.LocalVars [] objType
 			[J.VarDecl (J.VarId (J.Ident "result"))
 			(Just $ J.InitExp $ J.Lit J.Null)])
 
+whileApplyLoopB :: String -> J.Ident -> J.Type -> [J.BlockStmt]
+whileApplyLoopB ctemp tempOut outType  = 
+		[J.BlockStmt (J.While (J.BinOp (J.ExpName $ J.Name [J.Ident ("(" ++ ctemp ++ " = " ++ "Next.next" ++ ")")])
+        J.NotEq (J.Lit J.Null)) (J.StmtBlock (J.Block
+        [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"]))
+        J.EqualA (J.Lit J.Null))),
+        J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident $ ctemp,J.Ident "apply"]) []))),
+        J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [tempOut]))
+        J.EqualA (J.Cast outType
+        (J.ExpName (J.Name [J.Ident $ ctemp,J.Ident "out"])))))])))]
 --c = (Closure) result;
 --c.x = x;
 --Next.next = c;
@@ -51,6 +51,8 @@ passClousre from to param = [
 	(J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (fieldAcc "Next" "next")) (J.EqualA) (J.ExpName $ J.Name [(J.Ident to)]))
 	]
 
+
+retResStack returnType id = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (refType returnType)) (J.ExpName $ J.Name [(J.Ident id)]))))
 
 --while ((c = Next.next) != null)
 --{
@@ -68,23 +70,25 @@ testfuncBody paraType =
 	case paraType of
 		[] -> []
 		x : [] -> [ methodInvoke "apply" [], 
-					localVarDef "c" ] 
-					++ whileApplyLoop "c" (J.Ident "result") objType
+					localVarDef "c",
+					resultDef] 
+					++ whileApplyLoopB "c" (J.Ident "result") objType
 					++ passClousre "result" "c" x0
-					++ whileApplyLoop "c" (J.Ident "result") objType
-					++ [retRes "Integer" "result"] 
+					++ whileApplyLoopB "c" (J.Ident "result") objType
+					++ [retResStack "Integer" "result"] 
 				where
 					x0 = "x" ++ show x
 					
 		x : y : [] ->
 				[ methodInvoke "apply" [], 
-				localVarDef "c" ]
-				++ whileApplyLoop "c" (J.Ident "result") objType
+				localVarDef "c",
+				resultDef]
+				++ whileApplyLoopB "c" (J.Ident "result") objType
 				++ passClousre "result" "c" x0
 				++ whileApplyLoop "c" (J.Ident "result") objType
 				++ passClousre "result" "c" x1
-				++ whileApplyLoop "c" (J.Ident "result") objType
-				++ [retRes "Integer" "result"]
+				++ whileApplyLoopB "c" (J.Ident "result") objType
+				++ [retResStack "Integer" "result"]
 				where
 					x0 = "x" ++ show x
 					x1 = "x" ++ show y
@@ -93,6 +97,18 @@ testfuncBody paraType =
 
 createCUB this compDef = cu where
    cu = J.CompilationUnit (benchmarkPackage "benchmark") [] ([closureClass this] ++ compDef)
+
+
+--date type for stack BenchGen
+data BenchGenTranslateStack m = TBS {
+  toTBS :: Translate m -- supertype is a subtype of Translate (later on at least)
+}
+
+instance (:<) (BenchGenTranslateStack m) (Translate m) where
+   up = up . toTBS
+
+instance (:<) (BenchGenTranslateStack m) (BenchGenTranslateStack m) where
+  up = id
 
 
 
@@ -104,18 +120,6 @@ transBenchStack this super = TBS {
 
   translateScopeM = translateScopeM super,
 
-  -- here, I guess, you will mainly do the changes: have a look at BaseTransCFJava (and StackTransCFJava) how it's done currently             
-  --createWrap = \name exp ->
-  --      do (bs,e,t) <- translateM super exp
-  --         let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
-  --                                    _ -> Just $ objType
-  --         let maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
-  --                                              _ -> J.Cast objType e
-  --         let paraType = getParaType t
-  --         let classDecl = BenchGenStack.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType testfuncBody returnType mainbody
-  --         return (BenchGenStack.createCUB super [classDecl], t), 
-
-
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
            let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
@@ -123,8 +127,9 @@ transBenchStack this super = TBS {
            let maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
                                                 _ -> J.Cast objType e
            let paraType = getParaType t
-           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType BenchGenStack.testfuncBody returnType mainbody
-           return (BenchGenStack.createCUB super [classDecl], t), 
+           --let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType BenchGenStack.testfuncBody returnType mainbody
+           let stackDecl = BenchGenCF2J.getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) paraType BenchGenStack.testfuncBody returnType (Just $ J.Block $ stackbody t)
+           return (BenchGenStack.createCUB super [nextClass,stackDecl], t), 
 
   closureClass = closureClass super,
 
@@ -134,7 +139,41 @@ transBenchStack this super = TBS {
 
   genRes = genRes super,
 
-  getCvarAss = getCvarAss super
+  getCvarAss = getCvarAss super,
+
+  translateIf = translateIf super,
+
+  translateScopeTyp = translateScopeTyp super,
+  
+  genClone = genClone super
+   }
+}
+
+--date type for stack + apply opt BenchGen
+data BenchGenTranslateStackOpt m = TBSA {
+  toTBSA :: Translate m -- supertype is a subtype of Translate (later on at least)
+}
+
+instance (:<) (BenchGenTranslateStackOpt m) (Translate m) where
+   up = up . toTBSA
+
+instance (:<) (BenchGenTranslateStackOpt m) (BenchGenTranslateStackOpt m) where
+  up = id
+
+
+
+transBenchStackOpt :: (MonadState Int m, selfType :< BenchGenTranslateStackOpt m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslateStackOpt m)
+transBenchStackOpt this super = TBSA {
+  toTBSA = super { 
+  createWrap = \name exp ->
+        do (bs,e,t) <- translateM super exp
+           let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
+                                      _ -> Just $ objType
+           let maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
+                                                _ -> J.Cast objType e
+           let paraType = getParaType t
+           let stackDecl = BenchGenCF2J.getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) paraType BenchGenStack.testfuncBody returnType (Just $ J.Block $ stackbody t)
+           return (BenchGenStack.createCUB super [nextClass,stackDecl], t)
 
    }
 }

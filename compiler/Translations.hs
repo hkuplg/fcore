@@ -80,15 +80,14 @@ inheritNOpt mix' this super = toT $ mix' this super
 benchGenNOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => BenchGenTranslateOpt m
 benchGenNOpt = new ((transBenchOpt <.> inheritNOpt transApply) $> trans)
 
-instance (:<) (BenchGenTranslateOpt) (ApplyOptTranslate) where
+instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
   up = NT . toTBA
 
 
 -- bench for stack
-inheritTransStack mix' this super = toTS $ mix' this super
 
 benchGenStack :: (MonadState Int m, MonadReader Bool m) => BenchGenTranslateStack m
-benchGenStack = new ((transBenchStack <.> inheritTransStack transS) $> trans)
+benchGenStack = new ((transBenchStack <.> adaptStack transS) $> trans)
 
 instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
   up = TS . toTBS
@@ -97,6 +96,14 @@ instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
 --benchGenStackOpt ::  (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
 
 
+benchGenStackOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
+benchGenStackOpt = new ((transBenchStackOpt <.> adaptStack transS <.> adaptApply transApply) $> trans)
+
+instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
+  up = NT . toTBSA
+
+instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
+  up = TS . toTBSA
 
 -- Stack/Apply translation
 
@@ -286,7 +293,8 @@ translateBench = createWrap (up benchinst)
 benchnaiveopt :: BenchGenTranslateOpt AOptType
 benchnaiveopt = benchGenNOpt
 
-translateBenchOpt = translateBench
+translateBenchOpt :: String -> PCExp Int (Var, PCTyp Int) -> AOptType (J.CompilationUnit, PCTyp Int)
+translateBenchOpt = createWrap (up benchnaiveopt)
 
 -- Bench stack
 benchstackinst :: BenchGenTranslateStack StackType  -- instantiation; all coinstraints resolved
@@ -299,8 +307,11 @@ translateBenchStack = createWrap (up benchstackinst)
 
 -- TODO Bench stack + applyopt
 -- translateBSA
+benchstackoptinst :: BenchGenTranslateStackOpt StackType
+benchstackoptinst = benchGenStackOpt
 
-translateBenchStackOpt = translateBenchStack
+translateBenchStackOpt :: String -> PCExp Int (Var, PCTyp Int) -> StackType (J.CompilationUnit, PCTyp Int)
+translateBenchStackOpt = createWrap (up benchstackoptinst)
 
 compileBN :: Bool -> Compilation
 compileBN False = \name e -> evalState (translateBench name (fexp2cexp e)) 0--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty

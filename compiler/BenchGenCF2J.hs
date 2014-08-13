@@ -7,7 +7,7 @@ import Prelude hiding (init, last)
 import qualified Language.Java.Syntax as J
 import Inheritance
 --import qualified Data.Map as Map
---import qualified Data.Set as Set
+import qualified Data.Set as Set
 import ClosureF
 import BaseTransCFJava
 import StringPrefixes
@@ -16,26 +16,7 @@ import MonadLib
 import Language.Java.Pretty
 import Text.PrettyPrint.Leijen
 
-data BenchGenTranslateOpt m = TBA {
-  toTBA :: Translate m -- supertype is a subtype of Translate (later on at least)
-}
 
-instance (:<) (BenchGenTranslateOpt m) (Translate m) where
-   up = up . toTBA
-
-instance (:<) (BenchGenTranslateOpt m) (BenchGenTranslateOpt m) where -- reflexivity
-  up = id
-
-
-data BenchGenTranslate m = TB {
-  toTB :: Translate m -- supertype is a subtype of Translate (later on at least)
-}
-
-instance (:<) (BenchGenTranslate m) (Translate m) where
-   up = up . toTB
-
-instance (:<) (BenchGenTranslate m) (BenchGenTranslate m) where -- reflexivity
-  up = id
 
 
 -- nats = 1 : map (+1) nats
@@ -112,6 +93,17 @@ createCUB this compDef = cu where
    cu = J.CompilationUnit (benchmarkPackage "benchmark") [] ([closureClass this] ++ compDef)
 
 
+-- data type for naive BenchGen
+data BenchGenTranslate m = TB {
+  toTB :: Translate m -- supertype is a subtype of Translate (later on at least)
+}
+
+instance (:<) (BenchGenTranslate m) (Translate m) where
+   up = up . toTB
+
+instance (:<) (BenchGenTranslate m) (BenchGenTranslate m) where -- reflexivity
+  up = id
+
 
 transBench :: (MonadState Int m, selfType :< BenchGenTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslate m)
 transBench this super = TB {
@@ -141,7 +133,40 @@ transBench this super = TB {
 
   genRes = genRes super,
 
-  getCvarAss = getCvarAss super
+  getCvarAss = getCvarAss super,
+
+  translateIf = translateIf super,
+
+  translateScopeTyp = translateScopeTyp super,
+
+  genClone = genClone super
    }
 }
 
+
+
+-- data type for naive + apply opt BenchGen
+data BenchGenTranslateOpt m = TBA {
+  toTBA :: Translate m -- supertype is a subtype of Translate (later on at least)
+}
+
+instance (:<) (BenchGenTranslateOpt m) (Translate m) where
+   up = up . toTBA
+
+instance (:<) (BenchGenTranslateOpt m) (BenchGenTranslateOpt m) where -- reflexivity
+  up = id
+
+transBenchOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< BenchGenTranslateOpt m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslateOpt m)
+transBenchOpt this super = TBA {
+  toTBA = super { 
+  createWrap = \name exp ->
+        do (bs,e,t) <- translateM super exp
+           let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
+                                      _ -> Just $ objType
+           let maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
+                                                _ -> J.Cast objType e
+           let paraType = getParaType t
+           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType testfuncBody returnType mainbody
+           return (BenchGenCF2J.createCUB super [classDecl], t)
+   }
+}
