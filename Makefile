@@ -5,6 +5,7 @@ testdir=test
 
 .PHONY : compiler
 compiler :
+	javac compiler/TypeServer.java -d .
 	cabal install
 
 .PHONY : test

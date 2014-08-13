@@ -56,6 +56,17 @@ fexp2cexp2 (FVar _ t) tenv env = CVar (env !! fst t)
 fexp2cexp2 e tenv env = CLam (groupLambda2 e tenv env)
 -}
 
+{-
+fexp2cexp2 :: PFExp t (e, PCTyp t) -> (PCExp t e, PCTyp t)
+fexp2cexp2 (FVar _ (x,t))      = (CVar x,t)
+fexp2cexp2 (FApp e1 e2)        = 
+   let (c1,CForall (Typ t g))  = fexp2cexp2 e1
+       (c2,t2)                 = fexp2cexp2 e2
+   in (CApp c1 c2, undefined (g ()))
+fexp2cexp2 (FTApp e t)   = 
+   let (c1,t1) = fexp2cexp e
+CTApp (fexp2cexp e) (ftyp2ctyp t)
+-}
 
 fexp2cexp :: PFExp t e -> PCExp t e
 fexp2cexp (FVar _ x)    = CVar x

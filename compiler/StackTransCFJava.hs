@@ -20,15 +20,9 @@ data TranslateStack m = TS {
 
 instance {-(r :< Translate m) =>-} (:<) (TranslateStack m) (Translate m) where
    up              = up . toTS
---   override (TS fm ts) f  = TS (override fm f) ts
 
 instance (:<) (TranslateStack m) (TranslateStack m) where -- reflexivity
   up = id
-
-{-
-instance (r :< TranslateStack m) => (:<) r (Translate m) where -- transitivity
-  up = up . up
--}
 
 whileApplyLoop :: String -> J.Ident -> J.Type -> [J.BlockStmt]
 whileApplyLoop ctemp tempOut outType = [J.LocalVars [] closureType [J.VarDecl (J.VarId $ J.Ident $ ctemp) (Nothing)],
@@ -77,49 +71,29 @@ nextClass = J.ClassTypeDecl (J.ClassDecl [] (J.Ident "Next") [] Nothing [] (J.Cl
 
 transS :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {
-  toTS = T {  translateM = \e -> case e of
-       CLam s -> local (&& False) $ translateM super e
+  toTS = super {  translateM = \e -> case e of
+       CLam s           -> local (&& False) $ translateM super e
+       CFix t s         -> local (&& False) $ translateM super e
+       CTApp _ _        -> local (&& False) $ translateM super e
+       CFIf0 e1 e2 e3   -> translateIf (up this) (local (|| True) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
+       CApp e1 e2       -> translateApply (up this) (local (|| True) $ translateM (up this) e1) (local (|| True) $ translateM (up this) e2)
+       otherwise        -> local (|| True) $ translateM super e,
 
-       CFix t s -> local (&& False) $ translateM super e
+  genApply = \f t x jType -> 
+      do (genApplys :: Bool) <- ask 
+         (n :: Int) <- get
+         put (n+1)
+         case x of 
+            J.ExpName (J.Name [h]) -> if genApplys then 
+                                         return (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
+                                      else return (nextApply (J.ExpName (J.Name [f])) h jType)
+            _ -> error "expected temporary variable name" ,
 
-       CTApp _ _ -> local (&& False) $ translateM super e
-
-       CFIf0 e1 e2 e3 ->
-                do  n <- get
-                    put (n+1)
-                    (s1,j1,t1) <- local (|| True) $ translateM (up this) e1
-                    let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
-                    genIfBody (up this) e2 e3 j1' s1 n
-
-       CApp e1 e2 -> -- also replaces the functionality of ApplyOpt
-               do  (n :: Int) <- get
-                   put (n+1)
-                   (genApplys :: Bool) <- ask --state before
-                   (s1,j1, CForall (Typ t1 g)) <- local (|| True) $ translateM (up this) e1
-                   (s2,j2,t2) <-  local (|| True) $ translateM (up this) e2
-                   let t    = g ()
-                   let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-                   -- cvarass <- getCvarAss t f n j1 j2
-                   let cvarass = [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
-                           J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )]                                    
-                   let genApply = \x jType -> case x of J.ExpName (J.Name [h]) -> if genApplys then 
-                                                                (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
-                                                                else (nextApply (J.ExpName (J.Name [f])) h jType)
-                                                        _ -> error "expected temporary variable name"
-                                
-                   let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-                   (s3, nje3) <- getS3 t j3 genApply (const []) cvarass
-                   return (s1 ++ s2 ++ s3, nje3, scope2ctyp t) -- need to check t1 == t2
-
-       otherwise -> local (|| True) $ translateM super e,
-
-  translateScopeM = \e m -> 
-             translateScopeM super e m,
+  genRes = \s -> return [],
              
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
            let stackDecl = getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) Nothing (Just $ J.Block $ stackbody t)
-           return (createCUB  super [nextClass,stackDecl], t),
-
-  closureClass = closureClass super             
+           return (createCUB  super [nextClass,stackDecl], t)
+             
   }}
