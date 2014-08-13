@@ -19,7 +19,7 @@ transType :: Map.Map Name t -> Type -> PFTyp t
 transType d = go
   where
     go (TyVar a)    = FTVar (fromJust (Map.lookup a d))
-    go  Int         = FInt
+    go (JClass c)   = FJClass (fromJust (Map.lookup c d))
     go (Fun t1 t2)  = FFun (go t1) (go t2)
     go (Product ts) = FProduct (map go ts)
     go (Forall a t) = FForall (\a' -> transType (Map.insert a a' d) t)

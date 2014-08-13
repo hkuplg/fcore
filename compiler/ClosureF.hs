@@ -8,13 +8,20 @@ import SystemF.Syntax
 
 -- Closure F syntax
 
-data Scope b t e = Body b | Kind (t -> Scope b t e) | Typ (PCTyp t) (e -> Scope b t e)
+data Scope b t e = 
+      Body b 
+    | Kind (t -> Scope b t e) 
+    | Typ (PCTyp t) (e -> Scope b t e)
 
 type TScope t = Scope (PCTyp t) t ()
 
 type EScope t e = Scope (PCExp t e) t e
 
-data PCTyp t = CTVar t | CForall (TScope t) | CInt | CTupleType [PCTyp t]
+data PCTyp t = 
+      CTVar t 
+    | CForall (TScope t) 
+    | CJClass t 
+    | CTupleType [PCTyp t]
 
 data PCExp t e =
      CVar e
@@ -46,7 +53,7 @@ ftyp2ctyp2 = undefined
 
 ftyp2ctyp :: PFTyp t -> PCTyp t
 ftyp2ctyp (FTVar x) = CTVar x
-ftyp2ctyp (FInt)    = CInt
+ftyp2ctyp (FJClass c) = CJClass c
 ftyp2ctyp (FProduct ts) = CTupleType (map ftyp2ctyp ts)
 ftyp2ctyp t         = CForall (ftyp2scope t)
 
@@ -109,7 +116,7 @@ scope2ctyp s         = CForall s
 joinPCTyp :: PCTyp (PCTyp t) -> PCTyp t
 joinPCTyp (CTVar t)   = t
 joinPCTyp (CForall s) = CForall (joinTScope s)
-joinPCTyp CInt = CInt
+joinPCTyp (CJClass c) = c
 joinPCTyp (CTupleType ts) = CTupleType (map joinPCTyp ts)
 
 joinTScope :: TScope (PCTyp t) -> TScope t
@@ -143,7 +150,7 @@ instance Subst t => Subst (PCTyp t) where
 showPCTyp :: PCTyp Int -> Int -> String
 showPCTyp (CTVar i) n = "a" ++ show i
 showPCTyp (CForall s) n = "(forall " ++ showTScope s n ++ ")"
-showPCTyp CInt n = "Int"
+showPCTyp (CJClass c) n = undefined
 showPCTyp (CTupleType ts) n = "TODO!"
 
 showTScope (Body t) n = ". " ++ showPCTyp t n

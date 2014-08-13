@@ -13,7 +13,7 @@ data PFTyp t =
       FTVar t
     | FForall (t -> PFTyp t)
     | FFun (PFTyp t) (PFTyp t)
-    | FInt
+    | FJClass t
     | FProduct [PFTyp t]
 
 instance Eq (PFTyp Int) where
@@ -21,7 +21,7 @@ instance Eq (PFTyp Int) where
         where go i (FTVar x) (FTVar y)         = x == y
               go i (FForall f) (FForall g)     = go (i+1) (f i) (g i)
               go i (FFun s1 s2) (FFun t1 t2)   = s1 == t1 && s2 == t2
-              go i FInt FInt                   = True
+              go i (FJClass c1) (FJClass c2)   = c1 == c2
               go i (FProduct ss) (FProduct ts) = ss == ts
               go i _ _                         = False
 
@@ -47,5 +47,8 @@ data PFExp t e =
     | FFix (e -> e -> PFExp t e)
            (PFTyp t) -- t1
            (PFTyp t) -- t2
+    -- Java
+    | FJNewObj String [PFExp t e]
+    | FJMethod (PFExp t e) String [PFExp t e]
 
 newtype Exp = HideExp { revealExp :: forall t e. PFExp t e }
