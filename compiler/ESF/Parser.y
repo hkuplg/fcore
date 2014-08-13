@@ -177,7 +177,7 @@ typ :: { Type }
 
 atyp :: { Type }
     : tvar                      { TyVar $1 }
-    | "Int"                     { Int }
+    | "Int"                     { JClass "java.lang.Integer" }
     | "(" typ ")"               { $2 }
     | "(" comma_typs ")"        { Product $2 }
     | JAVACLASS                 { JClass $1 }

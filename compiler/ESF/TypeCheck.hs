@@ -58,6 +58,8 @@ instance Pretty e => Pretty (TypeError e) where
   pretty NotInScope{..}  = text "Not in scope:" <+> string msg
   pretty General{..}     = string msg
   pretty (NotAJVMType c) = text (q c) <+> text "is not a JVM type"
+  pretty NoSuchConstructor{..} = undefined
+  pretty NoSuchMethod{..} = undefined
 
 
 q :: Name -> String
@@ -91,7 +93,7 @@ inferWith io (d, g) = go
                    Just t  -> return (Var (x,t), t)
                    Nothing -> throwError NotInScope { msg = "variable " ++ q x }
 
-    go (Lit (Integer n)) = return (Lit (Integer n), Int)
+    go (Lit (Integer n)) = return (Lit (Integer n), JClass "java.lang.Integer")
 
     go (App e1 e2) = do
       (e1', t)  <- go e1
@@ -153,26 +155,20 @@ inferWith io (d, g) = go
       (e1', t1) <- go e1
       (e2', t2) <- go e2
       case (t1, t2) of
-        (Int, Int) -> return (PrimOp e1' op e2', Int)
-        (Int, _  ) -> throwError Mismatch { term = e2, expected = Int, actual = t2 }
-        (_  , _  ) -> throwError Mismatch { term = e1, expected = Int, actual = t1 }
+        (JClass "java.lang.Integer", JClass "java.lang.Integer") -> return (PrimOp e1' op e2', JClass "java.lang.Integer")
+        (JClass "java.lang.Integer", _  ) -> throwError Mismatch { term = e2, expected = JClass "java.lang.Integer", actual = t2 }
+        (_  , _  ) -> throwError Mismatch { term = e1, expected = JClass "java.lang.Integer", actual = t1 }
 
     go (If0 e1 e2 e3) = do
       (e1', t1) <- go e1
       case t1 of
-        Int ->
-          do (e2', t2) <- go e2
-             (e3', t3) <- go e3
-             if t2 `alphaEqTy` t3
-               then return (If0 e1' e2' e3', t2)
-               else throwError Mismatch { term = e3, expected = t2, actual = t3 }
         JClass "java.lang.Integer" ->
           do (e2', t2) <- go e2
              (e3', t3) <- go e3
              if t2 `alphaEqTy` t3
                then return (If0 e1' e2' e3', t2)
                else throwError Mismatch { term = e3, expected = t2, actual = t3 }
-        _   -> throwError Mismatch { term = e1, expected = Int, actual = t1 }
+        _   -> throwError Mismatch { term = e1, expected = JClass "java.lang.Integer", actual = t1 }
 
     go (Let NonRec bs e) = do
       checkBinds io d bs
