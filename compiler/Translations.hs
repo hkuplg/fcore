@@ -211,6 +211,9 @@ type StackType = ReaderT Bool (ReaderT InitVars (StateT (Set.Set J.Exp) (State I
 stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
 stackinst = stackApply --stackNaive
 
+stackNaiveinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
+stackNaiveinst = stackNaive
+
 stackinstNew :: ApplyOptTranslate StackType  -- instantiation; all coinstraints resolved
 stackinstNew = stackApplyNew --stackNaive
 
