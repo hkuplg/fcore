@@ -28,10 +28,8 @@ countAbs (Typ t g) = 1 + countAbs (g ())
 countAbs (Kind g)  = countAbs (g 0)
 
 -- main translation function
-transApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m) -- generalize to super :< Translate m?
-transApply this super = NT {toT = T { 
-  translateM = \e -> translateM super e,
-
+transApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
+transApply this super = NT {toT = super {
   translateScopeM = \e m -> case e of
       Typ t g ->
         do  n <- get
@@ -51,33 +49,24 @@ transApply this super = NT {toT = T {
 
       otherwise -> translateScopeM super e m,
 
-     translateApply = translateApply super,
+  genApply = \f t x y -> if (countAbs t == 0) then genApply super f t x y else return [],
 
-     genApply = \f t x y -> if (countAbs t == 0) then genApply super f t x y else return [],
+  getCvarAss = \t f j1 j2 -> do
+              (usedCl :: Set.Set J.Exp) <- get                                       
+              maybeCloned <-  case t of
+                                Body _ ->
+                                   return j1
+                                _ ->
+                                   if (Set.member j1 usedCl) then 
+                                      return $ J.MethodInv (J.PrimaryMethodCall (j1) [] (J.Ident "clone") [])
+                                   else do
+                                           put (Set.insert j1 usedCl)
+                                           return j1
+              getCvarAss super t f maybeCloned j2,
 
-     genRes = genRes super,
-
-     getCvarAss = \t f j1 j2 -> do
-                   (usedCl :: Set.Set J.Exp) <- get                                       
-                   maybeCloned <-  case t of
-                                               Body _ ->
-                                                   return j1
-                                               _ ->
-                                                   if (Set.member j1 usedCl) then 
-                                                        return $ J.MethodInv (J.PrimaryMethodCall (j1) [] (J.Ident "clone") [])
-                                                   else do
-                                                        put (Set.insert j1 usedCl)
-                                                        return j1
-                                      
-                   let cvar = J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp (maybeCloned)))])
-                   let ass  = J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )
-                   return [cvar, ass],
-             
-     createWrap = createWrap super,
-    
-     closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
-                    J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [] ,app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
-  }}
+  closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
+                 J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [] ,app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []]))
+}}
 
 refactoredScopeTranslationBit javaExpression statementsBeforeOA (currentId,currentTyp) freshVar nextId = completeClosure
     where

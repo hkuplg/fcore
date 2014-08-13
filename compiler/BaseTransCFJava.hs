@@ -122,6 +122,7 @@ data Translate m = T {
     Maybe (Int,PCTyp Int) ->
     m ([J.BlockStmt], J.Exp, TScope Int),
   translateApply ::  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int),
+  translateIf ::  m ([J.BlockStmt], J.Exp, PCTyp Int) -> m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int),
   genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> m [J.BlockStmt],
   genRes :: [J.BlockStmt] -> m [J.BlockStmt],
   getCvarAss :: TScope Int -> J.Ident -> J.Exp -> J.Exp -> m [J.BlockStmt],
@@ -151,9 +152,9 @@ getS3 this f t j3 cvarass =
      let r = cvarass ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))   
 
-genIfBody this e2 e3 j1 s1 n = do 
-            (s2,j2,t2) <- translateM this e2
-            (s3,j3,t3) <- translateM this e3
+genIfBody this m2 m3 j1 s1 n = do 
+            (s2,j2,t2) <- m2 {-translateM this e2-}
+            (s3,j3,t3) <- m3 {-translateM this e3-}
             let ifvarname = (ifresultstr ++ show n)
             let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
             let ifresdecl = J.LocalVars [] (javaType t2) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
@@ -187,12 +188,7 @@ trans self = let this = up self in T {
            let je = J.BinOp j1 op j2 
            return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je CInt], var (localvarstr ++ show n), CInt)  -- type being returned will be wrong for operators like "<"
 
-     CFIf0 e1 e2 e3 ->
-        do  n <- get
-            put (n+1)
-            (s1,j1,t1) <- translateM this e1
-            let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
-            genIfBody this e2 e3 j1' s1 n
+     CFIf0 e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3) 
      
      -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)     
      CFTuple [e] -> 
@@ -265,6 +261,13 @@ trans self = let this = up self in T {
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
            (s3, nje3) <- getS3 (up this) f t j3 cvarass
            return (s1 ++ s2 ++ s3, nje3, scope2ctyp t),
+
+  translateIf = \m1 m2 m3 ->
+        do  n <- get
+            put (n+1)
+            (s1,j1,t1) <- m1 {- translateM this e1 -}
+            let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
+            genIfBody this m2 m3 j1' s1 n,
 
   genApply = \f t x y -> return [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))],
 
