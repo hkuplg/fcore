@@ -5,9 +5,9 @@ import java.util.Arrays;
 public class TypeServer {
 
     public static void main(String[] args) {
-        System.out.println("Ready!");
         Scanner inp = new Scanner(System.in);
         while (true) {
+            if (!inp.hasNextLine()) continue;
             String line = inp.nextLine();
             String[] words = line.split(" ");
             Object result = false;

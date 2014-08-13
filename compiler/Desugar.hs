@@ -19,7 +19,7 @@ transType :: Map.Map Name t -> Type -> PFTyp t
 transType d = go
   where
     go (TyVar a)    = FTVar (fromJust (Map.lookup a d))
-    go (JClass c)   = FJClass (fromJust (Map.lookup c d))
+    go (JClass c)   = FJClass c
     go (Fun t1 t2)  = FFun (go t1) (go t2)
     go (Product ts) = FProduct (map go ts)
     go (Forall a t) = FForall (\a' -> transType (Map.insert a a' d) t)
@@ -139,11 +139,11 @@ dsLetRecEncode (d,g) = go
     go (LetOut Rec bs@(_:_) e) =
       FApp
         (FLam
-          (FFun FInt (transType d tupled_ts))
+          (FFun (FJClass "java.lang.Integer") (transType d tupled_ts))
           (\y -> dsTcExpr (d, g' y `Map.union` g) e))
         (FFix
           (\y _dummy -> dsTcExpr (d, g' y `Map.union` g) tupled_es)
-          FInt
+          (FJClass "java.lang.Integer")
           (transType d tupled_ts))
           where
             (fs, ts, es) = unzip3 bs

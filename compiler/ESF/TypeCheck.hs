@@ -78,7 +78,7 @@ checkWellformed _  d t =
 
 
 infer :: RdrExpr -> TCMonad (TcExpr, Type)
-infer e = do (Just inp, Just out, _, proch) <- liftIO $ createProcess (proc "java" ["Test"]){std_in = CreatePipe, std_out = CreatePipe}
+infer e = do (Just inp, Just out, _, proch) <- liftIO $ createProcess (proc "java" ["TypeServer"]){std_in = CreatePipe, std_out = CreatePipe}
              liftIO $ hSetBuffering inp NoBuffering
              liftIO $ hSetBuffering out NoBuffering
              ret <- inferWith (inp, out) (Set.empty, Map.empty) e

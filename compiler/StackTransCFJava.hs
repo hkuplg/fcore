@@ -61,7 +61,7 @@ nextApply cl tempOut outType = [J.BlockStmt $ J.ExpStmt $ J.Assign (J.NameLhs (J
                 J.LocalVars [] outType [J.VarDecl (J.VarId tempOut) (Just (J.InitExp (J.Lit J.Null)))]]
 
 stackbody t = 
-        applyCall : whileApplyLoop "c" (J.Ident "result") (case t of CInt -> boxedIntType
+        applyCall : whileApplyLoop "c" (J.Ident "result") (case t of CJClass ("java.lang.Integer") -> boxedIntType
                                                                      _ -> objType) ++ [
                J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("result")]])))]

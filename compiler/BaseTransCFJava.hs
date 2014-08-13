@@ -131,13 +131,13 @@ data Translate m = T {
   closureClass :: J.TypeDecl
   }
 
-chooseCastBox CInt              = (initIntCast,boxedIntType)
+chooseCastBox (CJClass "java.lang.Integer") = (initIntCast,boxedIntType)
 chooseCastBox (CForall _)       = (initClosure,closureType)
 chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
 chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
 chooseCastBox _                 = (initObj,objType)
 
-javaType CInt            = boxedIntType
+javaType (CJClass "java.lang.Integer") = boxedIntType
 javaType (CForall _)     = closureType
 javaType (CTupleType [t]) = javaType t -- optimization for tuples of size 1
 javaType (CTupleType _)  = objArrayType
@@ -178,7 +178,7 @@ trans self = let this = up self in T {
        do return ([],var (localvarstr ++ show i), t)
 
      CFLit e    ->
-       return ([],J.Lit $ J.Int e, CInt) 
+       return ([],J.Lit $ J.Int e, CJClass "java.lang.Integer") 
 
      CFPrimOp e1 op e2 -> -- Int -> Int -> Int only for now!
        do  (n :: Int) <- get
@@ -186,7 +186,7 @@ trans self = let this = up self in T {
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            let je = J.BinOp j1 op j2 
-           return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je CInt], var (localvarstr ++ show n), CInt)  -- type being returned will be wrong for operators like "<"
+           return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je (CJClass "java.lang.Integer")], var (localvarstr ++ show n), CJClass "java.lang.Integer")  -- type being returned will be wrong for operators like "<"
 
      CFIf0 e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3) 
      
@@ -279,7 +279,7 @@ trans self = let this = up self in T {
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM this exp
-           let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
            let classDecl = getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) returnType mainbody
            return (createCUB this [classDecl], t),

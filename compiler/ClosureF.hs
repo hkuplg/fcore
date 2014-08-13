@@ -20,7 +20,7 @@ type EScope t e = Scope (PCExp t e) t e
 data PCTyp t = 
       CTVar t 
     | CForall (TScope t) 
-    | CJClass t 
+    | CJClass String 
     | CTupleType [PCTyp t]
 
 data PCExp t e =
@@ -116,7 +116,7 @@ scope2ctyp s         = CForall s
 joinPCTyp :: PCTyp (PCTyp t) -> PCTyp t
 joinPCTyp (CTVar t)   = t
 joinPCTyp (CForall s) = CForall (joinTScope s)
-joinPCTyp (CJClass c) = c
+joinPCTyp (CJClass c) = (CJClass c)
 joinPCTyp (CTupleType ts) = CTupleType (map joinPCTyp ts)
 
 joinTScope :: TScope (PCTyp t) -> TScope t
