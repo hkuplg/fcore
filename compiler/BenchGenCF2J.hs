@@ -16,6 +16,17 @@ import MonadLib
 import Language.Java.Pretty
 import Text.PrettyPrint.Leijen
 
+data BenchGenTranslateOpt m = TBA {
+  toTBA :: Translate m -- supertype is a subtype of Translate (later on at least)
+}
+
+instance (:<) (BenchGenTranslateOpt m) (Translate m) where
+   up = up . toTBA
+
+instance (:<) (BenchGenTranslateOpt m) (BenchGenTranslateOpt m) where -- reflexivity
+  up = id
+
+
 data BenchGenTranslate m = TB {
   toTB :: Translate m -- supertype is a subtype of Translate (later on at least)
 }
@@ -91,7 +102,7 @@ getParaType tp = case tp of
 					_ -> []
 
 -- (Scope b t e) -> [Int]
-getScopeType (Kind f) n = 0 : (map (+1) (getScopeType (f n) (n)))
+getScopeType (Kind f) n = []
 getScopeType (Typ t f) n = 0 : (map (+1) (getScopeType (f ()) 0))
 getScopeType _ _= []
 

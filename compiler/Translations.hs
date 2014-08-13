@@ -68,9 +68,23 @@ stackNaive = new (transS $> trans)
 
 -- Benchmark-link generation
 
+-- bench for naive
 benchGen :: (MonadState Int m) => BenchGenTranslate m
 benchGen = new (transBench $> trans)
 
+
+
+-- bench for naive + applyopt
+inheritNOpt mix' this super = toT $ mix' this super
+
+benchGenNOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => BenchGenTranslateOpt m
+benchGenNOpt = new ((transBenchOpt <.> inheritNOpt transApply) $> trans)
+
+instance (:<) (BenchGenTranslateOpt) (ApplyOptTranslate) where
+  up = NT . toTBA
+
+
+-- bench for stack
 inheritTransStack mix' this super = toTS $ mix' this super
 
 benchGenStack :: (MonadState Int m, MonadReader Bool m) => BenchGenTranslateStack m
@@ -79,15 +93,28 @@ benchGenStack = new ((transBenchStack <.> inheritTransStack transS) $> trans)
 instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
   up = TS . toTBS
 
+-- bench for stack + apply opt
+--benchGenStackOpt ::  (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
+
+
+
 -- Stack/Apply translation
 
 adaptApply mix' this super = toT $ mix' this super
 
+adaptStack mix' this super = toTS $ mix' this super
+
 stackApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
 stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
+stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
+stackApplyNew = new ((transApply <.> adaptStack transS) $> trans)
+
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
   up = NT . toTS
+
+instance (:<)  (ApplyOptTranslate m) (TranslateStack m) where
+  up = TS . toT
 
 {-
 stackApply :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => TranslateStack m
@@ -225,6 +252,12 @@ type StackType = ReaderT Bool (ReaderT InitVars (StateT (Set.Set J.Exp) (State I
 stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
 stackinst = stackApply --stackNaive
 
+stackNaiveinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
+stackNaiveinst = stackNaive
+
+stackinstNew :: ApplyOptTranslate StackType  -- instantiation; all coinstraints resolved
+stackinstNew = stackApplyNew --stackNaive
+
 translateS :: String -> PCExp Int (Var, PCTyp Int) -> StackType (J.CompilationUnit, PCTyp Int)
 translateS = createWrap (up stackinst)
 
@@ -250,6 +283,9 @@ translateBench = createWrap (up benchinst)
 --                                                [] [(closureClass)])
 
 -- Bench naive+ applyopt
+benchnaiveopt :: BenchGenTranslateOpt AOptType
+benchnaiveopt = benchGenNOpt
+
 translateBenchOpt = translateBench
 
 -- Bench stack
