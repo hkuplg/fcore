@@ -87,7 +87,7 @@ instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
 -- bench for stack
 
 benchGenStack :: (MonadState Int m, MonadReader Bool m) => BenchGenTranslateStack m
-benchGenStack = new ((transBenchStack <.> adaptStack transS) $> trans)
+benchGenStack = new ((transBenchStack <.> adaptStack transSA) $> trans)
 
 instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
   up = TS . toTBS
@@ -97,7 +97,7 @@ instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
 
 
 benchGenStackOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
-benchGenStackOpt = new ((transBenchStackOpt <.> adaptStack transS <.> adaptApply transApply) $> trans)
+benchGenStackOpt = new ((transBenchStackOpt <.> adaptStack transSA <.> adaptApply transApply) $> trans)
 
 instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
   up = NT . toTBSA
