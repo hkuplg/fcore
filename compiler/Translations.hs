@@ -111,11 +111,15 @@ adaptApply mix' this super = toT $ mix' this super
 
 adaptStack mix' this super = toTS $ mix' this super
 
+-- Stack + Apply + Naive
+
 stackApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
 stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
+-- Apply + Stack + Naive
+
 stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
-stackApplyNew = new ((transApply <.> adaptStack transS) $> trans)
+stackApplyNew = new ((transApply <.> adaptStack transSA) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
   up = NT . toTS
@@ -256,14 +260,14 @@ compileN name e = evalState (translateN name (fexp2cexp e)) 0
 
 type StackType = ReaderT Bool (ReaderT InitVars (StateT (Set.Set J.Exp) (State Int)))
 
-stackinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
-stackinst = stackApply --stackNaive
+stackinstOld :: TranslateStack StackType  -- instantiation; all coinstraints resolved
+stackinstOld = stackApply --stackNaive
 
 stackNaiveinst :: TranslateStack StackType  -- instantiation; all coinstraints resolved
 stackNaiveinst = stackNaive
 
-stackinstNew :: ApplyOptTranslate StackType  -- instantiation; all coinstraints resolved
-stackinstNew = stackApplyNew --stackNaive
+stackinst :: ApplyOptTranslate StackType  -- instantiation; all coinstraints resolved
+stackinst = stackApplyNew --stackNaive
 
 translateS :: String -> PCExp Int (Var, PCTyp Int) -> StackType (J.CompilationUnit, PCTyp Int)
 translateS = createWrap (up stackinst)

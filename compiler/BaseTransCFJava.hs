@@ -127,7 +127,7 @@ data Translate m = T {
   translateIf ::  m ([J.BlockStmt], J.Exp, PCTyp Int) -> m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int),
   translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, TScope Int) -> m ([J.BlockStmt], TScope Int), 
   genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> m [J.BlockStmt],
-  genRes :: [J.BlockStmt] -> m [J.BlockStmt],
+  genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt],
   genClone :: m Bool,
   getCvarAss :: TScope Int -> J.Ident -> J.Exp -> J.Exp -> m [J.BlockStmt],
   -- getS3 :: TScope Int -> J.Exp -> (J.Exp -> J.Type -> [J.BlockStmt]) -> ([J.BlockStmt] -> [J.BlockStmt]) -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
@@ -152,7 +152,7 @@ getS3 this f t j3 cvarass =
      put (n+1)
      let (cast,typ) = chooseCastBox (scope2ctyp t)
      apply <- genApply this f t (var (tempvarstr ++ show n)) typ
-     rest <- genRes this [cast tempvarstr n j3]                                                           
+     rest <- genRes this t [cast tempvarstr n j3]                                                           
      let r = cvarass ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))   
 
@@ -281,7 +281,7 @@ trans self = let this = up self in T {
 
   genApply = \f t x y -> return [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (J.ExpName (J.Name [f])) [] (J.Ident "apply") [])))],
 
-  genRes = return,
+  genRes = \t -> return,
 
   getCvarAss = \t f j1 j2 -> 
      return [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
