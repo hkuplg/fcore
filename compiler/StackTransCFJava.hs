@@ -10,7 +10,7 @@ import Inheritance
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import BaseTransCFJava
-import ApplyTransCFJava (countAbs)
+import ApplyTransCFJava (last)
 import StringPrefixes
 import MonadLib
 
@@ -102,5 +102,5 @@ transS this super = TS {toTS = super {
 
 transSA :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSA this super = TS {toTS = (up (transS this super)) {
-   genRes = \t s -> if (countAbs t == 0) then return [] else genRes super t s
+   genRes = \t s -> if (last t) then return [] else genRes super t s
   }}
