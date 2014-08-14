@@ -30,7 +30,7 @@ data PCExp t e =
    | CTApp (PCExp t e) (PCTyp t)
    | CFPrimOp (PCExp t e) Operator (PCExp t e)
    | CFLit Lit
-   | CFIf0 (PCExp t e) (PCExp t e) (PCExp t e)
+   | CFIf (PCExp t e) (PCExp t e) (PCExp t e)
    | CFTuple [PCExp t e]
    | CFProj Int (PCExp t e)
    -- fixpoints
@@ -80,7 +80,7 @@ fexp2cexp (FApp e1 e2)  = CApp (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (FPrimOp e1 op e2) = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
 fexp2cexp (FLit e) = CFLit e
-fexp2cexp (FIf0 e1 e2 e3) = CFIf0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
+fexp2cexp (FIf e1 e2 e3) = CFIf (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
 fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
 fexp2cexp (FFix f t1 t2) =

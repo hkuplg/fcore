@@ -2,7 +2,7 @@
 
 {-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Language.SystemF.Pretty
+module SystemF.Pretty
     ( prettyPrint
     , prettyPrintPFExp
     , prettyPrintPFTyp
@@ -12,11 +12,11 @@ import Data.Char        (chr, ord)
 import Data.List        (intersperse)
 
 import qualified Language.Java.Syntax as J
-import qualified Language.Java.Pretty as JP (prettyPrint)
 
 import Text.PrettyPrint
 
-import Language.SystemF.Syntax
+import ESF.Syntax
+import SystemF.Syntax
 
 prettyPrint :: Pretty a => a -> String
 prettyPrint = show . pretty
@@ -46,19 +46,19 @@ instance Pretty (PFTyp Int) where
         FTVar a     -> text (tvar a)
         FForall f   -> text ("forall " ++ tvar ltvar ++ ".") <+> prettyPrec p (ltvar+1,  lvar) (f ltvar)
         FFun t1 t2  -> parenPrec p 2 $ prettyPrec 1 l t1 <+> text "->" <+> prettyPrec p l t2
-        FInt        -> text "Int"
+        FJClass c   -> text c
         FProduct ts -> parens $ hcat (intersperse (comma <> space) $ map (prettyPrec p l) ts)
 
 instance Pretty (PFExp Int Int) where
     prettyPrec p l@(ltvar, lvar) e = case e of
         FVar _ x         -> text (var x)
-        FLit n           -> if n < 0 then parenPrec p 5 (integer n) else integer n
+        FLit lit         -> text $ show lit
         FTuple es        -> parens $ hcat (intersperse comma $ map (prettyPrec p l) es)
 
         FProj i e1       -> parenPrec p 1 $ prettyPrec 1 l e1 <> text ("._" ++ show i)
 
         FApp e1 e2       -> parenPrec p 2 $ prettyPrec 2 l e1 <+> prettyPrec 1 l e2
-        FTApp e t        -> parenPrec p 2 $ prettyPrec 2 l e  <+> prettyPrec 1 l t
+        FTApp e' t        -> parenPrec p 2 $ prettyPrec 2 l e'  <+> prettyPrec 1 l t
 
         FBLam f          -> parenPrec p 3 $
                                 text ("/\\" ++ tvar ltvar ++ ".")
@@ -71,10 +71,10 @@ instance Pretty (PFExp Int Int) where
                                 <+> text ("\\(" ++ (var (lvar+1) ++ " : " ++ show (prettyPrec p (ltvar, lvar+2) t1)) ++ ").")
                                 <+> prettyPrec 0 (ltvar, lvar+2) (f lvar (lvar+1)) <+> colon <+> prettyPrec 0 (ltvar, lvar+2) t2
 
-        FPrimOp e1 op e2 -> parenPrec p q $ prettyPrec q l e1 <+> text (JP.prettyPrint op) <+> prettyPrec (q-1) l e2
+        FPrimOp e1 op e2 -> parenPrec p q $ prettyPrec q l e1 <+> text (show op) <+> prettyPrec (q-1) l e2
                                 where q = opPrec op
 
-        FIf0 e1 e2 e3    -> text "if0" <+> prettyPrec p l e1 <+> text "then" <+> prettyPrec p l e2 <+> text "else" <+> prettyPrec p l e3
+        FIf e1 e2 e3    -> text "if" <+> prettyPrec p l e1 <+> text "then" <+> prettyPrec p l e2 <+> text "else" <+> prettyPrec p l e3
 
 tvar :: Int -> String
 tvar n
@@ -90,19 +90,18 @@ var n
 
 -- Precedence of operators based on the table in:
 -- http://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
-opPrec :: Num a => J.Op -> a
-opPrec J.Mult    = 3
-opPrec J.Div     = 3
-opPrec J.Rem     = 3
-opPrec J.Add     = 4
-opPrec J.Sub     = 4
-opPrec J.LThan   = 6
-opPrec J.GThan   = 6
-opPrec J.LThanE  = 6
-opPrec J.GThanE  = 6
-opPrec J.Equal   = 7
-opPrec J.NotEq   = 7
-opPrec J.CAnd    = 11
-opPrec J.COr     = 12
-opPrec op         = error $ "Something impossible happens! The operator '"
-                            ++ JP.prettyPrint op ++ "' is not part of the language."
+opPrec :: Num a => Operator -> a
+opPrec (Arith J.Mult)    = 3
+opPrec (Arith J.Div)     = 3
+opPrec (Arith J.Rem)     = 3
+opPrec (Arith J.Add)     = 4
+opPrec (Arith J.Sub)     = 4
+opPrec (Compare J.LThan)   = 6
+opPrec (Compare J.GThan)   = 6
+opPrec (Compare J.LThanE)  = 6
+opPrec (Compare J.GThanE)  = 6
+opPrec (Compare J.Equal)   = 7
+opPrec (Compare J.NotEq)   = 7
+opPrec (Logic J.CAnd)    = 11
+opPrec (Logic J.COr)     = 12
+opPrec op = error $ "Something impossible happens! The operator '" ++ show op ++ "' is not part of the language."

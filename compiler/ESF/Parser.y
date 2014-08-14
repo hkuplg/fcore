@@ -30,7 +30,7 @@ import ESF.Lexer
   "and"    { Tand }
   "in"     { Tin }
   "Int"    { Tint }
-  "if0"    { Tif0 }
+  "if"     { Tif }
   "then"   { Tthen }
   "else"   { Telse }
   ","      { Tcomma }
@@ -107,7 +107,7 @@ expr10 :: { Expr String }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
     | "\\" var_with_annot "." expr        { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
-    | "if0" expr "then" expr "else" expr  { If0 $2 $4 $6 }
+    | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
     | fexp                                { $1 }
     -- Java new Object

@@ -172,16 +172,16 @@ inferWith io (d, g) = go
                                                     (True, _)    -> throwError Mismatch { term = e2, expected = t, actual = t2 }
                                                     (_, _)       -> throwError Mismatch { term = e1, expected = t, actual = t1 }
 
-    go (If0 e1 e2 e3) = do
+    go (If e1 e2 e3) = do
       (e1', t1) <- go e1
       case t1 of
-        JClass "java.lang.Integer" ->
+        JClass "java.lang.Boolean" ->
           do (e2', t2) <- go e2
              (e3', t3) <- go e3
              if t2 `alphaEqTy` t3
-               then return (If0 e1' e2' e3', t2)
+               then return (If e1' e2' e3', t2)
                else throwError Mismatch { term = e3, expected = t2, actual = t3 }
-        _   -> throwError Mismatch { term = e1, expected = JClass "java.lang.Integer", actual = t1 }
+        _   -> throwError Mismatch { term = e1, expected = JClass "java.lang.Boolean", actual = t1 }
 
     go (Let NonRec bs e) = do
       checkBinds io d bs

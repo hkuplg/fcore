@@ -37,7 +37,7 @@ dsTcExpr (d, g) = go
     go (Tuple es)        = FTuple (map go es)
     go (Proj e i)        = FProj i (go e)
     go (PrimOp e1 op e2) = FPrimOp (go e1) op (go e2)
-    go (If0 e1 e2 e3)    = FIf0 (go e1) (go e2) (go e3)
+    go (If e1 e2 e3)     = FIf (go e1) (go e2) (go e3)
     go (Lam (x, t) e)    = FLam
                              (transType d t)
                              (\x' -> dsTcExpr (d, Map.insert x (Left x') g) e)

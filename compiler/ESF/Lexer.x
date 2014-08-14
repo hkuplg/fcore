@@ -38,7 +38,7 @@ tokens :-
     and         { \_ _ -> Tand }
     in          { \_ _ -> Tin }
     Int         { \_ _ -> Tint }
-    if0         { \_ _ -> Tif0 }
+    if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
     \,          { \_ _ -> Tcomma }
@@ -79,7 +79,7 @@ data Token = Toparen | Tcparen
            | Tlet | Trec | Teq | Tand | Tin
            | Tint | Tjavaclass String
            | Tnew
-           | Tif0 | Tthen | Telse
+           | Tif | Tthen | Telse
            | Tcomma
            | Tupperid String | Tlowerid String | Tunderid Int
            | Tinteger Integer | Tstring String | Tboolean Bool

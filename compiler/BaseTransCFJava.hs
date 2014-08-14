@@ -24,10 +24,10 @@ jbody = Just (J.Block [])
 
 init = [J.InitDecl False (J.Block [])]
 
-closureType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
-objType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))
-boxedIntType = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Integer",[])]))
-objArrayType = J.RefType (J.ArrayType (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))))
+closureType     = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
+javaClassType c = J.RefType (J.ClassRefType (J.ClassType [(J.Ident c, [])]))
+objType         = javaClassType "Object"
+objArrayType    = J.RefType (J.ArrayType (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))))
 
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
 ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
@@ -76,7 +76,8 @@ initStuff tempvarstr n j t = J.LocalVars [J.Final] (t) ([J.VarDecl (J.VarId $ J.
         exp | t == objType = J.InitExp j
             | otherwise = J.InitExp $ J.Cast t j
 
-initIntCast tempvarstr n j = initStuff tempvarstr n j boxedIntType
+
+initClassCast c tempvarstr n j = initStuff tempvarstr n j (javaClassType c)
 
 initObj tempvarstr n j = initStuff tempvarstr n j objType
 
@@ -131,17 +132,17 @@ data Translate m = T {
   closureClass :: J.TypeDecl
   }
 
-chooseCastBox (CJClass "java.lang.Integer") = (initIntCast,boxedIntType)
+chooseCastBox (CJClass c)       = (initClassCast c, javaClassType c)
 chooseCastBox (CForall _)       = (initClosure,closureType)
 chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
 chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
 chooseCastBox _                 = (initObj,objType)
 
-javaType (CJClass "java.lang.Integer") = boxedIntType
-javaType (CForall _)     = closureType
+javaType (CJClass c)      = javaClassType c
+javaType (CForall _)      = closureType
 javaType (CTupleType [t]) = javaType t -- optimization for tuples of size 1
-javaType (CTupleType _)  = objArrayType
-javaType _               = objType
+javaType (CTupleType _)   = objArrayType
+javaType _                = objType
 
 getS3 this f t j3 cvarass =
   do (n :: Int) <- get
@@ -190,7 +191,7 @@ trans self = let this = up self in T {
            return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je typ], 
                    var (localvarstr ++ show n), typ)  -- type being returned will be wrong for operators like "<"
 
-     CFIf0 e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3) 
+     CFIf e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3) 
      
      -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)     
      CFTuple [e] -> 
@@ -267,8 +268,9 @@ trans self = let this = up self in T {
         do  n <- get
             put (n+1)
             (s1,j1,t1) <- m1 {- translateM this e1 -}
-            let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
-            genIfBody this m2 m3 j1' s1 n,
+            -- let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
+            -- genIfBody this m2 m3 j1' s1 n,
+            genIfBody this m2 m3 j1 s1 n,
 
   translateScopeTyp = \currentId nextId initVars nextInClosure m ->
      do b <- genClone this

@@ -66,7 +66,7 @@ data Expr id
   | Tuple [Expr id]                    -- Tuples
   | Proj (Expr id) Int                 -- Tuple projection
   | PrimOp (Expr id) Operator (Expr id)    -- Primitive operation
-  | If0 (Expr id) (Expr id) (Expr id)  -- If expression
+  | If (Expr id) (Expr id) (Expr id)   -- If expression
   | Let RecFlag [Bind id] (Expr id)    -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag TcBinds (Expr TcId) -- Post typecheck only
   | JNewObj Name [Expr id]             -- New Java object
@@ -148,7 +148,7 @@ instance Pretty id => Pretty (Expr id) where
                                text (show op) <+>
                                -- text (P.prettyPrint op) <+>
                                parens (pretty e2)
-  pretty (If0 e1 e2 e3) = parens $
+  pretty (If e1 e2 e3) = parens $
                             text "if0" <+> pretty e1 <+>
                             text "then" <+> pretty e2 <+>
                             text "else" <+> pretty e3

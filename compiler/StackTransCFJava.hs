@@ -61,7 +61,7 @@ nextApply cl tempOut outType = [J.BlockStmt $ J.ExpStmt $ J.Assign (J.NameLhs (J
                 J.LocalVars [] outType [J.VarDecl (J.VarId tempOut) (Just (J.InitExp (J.Lit J.Null)))]]
 
 stackbody t = 
-        applyCall : whileApplyLoop "c" (J.Ident "result") (case t of CJClass ("java.lang.Integer") -> boxedIntType
+        applyCall : whileApplyLoop "c" (J.Ident "result") (case t of CJClass ("java.lang.Integer") -> (javaClassType "java.lang.Integer")
                                                                      _ -> objType) ++ [
                J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("result")]])))]
@@ -75,7 +75,7 @@ transS this super = TS {toTS = super {
        CLam s           -> local (&& False) $ translateM super e
        CFix t s         -> local (&& False) $ translateM super e
        CTApp _ _        -> local (&& False) $ translateM super e
-       CFIf0 e1 e2 e3   -> translateIf (up this) (local (|| True) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
+       CFIf e1 e2 e3   -> translateIf (up this) (local (|| True) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
        CApp e1 e2       -> translateApply (up this) (local (|| True) $ translateM (up this) e1) (local (|| True) $ translateM (up this) e2)
        otherwise        -> local (|| True) $ translateM super e,
 

@@ -35,7 +35,7 @@ data PFExp t e =
     | FApp  (PFExp t e) (PFExp t e)
     | FPrimOp (PFExp t e) Operator (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
     | FLit Lit
-    | FIf0 (PFExp t e) (PFExp t e) (PFExp t e)
+    | FIf (PFExp t e) (PFExp t e) (PFExp t e)
     | FTuple [PFExp t e]
     | FProj Int (PFExp t e)
 
