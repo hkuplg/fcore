@@ -149,7 +149,7 @@ instance Pretty id => Pretty (Expr id) where
                                -- text (P.prettyPrint op) <+>
                                parens (pretty e2)
   pretty (If e1 e2 e3) = parens $
-                            text "if0" <+> pretty e1 <+>
+                            text "if" <+> pretty e1 <+>
                             text "then" <+> pretty e2 <+>
                             text "else" <+> pretty e3
   pretty (Let recFlag bs e) =
