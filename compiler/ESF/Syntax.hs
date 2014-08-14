@@ -8,6 +8,7 @@ module ESF.Syntax
   ( Bind(..)
   , Expr(..)
   , Lit(..)
+  , Operator(..)
   , Name
   , RdrExpr
   , RecFlag(..)
@@ -24,14 +25,16 @@ module ESF.Syntax
   ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
-import qualified Language.Java.Pretty as P
+-- import qualified Language.Java.Pretty as P
 import Text.PrettyPrint.Leijen
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+
 type Name = String
 type TcId = (Name, Type)
+
 
 data Type
   = TyVar Name
@@ -40,6 +43,18 @@ data Type
   | Product [Type]
   | JClass Name
   deriving (Eq, Show)
+
+
+data Lit
+    = Integer Integer -- later maybe Bool | Char
+    | String String
+    | Boolean Bool
+    deriving (Eq, Show)
+
+
+data Operator = Arith J.Op | Compare J.Op | Logic J.Op
+    deriving (Eq, Show)
+
 
 data Expr id
   = Var id                             -- Variable
@@ -50,7 +65,7 @@ data Expr id
   | TApp (Expr id) Type                -- Type application
   | Tuple [Expr id]                    -- Tuples
   | Proj (Expr id) Int                 -- Tuple projection
-  | PrimOp (Expr id) J.Op (Expr id)    -- Primitive operation
+  | PrimOp (Expr id) Operator (Expr id)    -- Primitive operation
   | If0 (Expr id) (Expr id) (Expr id)  -- If expression
   | Let RecFlag [Bind id] (Expr id)    -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag TcBinds (Expr TcId) -- Post typecheck only
@@ -58,12 +73,9 @@ data Expr id
   | JMethod (Expr id) Name [Expr id]   -- Java method call
   deriving (Eq, Show)
 
+
 type RdrExpr = Expr Name
 type TcExpr  = Expr TcId
-
-data Lit
-  = Integer Integer -- later maybe Bool | Char
-  deriving (Eq, Show)
 
 
 type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
@@ -120,6 +132,8 @@ instance Pretty Type where
 instance Pretty id => Pretty (Expr id) where
   pretty (Var x) = pretty x
   pretty (Lit (Integer n)) = integer n
+  pretty (Lit (String n)) = string n
+  pretty (Lit (Boolean n)) = bool n
   pretty (BLam a e) = parens $ text "/\\" <> text a <> dot <+> pretty e
   pretty (Lam (x,t) e) =
     parens $
@@ -131,7 +145,8 @@ instance Pretty id => Pretty (Expr id) where
   pretty (Proj e i) = parens (pretty e) <> text "._" <> int i
   pretty (PrimOp e1 op e2) = parens $
                                parens (pretty e1) <+>
-                               text (P.prettyPrint op) <+>
+                               text (show op) <+>
+                               -- text (P.prettyPrint op) <+>
                                parens (pretty e2)
   pretty (If0 e1 e2 e3) = parens $
                             text "if0" <+> pretty e1 <+>

@@ -4,6 +4,7 @@ module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 import Prelude hiding (init, last)
 
+import ESF.Syntax
 import qualified Language.Java.Syntax as J
 import ClosureF
 import Inheritance
@@ -178,16 +179,20 @@ trans self = let this = up self in T {
      CVar (i, t) ->
        do return ([],var (localvarstr ++ show i), t)
 
-     CFLit e    ->
-       return ([],J.Lit $ J.Int e, CJClass "java.lang.Integer") 
+     CFLit lit -> case lit of (Integer i) -> return ([], J.Lit $ J.Int i, CJClass "java.lang.Integer")
+                              (String s)  -> return ([], J.Lit $ J.String s, CJClass "java.lang.String")
+                              (Boolean b) -> return ([], J.Lit $ J.Boolean b, CJClass "java.lang.String")
 
      CFPrimOp e1 op e2 -> -- Int -> Int -> Int only for now!
        do  (n :: Int) <- get
            put (n+1)
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
-           let je = J.BinOp j1 op j2 
-           return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je (CJClass "java.lang.Integer")], var (localvarstr ++ show n), CJClass "java.lang.Integer")  -- type being returned will be wrong for operators like "<"
+           let (je, typ) = case op of (Arith realOp)   -> (J.BinOp j1 realOp j2, CJClass "java.lang.Integer")
+                                      (Compare realOp) -> (J.BinOp j1 realOp j2, CJClass "java.lang.Boolean")
+                                      (Logic realOp)   -> (J.BinOp j1 realOp j2, CJClass "java.lang.Boolean")
+           return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je typ], 
+                   var (localvarstr ++ show n), typ)  -- type being returned will be wrong for operators like "<"
 
      CFIf0 e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3) 
      

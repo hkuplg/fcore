@@ -44,14 +44,19 @@ tokens :-
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
 
+    -- Literal
+    $digit+                { \_ s -> Tinteger (read s) }
+    \"($printable # \")*\"  { \_ s -> Tstring (init $ tail s) }
+    true                   { \_ s -> Tboolean True}
+    false                  { \_ s -> Tboolean False}
+
     -- java.package.path.Classname
     ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavaclass s }
 
+    -- ID
     [A-Z] [$vchar]*     { \_ s -> Tupperid s }
     [a-z] [$vchar]*     { \_ s -> Tlowerid s }
     \_ $digit+          { \_ s -> Tunderid (read (tail s))  }
-
-    $digit+     { \_ s -> Tinteger (read s) }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
     \*          { \_ _ -> Tprimop J.Mult   }
@@ -77,7 +82,7 @@ data Token = Toparen | Tcparen
            | Tif0 | Tthen | Telse
            | Tcomma
            | Tupperid String | Tlowerid String | Tunderid Int
-           | Tinteger Integer
+           | Tinteger Integer | Tstring String | Tboolean Bool
            | Tprimop J.Op
            deriving (Eq, Show)
 

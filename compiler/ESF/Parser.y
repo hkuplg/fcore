@@ -43,6 +43,8 @@ import ESF.Lexer
   "new"     { Tnew }
 
   INTEGER  { Tinteger $$ }
+  STRING   { Tstring $$ }
+  BOOLEAN  { Tboolean $$ }
 
   "*"      { Tprimop J.Mult   }
   "/"      { Tprimop J.Div    }
@@ -87,19 +89,19 @@ expr :: { Expr String }
 
 infixexpr :: { Expr String }
     : expr10                    { $1 }
-    | infixexpr "*"  infixexpr  { PrimOp $1 J.Mult   $3 }
-    | infixexpr "/"  infixexpr  { PrimOp $1 J.Div    $3 }
-    | infixexpr "%"  infixexpr  { PrimOp $1 J.Rem    $3 }
-    | infixexpr "+"  infixexpr  { PrimOp $1 J.Add    $3 }
-    | infixexpr "-"  infixexpr  { PrimOp $1 J.Sub    $3 }
-    | infixexpr "<"  infixexpr  { PrimOp $1 J.LThan  $3 }
-    | infixexpr "<=" infixexpr  { PrimOp $1 J.LThanE $3 }
-    | infixexpr ">"  infixexpr  { PrimOp $1 J.GThan  $3 }
-    | infixexpr ">=" infixexpr  { PrimOp $1 J.GThanE $3 }
-    | infixexpr "==" infixexpr  { PrimOp $1 J.Equal  $3 }
-    | infixexpr "!=" infixexpr  { PrimOp $1 J.NotEq  $3 }
-    | infixexpr "&&" infixexpr  { PrimOp $1 J.CAnd   $3 }
-    | infixexpr "||" infixexpr  { PrimOp $1 J.COr    $3 }
+    | infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
+    | infixexpr "/"  infixexpr  { PrimOp $1 (Arith J.Div)    $3 }
+    | infixexpr "%"  infixexpr  { PrimOp $1 (Arith J.Rem)    $3 }
+    | infixexpr "+"  infixexpr  { PrimOp $1 (Arith J.Add)    $3 }
+    | infixexpr "-"  infixexpr  { PrimOp $1 (Arith J.Sub)    $3 }
+    | infixexpr "<"  infixexpr  { PrimOp $1 (Compare J.LThan)  $3 }
+    | infixexpr "<=" infixexpr  { PrimOp $1 (Compare J.LThanE) $3 }
+    | infixexpr ">"  infixexpr  { PrimOp $1 (Compare J.GThan)  $3 }
+    | infixexpr ">=" infixexpr  { PrimOp $1 (Compare J.GThanE) $3 }
+    | infixexpr "==" infixexpr  { PrimOp $1 (Compare J.Equal)  $3 }
+    | infixexpr "!=" infixexpr  { PrimOp $1 (Compare J.NotEq)  $3 }
+    | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 }
+    | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
 
 expr10 :: { Expr String }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
@@ -125,6 +127,8 @@ aexp1 :: { Expr String }
 aexp2 :: { Expr String }
     : var                       { Var $1 }
     | INTEGER                   { Lit (Integer $1) }
+    | STRING                    { Lit (String $1) }
+    | BOOLEAN                   { Lit (Boolean $1) }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" comma_exprs ")"       { Tuple $2 }
     | "(" expr ")"              { $2 }

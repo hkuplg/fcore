@@ -10,7 +10,6 @@ import SystemF.Syntax
 import Data.Maybe       (fromJust)
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 desugarTcExpr :: TcExpr -> PFExp t e
 desugarTcExpr = dsTcExpr (Map.empty, Map.empty)
@@ -32,7 +31,7 @@ dsTcExpr (d, g) = go
     go (Var (x,_t))      = case fromJust (Map.lookup x g) of
                              Left x' -> FVar x x'
                              Right e -> e
-    go (Lit (Integer n)) = FLit n
+    go (Lit lit)         = FLit lit
     go (App e1 e2)       = FApp (go e1) (go e2)
     go (TApp e t)        = FTApp (go e) (transType d t)
     go (Tuple es)        = FTuple (map go es)
@@ -155,6 +154,6 @@ dsLetRecEncode (d,g) = go
             g' = \y -> Map.fromList
                          (zipWith
                           -- TODO: better var name
-                          (\f i -> (f, Right (FProj i (FApp (FVar "" y) (FLit 0)))))
+                          (\f i -> (f, Right (FProj i (FApp (FVar "" y) (FLit (Integer 0))))))
                           fs
                           [1..length bs])

@@ -1,0 +1,1 @@
+let fun(x : java.lang.Integer) : java.lang.String = "hello, world" in fun 123

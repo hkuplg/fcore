@@ -2,8 +2,7 @@
 
 module ClosureF where
 
-import Language.Java.Syntax as J
-
+import ESF.Syntax
 import SystemF.Syntax
 
 -- Closure F syntax
@@ -29,8 +28,8 @@ data PCExp t e =
    | CLam (EScope t e)
    | CApp (PCExp t e) (PCExp t e)
    | CTApp (PCExp t e) (PCTyp t)
-   | CFPrimOp (PCExp t e) (J.Op) (PCExp t e)
-   | CFLit PrimLit
+   | CFPrimOp (PCExp t e) Operator (PCExp t e)
+   | CFLit Lit
    | CFIf0 (PCExp t e) (PCExp t e) (PCExp t e)
    | CFTuple [PCExp t e]
    | CFProj Int (PCExp t e)

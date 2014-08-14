@@ -86,6 +86,12 @@ infer e = do (Just inp, Just out, _, proch) <- liftIO $ createProcess (proc "jav
              return ret
 
 
+inferLit :: Lit -> TCMonad (TcExpr, Type)
+inferLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
+inferLit (String s)  = return (Lit (String s), JClass "java.lang.String") 
+inferLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
+
+
 inferWith :: (Handle, Handle) -> (TypeContext, ValueContext) -> RdrExpr -> TCMonad (TcExpr, Type)
 inferWith io (d, g) = go
   where
@@ -93,7 +99,7 @@ inferWith io (d, g) = go
                    Just t  -> return (Var (x,t), t)
                    Nothing -> throwError NotInScope { msg = "variable " ++ q x }
 
-    go (Lit (Integer n)) = return (Lit (Integer n), JClass "java.lang.Integer")
+    go (Lit lit) = inferLit lit
 
     go (App e1 e2) = do
       (e1', t)  <- go e1
@@ -151,13 +157,20 @@ inferWith io (d, g) = go
         _          ->
           throwError General { msg = "Projection of a term that is not of product type" }
 
-    go (PrimOp e1 op e2) = do
-      (e1', t1) <- go e1
-      (e2', t2) <- go e2
-      case (t1, t2) of
-        (JClass "java.lang.Integer", JClass "java.lang.Integer") -> return (PrimOp e1' op e2', JClass "java.lang.Integer")
-        (JClass "java.lang.Integer", _  ) -> throwError Mismatch { term = e2, expected = JClass "java.lang.Integer", actual = t2 }
-        (_  , _  ) -> throwError Mismatch { term = e1, expected = JClass "java.lang.Integer", actual = t1 }
+    go (PrimOp e1 op e2) = 
+      do
+        exp1@(e1', t1) <- go e1
+        exp2@(e2', t2) <- go e2
+        case op of (Arith _) -> shouldAllBe exp1 exp2 (JClass "java.lang.Integer")
+                   (Compare _) -> if alphaEqTy t1 t2
+                                    then return (PrimOp e1' op e2', JClass "java.lang.Boolean")
+                                    else throwError Mismatch { term = e2, expected = t1, actual = t2 }
+                   (Logic _) -> shouldAllBe exp1 exp2 (JClass "java.lang.Boolean")
+       where
+         shouldAllBe (e1', t1) (e2', t2) t = 
+           case (alphaEqTy t t1, alphaEqTy t t2) of (True, True) -> return (PrimOp e1' op e2', t)
+                                                    (True, _)    -> throwError Mismatch { term = e2, expected = t, actual = t2 }
+                                                    (_, _)       -> throwError Mismatch { term = e1, expected = t, actual = t1 }
 
     go (If0 e1 e2 e3) = do
       (e1', t1) <- go e1
