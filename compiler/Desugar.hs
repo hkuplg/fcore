@@ -10,7 +10,6 @@ import SystemF.Syntax
 import Data.Maybe       (fromJust)
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 desugarTcExpr :: TcExpr -> PFExp t e
 desugarTcExpr = dsTcExpr (Map.empty, Map.empty)
@@ -19,7 +18,7 @@ transType :: Map.Map Name t -> Type -> PFTyp t
 transType d = go
   where
     go (TyVar a)    = FTVar (fromJust (Map.lookup a d))
-    go  Int         = FInt
+    go (JClass c)   = FJClass c
     go (Fun t1 t2)  = FFun (go t1) (go t2)
     go (Product ts) = FProduct (map go ts)
     go (Forall a t) = FForall (\a' -> transType (Map.insert a a' d) t)
@@ -32,13 +31,13 @@ dsTcExpr (d, g) = go
     go (Var (x,_t))      = case fromJust (Map.lookup x g) of
                              Left x' -> FVar x x'
                              Right e -> e
-    go (Lit (Integer n)) = FLit n
+    go (Lit lit)         = FLit lit
     go (App e1 e2)       = FApp (go e1) (go e2)
     go (TApp e t)        = FTApp (go e) (transType d t)
     go (Tuple es)        = FTuple (map go es)
     go (Proj e i)        = FProj i (go e)
     go (PrimOp e1 op e2) = FPrimOp (go e1) op (go e2)
-    go (If0 e1 e2 e3)    = FIf0 (go e1) (go e2) (go e3)
+    go (If e1 e2 e3)     = FIf (go e1) (go e2) (go e3)
     go (Lam (x, t) e)    = FLam
                              (transType d t)
                              (\x' -> dsTcExpr (d, Map.insert x (Left x') g) e)
@@ -139,11 +138,11 @@ dsLetRecEncode (d,g) = go
     go (LetOut Rec bs@(_:_) e) =
       FApp
         (FLam
-          (FFun FInt (transType d tupled_ts))
+          (FFun (FJClass "java.lang.Integer") (transType d tupled_ts))
           (\y -> dsTcExpr (d, g' y `Map.union` g) e))
         (FFix
           (\y _dummy -> dsTcExpr (d, g' y `Map.union` g) tupled_es)
-          FInt
+          (FJClass "java.lang.Integer")
           (transType d tupled_ts))
           where
             (fs, ts, es) = unzip3 bs
@@ -155,6 +154,6 @@ dsLetRecEncode (d,g) = go
             g' = \y -> Map.fromList
                          (zipWith
                           -- TODO: better var name
-                          (\f i -> (f, Right (FProj i (FApp (FVar "" y) (FLit 0)))))
+                          (\f i -> (f, Right (FProj i (FApp (FVar "" y) (FLit (Integer 0))))))
                           fs
                           [1..length bs])

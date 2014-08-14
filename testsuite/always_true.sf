@@ -1,0 +1,3 @@
+let fun(b : java.lang.Boolean) : java.lang.Boolean = true
+in
+fun false

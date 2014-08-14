@@ -20,9 +20,9 @@
 -- System F code
 
 let rec evenodd (select : Int) : Int -> Int =
-    if0 select then
-        \(n : Int). if0 n then 1 else if0 n-1 then 0 else evenodd 1 (n-1)
+    if select == 0 then
+        \(n : Int). if n == 0 then 1 else if n == 1 then 0 else evenodd 1 (n-1)
     else
-        \(n : Int). if0 n then 0 else if0 n-1 then 1 else evenodd 0 (n-1)
+        \(n : Int). if n == 0 then 0 else if n == 1 then 1 else evenodd 0 (n-1)
 in
 evenodd 1 7

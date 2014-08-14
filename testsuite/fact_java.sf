@@ -1,2 +1,0 @@
-let rec fact (n:java.lang.Integer) : java.lang.Integer =
-        if0 n then new java.lang.Integer(1) else n * fact (n-1) in fact 10

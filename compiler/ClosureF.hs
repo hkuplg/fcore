@@ -2,19 +2,25 @@
 
 module ClosureF where
 
-import Language.Java.Syntax as J
-
+import ESF.Syntax
 import SystemF.Syntax
 
 -- Closure F syntax
 
-data Scope b t e = Body b | Kind (t -> Scope b t e) | Typ (PCTyp t) (e -> Scope b t e)
+data Scope b t e = 
+      Body b 
+    | Kind (t -> Scope b t e) 
+    | Typ (PCTyp t) (e -> Scope b t e)
 
 type TScope t = Scope (PCTyp t) t ()
 
 type EScope t e = Scope (PCExp t e) t e
 
-data PCTyp t = CTVar t | CForall (TScope t) | CInt | CTupleType [PCTyp t]
+data PCTyp t = 
+      CTVar t 
+    | CForall (TScope t) 
+    | CJClass String 
+    | CTupleType [PCTyp t]
 
 data PCExp t e =
      CVar e
@@ -22,9 +28,9 @@ data PCExp t e =
    | CLam (EScope t e)
    | CApp (PCExp t e) (PCExp t e)
    | CTApp (PCExp t e) (PCTyp t)
-   | CFPrimOp (PCExp t e) (J.Op) (PCExp t e)
-   | CFLit PrimLit
-   | CFIf0 (PCExp t e) (PCExp t e) (PCExp t e)
+   | CFPrimOp (PCExp t e) Operator (PCExp t e)
+   | CFLit Lit
+   | CFIf (PCExp t e) (PCExp t e) (PCExp t e)
    | CFTuple [PCExp t e]
    | CFProj Int (PCExp t e)
    -- fixpoints
@@ -46,7 +52,7 @@ ftyp2ctyp2 = undefined
 
 ftyp2ctyp :: PFTyp t -> PCTyp t
 ftyp2ctyp (FTVar x) = CTVar x
-ftyp2ctyp (FInt)    = CInt
+ftyp2ctyp (FJClass c) = CJClass c
 ftyp2ctyp (FProduct ts) = CTupleType (map ftyp2ctyp ts)
 ftyp2ctyp t         = CForall (ftyp2scope t)
 
@@ -74,7 +80,7 @@ fexp2cexp (FApp e1 e2)  = CApp (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (FPrimOp e1 op e2) = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
 fexp2cexp (FLit e) = CFLit e
-fexp2cexp (FIf0 e1 e2 e3) = CFIf0 (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
+fexp2cexp (FIf e1 e2 e3) = CFIf (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
 fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
 fexp2cexp (FFix f t1 t2) =
@@ -109,7 +115,7 @@ scope2ctyp s         = CForall s
 joinPCTyp :: PCTyp (PCTyp t) -> PCTyp t
 joinPCTyp (CTVar t)   = t
 joinPCTyp (CForall s) = CForall (joinTScope s)
-joinPCTyp CInt = CInt
+joinPCTyp (CJClass c) = (CJClass c)
 joinPCTyp (CTupleType ts) = CTupleType (map joinPCTyp ts)
 
 joinTScope :: TScope (PCTyp t) -> TScope t
@@ -143,7 +149,7 @@ instance Subst t => Subst (PCTyp t) where
 showPCTyp :: PCTyp Int -> Int -> String
 showPCTyp (CTVar i) n = "a" ++ show i
 showPCTyp (CForall s) n = "(forall " ++ showTScope s n ++ ")"
-showPCTyp CInt n = "Int"
+showPCTyp (CJClass c) n = undefined
 showPCTyp (CTupleType ts) n = "TODO!"
 
 showTScope (Body t) n = ". " ++ showPCTyp t n
