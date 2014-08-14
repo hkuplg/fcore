@@ -86,10 +86,6 @@ initObjArray tempvarstr n j = initStuff tempvarstr n j objArrayType
 
 type Var = Int -- Either Int Int left -> standard variable; right -> recursive variable
 
-last (Typ _ _) = False
-last (Kind f)  = last (f 0)
-last (Body _)  = True
-
 instCreat i = J.InstanceCreation [] (J.ClassType [(J.Ident ("Fun" ++ show i),[])]) [] Nothing
 
 jexp init body idCF generateClone =

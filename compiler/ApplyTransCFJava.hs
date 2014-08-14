@@ -21,9 +21,9 @@ instance (:<) (ApplyOptTranslate m) (Translate m) where
 instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where 
    up              = id
 
-countAbs (Body _)  = 0 :: Int
-countAbs (Typ t g) = 1 + countAbs (g ()) 
-countAbs (Kind g)  = countAbs (g 0)
+last (Typ _ _) = False
+last (Kind f)  = last (f 0)
+last (Body _)  = True
 
 -- main translation function
 transApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
@@ -35,7 +35,7 @@ transApply this super = NT {toT = super {
          False -> do  (s,je,t1) <- local (initVars ++) m
                       return (refactoredScopeTranslationBit je s currentId nextId,t1),
 
-  genApply = \f t x y -> if (countAbs t == 0) then genApply super f t x y else return [],
+  genApply = \f t x y -> if (last t) then genApply super f t x y else return [],
 
   getCvarAss = \t f j1 j2 -> do
               (usedCl :: Set.Set J.Exp) <- get                                       
