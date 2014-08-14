@@ -35,12 +35,15 @@ data PCExp t e =
    | CFProj Int (PCExp t e)
    -- fixpoints
    | CFix (PCTyp t) (e -> EScope t e)
+   -- Java
+   | CJNewObj String [PCExp t e]
+   | CJMethod (PCExp t e) String [PCExp t e]
 
 -- System F to Closure F
 
 ftyp2scope :: PFTyp t -> TScope t
 ftyp2scope (FForall f)   = Kind (\a -> ftyp2scope (f a))
-ftyp2scope (FFun t1 t2)  = Typ (ftyp2ctyp t1) (\x -> ftyp2scope t2)
+ftyp2scope (FFun t1 t2)  = Typ (ftyp2ctyp t1) (\_ -> ftyp2scope t2)
 ftyp2scope t             = Body (ftyp2ctyp t)
 -- ftyp2scope PFInt         = Body CInt
 -- ftyp2scope (FTVar x)     = Body (CTVar x)
@@ -75,18 +78,20 @@ CTApp (fexp2cexp e) (ftyp2ctyp t)
 -}
 
 fexp2cexp :: PFExp t e -> PCExp t e
-fexp2cexp (FVar _ x)    = CVar x
-fexp2cexp (FApp e1 e2)  = CApp (fexp2cexp e1) (fexp2cexp e2)
-fexp2cexp (FTApp e t)   = CTApp (fexp2cexp e) (ftyp2ctyp t)
-fexp2cexp (FPrimOp e1 op e2) = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
+fexp2cexp (FVar _ x)                = CVar x
+fexp2cexp (FApp e1 e2)              = CApp (fexp2cexp e1) (fexp2cexp e2)
+fexp2cexp (FTApp e t)               = CTApp (fexp2cexp e) (ftyp2ctyp t)
+fexp2cexp (FPrimOp e1 op e2)        = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
 fexp2cexp (FLit e) = CFLit e
-fexp2cexp (FIf e1 e2 e3) = CFIf (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
-fexp2cexp (FTuple tuple) = CFTuple (map fexp2cexp tuple)
-fexp2cexp (FProj i e) = CFProj i (fexp2cexp e)
+fexp2cexp (FIf e1 e2 e3)            = CFIf (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
+fexp2cexp (FTuple tuple)            = CFTuple (map fexp2cexp tuple)
+fexp2cexp (FProj i e)               = CFProj i (fexp2cexp e)
 fexp2cexp (FFix f t1 t2) =
   let  g e = groupLambda (FLam t1 (f e)) -- is this right???? (BUG)
   in   CFix (CForall (adjust (FFun t1 t2) (g undefined))) g
-fexp2cexp e             = CLam (groupLambda e)
+fexp2cexp (FJNewObj cName args)     = CJNewObj cName (map fexp2cexp args)
+fexp2cexp (FJMethod e mName args)   = CJMethod (fexp2cexp e) mName (map fexp2cexp args) 
+fexp2cexp e                         = CLam (groupLambda e)
 
 adjust :: PFTyp t -> EScope t e -> TScope t
 adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!

@@ -1,0 +1,4 @@
+let min (a : Int) (b : Int) : Int =
+    if a < b then a else b
+in
+min 7 4
