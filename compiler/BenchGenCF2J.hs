@@ -90,8 +90,8 @@ getScopeType _ _= []
 benchmarkPackage name = Just (J.PackageDecl (J.Name [(J.Ident name)]))
 
 createCUB this compDef = cu where
-   cu = J.CompilationUnit (benchmarkPackage "benchmark") [] ([closureClass this] ++ compDef)
-
+   cu = J.CompilationUnit (benchmarkPackage "benchmark") [] (compDef)
+--[closureClass this] ++ 
 
 -- data type for naive BenchGen
 data BenchGenTranslate m = TB {
