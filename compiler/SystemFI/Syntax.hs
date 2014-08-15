@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns -fno-warn-unused-matches #-}
-{-# LANGUAGE FlexibleInstances, GADTs, ExplicitForAll #-}
+{-# LANGUAGE FlexibleInstances, ExplicitForAll #-}
 
 module SystemFI.Syntax
   ( Type(..)
   , Expr(..)
+  , TypeContext
+  , ValueContext
   , structEqType
   , fsubstTT
   , fsubstTE
@@ -14,21 +16,27 @@ import PrettyUtils
 
 import Text.PrettyPrint.Leijen
 
-data Type a where
-  TVar   :: a -> Type a                -- a
-  Int    :: Type a                     -- Int
-  Forall :: (a -> Type a) -> Type a    -- ∀a. t
-  Fun    :: Type a -> Type a -> Type a -- t1 → t2
-  And    :: Type a -> Type a -> Type a -- t1 & t2
+import qualified Data.Set as Set
+import qualified Data.Map as Map
 
-data Expr t e where
-  Var   :: e -> Expr t e                         -- x
-  Lit   :: Integer -> Expr t e                   -- i
-  BLam  :: (t -> Expr t e) -> Expr t e           -- Λa. e
-  Lam   :: Type t -> (e -> Expr t e) -> Expr t e -- λ(x : t). e
-  TApp  :: Expr t e -> Type t -> Expr t e        -- e t
-  App   :: Expr t e -> Expr t e -> Expr t e      -- e1 e2
-  Merge :: Expr t e -> Expr t e -> Expr t e      -- e1 ,, e2
+data Type a
+  = TVar a                -- a
+  | Int                   -- Int
+  | Forall (a -> Type a)  -- ∀a. t
+  | Fun (Type a) (Type a) -- t1 → t2
+  | And (Type a) (Type a) -- t1 & t2
+
+data Expr t e
+  = Var e                        -- x
+  | Lit Integer                  -- i
+  | BLam (t -> Expr t e)         -- Λa. e
+  | Lam (Type t) (e -> Expr t e) -- λ(x : t). e
+  | TApp (Expr t e) (Type t )    -- e t
+  | App (Expr t e) (Expr t e)    -- e1 e2
+  | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
+
+type TypeContext t    = Set.Set t
+type ValueContext t e = Map.Map e (Type t)
 
 -- Structural equality of types
 
@@ -52,8 +60,8 @@ instance Pretty (Type Int) where
   pretty = prettyType basePrecEnv 0
 
 prettyType :: PrecedenceEnv -> Int -> Type Int -> Doc
-prettyType _ _ (TVar a)    = text (tvar a)
-prettyType _ _  Int        = text "Int"
+prettyType p i (TVar a)    = text (tvar a)
+prettyType p i  Int        = text "Int"
 prettyType p i (Forall f)  = parensIf p 1 (char '∀' <+> text (tvar i) <> dot <+>
                                            prettyType (1,PrecMinus) (succ i) (f i))
 prettyType p i (Fun t1 t2) = parensIf p 2 (prettyType (2,PrecPlus) i t1 <+> char '→' <+> prettyType (2,PrecMinus) i t2)
