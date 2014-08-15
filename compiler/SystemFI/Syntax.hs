@@ -5,6 +5,9 @@ module SystemFI.Syntax
   ( Type(..)
   , Expr(..)
   , structEqType
+  , fsubstTT
+  , fsubstTE
+  , fsubstEE
   ) where
 
 import PrettyUtils
@@ -14,15 +17,15 @@ import Text.PrettyPrint.Leijen
 data Type a where
   TVar   :: a -> Type a                -- a
   Int    :: Type a                     -- Int
-  Forall :: (a -> Type a) -> Type a    -- forall a. t
-  Fun    :: Type a -> Type a -> Type a -- t1 -> t2
+  Forall :: (a -> Type a) -> Type a    -- ∀a. t
+  Fun    :: Type a -> Type a -> Type a -- t1 → t2
   And    :: Type a -> Type a -> Type a -- t1 & t2
 
 data Expr t e where
   Var   :: e -> Expr t e                         -- x
   Lit   :: Integer -> Expr t e                   -- i
-  Lam   :: Type t -> (e -> Expr t e) -> Expr t e -- \(x : t). e
-  BLam  :: (t -> Expr t e) -> Expr t e           -- /\a. e
+  BLam  :: (t -> Expr t e) -> Expr t e           -- Λa. e
+  Lam   :: Type t -> (e -> Expr t e) -> Expr t e -- λ(x : t). e
   TApp  :: Expr t e -> Type t -> Expr t e        -- e t
   App   :: Expr t e -> Expr t e -> Expr t e      -- e1 e2
   Merge :: Expr t e -> Expr t e -> Expr t e      -- e1 ,, e2
@@ -78,3 +81,32 @@ prettyExpr p (i,j) (Merge e1 e2) = parensIf p 2 (prettyExpr (2,PrecMinus) (i,j) 
                                                  prettyExpr (2,PrecPlus) (i,j) e2)
 prettyExpr p (i,j) (TApp e t)    = parensIf p 3 (prettyExpr (3,PrecMinus) (i,j) e  <+> prettyType (3,PrecPlus) i t)
 prettyExpr p (i,j) (App e1 e2)   = parensIf p 3 (prettyExpr (3,PrecMinus) (i,j) e1 <+> prettyExpr (3,PrecPlus) (i,j) e2)
+
+fsubstTT :: (Int, Type Int) -> Type Int -> Type Int
+fsubstTT (x,r) (TVar a)
+  | a == x                 = r
+  | otherwise              = TVar a
+fsubstTT (x,r)  Int        = Int
+fsubstTT (x,r) (Forall f)  = Forall (fsubstTT (x,r) . f)
+fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
+fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
+
+fsubstTE :: (Int, Type Int) -> Expr Int Int -> Expr Int Int
+fsubstTE (x,r) (Var a)       = Var a
+fsubstTE (x,r) (Lit n)       = Lit n
+fsubstTE (x,r) (BLam g)      = BLam (fsubstTE (x,r) . g)
+fsubstTE (x,r) (Lam t f)     = Lam (fsubstTT (x,r) t) (fsubstTE (x,r) . f)
+fsubstTE (x,r) (TApp e t)    = TApp (fsubstTE (x,r) e) (fsubstTT (x,r) t)
+fsubstTE (x,r) (App e1 e2)   = App (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
+fsubstTE (x,r) (Merge e1 e2) = Merge (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
+
+fsubstEE :: (Int, Expr Int Int) -> Expr Int Int -> Expr Int Int
+fsubstEE (x,r) (Var a)
+  | a == x                   = r
+  | otherwise                = Var a
+fsubstEE (x,r) (Lit n)       = Lit n
+fsubstEE (x,r) (BLam g)      = BLam (fsubstEE (x,r) . g)
+fsubstEE (x,r) (Lam t f)     = Lam t (fsubstEE (x,r) . f)
+fsubstEE (x,r) (TApp e t)    = TApp (fsubstEE (x,r) e) t
+fsubstEE (x,r) (App e1 e2)   = App (fsubstEE (x,r) e1) (fsubstEE (x,r) e2)
+fsubstEE (x,r) (Merge e1 e2) = Merge (fsubstEE (x,r) e1) (fsubstEE (x,r) e2)
