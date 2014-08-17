@@ -12,6 +12,7 @@ module SystemF.Syntax
     ) where
 
 import PrettyUtils
+import ESF.Syntax (Operator(..),Lit(..))
 
 import Text.PrettyPrint.Leijen
 import qualified Language.Java.Syntax as J (Op(..))
@@ -21,6 +22,7 @@ data PFTyp t
   | FForall (t -> PFTyp t)
   | FFun (PFTyp t) (PFTyp t)
   | FInt
+  | FJClass String
   | FProduct [PFTyp t]
 
 data PFExp t e
@@ -29,9 +31,9 @@ data PFExp t e
   | FLam (PFTyp t) (e -> PFExp t e)
   | FTApp (PFExp t e) (PFTyp t)
   | FApp  (PFExp t e) (PFExp t e)
-  | FPrimOp (PFExp t e) J.Op (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
-  | FLit PrimLit
-  | FIf0 (PFExp t e) (PFExp t e) (PFExp t e)
+  | FPrimOp (PFExp t e) Operator (PFExp t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
+  | FLit Lit
+  | FIf (PFExp t e) (PFExp t e) (PFExp t e)
   | FTuple [PFExp t e]
   | FProj Int (PFExp t e)
 
@@ -40,6 +42,9 @@ data PFExp t e
   | FFix (e -> e -> PFExp t e)
          (PFTyp t) -- t1
          (PFTyp t) -- t2
+-- Java
+  | FJNewObj String [PFExp t e]
+  | FJMethod (PFExp t e) String [PFExp t e]
 
 newtype Typ = HideTyp { revealTyp :: forall t. PFTyp t } -- type of closed types
 
@@ -86,9 +91,9 @@ instance Pretty (PFExp Int Int) where
 
 prettyExp :: PrecedenceEnv -> (Int, Int) -> PFExp Int Int -> Doc
 prettyExp p (i,j) (FVar _ x)      = text (var x)
-prettyExp p (i,j) (FLit n)        = integer n
+prettyExp p (i,j) (FLit n)        = error "FIX ME!" -- integer n
 prettyExp p (i,j) (FTuple es)     = tupled (map (prettyExp basePrecEnv (i,j)) es)
-prettyExp p (i,j) (FIf0 e1 e2 e3) = parensIf p 1 (text "if" <+> prettyExp (1,PrecMinus) (i,j) e1 <+>
+prettyExp p (i,j) (FIf e1 e2 e3) = parensIf p 1 (text "if" <+> prettyExp (1,PrecMinus) (i,j) e1 <+>
                                                   indent 2 (text "then" <+> prettyExp (1, PrecMinus) (i,j) e2 <+>
                                                             text "else" <+> prettyExp (1, PrecMinus) (i,j) e3))
 prettyExp p (i,j) (FBLam f)       = parensIf p 2 (char 'Λ' <+> text (tvar i) <> dot <+>
@@ -114,7 +119,7 @@ fsubstEE (x,r) (FBLam f)          = FBLam (fsubstEE (x,r) . f)
 fsubstEE (x,r) (FLam t' f)        = FLam t' (fsubstEE (x,r) . f)
 fsubstEE (x,r) (FApp e1 e2)       = FApp (fsubstEE (x,r) e1) (fsubstEE (x,r) e2)
 fsubstEE (x,r) (FPrimOp e1 op e2) = FPrimOp (fsubstEE (x,r) e1) op (fsubstEE (x,r) e2)
-fsubstEE (x,r) (FIf0 e1 e2 e3)    = FIf0 (fsubstEE (x,r) e1) (fsubstEE (x,r) e2) (fsubstEE (x,r) e3)
+fsubstEE (x,r) (FIf e1 e2 e3)    = FIf (fsubstEE (x,r) e1) (fsubstEE (x,r) e2) (fsubstEE (x,r) e3)
 fsubstEE (x,r) (FTuple es)        = FTuple (map (fsubstEE (x,r)) es)
 fsubstEE (x,r) (FProj i' e)       = FProj i' (fsubstEE (x,r) e)
 
@@ -134,6 +139,6 @@ fsubstTE (i,t) (FBLam f)          = FBLam (fsubstTE (i,t) . f)
 fsubstTE (i,t) (FLam t' f)        = FLam (fsubstTT (i,t) t') (fsubstTE (i,t) . f)
 fsubstTE (i,t) (FApp e1 e2)       = FApp (fsubstTE (i,t) e1) (fsubstTE (i,t) e2)
 fsubstTE (i,t) (FPrimOp e1 op e2) = FPrimOp (fsubstTE (i,t) e1) op (fsubstTE (i,t) e2)
-fsubstTE (i,t) (FIf0 e1 e2 e3)    = FIf0 (fsubstTE (i,t) e1) (fsubstTE (i,t) e2) (fsubstTE (i,t) e3)
+fsubstTE (i,t) (FIf e1 e2 e3)    = FIf (fsubstTE (i,t) e1) (fsubstTE (i,t) e2) (fsubstTE (i,t) e3)
 fsubstTE (i,t) (FTuple es)        = FTuple (map (fsubstTE (i,t)) es)
 fsubstTE (i,t) (FProj i' e)       = FProj i' (fsubstTE (i,t) e)
