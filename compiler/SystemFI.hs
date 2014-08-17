@@ -3,6 +3,20 @@ module SystemFI where
 import SystemFI.Syntax
 import SystemFI.TypeCheck
 
+import PrettyUtils
+
+{-
+*SystemFI> let t = let Forall f = tyTrue in f 0
+*SystemFI> t
+∀ A. A → A → A
+*SystemFI> prettyType basePrecEnv 0 t
+∀ A. A → A → A
+*SystemFI> prettyType basePrecEnv 1 t
+∀ B. A → B → A
+*SystemFI> prettyType basePrecEnv 2 t
+∀ C. A → C → A
+-}
+
 tyNat2Int :: Type Int
 tyNat2Int = Nat `Fun` Int
 

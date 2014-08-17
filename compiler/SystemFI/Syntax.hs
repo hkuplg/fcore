@@ -8,6 +8,7 @@ module SystemFI.Syntax
   , ValueContext
   , emptyValueContext
   , structEqType
+  , PrettyPHOAS(..)
   , prettyType
   , prettyExpr
   , fsubstTT
@@ -61,11 +62,10 @@ structEqType' i  _           _          = False
 
 -- Prettyprinting of types
 
-instance Show (Type Int) where
-  show = show . pretty
+newtype PrettyPHOAS t = PrettyPHOAS { unPrettyPHOAS :: (t, Int) }
 
-instance Pretty (Type Int) where
-  pretty = prettyType basePrecEnv 0
+instance Show (PrettyPHOAS (Type Int)) where
+  show (PrettyPHOAS (t, i)) = show (prettyType basePrecEnv i t)
 
 prettyType :: PrecedenceEnv -> Int -> Type Int -> Doc
 prettyType p i (TVar a)    = text (nameTVar a)
