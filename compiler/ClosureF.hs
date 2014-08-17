@@ -155,7 +155,7 @@ showPCTyp :: PCTyp Int -> Int -> String
 showPCTyp (CTVar i) n = "a" ++ show i
 showPCTyp (CForall s) n = "(forall " ++ showTScope s n ++ ")"
 
-showPCTyp (CJClass "java.lang.Integer") n = "Int"
+-- showPCTyp (CJClass "java.lang.Integer") n = "Int"
 showPCTyp (CJClass c) n                   = c
 
 showPCTyp (CTupleType ts) n = "TODO!"
