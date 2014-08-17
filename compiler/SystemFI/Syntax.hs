@@ -71,10 +71,10 @@ prettyType :: PrecedenceEnv -> Int -> Type Int -> Doc
 prettyType p i (TVar a)    = text (nameTVar a)
 prettyType p i  Int        = text "Int"
 prettyType p i  Nat        = text "Nat"
-prettyType p i (Forall f)  = parensIf p 1 (char '∀' <+> text (nameTVar i) <> dot <+>
+prettyType p i (Forall f)  = parensIf p 1 (text "forall" <+> text (nameTVar i) <> dot <+>
                                            prettyType (1,PrecMinus) (succ i) (f i))
 prettyType p i (Fun t1 t2) = parensIf p 2 (prettyType (2,PrecPlus) i t1 <+>
-                                           char '→' <+>
+                                           text "->" <+>
                                            prettyType (2,PrecMinus) i t2)
 prettyType p i (And t1 t2) = parensIf p 2 (prettyType (2,PrecMinus) i t1 <+>
                                            text "&"  <+>
@@ -91,9 +91,9 @@ instance Pretty (Expr Int Int) where
 prettyExpr :: PrecedenceEnv -> (Int, Int) -> Expr Int Int -> Doc
 prettyExpr p (i,j) (Var x)       = text (nameVar x)
 prettyExpr p (i,j) (Lit n)       = integer n
-prettyExpr p (i,j) (BLam f)      = parensIf p 1 (char 'Λ' <> text (nameTVar i) <> dot <+>
+prettyExpr p (i,j) (BLam f)      = parensIf p 1 (text "/\\" <> text (nameTVar i) <> dot <+>
                                                  prettyExpr (1,PrecMinus) (succ i, j) (f i))
-prettyExpr p (i,j) (Lam t f)     = parensIf p 1 (char 'λ' <>
+prettyExpr p (i,j) (Lam t f)     = parensIf p 1 (char '\\' <>
                                                  parens (text (nameVar j) <+> colon <+> prettyType basePrecEnv i t) <>
                                                  dot <+>
                                                  prettyExpr (1,PrecMinus) (i, succ j) (f j))
