@@ -7,19 +7,19 @@ import SystemF.Syntax
 
 -- Closure F syntax
 
-data Scope b t e = 
-      Body b 
-    | Kind (t -> Scope b t e) 
+data Scope b t e =
+      Body b
+    | Kind (t -> Scope b t e)
     | Typ (PCTyp t) (e -> Scope b t e)
 
 type TScope t = Scope (PCTyp t) t ()
 
 type EScope t e = Scope (PCExp t e) t e
 
-data PCTyp t = 
-      CTVar t 
-    | CForall (TScope t) 
-    | CJClass String 
+data PCTyp t =
+      CTVar t
+    | CForall (TScope t)
+    | CJClass String
     | CTupleType [PCTyp t]
 
 data PCExp t e =
@@ -68,11 +68,11 @@ fexp2cexp2 e tenv env = CLam (groupLambda2 e tenv env)
 {-
 fexp2cexp2 :: PFExp t (e, PCTyp t) -> (PCExp t e, PCTyp t)
 fexp2cexp2 (FVar _ (x,t))      = (CVar x,t)
-fexp2cexp2 (FApp e1 e2)        = 
+fexp2cexp2 (FApp e1 e2)        =
    let (c1,CForall (Typ t g))  = fexp2cexp2 e1
        (c2,t2)                 = fexp2cexp2 e2
    in (CApp c1 c2, undefined (g ()))
-fexp2cexp2 (FTApp e t)   = 
+fexp2cexp2 (FTApp e t)   =
    let (c1,t1) = fexp2cexp e
 CTApp (fexp2cexp e) (ftyp2ctyp t)
 -}
@@ -90,7 +90,7 @@ fexp2cexp (FFix f t1 t2) =
   let  g e = groupLambda (FLam t1 (f e)) -- is this right???? (BUG)
   in   CFix (CForall (adjust (FFun t1 t2) (g undefined))) g
 fexp2cexp (FJNewObj cName args)     = CJNewObj cName (map fexp2cexp args)
-fexp2cexp (FJMethod e mName args)   = CJMethod (fexp2cexp e) mName (map fexp2cexp args) 
+fexp2cexp (FJMethod e mName args)   = CJMethod (fexp2cexp e) mName (map fexp2cexp args)
 fexp2cexp e                         = CLam (groupLambda e)
 
 adjust :: PFTyp t -> EScope t e -> TScope t
@@ -154,7 +154,10 @@ instance Subst t => Subst (PCTyp t) where
 showPCTyp :: PCTyp Int -> Int -> String
 showPCTyp (CTVar i) n = "a" ++ show i
 showPCTyp (CForall s) n = "(forall " ++ showTScope s n ++ ")"
-showPCTyp (CJClass c) n = undefined
+
+showPCTyp (CJClass "java.lang.Integer") n = "Int"
+showPCTyp (CJClass c) n                   = c
+
 showPCTyp (CTupleType ts) n = "TODO!"
 
 showTScope (Body t) n = ". " ++ showPCTyp t n

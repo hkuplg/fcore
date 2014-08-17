@@ -91,7 +91,9 @@ instance Pretty (PFExp Int Int) where
 
 prettyExp :: PrecedenceEnv -> (Int, Int) -> PFExp Int Int -> Doc
 prettyExp p (i,j) (FVar _ x)      = text (var x)
-prettyExp p (i,j) (FLit n)        = error "FIX ME!" -- integer n
+prettyExp p (i,j) (FLit (Integer n)) = integer n
+prettyExp p (i,j) (FLit (String s))  = string s
+prettyExp p (i,j) (FLit (Boolean b)) = bool b
 prettyExp p (i,j) (FTuple es)     = tupled (map (prettyExp basePrecEnv (i,j)) es)
 prettyExp p (i,j) (FIf e1 e2 e3) = parensIf p 1 (text "if" <+> prettyExp (1,PrecMinus) (i,j) e1 <+>
                                                   indent 2 (text "then" <+> prettyExp (1, PrecMinus) (i,j) e2 <+>
