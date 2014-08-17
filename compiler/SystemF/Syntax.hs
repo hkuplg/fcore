@@ -75,9 +75,9 @@ instance Pretty (PFTyp Int) where
   pretty = prettyTyp basePrecEnv 0
 
 prettyTyp :: PrecedenceEnv -> Int -> PFTyp Int -> Doc
-prettyTyp p i (FTVar a)     = text (tvar a)
+prettyTyp p i (FTVar a)     = text (nameTVar a)
 prettyTyp p i  FInt         = text "Int"
-prettyTyp p i (FForall f)   = parensIf p 1 (char '∀' <+> text (tvar i) <> dot <+> prettyTyp (1,PrecMinus) (succ i) (f i))
+prettyTyp p i (FForall f)   = parensIf p 1 (char '∀' <+> text (nameTVar i) <> dot <+> prettyTyp (1,PrecMinus) (succ i) (f i))
 prettyTyp p i (FFun t1 t2)  = parensIf p 2 (prettyTyp (2,PrecPlus) i t1 <+> char '→' <+> prettyTyp (2,PrecMinus) i t2)
 prettyTyp p i (FProduct ts) = tupled (map (prettyTyp basePrecEnv i) ts)
 
@@ -90,24 +90,22 @@ instance Pretty (PFExp Int Int) where
   pretty = prettyExp basePrecEnv (0, 0)
 
 prettyExp :: PrecedenceEnv -> (Int, Int) -> PFExp Int Int -> Doc
-prettyExp p (i,j) (FVar _ x)      = text (var x)
+prettyExp p (i,j) (FVar _ x)      = text (nameVar x)
 prettyExp p (i,j) (FLit (Integer n)) = integer n
 prettyExp p (i,j) (FLit (String s))  = string s
 prettyExp p (i,j) (FLit (Boolean b)) = bool b
 prettyExp p (i,j) (FTuple es)     = tupled (map (prettyExp basePrecEnv (i,j)) es)
-prettyExp p (i,j) (FIf e1 e2 e3) = parensIf p 1 (text "if" <+> prettyExp (1,PrecMinus) (i,j) e1 <+>
-                                                  indent 2 (text "then" <+> prettyExp (1, PrecMinus) (i,j) e2 <+>
-                                                            text "else" <+> prettyExp (1, PrecMinus) (i,j) e3))
-prettyExp p (i,j) (FBLam f)       = parensIf p 2 (char 'Λ' <+> text (tvar i) <> dot <+>
+prettyExp p (i,j) (FIf e1 e2 e3)  = parensIf p 1 (text "if" <+> prettyExp (1,PrecMinus) (i,j) e1 <+>
+                                                   indent 2 (text "then" <+> prettyExp (1, PrecMinus) (i,j) e2 <+>
+                                                             text "else" <+> prettyExp (1, PrecMinus) (i,j) e3))
+prettyExp p (i,j) (FBLam f)       = parensIf p 2 (char 'Λ' <+> text (nameTVar i) <> dot <+>
                                                   prettyExp (2,PrecMinus) (succ i, j) (f i))
 prettyExp p (i,j) (FLam t f)      = parensIf p 2 (char 'λ' <+>
-                                                  parens (text (var j) <+> colon <+> prettyTyp basePrecEnv i t) <>
+                                                  parens (text (nameVar j) <+> colon <+> prettyTyp basePrecEnv i t) <>
                                                   dot <+>
                                                   prettyExp (2,PrecMinus) (i, succ j) (f j))
-prettyExp p (i,j) (FTApp e t)     = parensIf p 4 (parens (prettyExp (4,PrecMinus) (i,j) e)  <+>
-                                                  parens (prettyTyp (4,PrecPlus) i t))
-prettyExp p (i,j) (FApp e1 e2)    = parensIf p 4 (parens (prettyExp (4,PrecMinus) (i,j) e1) <+>
-                                                  parens (prettyExp (4,PrecPlus) (i,j) e2))
+prettyExp p (i,j) (FTApp e t)     = parensIf p 4 (prettyExp (4,PrecMinus) (i,j) e  <+> prettyTyp (4,PrecPlus) i t)
+prettyExp p (i,j) (FApp e1 e2)    = parensIf p 4 (prettyExp (4,PrecMinus) (i,j) e1 <+> prettyExp (4,PrecPlus) (i,j) e2)
 prettyExp p i (FProj n e)         = parensIf p 5 (prettyExp (5,PrecMinus) i e) <> dot <> char '_' <> int n
 
 -- Substitutions

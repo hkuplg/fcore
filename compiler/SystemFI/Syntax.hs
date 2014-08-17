@@ -6,7 +6,10 @@ module SystemFI.Syntax
   , Expr(..)
   , TypeContext
   , ValueContext
+  , emptyValueContext
   , structEqType
+  , prettyType
+  , prettyExpr
   , fsubstTT
   , fsubstTE
   , fsubstEE
@@ -22,6 +25,7 @@ import qualified Data.Map as Map
 data Type a
   = TVar a                -- a
   | Int                   -- Int
+  | Nat                  -- Nat
   | Forall (a -> Type a)  -- ∀a. t
   | Fun (Type a) (Type a) -- t1 → t2
   | And (Type a) (Type a) -- t1 & t2
@@ -38,6 +42,9 @@ data Expr t e
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
 
+emptyValueContext :: ValueContext t e
+emptyValueContext = Map.empty
+
 -- Structural equality of types
 
 structEqType :: Type Int -> Type Int -> Bool
@@ -46,6 +53,7 @@ structEqType = structEqType' 0
 structEqType' :: Int -> Type Int -> Type Int -> Bool
 structEqType' i (TVar a)    (TVar b)    = a == b
 structEqType' i  Int         Int        = True
+structEqType' i  Nat        Nat       = True
 structEqType' i (Forall f)  (Forall g)  = structEqType' i (f i) (g i)
 structEqType' i (Fun s1 s2) (Fun t1 t2) = structEqType' i s1 t1 && structEqType' i s2 t2
 structEqType' i (And s1 s2) (And t1 t2) = structEqType' i s1 t1 && structEqType' i s2 t2
@@ -60,12 +68,17 @@ instance Pretty (Type Int) where
   pretty = prettyType basePrecEnv 0
 
 prettyType :: PrecedenceEnv -> Int -> Type Int -> Doc
-prettyType p i (TVar a)    = text (tvar a)
+prettyType p i (TVar a)    = text (nameTVar a)
 prettyType p i  Int        = text "Int"
-prettyType p i (Forall f)  = parensIf p 1 (char '∀' <+> text (tvar i) <> dot <+>
+prettyType p i  Nat        = text "Nat"
+prettyType p i (Forall f)  = parensIf p 1 (char '∀' <+> text (nameTVar i) <> dot <+>
                                            prettyType (1,PrecMinus) (succ i) (f i))
-prettyType p i (Fun t1 t2) = parensIf p 2 (prettyType (2,PrecPlus) i t1 <+> char '→' <+> prettyType (2,PrecMinus) i t2)
-prettyType p i (And t1 t2) = parensIf p 2 (prettyType (2,PrecMinus) i t1 <+> text "&"  <+> prettyType (2,PrecPlus) i t2)
+prettyType p i (Fun t1 t2) = parensIf p 2 (prettyType (2,PrecPlus) i t1 <+>
+                                           char '→' <+>
+                                           prettyType (2,PrecMinus) i t2)
+prettyType p i (And t1 t2) = parensIf p 2 (prettyType (2,PrecMinus) i t1 <+>
+                                           text "&"  <+>
+                                           prettyType (2,PrecPlus) i t2)
 
 -- Prettyprinting of expressions
 
@@ -76,12 +89,12 @@ instance Pretty (Expr Int Int) where
   pretty = prettyExpr basePrecEnv (0, 0)
 
 prettyExpr :: PrecedenceEnv -> (Int, Int) -> Expr Int Int -> Doc
-prettyExpr p (i,j) (Var x)       = text (var x)
+prettyExpr p (i,j) (Var x)       = text (nameVar x)
 prettyExpr p (i,j) (Lit n)       = integer n
-prettyExpr p (i,j) (BLam f)      = parensIf p 1 (char 'Λ' <+> text (tvar i) <> dot <+>
+prettyExpr p (i,j) (BLam f)      = parensIf p 1 (char 'Λ' <> text (nameTVar i) <> dot <+>
                                                  prettyExpr (1,PrecMinus) (succ i, j) (f i))
-prettyExpr p (i,j) (Lam t f)     = parensIf p 1 (char 'λ' <+>
-                                                 parens (text (var j) <+> colon <+> prettyType basePrecEnv i t) <>
+prettyExpr p (i,j) (Lam t f)     = parensIf p 1 (char 'λ' <>
+                                                 parens (text (nameVar j) <+> colon <+> prettyType basePrecEnv i t) <>
                                                  dot <+>
                                                  prettyExpr (1,PrecMinus) (i, succ j) (f j))
 prettyExpr p (i,j) (Merge e1 e2) = parensIf p 2 (prettyExpr (2,PrecMinus) (i,j) e1 <+>
@@ -90,11 +103,14 @@ prettyExpr p (i,j) (Merge e1 e2) = parensIf p 2 (prettyExpr (2,PrecMinus) (i,j) 
 prettyExpr p (i,j) (TApp e t)    = parensIf p 3 (prettyExpr (3,PrecMinus) (i,j) e  <+> prettyType (3,PrecPlus) i t)
 prettyExpr p (i,j) (App e1 e2)   = parensIf p 3 (prettyExpr (3,PrecMinus) (i,j) e1 <+> prettyExpr (3,PrecPlus) (i,j) e2)
 
+-- Substitutions
+
 fsubstTT :: (Int, Type Int) -> Type Int -> Type Int
 fsubstTT (x,r) (TVar a)
   | a == x                 = r
   | otherwise              = TVar a
-fsubstTT (x,r)  Int        = Int
+fsubstTT (x,r) Int         = Int
+fsubstTT (x,r) Nat         = Nat
 fsubstTT (x,r) (Forall f)  = Forall (fsubstTT (x,r) . f)
 fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
@@ -113,7 +129,7 @@ fsubstEE (x,r) (Var a)
   | a == x                   = r
   | otherwise                = Var a
 fsubstEE (x,r) (Lit n)       = Lit n
-fsubstEE (x,r) (BLam g)      = BLam (fsubstEE (x,r) . g)
+fsubstEE (x,r) (BLam f)      = BLam (fsubstEE (x,r) . f )
 fsubstEE (x,r) (Lam t f)     = Lam t (fsubstEE (x,r) . f)
 fsubstEE (x,r) (TApp e t)    = TApp (fsubstEE (x,r) e) t
 fsubstEE (x,r) (App e1 e2)   = App (fsubstEE (x,r) e1) (fsubstEE (x,r) e2)

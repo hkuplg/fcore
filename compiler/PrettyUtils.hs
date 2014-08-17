@@ -19,13 +19,13 @@ parensIf (envLevel, envDelta) myLevel doc
                      PrecMinus -> doc
   | otherwise = doc
 
-tvar :: Int -> String
-tvar = varFrom 'A'
+nameTVar :: Int -> String
+nameTVar = nameVarFrom 'A'
 
-var :: Int -> String
-var = varFrom 'a'
+nameVar :: Int -> String
+nameVar = nameVarFrom 'a'
 
-varFrom :: Char -> Int -> String
-varFrom c n
+nameVarFrom :: Char -> Int -> String
+nameVarFrom c n
   | n < 26    = [chr (ord c + n)]
-  | otherwise = c : show (n - 25)
+  | otherwise = c : show n

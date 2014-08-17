@@ -9,8 +9,14 @@ new f = let r = f r in r
 
 type Mixin s = s -> s -> s
 
-extends :: Mixin s -> Mixin s -> Mixin s
-f `extends` g = \super this -> f (g super this) this
+extends :: Mixin s -> Open s -> Mixin s
+f `extends` g = \super this -> f (g this) this
+
+mixes :: Mixin s -> Mixin s -> Mixin s
+f `mixes` g = \super this -> f (g super this) this
+
+top :: Open s
+top this = this
 
 zero :: Mixin s
 zero super this = super
@@ -28,4 +34,4 @@ g2 super this = super { value = 2 }
 
 m1, m2 :: G
 m1 = mixin g1
-m2 = mixin (g2 `extends` g1)
+m2 = mixin (g2 `mixes` g1)
