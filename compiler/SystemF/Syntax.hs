@@ -9,6 +9,8 @@ module SystemF.Syntax
     , fsubstTT
     , fsubstTE
     , fsubstEE
+    , prettyExp
+    , prettyTyp
     ) where
 
 import PrettyUtils

@@ -1,5 +1,8 @@
 syntax: glob
 
+# Run ./select-cabal.sh to get the Cabal file that matches your GHC version.
+*.cabal
+
 systemf/.cache
 systemf/.classpath
 systemf/.project
