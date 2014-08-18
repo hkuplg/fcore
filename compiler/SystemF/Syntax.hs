@@ -15,13 +15,11 @@ import PrettyUtils
 import ESF.Syntax (Operator(..),Lit(..))
 
 import Text.PrettyPrint.Leijen
-import qualified Language.Java.Syntax as J (Op(..))
 
 data PFTyp t
   = FTVar t
   | FForall (t -> PFTyp t)
   | FFun (PFTyp t) (PFTyp t)
-  | FInt
   | FJClass String
   | FProduct [PFTyp t]
 
@@ -58,7 +56,7 @@ alphaEqTyp = alphaEqTyp' 0
 alphaEqTyp' :: Int -> PFTyp Int -> PFTyp Int -> Bool
 
 alphaEqTyp' i (FTVar x)     (FTVar y)    = x == y
-alphaEqTyp' i  FInt          FInt        = True
+alphaEqTyp' i (FJClass c1)  (FJClass c2) = c1 == c2
 alphaEqTyp' i (FForall f)   (FForall g)  = alphaEqTyp' (i + 1) (f i) (g i)
 alphaEqTyp' i (FFun s1 s2)  (FFun t1 t2) = alphaEqTyp' i s1 t1 && alphaEqTyp' i s2 t2
 alphaEqTyp' i (FProduct ss) (FProduct ts)
@@ -76,7 +74,7 @@ instance Pretty (PFTyp Int) where
 
 prettyTyp :: PrecedenceEnv -> Int -> PFTyp Int -> Doc
 prettyTyp p i (FTVar a)     = text (nameTVar a)
-prettyTyp p i  FInt         = text "Int"
+prettyTyp p i (FJClass a)   = text a
 prettyTyp p i (FForall f)   = parensIf p 1 (char '∀' <+> text (nameTVar i) <> dot <+> prettyTyp (1,PrecMinus) (succ i) (f i))
 prettyTyp p i (FFun t1 t2)  = parensIf p 2 (prettyTyp (2,PrecPlus) i t1 <+> char '→' <+> prettyTyp (2,PrecMinus) i t2)
 prettyTyp p i (FProduct ts) = tupled (map (prettyTyp basePrecEnv i) ts)
@@ -111,34 +109,40 @@ prettyExp p i (FProj n e)         = parensIf p 5 (prettyExp (5,PrecMinus) i e) <
 -- Substitutions
 
 fsubstEE :: (Int, PFExp Int Int) -> PFExp Int Int -> PFExp Int Int
-fsubstEE (x,r) (FVar s x')
-  | x' == x                       = r
-  | otherwise                     = FVar s x'
-fsubstEE (x,r) (FLit n)           = FLit n
-fsubstEE (x,r) (FBLam f)          = FBLam (fsubstEE (x,r) . f)
-fsubstEE (x,r) (FLam t' f)        = FLam t' (fsubstEE (x,r) . f)
-fsubstEE (x,r) (FApp e1 e2)       = FApp (fsubstEE (x,r) e1) (fsubstEE (x,r) e2)
-fsubstEE (x,r) (FPrimOp e1 op e2) = FPrimOp (fsubstEE (x,r) e1) op (fsubstEE (x,r) e2)
-fsubstEE (x,r) (FIf e1 e2 e3)    = FIf (fsubstEE (x,r) e1) (fsubstEE (x,r) e2) (fsubstEE (x,r) e3)
-fsubstEE (x,r) (FTuple es)        = FTuple (map (fsubstEE (x,r)) es)
-fsubstEE (x,r) (FProj i' e)       = FProj i' (fsubstEE (x,r) e)
+fsubstEE (x,r) = go
+    where go (FVar s x')
+            | x' == x            = r
+            | otherwise          = FVar s x'
+          go (FLit n)            = FLit n
+          go (FBLam f)           = FBLam (go . f)
+          go (FLam t' f)         = FLam t' (go . f)
+          go (FApp e1 e2)        = FApp (go e1) (go e2)
+          go (FPrimOp e1 op e2)  = FPrimOp (go e1) op (go e2)
+          go (FIf e1 e2 e3)      = FIf (go e1) (go e2) (go e3)
+          go (FTuple es)         = FTuple (map go es)
+          go (FProj i' e)        = FProj i' (go e)
+          go (FJNewObj s args)   = FJNewObj s (map go args)
+          go (FJMethod c s args) = FJMethod (go c) s (map go args)
 
 fsubstTT :: (Int, PFTyp Int) -> PFTyp Int -> PFTyp Int
 fsubstTT (i,t) (FTVar j)
     | j == i                 = t
     | otherwise              = FTVar j
+fsubstTT (i,t) (FJClass c)   = FJClass c
 fsubstTT (i,t) (FForall f)   = FForall (fsubstTT (i,t) . f)
 fsubstTT (i,t) (FFun t1 t2)  = FFun (fsubstTT (i,t) t1) (fsubstTT (i,t) t2)
-fsubstTT (i,t)  FInt         = FInt
 fsubstTT (i,t) (FProduct ts) = FProduct (map (fsubstTT (i,t)) ts)
 
 fsubstTE :: (Int, PFTyp Int) -> PFExp Int Int -> PFExp Int Int
-fsubstTE (i,t) (FVar s x)         = FVar s x
-fsubstTE (i,t) (FLit n)           = FLit n
-fsubstTE (i,t) (FBLam f)          = FBLam (fsubstTE (i,t) . f)
-fsubstTE (i,t) (FLam t' f)        = FLam (fsubstTT (i,t) t') (fsubstTE (i,t) . f)
-fsubstTE (i,t) (FApp e1 e2)       = FApp (fsubstTE (i,t) e1) (fsubstTE (i,t) e2)
-fsubstTE (i,t) (FPrimOp e1 op e2) = FPrimOp (fsubstTE (i,t) e1) op (fsubstTE (i,t) e2)
-fsubstTE (i,t) (FIf e1 e2 e3)    = FIf (fsubstTE (i,t) e1) (fsubstTE (i,t) e2) (fsubstTE (i,t) e3)
-fsubstTE (i,t) (FTuple es)        = FTuple (map (fsubstTE (i,t)) es)
-fsubstTE (i,t) (FProj i' e)       = FProj i' (fsubstTE (i,t) e)
+fsubstTE (i, t) = go
+    where go (FVar s x)          = FVar s x
+          go (FLit n)            = FLit n
+          go (FBLam f)           = FBLam (go . f)
+          go (FLam t' f)         = FLam (fsubstTT (i, t) t') (go . f)
+          go (FApp e1 e2)        = FApp (go e1) (go e2)
+          go (FPrimOp e1 op e2)  = FPrimOp (go e1) op (go e2)
+          go (FIf e1 e2 e3)      = FIf (go e1) (go e2) (go e3)
+          go (FTuple es)         = FTuple (map go es)
+          go (FProj i' e)        = FProj i' (go e)
+          go (FJNewObj s args)   = FJNewObj s (map go args)
+          go (FJMethod c s args) = FJMethod (go c) s (map go args)
