@@ -128,3 +128,6 @@ summa =
     )
 
 program4 = FApp (FApp (FApp (FApp (FTApp notail4 (FJClass "java.lang.Integer")) summa) (FTApp const (FJClass "java.lang.Integer"))) (FLit (Integer 5))) (FLit (Integer 6))
+
+evenOdd :: String
+evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
