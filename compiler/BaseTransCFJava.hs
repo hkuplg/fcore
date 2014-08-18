@@ -180,7 +180,7 @@ trans self = let this = up self in T {
                               (String s)  -> return ([], J.Lit $ J.String s, CJClass "java.lang.String")
                               (Boolean b) -> return ([], J.Lit $ J.Boolean b, CJClass "java.lang.String")
 
-     CFPrimOp e1 op e2 -> -- Int -> Int -> Int only for now!
+     CFPrimOp e1 op e2 ->
        do  (n :: Int) <- get
            put (n+1)
            (s1,j1,t1) <- translateM this e1
@@ -189,7 +189,7 @@ trans self = let this = up self in T {
                                       (Compare realOp) -> (J.BinOp j1 realOp j2, CJClass "java.lang.Boolean")
                                       (Logic realOp)   -> (J.BinOp j1 realOp j2, CJClass "java.lang.Boolean")
            return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je typ], 
-                   var (localvarstr ++ show n), typ)  -- type being returned will be wrong for operators like "<"
+                   var (localvarstr ++ show n), typ)
 
      CFIf e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3) 
      
@@ -229,7 +229,39 @@ trans self = let this = up self in T {
            (s, je, t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
            return (s,je, CForall t')
 
-     CApp e1 e2 -> translateApply this (translateM this e1) (translateM this e2),
+     CApp e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
+
+     -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
+     CJNewObj c args -> do args' <- mapM (translateM this) args
+                           let argsStatements = concat $ map (\(x, _, _) -> x) args'
+                           let argsExprs = map (\(_, x, _) -> x) args'
+                           let argTypes = map (\(_, _, x) -> x) args'
+                           (n :: Int) <- get
+                           put (n + 1)
+                           let rhs = J.InstanceCreation (map (\(CJClass x) -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes) 
+                                                        (J.ClassType [(J.Ident c, [])]) argsExprs Nothing
+                           let typ = CJClass c
+                           return (argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ], var (localvarstr ++ show n), typ)
+
+     CJMethod c m args r -> do args' <- mapM (translateM this) args
+                               let argsStatements = concat $ map (\(x, _, _) -> x) args'
+                               let argsExprs = map (\(_, x, _) -> x) args'
+                               let argTypes = map (\(_, _, x) -> x) args'
+                               (classStatement, classExpr, _) <- translateM this c
+                               (n :: Int) <- get
+                               put (n + 1)
+                               let rhs = J.MethodInv $
+                                           J.PrimaryMethodCall classExpr
+                                                               (map (\(CJClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
+                                                               (J.Ident m)
+                                                               argsExprs
+                               let typ = case r of Just rc -> CJClass rc
+                                                   Nothing -> undefined
+                               return (argsStatements ++ classStatement ++ [assignVar (localvarstr ++ show n) rhs typ],
+                                       var (localvarstr ++ show n),
+                                       typ)
+                           
+     ,
 
   translateScopeM = \e m -> case e of
       Body t ->

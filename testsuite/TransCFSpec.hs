@@ -182,6 +182,10 @@ test7 = \c -> it "Should compile program2" (compileAndRun "Program2" c program2 
 test8 = \c -> it "Should compile program4" (compileAndRun "Program4" c program4 `shouldReturn` "11\n")
 
 suite = [test1, test2, test3, test4, test5, test6, test7, test8,
+        ioTest "testsuite/tests/lit_java.sf" "1\n",
+        ioTest "testsuite/tests/fact_big.sf" "87178291200\n",
+        ioTest "testsuite/tests/charat.sf" "c\n",
+        ioTest "testsuite/tests/substr.sf" "bc\n",
         ioTest "testsuite/tests/always_true.sf" "true\n",
         ioTest "testsuite/tests/always_false.sf" "false\n",
         ioTest "testsuite/tests/hello_world.sf" "hello, world\n",
