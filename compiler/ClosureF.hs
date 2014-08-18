@@ -37,7 +37,7 @@ data PCExp t e =
    | CFix (PCTyp t) (e -> EScope t e)
    -- Java
    | CJNewObj String [PCExp t e]
-   | CJMethod (PCExp t e) String [PCExp t e]
+   | CJMethod (PCExp t e) String [PCExp t e] (Maybe String)
 
 -- System F to Closure F
 
@@ -90,7 +90,7 @@ fexp2cexp (FFix f t1 t2) =
   let  g e = groupLambda (FLam t1 (f e)) -- is this right???? (BUG)
   in   CFix (CForall (adjust (FFun t1 t2) (g undefined))) g
 fexp2cexp (FJNewObj cName args)     = CJNewObj cName (map fexp2cexp args)
-fexp2cexp (FJMethod e mName args)   = CJMethod (fexp2cexp e) mName (map fexp2cexp args)
+fexp2cexp (FJMethod e mName args r) = CJMethod (fexp2cexp e) mName (map fexp2cexp args) r
 fexp2cexp e                         = CLam (groupLambda e)
 
 adjust :: PFTyp t -> EScope t e -> TScope t

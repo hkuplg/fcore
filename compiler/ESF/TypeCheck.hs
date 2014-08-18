@@ -240,13 +240,13 @@ inferWith io (d, g) = go
                                          else throwError (NoSuchConstructor args)
                                else throwError (NotAJVMType c)
 
-    go (JMethod e m args) = do (e', t') <- go e
-                               case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
-                                                           strArgs <- checkJavaArgs typs'
-                                                           retName <- liftIO $ methodRetType io cls m strArgs
-                                                           case retName of Just r  -> return (JMethod e' m args', JClass r)
-                                                                           Nothing -> throwError NoSuchMethod { mName = m, argsInfo = args }
-                                          otherType  -> throwError $ NotAJVMType $ show otherType
+    go (JMethod e m args _) = do (e', t') <- go e
+                                 case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
+                                                             strArgs <- checkJavaArgs typs'
+                                                             retName <- liftIO $ methodRetType io cls m strArgs
+                                                             case retName of Just r  -> return (JMethod e' m args' (Just r), JClass r)
+                                                                             Nothing -> throwError NoSuchMethod { mName = m, argsInfo = args }
+                                            otherType  -> throwError $ NotAJVMType $ show otherType
 
 
 checkJavaArgs :: [Type] -> TCMonad [Name]

@@ -70,7 +70,7 @@ data Expr id
   | Let RecFlag [Bind id] (Expr id)    -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag TcBinds (Expr TcId) -- Post typecheck only
   | JNewObj Name [Expr id]             -- New Java object
-  | JMethod (Expr id) Name [Expr id]   -- Java method call
+  | JMethod (Expr id) Name [Expr id] (Maybe Name)   -- Java method call
   deriving (Eq, Show)
 
 
@@ -164,7 +164,7 @@ instance Pretty id => Pretty (Expr id) where
     text "in" <+>
     pretty e
   pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
-  pretty (JMethod e m args) = pretty e <> dot <> text m <> tupled (map pretty args)
+  pretty (JMethod e m args _) = pretty e <> dot <> text m <> tupled (map pretty args)
 
 instance Pretty id => Pretty (Bind id) where
   pretty Bind{..} =

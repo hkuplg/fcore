@@ -42,7 +42,7 @@ data PFExp t e
          (PFTyp t) -- t2
 -- Java
   | FJNewObj String [PFExp t e]
-  | FJMethod (PFExp t e) String [PFExp t e]
+  | FJMethod (PFExp t e) String [PFExp t e] (Maybe String)
 
 newtype Typ = HideTyp { revealTyp :: forall t. PFTyp t } -- type of closed types
 
@@ -122,7 +122,7 @@ fsubstEE (x,r) = go
           go (FTuple es)         = FTuple (map go es)
           go (FProj i' e)        = FProj i' (go e)
           go (FJNewObj s args)   = FJNewObj s (map go args)
-          go (FJMethod c s args) = FJMethod (go c) s (map go args)
+          go (FJMethod c s args ss) = FJMethod (go c) s (map go args) ss
 
 fsubstTT :: (Int, PFTyp Int) -> PFTyp Int -> PFTyp Int
 fsubstTT (i,t) (FTVar j)
@@ -145,4 +145,4 @@ fsubstTE (i, t) = go
           go (FTuple es)         = FTuple (map go es)
           go (FProj i' e)        = FProj i' (go e)
           go (FJNewObj s args)   = FJNewObj s (map go args)
-          go (FJMethod c s args) = FJMethod (go c) s (map go args)
+          go (FJMethod c s args ss) = FJMethod (go c) s (map go args) ss

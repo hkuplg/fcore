@@ -133,7 +133,7 @@ aexp2 :: { Expr String }
     | "(" comma_exprs ")"       { Tuple $2 }
     | "(" expr ")"              { $2 }
     -- Java method call
-    | aexp "." LOWERID "(" comma_exprs_emp ")"  { JMethod $1 $3 $5 }
+    | aexp "." LOWERID "(" comma_exprs_emp ")"  { JMethod $1 $3 $5 Nothing }
 
 comma_exprs :: { [Expr String] }
     : expr "," expr             { [$1, $3] }

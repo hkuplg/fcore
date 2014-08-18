@@ -243,7 +243,24 @@ trans self = let this = up self in T {
                            let typ = CJClass c
                            return (argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ], var (localvarstr ++ show n), typ)
 
-     --CJMethod 
+     CJMethod c m args r -> do args' <- mapM (translateM this) args
+                               let argsStatements = concat $ map (\(x, _, _) -> x) args'
+                               let argsExprs = map (\(_, x, _) -> x) args'
+                               let argTypes = map (\(_, _, x) -> x) args'
+                               (classStatement, classExpr, _) <- translateM this c
+                               (n :: Int) <- get
+                               put (n + 1)
+                               let rhs = J.MethodInv $
+                                           J.PrimaryMethodCall classExpr
+                                                               (map (\(CJClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
+                                                               (J.Ident m)
+                                                               argsExprs
+                               let typ = case r of Just rc -> CJClass rc
+                                                   Nothing -> undefined
+                               return (argsStatements ++ classStatement ++ [assignVar (localvarstr ++ show n) rhs typ],
+                                       var (localvarstr ++ show n),
+                                       typ)
+                           
      ,
 
   translateScopeM = \e m -> case e of
