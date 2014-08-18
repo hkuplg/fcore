@@ -182,29 +182,29 @@ test7 = \c -> it "Should compile program2" (compileAndRun "Program2" c program2 
 test8 = \c -> it "Should compile program4" (compileAndRun "Program4" c program4 `shouldReturn` "11\n")
 
 suite = [test1, test2, test3, test4, test5, test6, test7, test8,
-        ioTest "testsuite/tests/lit_java.sf" "1\n",
-        ioTest "testsuite/tests/fact_big.sf" "87178291200\n",
-        ioTest "testsuite/tests/charat.sf" "c\n",
-        ioTest "testsuite/tests/substr.sf" "bc\n",
-        ioTest "testsuite/tests/always_true.sf" "true\n",
-        ioTest "testsuite/tests/always_false.sf" "false\n",
-        ioTest "testsuite/tests/hello_world.sf" "hello, world\n",
-        ioTest "testsuite/tests/hello_world2.sf" "HELLO, WORLD\n",
-        ioTest "testsuite/tests/min.sf" "4\n",
-        ioTest "testsuite/tests/max.sf" "7\n",
-        ioTest "testsuite/tests/comb.sf" "220\n",
-        ioTest "testsuite/tests/interfact.sf" "1\n",
-        ioTest "testsuite/tests/tailfact.sf" "3628800\n",
-        ioTest "testsuite/tests/fact.sf" "3628800\n",
-        ioTest "testsuite/tests/fibo.sf" "55\n",
-        ioTest "testsuite/tests/id.sf" "3\n",
-        --ioTest "testsuite/tests/mutual.sf" "1\n", --parse error
-        --ioTest "testsuite/tests/mutual2.sf" "1\n", --parse error
-        ioTest "testsuite/tests/mutualrec.sf" "1\n",
-        ioTest "testsuite/tests/Mutualrec2.sf" "0\n",
-        --ioTest "testsuite/tests/Mutualrec3.sf" "1\n", --patternmatch fail
-        ioTest "testsuite/tests/Products.sf" "1\n",
-        ioTest "testsuite/tests/Products4.sf" "3\n"]
+        ioTest "testsuite/tests/pipeline/lit_java.sf" "1\n",
+        ioTest "testsuite/tests/pipeline/fact_big.sf" "87178291200\n",
+        ioTest "testsuite/tests/pipeline/charat.sf" "c\n",
+        ioTest "testsuite/tests/pipeline/substr.sf" "bc\n",
+        ioTest "testsuite/tests/pipeline/always_true.sf" "true\n",
+        ioTest "testsuite/tests/pipeline/always_false.sf" "false\n",
+        ioTest "testsuite/tests/pipeline/hello_world.sf" "hello, world\n",
+        ioTest "testsuite/tests/pipeline/hello_world2.sf" "HELLO, WORLD\n",
+        ioTest "testsuite/tests/pipeline/min.sf" "4\n",
+        ioTest "testsuite/tests/pipeline/max.sf" "7\n",
+        ioTest "testsuite/tests/pipeline/comb.sf" "220\n",
+        ioTest "testsuite/tests/pipeline/interfact.sf" "1\n",
+        ioTest "testsuite/tests/pipeline/tailfact.sf" "3628800\n",
+        ioTest "testsuite/tests/pipeline/fact.sf" "3628800\n",
+        ioTest "testsuite/tests/pipeline/fibo.sf" "55\n",
+        ioTest "testsuite/tests/pipeline/id.sf" "3\n",
+      --ioTest "testsuite/tests/pipeline/mutual.sf" "1\n", --parse error
+      --ioTest "testsuite/tests/pipeline/mutual2.sf" "1\n", --parse error
+        ioTest "testsuite/tests/pipeline/mutualrec.sf" "1\n",
+        ioTest "testsuite/tests/pipeline/Mutualrec2.sf" "0\n",
+      --ioTest "testsuite/tests/pipeline/Mutualrec3.sf" "1\n", --patternmatch fail
+        ioTest "testsuite/tests/pipeline/Products.sf" "1\n",
+        ioTest "testsuite/tests/pipeline/Products4.sf" "3\n"]
 
 testSf srcPath compileF = do
         src <- readFile srcPath
