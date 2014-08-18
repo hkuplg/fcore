@@ -1,3 +1,5 @@
+--> 7
+
 let max (a : Int) (b : Int) : Int =
     if a > b then a else b
 in

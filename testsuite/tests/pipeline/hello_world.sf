@@ -1,0 +1,8 @@
+--> hello, world
+
+let fun(x : java.lang.Integer) : java.lang.String =
+    if x == 0 then "HELLO, WORLD"
+    else "hello, world"
+in
+fun 1
+

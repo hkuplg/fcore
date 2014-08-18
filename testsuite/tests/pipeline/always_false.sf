@@ -1,3 +1,5 @@
+--> false
+
 let fun(b : java.lang.Boolean) : java.lang.Boolean = false
 in
 fun true
