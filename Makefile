@@ -1,7 +1,7 @@
 # General project-wide tasks
 
 srcdir=compiler
-testdir=test
+testdir=testsuite
 
 .PHONY : compiler
 compiler :
