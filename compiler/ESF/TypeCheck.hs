@@ -38,16 +38,17 @@ data TypeError e
   | General           { msg       :: String }
   | NotAJVMType       { msg       :: String }
   | NoSuchConstructor { argsInfo  :: [Expr e] }
-  | NoSuchMethod      { mName     :: String   
+  | NoSuchMethod      { mName     :: String
                       , argsInfo  :: [Expr e]
                       }
   | Mismatch          { term      :: Expr e
                       , expected  :: Type
                       , actual    :: Type
                       }
+  deriving (Show)
 
 instance Error e => Error (TypeError e) where
---   strMsg 
+--   strMsg
 
 instance Pretty e => Pretty (TypeError e) where
   pretty Mismatch{..} =
@@ -88,7 +89,7 @@ infer e = do (Just inp, Just out, _, proch) <- liftIO $ createProcess (proc "jav
 
 inferLit :: Lit -> TCMonad (TcExpr, Type)
 inferLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
-inferLit (String s)  = return (Lit (String s), JClass "java.lang.String") 
+inferLit (String s)  = return (Lit (String s), JClass "java.lang.String")
 inferLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
 
 
@@ -157,7 +158,7 @@ inferWith io (d, g) = go
         _          ->
           throwError General { msg = "Projection of a term that is not of product type" }
 
-    go (PrimOp e1 op e2) = 
+    go (PrimOp e1 op e2) =
       do
         exp1@(e1', t1) <- go e1
         exp2@(e2', t2) <- go e2
@@ -167,7 +168,7 @@ inferWith io (d, g) = go
                                     else throwError Mismatch { term = e2, expected = t1, actual = t2 }
                    (Logic _) -> shouldAllBe exp1 exp2 (JClass "java.lang.Boolean")
        where
-         shouldAllBe (e1', t1) (e2', t2) t = 
+         shouldAllBe (e1', t1) (e2', t2) t =
            case (alphaEqTy t t1, alphaEqTy t t2) of (True, True) -> return (PrimOp e1' op e2', t)
                                                     (True, _)    -> throwError Mismatch { term = e2, expected = t, actual = t2 }
                                                     (_, _)       -> throwError Mismatch { term = e1, expected = t, actual = t1 }
@@ -252,7 +253,7 @@ checkJavaArgs :: [Type] -> TCMonad [Name]
 checkJavaArgs = mapM check
   where
     check (JClass name) = return name
-    check otherType     = throwError $ NotAJVMType $ show otherType 
+    check otherType     = throwError $ NotAJVMType $ show otherType
 
 
 checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TCMonad ()

@@ -1,7 +1,7 @@
-module Language.SystemF where
+module SystemF where
 
-import Language.SystemF.Syntax
-import Language.SystemF.Lexer
-import Language.SystemF.Parser
-import Language.SystemF.TypeCheck
-import Language.SystemF.Pretty
+import SystemF.Syntax
+
+-- (1, /\A. \(x : A). x)
+pair :: PFExp Int Int
+pair = FTuple [FLit 1, FBLam (\a -> FLam (FTVar a) (\x -> FVar "" x))]

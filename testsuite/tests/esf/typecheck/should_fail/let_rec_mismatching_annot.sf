@@ -1,0 +1,4 @@
+let rec f (x:Int) : Int = g
+and     g (x:Int) : Int = f x
+in
+1
