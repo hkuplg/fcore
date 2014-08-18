@@ -7,7 +7,7 @@
 set -e
 
 srcdir=compiler
-testdir=test
+testdir=testsuite
 
 for spec in $@; do
   runhaskell -i$srcdir:$testdir $spec

@@ -28,6 +28,9 @@ testCases =
     , ("\"hello\"", Lit (String "hello"))
     ]
 
+main :: IO ()
+main = hspec spec
+
 spec :: Spec
 spec =
   describe "reader" $
