@@ -97,7 +97,7 @@ infer' this i (Merge e1 e2) = do (t1, _) <- this i e1
 
 transType :: Int -> Type Int -> PFTyp Int
 transType i (TVar a)      = FTVar a
-transType i Int           = FInt
+transType i Int           = FJClass "java.lang.Integer"
 transType i (a1 `Fun` a2) = transType i a1 `FFun` transType i a2
 transType i (a1 `And` a2) = FProduct [transType i a1, transType i a2]
 transType i (Forall f)    = FForall (\a -> transType (i + 1) (f i))
