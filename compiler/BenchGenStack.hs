@@ -57,17 +57,6 @@ getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.C
 
 retResStack returnType id = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (refType returnType)) (J.ExpName $ J.Name [(J.Ident id)]))))
 
---while ((c = Next.next) != null)
---{
---  Next.next = null;
---  c.apply();
---  result = (Object) c.out;
---}	   
---return (Integer) result;
-
--- Closure c0 = (Closure) apply();
-
--- Closure c1 = (Closure) c0.out;
 
 testfuncBody paraType = 
 	case paraType of
@@ -119,10 +108,6 @@ transBenchStack :: (MonadState Int m, selfType :< BenchGenTranslateStack m, self
 transBenchStack this super = TBS {
   toTBS = super { 
 
-  --translateM = translateM super,
-
-  --translateScopeM = translateScopeM super,
-
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
            let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
@@ -131,22 +116,6 @@ transBenchStack this super = TBS {
            --let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType BenchGenStack.testfuncBody returnType mainbody
            let stackDecl = BenchGenStack.getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) paraType BenchGenStack.testfuncBody returnType (Just $ J.Block $ stackbody t)
            return (BenchGenStack.createCUB super [stackDecl], t)
-           --nextClass
-  --closureClass = closureClass super,
-
-  --translateApply = translateApply super,
-
-  --genApply = genApply super, 
-
-  --genRes = genRes super,
-
-  --getCvarAss = getCvarAss super,
-
-  --translateIf = translateIf super,
-
-  --translateScopeTyp = translateScopeTyp super,
-  
-  --genClone = genClone super
    }
 }
 

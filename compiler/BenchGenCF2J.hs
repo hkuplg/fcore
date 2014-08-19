@@ -16,10 +16,6 @@ import MonadLib
 
 
 
--- nats = 1 : map (+1) nats
-
-testfuncArgType paraType= map (\x -> J.FormalParam [] (J.PrimType J.IntT) False (J.VarId (J.Ident $ "x" ++ show x))) paraType
-
 -- Closure c0 = (Closure) apply();
 closureInit id = (J.LocalVars []  closureType--type
 	 [J.VarDecl (J.VarId (J.Ident id)) -- name
@@ -41,7 +37,8 @@ invokeApply classId = (J.BlockStmt $ J.ExpStmt $ J.MethodInv $ (J.PrimaryMethodC
 -- return (Integer) c2.out;
 retRes returnType classId = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (refType returnType)) (J.FieldAccess (fieldAcc classId "out")))))
 
--- here
+testfuncArgType paraType= map (\x -> J.FormalParam [] (J.PrimType J.IntT) False (J.VarId (J.Ident $ "x" ++ show x))) paraType
+
 testfuncBody paraType = 
 	case paraType of
 		[] -> []
