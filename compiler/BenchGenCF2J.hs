@@ -13,9 +13,6 @@ import BaseTransCFJava
 import StringPrefixes
 import MonadLib
 
-import Language.Java.Pretty
-import Text.PrettyPrint.Leijen
-
 
 
 
@@ -77,8 +74,6 @@ getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.C
 
 getParaType :: (PCTyp Int) -> [Int]
 getParaType tp = case tp of
-					CInt -> []
-					CTVar _ -> []
 					CForall a -> getScopeType a 0
 					_ -> []
 
@@ -107,39 +102,15 @@ instance (:<) (BenchGenTranslate m) (BenchGenTranslate m) where -- reflexivity
 
 transBench :: (MonadState Int m, selfType :< BenchGenTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslate m)
 transBench this super = TB {
-  toTB = T { 
-
-  translateM = \e -> translateM super e,
-
-  translateScopeM = \e m -> 
-             translateScopeM super e m,
-
+  toTB = super { 
   -- here, I guess, you will mainly do the changes: have a look at BaseTransCFJava (and StackTransCFJava) how it's done currently             
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
-           let maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
-                                                _ -> J.Cast objType e
            let paraType = getParaType t
-           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType testfuncBody returnType mainbody
-           return (BenchGenCF2J.createCUB super [classDecl], t), 
-
-  closureClass = closureClass super,
-
-  translateApply = translateApply super,
-
-  genApply = genApply super, 
-
-  genRes = genRes super,
-
-  getCvarAss = getCvarAss super,
-
-  translateIf = translateIf super,
-
-  translateScopeTyp = translateScopeTyp super,
-
-  genClone = genClone super
+           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) paraType testfuncBody returnType mainbody
+           return (BenchGenCF2J.createCUB super [classDecl], t)
    }
 }
 
@@ -161,12 +132,10 @@ transBenchOpt this super = TBA {
   toTBA = super { 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of CInt -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
-           let maybeCastedReturnExp = case t of CInt -> J.Cast boxedIntType e
-                                                _ -> J.Cast objType e
            let paraType = getParaType t
-           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType testfuncBody returnType mainbody
+           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) paraType testfuncBody returnType mainbody
            return (BenchGenCF2J.createCUB super [classDecl], t)
    }
 }
