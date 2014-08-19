@@ -1,14 +1,13 @@
+{-# OPTIONS_GHC -fwarn-incomplete-patterns -fno-warn-unused-matches #-}
 
-{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
-
-module Language.SystemF.TypeCheck
+module SystemF.TypeCheck
     ( unsafeGeneralize
-    , infer
+    --, infer
     ) where
 
 import qualified Unsafe.Coerce
 
-import Language.SystemF.Syntax
+import SystemF.Syntax
 
 {- Generalizing from a concrete type to a polymorphic type:
 
@@ -39,6 +38,7 @@ generalize (FLam t f) tenv env  =
   FLam (generalizeTyp t tenv) (\x -> generalize (f (length env,t)) tenv env)
 -}
 
+{-
 infer :: Int -> PFExp Int (Int, PFTyp Int) -> PFTyp Int
 infer _ (FVar _ t) = snd t
 infer i (FBLam f)  = FForall (\a -> infer i (f a))
@@ -73,15 +73,8 @@ infer i (FProj idx e) = case infer i e of
                         FProduct _                     -> error "Index out of bounds in projection"
                         _                              -> error "Projection on a non-tuple"
 infer _ (FFix _ t1 t2) = FFun t1 t2
+-}
 
-substFree :: (Int, PFTyp Int) -> PFTyp Int -> PFTyp Int
-substFree (i, t) (FTVar j)
-    | j == i    = t
-    | otherwise = FTVar j
-substFree (i, t) (FForall f)   = FForall (\a -> substFree (i, t) (f a))
-substFree (i, t) (FFun t1 t2)  = FFun (substFree (i, t) t1) (substFree (i, t) t2)
-substFree (i, t) FInt          = FInt
-substFree (i, t) (FProduct ts) = FProduct (map (substFree (i, t)) ts)
 
 {-
 inferWithEnv :: (t1, t2, [(String, PFTyp t)]) -> PFExp t e -> PFTyp t

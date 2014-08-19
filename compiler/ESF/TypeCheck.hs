@@ -38,16 +38,17 @@ data TypeError e
   | General           { msg       :: String }
   | NotAJVMType       { msg       :: String }
   | NoSuchConstructor { argsInfo  :: [Expr e] }
-  | NoSuchMethod      { mName     :: String   
+  | NoSuchMethod      { mName     :: String
                       , argsInfo  :: [Expr e]
                       }
   | Mismatch          { term      :: Expr e
                       , expected  :: Type
                       , actual    :: Type
                       }
+  deriving (Show)
 
 instance Error e => Error (TypeError e) where
---   strMsg 
+--   strMsg
 
 instance Pretty e => Pretty (TypeError e) where
   pretty Mismatch{..} =
@@ -58,6 +59,8 @@ instance Pretty e => Pretty (TypeError e) where
   pretty NotInScope{..}  = text "Not in scope:" <+> string msg
   pretty General{..}     = string msg
   pretty (NotAJVMType c) = text (q c) <+> text "is not a JVM type"
+  pretty NoSuchConstructor{..} = undefined
+  pretty NoSuchMethod{..} = undefined
 
 
 q :: Name -> String
@@ -76,12 +79,18 @@ checkWellformed _  d t =
 
 
 infer :: RdrExpr -> TCMonad (TcExpr, Type)
-infer e = do (Just inp, Just out, _, proch) <- liftIO $ createProcess (proc "java" ["Test"]){std_in = CreatePipe, std_out = CreatePipe}
+infer e = do (Just inp, Just out, _, proch) <- liftIO $ createProcess (proc "java" ["TypeServer"]){std_in = CreatePipe, std_out = CreatePipe}
              liftIO $ hSetBuffering inp NoBuffering
              liftIO $ hSetBuffering out NoBuffering
              ret <- inferWith (inp, out) (Set.empty, Map.empty) e
              liftIO $ terminateProcess proch
              return ret
+
+
+inferLit :: Lit -> TCMonad (TcExpr, Type)
+inferLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
+inferLit (String s)  = return (Lit (String s), JClass "java.lang.String")
+inferLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
 
 
 inferWith :: (Handle, Handle) -> (TypeContext, ValueContext) -> RdrExpr -> TCMonad (TcExpr, Type)
@@ -91,7 +100,7 @@ inferWith io (d, g) = go
                    Just t  -> return (Var (x,t), t)
                    Nothing -> throwError NotInScope { msg = "variable " ++ q x }
 
-    go (Lit (Integer n)) = return (Lit (Integer n), Int)
+    go (Lit lit) = inferLit lit
 
     go (App e1 e2) = do
       (e1', t)  <- go e1
@@ -149,30 +158,31 @@ inferWith io (d, g) = go
         _          ->
           throwError General { msg = "Projection of a term that is not of product type" }
 
-    go (PrimOp e1 op e2) = do
-      (e1', t1) <- go e1
-      (e2', t2) <- go e2
-      case (t1, t2) of
-        (Int, Int) -> return (PrimOp e1' op e2', Int)
-        (Int, _  ) -> throwError Mismatch { term = e2, expected = Int, actual = t2 }
-        (_  , _  ) -> throwError Mismatch { term = e1, expected = Int, actual = t1 }
+    go (PrimOp e1 op e2) =
+      do
+        exp1@(e1', t1) <- go e1
+        exp2@(e2', t2) <- go e2
+        case op of (Arith _) -> shouldAllBe exp1 exp2 (JClass "java.lang.Integer")
+                   (Compare _) -> if alphaEqTy t1 t2
+                                    then return (PrimOp e1' op e2', JClass "java.lang.Boolean")
+                                    else throwError Mismatch { term = e2, expected = t1, actual = t2 }
+                   (Logic _) -> shouldAllBe exp1 exp2 (JClass "java.lang.Boolean")
+       where
+         shouldAllBe (e1', t1) (e2', t2) t =
+           case (alphaEqTy t t1, alphaEqTy t t2) of (True, True) -> return (PrimOp e1' op e2', t)
+                                                    (True, _)    -> throwError Mismatch { term = e2, expected = t, actual = t2 }
+                                                    (_, _)       -> throwError Mismatch { term = e1, expected = t, actual = t1 }
 
-    go (If0 e1 e2 e3) = do
+    go (If e1 e2 e3) = do
       (e1', t1) <- go e1
       case t1 of
-        Int ->
+        JClass "java.lang.Boolean" ->
           do (e2', t2) <- go e2
              (e3', t3) <- go e3
              if t2 `alphaEqTy` t3
-               then return (If0 e1' e2' e3', t2)
+               then return (If e1' e2' e3', t2)
                else throwError Mismatch { term = e3, expected = t2, actual = t3 }
-        JClass "java.lang.Integer" ->
-          do (e2', t2) <- go e2
-             (e3', t3) <- go e3
-             if t2 `alphaEqTy` t3
-               then return (If0 e1' e2' e3', t2)
-               else throwError Mismatch { term = e3, expected = t2, actual = t3 }
-        _   -> throwError Mismatch { term = e1, expected = Int, actual = t1 }
+        _   -> throwError Mismatch { term = e1, expected = JClass "java.lang.Boolean", actual = t1 }
 
     go (Let NonRec bs e) = do
       checkBinds io d bs
@@ -230,20 +240,20 @@ inferWith io (d, g) = go
                                          else throwError (NoSuchConstructor args)
                                else throwError (NotAJVMType c)
 
-    go (JMethod e m args) = do (e', t') <- go e
-                               case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
-                                                           strArgs <- checkJavaArgs typs'
-                                                           retName <- liftIO $ methodRetType io cls m strArgs
-                                                           case retName of Just r  -> return (JMethod e' m args', JClass r)
-                                                                           Nothing -> throwError NoSuchMethod { mName = m, argsInfo = args }
-                                          otherType  -> throwError $ NotAJVMType $ show otherType
+    go (JMethod e m args _) = do (e', t') <- go e
+                                 case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
+                                                             strArgs <- checkJavaArgs typs'
+                                                             retName <- liftIO $ methodRetType io cls m strArgs
+                                                             case retName of Just r  -> return (JMethod e' m args' (Just r), JClass r)
+                                                                             Nothing -> throwError NoSuchMethod { mName = m, argsInfo = args }
+                                            otherType  -> throwError $ NotAJVMType $ show otherType
 
 
 checkJavaArgs :: [Type] -> TCMonad [Name]
 checkJavaArgs = mapM check
   where
     check (JClass name) = return name
-    check otherType     = throwError $ NotAJVMType $ show otherType 
+    check otherType     = throwError $ NotAJVMType $ show otherType
 
 
 checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TCMonad ()

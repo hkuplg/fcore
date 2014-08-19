@@ -1,0 +1,15 @@
+--> 3628800
+
+-- (fix (fact : Int -> Int -> Int).
+--     \acc. \(n : Int).
+--         if0 n then
+--             acc
+--         else
+--             fact (acc * n) (n - 1)
+-- ) 1 10
+
+let rec fact (acc : Int) (n : Int) : Int =
+    if n == 0 then acc
+    else fact (acc * n) (n - 1)
+in
+fact 1 10

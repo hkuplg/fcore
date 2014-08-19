@@ -8,6 +8,6 @@
 -- System F code: not parsing:
 
 let rec evenodd : (Int -> Int, Int -> Int) =
-     (\(n : Int) . if0 n then 1 else evenodd._2 (n-1), \(n : Int) . if0 n then 0 else evenodd._1 (n-1))
+     (\(n : Int) . if n == 0 then 1 else evenodd._2 (n-1), \(n : Int) . if n == 0 then 0 else evenodd._1 (n-1))
 in
 evenodd._2 7

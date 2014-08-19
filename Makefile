@@ -1,11 +1,12 @@
 # General project-wide tasks
 
-srcdir=compiler
-testdir=test
+srcdir="compiler"
+testdir="testsuite"
 
 .PHONY : compiler
 compiler :
 	javac compiler/TypeServer.java -d .
+	./select-cabal.sh
 	cabal install
 
 .PHONY : test
