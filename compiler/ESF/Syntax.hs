@@ -46,9 +46,10 @@ data Type
 
 
 data Lit
-    = Integer Integer -- later maybe Bool | Char
+    = Integer Integer
     | String String
     | Boolean Bool
+    | Char Char
     deriving (Eq, Show)
 
 
@@ -134,6 +135,7 @@ instance Pretty id => Pretty (Expr id) where
   pretty (Lit (Integer n)) = integer n
   pretty (Lit (String n)) = string n
   pretty (Lit (Boolean n)) = bool n
+  pretty (Lit (Char n)) = char n
   pretty (BLam a e) = parens $ text "/\\" <> text a <> dot <+> pretty e
   pretty (Lam (x,t) e) =
     parens $

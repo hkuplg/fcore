@@ -45,6 +45,7 @@ import ESF.Lexer
   INTEGER  { Tinteger $$ }
   STRING   { Tstring $$ }
   BOOLEAN  { Tboolean $$ }
+  CHAR     { Tchar $$ }
 
   "*"      { Tprimop J.Mult   }
   "/"      { Tprimop J.Div    }
@@ -129,6 +130,7 @@ aexp2 :: { Expr String }
     | INTEGER                   { Lit (Integer $1) }
     | STRING                    { Lit (String $1) }
     | BOOLEAN                   { Lit (Boolean $1) }
+    | CHAR                      { Lit (Char $1) }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" comma_exprs ")"       { Tuple $2 }
     | "(" expr ")"              { $2 }
