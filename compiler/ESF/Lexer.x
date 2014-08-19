@@ -47,6 +47,7 @@ tokens :-
     -- Literal
     $digit+                { \_ s -> Tinteger (read s) }
     \"($printable # \")*\"  { \_ s -> Tstring (init $ tail s) }
+    \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
     true                   { \_ s -> Tboolean True}
     false                  { \_ s -> Tboolean False}
 
@@ -82,7 +83,7 @@ data Token = Toparen | Tcparen
            | Tif | Tthen | Telse
            | Tcomma
            | Tupperid String | Tlowerid String | Tunderid Int
-           | Tinteger Integer | Tstring String | Tboolean Bool
+           | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char
            | Tprimop J.Op
            deriving (Eq, Show)
 

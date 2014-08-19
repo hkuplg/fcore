@@ -101,6 +101,7 @@ inferLit :: Lit -> TCMonad (TcExpr, Type)
 inferLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
 inferLit (String s)  = return (Lit (String s), JClass "java.lang.String")
 inferLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
+inferLit (Char c)    = return (Lit (Char c), JClass "java.lang.Character")
 
 
 inferWith :: (Handle, Handle) -> (TypeContext, ValueContext) -> RdrExpr -> TCMonad (TcExpr, Type)

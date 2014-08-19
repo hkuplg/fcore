@@ -179,6 +179,7 @@ trans self = let this = up self in T {
      CFLit lit -> case lit of (Integer i) -> return ([], J.Lit $ J.Int i, CJClass "java.lang.Integer")
                               (String s)  -> return ([], J.Lit $ J.String s, CJClass "java.lang.String")
                               (Boolean b) -> return ([], J.Lit $ J.Boolean b, CJClass "java.lang.String")
+                              (Char c)    -> return ([], J.Lit $ J.Char c, CJClass "java.lang.Character")
 
      CFPrimOp e1 op e2 ->
        do  (n :: Int) <- get
