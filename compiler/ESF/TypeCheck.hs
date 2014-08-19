@@ -37,9 +37,14 @@ data TypeError e
   = NotInScope        { msg       :: String }
   | General           { msg       :: String }
   | NotAJVMType       { msg       :: String }
-  | NoSuchConstructor { argsInfo  :: [Expr e] }
-  | NoSuchMethod      { mName     :: String
-                      , argsInfo  :: [Expr e]
+  | NoSuchConstructor { className :: String 
+                      , argsExpr  :: [Expr e]
+                      , argsType  :: [Type]
+                      }
+  | NoSuchMethod      { className :: String
+                      , mName     :: String
+                      , argsExpr  :: [Expr e]
+                      , argsType  :: [Type]
                       }
   | Mismatch          { term      :: Expr e
                       , expected  :: Type
@@ -59,8 +64,13 @@ instance Pretty e => Pretty (TypeError e) where
   pretty NotInScope{..}  = text "Not in scope:" <+> string msg
   pretty General{..}     = string msg
   pretty (NotAJVMType c) = text (q c) <+> text "is not a JVM type"
-  pretty NoSuchConstructor{..} = undefined
-  pretty NoSuchMethod{..} = undefined
+  pretty (NoSuchConstructor c _ t) =
+    text "Class" <+> text (q c) <+> text "has no such constructor:" <$>
+    text "Parameters:" <+> text "(" <> hsep (map pretty t) <> text ")"
+  pretty (NoSuchMethod c m _ t) =
+    text "Class" <+> text (q c) <+> text "has no such method:" <$>
+    text "Name:" <+> text (q m) <$>
+    text "Parameters:" <+> text "(" <> hsep (map pretty t) <> text ")"
 
 
 q :: Name -> String
@@ -91,6 +101,7 @@ inferLit :: Lit -> TCMonad (TcExpr, Type)
 inferLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
 inferLit (String s)  = return (Lit (String s), JClass "java.lang.String")
 inferLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
+inferLit (Char c)    = return (Lit (Char c), JClass "java.lang.Character")
 
 
 inferWith :: (Handle, Handle) -> (TypeContext, ValueContext) -> RdrExpr -> TCMonad (TcExpr, Type)
@@ -237,16 +248,17 @@ inferWith io (d, g) = go
                                        ok' <- liftIO $ hasConstructor io c strArgs
                                        if ok'
                                          then return (JNewObj c args', JClass c)
-                                         else throwError (NoSuchConstructor args)
+                                         else throwError NoSuchConstructor { className = c, argsExpr = args, argsType = typs' }
                                else throwError (NotAJVMType c)
 
-    go (JMethod e m args _) = do (e', t') <- go e
-                                 case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
-                                                             strArgs <- checkJavaArgs typs'
-                                                             retName <- liftIO $ methodRetType io cls m strArgs
-                                                             case retName of Just r  -> return (JMethod e' m args' (Just r), JClass r)
-                                                                             Nothing -> throwError NoSuchMethod { mName = m, argsInfo = args }
-                                            otherType  -> throwError $ NotAJVMType $ show otherType
+    go (JMethod e m args _) = 
+      do (e', t') <- go e
+         case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
+                                     strArgs <- checkJavaArgs typs'
+                                     retName <- liftIO $ methodRetType io cls m strArgs
+                                     case retName of Just r  -> return (JMethod e' m args' (Just r), JClass r)
+                                                     Nothing -> throwError NoSuchMethod { className = cls, mName = m, argsExpr = args, argsType = typs'}
+                    otherType  -> throwError $ NotAJVMType $ show otherType
 
 
 checkJavaArgs :: [Type] -> TCMonad [Name]
