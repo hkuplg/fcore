@@ -1,7 +1,9 @@
+--> 1
+
 -- Intention
 
 -- let rec even (n : Int) : Int = if0 n then 1 else if0 n-1 then 0 else odd  (n-1)
--- and     odd  (n : Int) : Int = if0 n then 0 else if0 n-1 then 1 else even (n-1) 
+-- and     odd  (n : Int) : Int = if0 n then 0 else if0 n-1 then 1 else even (n-1)
 -- in
 -- odd 7
 
