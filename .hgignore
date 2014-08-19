@@ -25,7 +25,7 @@ cabal.sandbox.config
 cabal.config
 
 ### Java ###
-*.java
+testsuite/*.java
 *.class
 
 ### vim ###
