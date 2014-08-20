@@ -46,6 +46,9 @@ data TypeError e
                       , argsExpr  :: [Expr e]
                       , argsType  :: [Type]
                       }
+  | NoSuchField       { className :: String
+                      , fName     :: String
+                      }
   | Mismatch          { term      :: Expr e
                       , expected  :: Type
                       , actual    :: Type
@@ -251,14 +254,48 @@ inferWith io (d, g) = go
                                          else throwError NoSuchConstructor { className = c, argsExpr = args, argsType = typs' }
                                else throwError (NotAJVMType c)
 
-    go (JMethod e m args _) = 
-      do (e', t') <- go e
-         case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
-                                     strArgs <- checkJavaArgs typs'
-                                     retName <- liftIO $ methodRetType io cls m strArgs
-                                     case retName of Just r  -> return (JMethod e' m args' (Just r), JClass r)
-                                                     Nothing -> throwError NoSuchMethod { className = cls, mName = m, argsExpr = args, argsType = typs'}
-                    otherType  -> throwError $ NotAJVMType $ show otherType
+    go (JMethod expr m args _) =
+      case expr of 
+        (Left e) ->
+          do (e', t') <- go e
+             case t' of
+               JClass cls -> do (args', typs') <- mapAndUnzipM go args
+                                strArgs <- checkJavaArgs typs'
+                                retName <- liftIO $ methodRetType io cls m strArgs
+                                case retName of Just r  -> return (JMethod (Left e') m args' r, JClass r)
+                                                Nothing -> throwError NoSuchMethod { className = cls
+                                                                                   , mName = m
+                                                                                   , argsExpr = args
+                                                                                   , argsType = typs' }
+               otherType -> throwError $ NotAJVMType $ show otherType
+        (Right className) ->
+          do (args', typs') <- mapAndUnzipM go args
+             strArgs <- checkJavaArgs typs'
+             retName <- liftIO $ staticMethodRetType io className m strArgs
+             case retName of Just r  -> return (JMethod (Right className) m args' r, JClass r)
+                             Nothing -> throwError NoSuchMethod { className = className
+                                                                , mName = m
+                                                                , argsExpr = args
+                                                                , argsType = typs' }
+
+    go (SeqExprs es) = do (es', typs') <- mapAndUnzipM go es
+                          return (SeqExprs es', last typs')
+
+    go (JField expr f _) =
+      case expr of
+        (Left e) -> do (e', t') <- go e
+                       case t' of 
+                         JClass cls -> do retName <- liftIO $ fieldType io cls f
+                                          case retName of
+                                            Just r -> return (JField (Left e') f r, JClass r)
+                                            Nothing -> throwError NoSuchField { className = cls
+                                                                              , fName = f }
+                         otherType -> throwError $ NotAJVMType $ show otherType
+        (Right cls) -> do retName <- liftIO $ staticFieldType io cls f
+                          case retName of Just r -> return (JField (Right cls) f r, JClass r)
+                                          Nothing -> throwError NoSuchField { className = cls
+                                                                            , fName = f }
+                          
 
 
 checkJavaArgs :: [Type] -> TCMonad [Name]
