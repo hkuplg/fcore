@@ -22,3 +22,8 @@ parsers :
 guard :
 	cabal install hspec
 	gem install guard-haskell
+
+.PHONY : clean
+clean :
+	cd compiler; make clean
+	cd runtime; ant clean
