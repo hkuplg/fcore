@@ -28,5 +28,6 @@
         description="clean up" >
     <delete dir="${build}"/>
     <delete dir="${dist}"/>
+    <delete file="runtime.jar"/>
   </target>
 </project>

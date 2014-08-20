@@ -18,9 +18,12 @@ import ESF.Lexer
 
   "("      { Toparen }
   ")"      { Tcparen }
+  "{"      { Tocurly }
+  "}"      { Tccurly }
   "/\\"    { Ttlam }
   "\\"     { Tlam }
   ":"      { Tcolon }
+  ";"      { Tsemi }
   "forall" { Tforall }
   "->"     { Tarrow }
   "."      { Tdot }
@@ -111,8 +114,6 @@ expr10 :: { Expr String }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
     | fexp                                { $1 }
-    -- Java new Object
-    | "new" JAVACLASS "(" comma_exprs_emp ")" { JNewObj $2 $4 }
 
 fexp :: { Expr String }
     : fexp aexp         { App  $1 $2 }
@@ -134,8 +135,22 @@ aexp2 :: { Expr String }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" comma_exprs ")"       { Tuple $2 }
     | "(" expr ")"              { $2 }
-    -- Java method call
-    | aexp "." LOWERID "(" comma_exprs_emp ")"  { JMethod $1 $3 $5 Nothing }
+    -- Java
+    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Left $1) $3 $5 "" }
+    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Right $1) $3 $5 "" } 
+    | aexp "." id      { JField (Left $1) $3 "" }
+    | JAVACLASS "." id { JField (Right $1) $3 "" }
+    | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
+    -- Sequence of exprs
+    | "{" semi_exprs "}"        { SeqExprs $2 }
+
+id :: { String }
+   : LOWERID { $1 }
+   | UPPERID { $1 }
+
+semi_exprs :: { [Expr String] }
+           : expr                { [$1] }
+           | expr ";" semi_exprs { $1:$3 }
 
 comma_exprs :: { [Expr String] }
     : expr "," expr             { [$1, $3] }
