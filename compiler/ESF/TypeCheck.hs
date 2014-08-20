@@ -26,6 +26,8 @@ import Data.Maybe       (fromJust)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import Java.Utils (classpath)
+
 import Control.Monad.IO.Class (liftIO)
 
 -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
@@ -92,7 +94,8 @@ checkWellformed _  d t =
 
 
 infer :: RdrExpr -> TCMonad (TcExpr, Type)
-infer e = do (Just inp, Just out, _, proch) <- liftIO $ createProcess (proc "java" ["TypeServer"]){std_in = CreatePipe, std_out = CreatePipe}
+infer e = do let p = (proc "java" ["-cp", classpath, "-jar", "runtime.jar"]){std_in = CreatePipe, std_out = CreatePipe}
+             (Just inp, Just out, _, proch) <- liftIO $ createProcess p
              liftIO $ hSetBuffering inp NoBuffering
              liftIO $ hSetBuffering out NoBuffering
              ret <- inferWith (inp, out) (Set.empty, Map.empty) e

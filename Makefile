@@ -5,7 +5,6 @@ testdir="testsuite"
 
 .PHONY : compiler
 compiler :
-	javac compiler/TypeServer.java -d .
 	cd runtime; ant
 	./select-cabal.sh
 	cabal install
@@ -25,5 +24,6 @@ guard :
 
 .PHONY : clean
 clean :
+	rm -f *.class *.jar
 	cd compiler; make clean
 	cd runtime; ant clean
