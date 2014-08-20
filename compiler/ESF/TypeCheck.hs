@@ -94,7 +94,8 @@ checkWellformed _  d t =
 
 
 infer :: RdrExpr -> TCMonad (TcExpr, Type)
-infer e = do let p = (proc "java" ["-cp", classpath, "-jar", "runtime.jar"]){std_in = CreatePipe, std_out = CreatePipe}
+infer e = do cp <- liftIO classpath
+             let p = (proc "java" ["-cp", cp, "hk.hku.cs.f2j.TypeServer"]){std_in = CreatePipe, std_out = CreatePipe}
              (Just inp, Just out, _, proch) <- liftIO $ createProcess p
              liftIO $ hSetBuffering inp NoBuffering
              liftIO $ hSetBuffering out NoBuffering

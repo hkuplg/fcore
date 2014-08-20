@@ -75,7 +75,7 @@ main = do
     when (optShowOpts) $ putStrLn (show Options{..} ++ "\n")
 
     -- Write the bytes of runtime.jar to file
-    exists <- doesFileExist runtimeJarPath
+    exists <- doesFileExist =<< runtimeJarPath
     existsCur <- doesFileExist "./runtime.jar"
     unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
           
