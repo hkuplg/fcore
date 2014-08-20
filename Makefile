@@ -6,6 +6,7 @@ testdir="testsuite"
 .PHONY : compiler
 compiler :
 	javac compiler/TypeServer.java -d .
+	cd runtime; ant
 	./select-cabal.sh
 	cabal install
 
