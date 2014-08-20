@@ -24,7 +24,9 @@ jbody = Just (J.Block [])
 
 init = [J.InitDecl False (J.Block [])]
 
-closureType     = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Closure",[])]))
+closureClass = "hk.hku.cs.f2j.Closure"
+
+closureType     = J.RefType (J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))
 javaClassType c = J.RefType (J.ClassRefType (J.ClassType [(J.Ident c, [])]))
 objType         = javaClassType "Object"
 objArrayType    = J.RefType (J.ArrayType (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))))
@@ -43,11 +45,6 @@ field name = J.MemberDecl (J.FieldDecl [] (objType) [
 
 app mod b rt en args = J.MemberDecl (J.MethodDecl mod [] (rt) (J.Ident en) args [] (J.MethodBody b))
 
-{-
-closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
-               J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [] {-,app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []-}]))
--}
-
 applyCall = J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident "apply"]) [])))
 
 refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
@@ -57,7 +54,7 @@ mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCa
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("apply" ++ "()")]])))])
 
 createCUB this compDef = cu where
-   cu = J.CompilationUnit Nothing [] ([closureClass this] ++ compDef)
+   cu = J.CompilationUnit Nothing [] compDef
 
 getClassDecl className bs ass returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
     (J.ClassBody [app [J.Static] body returnType "apply" [], 
@@ -91,7 +88,7 @@ type Var = Int -- Either Int Int left -> standard variable; right -> recursive v
 instCreat i = J.InstanceCreation [] (J.ClassType [(J.Ident ("Fun" ++ show i),[])]) [] Nothing
 
 jexp init body idCF generateClone =
-       J.ClassBody (init ++  [J.MemberDecl (J.MethodDecl [] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body))] ++
+       J.ClassBody (init ++  [J.MemberDecl (J.MethodDecl [J.Public] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body))] ++
           (if generateClone then [J.MemberDecl (J.MethodDecl [J.Public] [] (Just closureType) (J.Ident "clone") [] [] (J.MethodBody cloneBody))] else [])
        )
         where
@@ -129,8 +126,7 @@ data Translate m = T {
   genClone :: m Bool,
   getCvarAss :: TScope Int -> J.Ident -> J.Exp -> J.Exp -> m [J.BlockStmt],
   -- getS3 :: TScope Int -> J.Exp -> (J.Exp -> J.Type -> [J.BlockStmt]) -> ([J.BlockStmt] -> [J.BlockStmt]) -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
-  createWrap :: String -> PCExp Int (Var, PCTyp Int) -> m (J.CompilationUnit, PCTyp Int),
-  closureClass :: J.TypeDecl
+  createWrap :: String -> PCExp Int (Var, PCTyp Int) -> m (J.CompilationUnit, PCTyp Int)
   }
 
 chooseCastBox (CJClass c)       = (initClassCast c, javaClassType c)
@@ -310,7 +306,7 @@ trans self = let this = up self in T {
      do b <- genClone this
         (statementsBeforeOA,javaExpression,t1) <- m
         return ([(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
-                 (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
+                 (Just $ J.ClassRefType (J.ClassType [(J.Ident closureClass,[])])) [] (jexp [currentInitialDeclaration
                  (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId b))),
                  J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])],t1),
 
@@ -330,9 +326,6 @@ trans self = let this = up self in T {
            let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
            let classDecl = getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) returnType mainbody
-           return (createCUB this [classDecl], t),
-   
-  closureClass = J.ClassTypeDecl (J.ClassDecl [J.Abstract] (J.Ident "Closure") [] Nothing [] (
-                 J.ClassBody [field localvarstr,field "out",app [J.Abstract] Nothing Nothing "apply" [] {-,app [J.Public,J.Abstract] Nothing (Just closureType) "clone" []-}]))
+           return (createCUB this [classDecl], t)
 
     }
