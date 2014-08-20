@@ -50,7 +50,7 @@ passClousre from to param = [
 
 getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
 	(J.ClassBody [app [J.Static] body Nothing "apply" [],
-	  app [J.Public, J.Static] (Just (J.Block (testfuncBody paraType))) returnType "test" (testfuncArgType paraType),
+	  app [J.Public, J.Static] (Just (J.Block (testfuncBody paraType))) returnType "test" (methodDecl paraType),
       app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
     where
         body = Just (J.Block (bs ++ ass))
@@ -65,25 +65,21 @@ testfuncBody paraType =
 					localVarDef "c",
 					resultDef] 
 					++ whileApplyLoopB "c" (J.Ident "result") objType
-					++ passClousre "result" "c" x0
+					++ passClousre "result" "c" "x0"
 					++ whileApplyLoopB "c" (J.Ident "result") objType
 					++ [retResStack "Integer" "result"] 
-				where
-					x0 = "x" ++ show x
 					
 		x : y : [] ->
 				[ methodInvoke "apply" [], 
 				localVarDef "c",
 				resultDef]
 				++ whileApplyLoopB "c" (J.Ident "result") objType
-				++ passClousre "result" "c" x0
+				++ passClousre "result" "c" "x0"
 				++ whileApplyLoopB "c" (J.Ident "result") objType
-				++ passClousre "result" "c" x1
+				++ passClousre "result" "c" "x1"
 				++ whileApplyLoopB "c" (J.Ident "result") objType
 				++ [retResStack "Integer" "result"]
-				where
-					x0 = "x" ++ show x
-					x1 = "x" ++ show y
+
 		_ -> []
 
 

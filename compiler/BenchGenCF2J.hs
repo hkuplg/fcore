@@ -12,6 +12,7 @@ import ClosureF
 import BaseTransCFJava
 import StringPrefixes
 import MonadLib
+import Control.Monad
 
 
 
@@ -37,15 +38,27 @@ invokeApply classId = (J.BlockStmt $ J.ExpStmt $ J.MethodInv $ (J.PrimaryMethodC
 -- return (Integer) c2.out;
 retRes returnType classId = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (refType returnType)) (J.FieldAccess (fieldAcc classId "out")))))
 
-testfuncArgType paraType= map (\x -> J.FormalParam [] (J.PrimType J.IntT) False (J.VarId (J.Ident $ "x" ++ show x))) paraType
+testfuncArgType :: [String] -> State Int [J.FormalParam]
+testfuncArgType [] = return []
+testfuncArgType (x:xs) = case x of
+			"Integer" -> do
+				(n::Int) <- get
+				put (n+1)
+				r <- testfuncArgType xs
+				return $ (J.FormalParam [] (J.PrimType J.IntT) False (J.VarId (J.Ident $ ("x" ++ show n)))) : r
+			a -> do
+				(n :: Int) <- get
+				put (n+1)
+				r <- testfuncArgType xs
+				return $ ((J.FormalParam []) (J.RefType $ J.ClassRefType $ J.ClassType [((J.Ident a), [])]) False (J.VarId $ (J.Ident $ "x" ++ show n))) : r
 
 testfuncBody paraType = 
 	case paraType of
 		[] -> []
 		x : [] -> [ closureInit c0, paraAssign c0 x0, invokeApply c0, retRes "Integer" c0] 
 				where
-					c0 = "c" ++ show x
-					x0 = "x" ++ show x
+					c0 = "c0"
+					x0 = "x0"
 					
 		x : y : [] ->
 			[ closureInit c0, 
@@ -56,27 +69,34 @@ testfuncBody paraType =
 			  invokeApply c1, 
 			  retRes "Integer" c1]
 			where
-				c0 = "c" ++ show x
-				x0 = "x" ++ show x
-				c1 = "c" ++ show y
-				x1 = "x" ++ show y
+				c0 = "c0"
+				x0 = "x0" 
+				c1 = "c1"
+				x1 = "x1"
 		_ -> []
+
+
+
+methodDecl paraType = do
+	let (lst, n) = runState (testfuncArgType paraType) 0 in
+		lst
 
 getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
 	(J.ClassBody [app [J.Static] body returnType "apply" [],
-	  app [J.Public, J.Static] (Just (J.Block (testfuncBody paraType))) returnType "test" (testfuncArgType paraType),
+	  app [J.Public, J.Static] (Just (J.Block (testfuncBody paraType))) returnType "test" (methodDecl paraType),
       app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
     where
         body = Just (J.Block (bs ++ ass))
 
-getParaType :: (PCTyp Int) -> [Int]
+getParaType :: (PCTyp t) -> [String]
 getParaType tp = case tp of
 					CForall a -> getScopeType a 0
 					_ -> []
 
 -- (Scope b t e) -> [Int]
 getScopeType (Kind f) n = []
-getScopeType (Typ t f) n = 0 : (map (+1) (getScopeType (f ()) 0))
+getScopeType (Typ (CTVar i) f) n = "Integer" : (getScopeType (f ()) 0)
+getScopeType (Typ (CJClass s) f) n = s : (getScopeType (f ()) 0)
 getScopeType _ _= []
 
 benchmarkPackage name = Just (J.PackageDecl (J.Name [(J.Ident name)]))
