@@ -111,8 +111,6 @@ expr10 :: { Expr String }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
     | fexp                                { $1 }
-    -- Java new Object
-    | "new" JAVACLASS "(" comma_exprs_emp ")" { JNewObj $2 $4 }
 
 fexp :: { Expr String }
     : fexp aexp         { App  $1 $2 }
@@ -134,8 +132,9 @@ aexp2 :: { Expr String }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" comma_exprs ")"       { Tuple $2 }
     | "(" expr ")"              { $2 }
-    -- Java method call
+    -- Java
     | aexp "." LOWERID "(" comma_exprs_emp ")"  { JMethod $1 $3 $5 Nothing }
+    | "new" JAVACLASS "(" comma_exprs_emp ")"   { JNewObj $2 $4 }
 
 comma_exprs :: { [Expr String] }
     : expr "," expr             { [$1, $3] }
