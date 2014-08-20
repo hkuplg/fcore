@@ -31,8 +31,8 @@ compileAndRun name compileF exp =
   do let source = prettyPrint (fst $ (compileF name exp))
      let jname = name ++ ".java"
      writeFile jname source
-     readProcess "javac" [jname] ""
-     result <- readProcess "java" [name] ""
+     readProcess "javac" ["-cp", "runtime/runtime.jar:.",jname] ""
+     result <- readProcess "java" ["-cp", "runtime/runtime.jar:.",name] ""
      -- readProcess "rm" [jname] ""
      x <- getDirectoryContents "."
      readProcess "rm" [y | y <- x, ".class" `List.isSuffixOf` y, y /= "TypeServer.class"] ""
