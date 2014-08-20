@@ -3,6 +3,7 @@ GHC 7.6.x + cabal-install (put .cabal/bin in your path - e.g. PATH=$PATH:~/.caba
 
 JVM
 
+ant 1.8.x and above
 
 # How do I get set up? #
 
