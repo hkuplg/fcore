@@ -279,8 +279,9 @@ trans self = let this = up self in T {
                                        var (localvarstr ++ show n),
                                        typ)
      CFPrimList l        -> case l of 
-                              []   -> do (expr, retvar, t) <- translateM this (CJNewObj pLNilClass [])
-                                         return (expr, retvar, CListOf (CJClass "java.lang.Integer"))
+     	-- (expr, retvar, t) <- translateM this (CJNewObj pLNilClass [])
+                              []   -> do let nilins = J.InstanceCreation [] (J.ClassType [(J.Ident pLNilClass, [])]) [] Nothing
+                                         return ([], nilins, CListOf (CJClass "java.lang.Integer"))
                               x:xs -> do  (_, lsExpr, _) <- translateM this (CFPrimList xs) -- liftM consPrimList $ map (translateM this) (CFPrimList xs)
                                           (eleStmt, eleExpr, eleT) <- translateM this x
                                           (n::Int) <- get

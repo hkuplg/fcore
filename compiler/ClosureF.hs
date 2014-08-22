@@ -60,8 +60,8 @@ ftyp2ctyp :: PFTyp t -> PCTyp t
 ftyp2ctyp (FTVar x) = CTVar x
 ftyp2ctyp (FJClass c) = CJClass c
 ftyp2ctyp (FProduct ts) = CTupleType (map ftyp2ctyp ts)
-ftyp2ctyp t         = CForall (ftyp2scope t)
 ftyp2ctyp (FListOf a) = CListOf (ftyp2ctyp a)
+ftyp2ctyp t         = CForall (ftyp2scope t)
 
 {-
 fexp2cexp2 :: PFExp Int (Int,PFTyp Int) -> [t] -> [e] -> PCExp t e
@@ -95,8 +95,8 @@ fexp2cexp (FFix f t1 t2) =
   in   CFix (CForall (adjust (FFun t1 t2) (g undefined))) g
 fexp2cexp (FJNewObj cName args)     = CJNewObj cName (map fexp2cexp args)
 fexp2cexp (FJMethod e mName args r) = CJMethod (fexp2cexp e) mName (map fexp2cexp args) r
-fexp2cexp e                         = CLam (groupLambda e)
 fexp2cexp (FPrimList l)             = CFPrimList (map fexp2cexp l)
+fexp2cexp e                         = CLam (groupLambda e)
 
 adjust :: PFTyp t -> EScope t e -> TScope t
 adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
@@ -127,7 +127,7 @@ joinPCTyp (CTVar t)   = t
 joinPCTyp (CForall s) = CForall (joinTScope s)
 joinPCTyp (CJClass c) = (CJClass c)
 joinPCTyp (CTupleType ts) = CTupleType (map joinPCTyp ts)
-joinPCTyp (CListOf a)     = CListOf (joinPCTyp a)
+joinPCTyp (CListOf a)     = (CListOf (joinPCTyp a))
 
 joinTScope :: TScope (PCTyp t) -> TScope t
 joinTScope (Body b)   = Body (joinPCTyp b)

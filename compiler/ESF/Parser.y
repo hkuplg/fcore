@@ -143,10 +143,8 @@ aexp2 :: { Expr String }
     | listexp                   { PrimList $1 }
 
 listexp :: { [Expr String] }
-    : "[" "]"                   { [] }
-    | "[" expr "]"              { [$2] }
-    | "(" expr "::" listexp ")"  { $2:$4 }
-    | "[" comma_exprs "]"	{ $2 }
+    : "(" expr "::" listexp ")"  { $2:$4 }
+    | "[" comma_exprs_emp "]"	{ $2 }
 
 comma_exprs :: { [Expr String] }
     : expr "," expr             { [$1, $3] }
