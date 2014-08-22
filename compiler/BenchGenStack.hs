@@ -31,9 +31,9 @@ resultDef = (J.LocalVars [] objType
 
 whileApplyLoopB :: String -> J.Ident -> J.Type -> [J.BlockStmt]
 whileApplyLoopB ctemp tempOut outType  = 
-		[J.BlockStmt (J.While (J.BinOp (J.ExpName $ J.Name [J.Ident ("(" ++ ctemp ++ " = " ++ "Next.next" ++ ")")])
+		[J.BlockStmt (J.While (J.BinOp (J.ExpName $ J.Name [J.Ident ("(" ++ ctemp ++ " = " ++ "hk.hku.cs.f2j.Next.next" ++ ")")])
         J.NotEq (J.Lit J.Null)) (J.StmtBlock (J.Block
-        [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "Next",J.Ident "next"]))
+        [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "hk.hku.cs.f2j.Next",J.Ident "next"]))
         J.EqualA (J.Lit J.Null))),
         J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident $ ctemp,J.Ident "apply"]) []))),
         J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [tempOut]))
@@ -45,7 +45,7 @@ whileApplyLoopB ctemp tempOut outType  =
 passClousre from to param = [
 	(J.BlockStmt $ J.ExpStmt $ J.Assign (J.NameLhs $ J.Name [(J.Ident to)]) J.EqualA (J.Cast closureType (J.ExpName $ J.Name [(J.Ident from)]))),
 	paraAssign to param,
-	(J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (fieldAcc "Next" "next")) (J.EqualA) (J.ExpName $ J.Name [(J.Ident to)]))
+	(J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (fieldAcc "hk.hku.cs.f2j.Next" "next")) (J.EqualA) (J.ExpName $ J.Name [(J.Ident to)]))
 	]
 
 getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
