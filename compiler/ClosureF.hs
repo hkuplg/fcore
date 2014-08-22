@@ -21,6 +21,7 @@ data PCTyp t =
     | CForall (TScope t)
     | CJClass String
     | CTupleType [PCTyp t]
+    | CListOf (PCTyp t)
 
 data PCExp t e =
      CVar e
@@ -38,6 +39,8 @@ data PCExp t e =
    -- Java
    | CJNewObj String [PCExp t e]
    | CJMethod (PCExp t e) String [PCExp t e] (Maybe String)
+   -- Primitive List
+   | CFPrimList [PCExp t e]
 
 -- System F to Closure F
 
@@ -58,6 +61,7 @@ ftyp2ctyp (FTVar x) = CTVar x
 ftyp2ctyp (FJClass c) = CJClass c
 ftyp2ctyp (FProduct ts) = CTupleType (map ftyp2ctyp ts)
 ftyp2ctyp t         = CForall (ftyp2scope t)
+ftyp2ctyp (FListOf a) = CListOf (ftyp2ctyp a)
 
 {-
 fexp2cexp2 :: PFExp Int (Int,PFTyp Int) -> [t] -> [e] -> PCExp t e
@@ -92,6 +96,7 @@ fexp2cexp (FFix f t1 t2) =
 fexp2cexp (FJNewObj cName args)     = CJNewObj cName (map fexp2cexp args)
 fexp2cexp (FJMethod e mName args r) = CJMethod (fexp2cexp e) mName (map fexp2cexp args) r
 fexp2cexp e                         = CLam (groupLambda e)
+fexp2cexp (FPrimList l)             = CFPrimList (map fexp2cexp l)
 
 adjust :: PFTyp t -> EScope t e -> TScope t
 adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
@@ -122,6 +127,7 @@ joinPCTyp (CTVar t)   = t
 joinPCTyp (CForall s) = CForall (joinTScope s)
 joinPCTyp (CJClass c) = (CJClass c)
 joinPCTyp (CTupleType ts) = CTupleType (map joinPCTyp ts)
+joinPCTyp (CListOf a)     = CListOf (joinPCTyp a)
 
 joinTScope :: TScope (PCTyp t) -> TScope t
 joinTScope (Body b)   = Body (joinPCTyp b)

@@ -259,6 +259,14 @@ inferWith io (d, g) = go
                                      case retName of Just r  -> return (JMethod e' m args' (Just r), JClass r)
                                                      Nothing -> throwError NoSuchMethod { className = cls, mName = m, argsExpr = args, argsType = typs'}
                     otherType  -> throwError $ NotAJVMType $ show otherType
+    go (PrimList l) = 
+      do (es', ts) <- mapAndUnzipM go l
+         case ts of [] -> return (PrimList es', ListOf $ (JClass "java.lang.Integer"))
+                    _  -> if (all (`alphaEqTy` (ts !! 0)) ts)
+				    	    then return (PrimList es', ListOf $ ts !! 0)
+				    	    else throwError General { msg = "Primitive List Type Mismatch" ++ show (PrimList l)}
+
+      
 
 
 checkJavaArgs :: [Type] -> TCMonad [Name]

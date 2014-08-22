@@ -24,6 +24,7 @@ data PFTyp t
   | FFun (PFTyp t) (PFTyp t)
   | FJClass String
   | FProduct [PFTyp t]
+  | FListOf (PFTyp t)
 
 data PFExp t e
   = FVar String e
@@ -45,6 +46,8 @@ data PFExp t e
 -- Java
   | FJNewObj String [PFExp t e]
   | FJMethod (PFExp t e) String [PFExp t e] (Maybe String)
+-- PrimitiveList
+  | FPrimList [PFExp t e]
 
 newtype Typ = HideTyp { revealTyp :: forall t. PFTyp t } -- type of closed types
 
@@ -64,6 +67,7 @@ alphaEqTyp' i (FFun s1 s2)  (FFun t1 t2) = alphaEqTyp' i s1 t1 && alphaEqTyp' i 
 alphaEqTyp' i (FProduct ss) (FProduct ts)
   | length ss == length ts               = uncurry (alphaEqTyp' i) `all` zip ss ts
   | otherwise                            = False
+alphaEqTyp' i (FListOf a) (FListOf b)= alphaEqTyp' i a b
 alphaEqTyp' i  _             _           = False
 
 -- Prettyprinting of types
@@ -80,7 +84,7 @@ prettyTyp p i (FJClass a)   = text a
 prettyTyp p i (FForall f)   = parensIf p 1 (char '∀' <+> text (nameTVar i) <> dot <+> prettyTyp (1,PrecMinus) (succ i) (f i))
 prettyTyp p i (FFun t1 t2)  = parensIf p 2 (prettyTyp (2,PrecPlus) i t1 <+> char '→' <+> prettyTyp (2,PrecMinus) i t2)
 prettyTyp p i (FProduct ts) = tupled (map (prettyTyp basePrecEnv i) ts)
-
+prettyTyp p i (FListOf a) = brackets (prettyTyp p i a)
 -- Prettyprinting of expressions
 
 instance Show (PFExp Int Int) where
@@ -107,7 +111,7 @@ prettyExp p (i,j) (FLam t f)      = parensIf p 2 (char 'λ' <+>
 prettyExp p (i,j) (FTApp e t)     = parensIf p 4 (prettyExp (4,PrecMinus) (i,j) e  <+> prettyTyp (4,PrecPlus) i t)
 prettyExp p (i,j) (FApp e1 e2)    = parensIf p 4 (prettyExp (4,PrecMinus) (i,j) e1 <+> prettyExp (4,PrecPlus) (i,j) e2)
 prettyExp p i (FProj n e)         = parensIf p 5 (prettyExp (5,PrecMinus) i e) <> dot <> char '_' <> int n
-
+prettyExp p i (FPrimList l)       = brackets $ tupled (map (prettyExp basePrecEnv i) l)
 -- Substitutions
 
 fsubstEE :: (Int, PFExp Int Int) -> PFExp Int Int -> PFExp Int Int
@@ -125,6 +129,7 @@ fsubstEE (x,r) = go
           go (FProj i' e)        = FProj i' (go e)
           go (FJNewObj s args)   = FJNewObj s (map go args)
           go (FJMethod c s args ss) = FJMethod (go c) s (map go args) ss
+          go (FPrimList l)       = FPrimList (map go l)
 
 fsubstTT :: (Int, PFTyp Int) -> PFTyp Int -> PFTyp Int
 fsubstTT (i,t) (FTVar j)
@@ -134,6 +139,7 @@ fsubstTT (i,t) (FJClass c)   = FJClass c
 fsubstTT (i,t) (FForall f)   = FForall (fsubstTT (i,t) . f)
 fsubstTT (i,t) (FFun t1 t2)  = FFun (fsubstTT (i,t) t1) (fsubstTT (i,t) t2)
 fsubstTT (i,t) (FProduct ts) = FProduct (map (fsubstTT (i,t)) ts)
+fsubstTT (i,t) (FListOf a)   = FListOf (fsubstTT (i, t) a)
 
 fsubstTE :: (Int, PFTyp Int) -> PFExp Int Int -> PFExp Int Int
 fsubstTE (i, t) = go
@@ -148,3 +154,5 @@ fsubstTE (i, t) = go
           go (FProj i' e)        = FProj i' (go e)
           go (FJNewObj s args)   = FJNewObj s (map go args)
           go (FJMethod c s args ss) = FJMethod (go c) s (map go args) ss
+          go (FPrimList l)       = FPrimList (map go l)
+

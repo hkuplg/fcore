@@ -42,6 +42,7 @@ data Type
   | Forall Name Type
   | Product [Type]
   | JClass Name
+  | ListOf Type
   deriving (Eq, Show)
 
 
@@ -72,8 +73,8 @@ data Expr id
   | LetOut RecFlag TcBinds (Expr TcId) -- Post typecheck only
   | JNewObj Name [Expr id]             -- New Java object
   | JMethod (Expr id) Name [Expr id] (Maybe Name)   -- Java method call
+  | PrimList [Expr id]
   deriving (Eq, Show)
-
 
 type RdrExpr = Expr Name
 type TcExpr  = Expr TcId
@@ -100,6 +101,7 @@ alphaEqTy (JClass a)     (JClass b)     = a == b
 alphaEqTy (Fun t1 t2)    (Fun t3 t4)    = t1 `alphaEqTy` t3 && t2 `alphaEqTy` t4
 alphaEqTy (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEqTy `all` zip ts1 ts2
 alphaEqTy (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `alphaEqTy` t1
+alphaEqTy (ListOf a) (ListOf b)         = a == b  -- ???
 alphaEqTy  _              _             = False
 
 substFreeTyVars :: (Name, Type) -> Type -> Type
@@ -115,6 +117,7 @@ substFreeTyVars (x, r) = go
       | a == x                      = Forall a t
       | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
       | otherwise                   = Forall a (go t)
+    go (ListOf a)   = ListOf (go a)
 
 freeTyVars :: Type -> Set.Set Name
 freeTyVars (TyVar x)    = Set.singleton x
@@ -122,6 +125,7 @@ freeTyVars (JClass _)   = Set.empty
 freeTyVars (Forall a t) = Set.delete a (freeTyVars t)
 freeTyVars (Fun t1 t2)  = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (Product ts) = Set.unions (map freeTyVars ts)
+freeTyVars (ListOf a)   = Set.empty
 
 instance Pretty Type where
   pretty (TyVar a)    = text a
@@ -129,6 +133,7 @@ instance Pretty Type where
   pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
   pretty (Product ts) = tupled (map pretty ts)
   pretty (JClass c)   = text c
+  pretty (ListOf a)   = brackets $ pretty a
 
 instance Pretty id => Pretty (Expr id) where
   pretty (Var x) = pretty x
@@ -167,6 +172,7 @@ instance Pretty id => Pretty (Expr id) where
     pretty e
   pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
   pretty (JMethod e m args _) = pretty e <> dot <> text m <> tupled (map pretty args)
+  pretty (PrimList l)         = brackets $ tupled (map pretty l)
 
 instance Pretty id => Pretty (Bind id) where
   pretty Bind{..} =

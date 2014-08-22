@@ -18,6 +18,9 @@ import ESF.Lexer
 
   "("      { Toparen }
   ")"      { Tcparen }
+  "["      { Tobrack }
+  "]"      { Tcbrack }
+  "::"     { Tdcolon }
   "/\\"    { Ttlam }
   "\\"     { Tlam }
   ":"      { Tcolon }
@@ -136,6 +139,14 @@ aexp2 :: { Expr String }
     | "(" expr ")"              { $2 }
     -- Java method call
     | aexp "." LOWERID "(" comma_exprs_emp ")"  { JMethod $1 $3 $5 Nothing }
+    -- primitive list
+    | listexp                   { PrimList $1 }
+
+listexp :: { [Expr String] }
+    : "[" "]"                   { [] }
+    | "[" expr "]"              { [$2] }
+    | "(" expr "::" listexp ")"  { $2:$4 }
+    | "[" comma_exprs "]"	{ $2 }
 
 comma_exprs :: { [Expr String] }
     : expr "," expr             { [$1, $3] }
@@ -178,8 +189,9 @@ typ :: { Type }
     -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
     -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
     | atyp "->" typ     { Fun $1 $3 }
-
     | atyp              { $1 }
+    | "[" atyp "]"     { ListOf $2 }
+
 
 atyp :: { Type }
     : tvar                      { TyVar $1 }

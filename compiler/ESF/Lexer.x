@@ -26,6 +26,9 @@ tokens :-
 
     \(          { \_ _ -> Toparen }
     \)          { \_ _ -> Tcparen }
+    \[          { \_ _ -> Tobrack}
+    \]          { \_ _ -> Tcbrack}
+    \::         { \_ _ -> Tdcolon}
     \/\\        { \_ _ -> Ttlam }
     \\          { \_ _ -> Tlam }
     \:          { \_ _ -> Tcolon }
@@ -85,6 +88,7 @@ data Token = Toparen | Tcparen
            | Tupperid String | Tlowerid String | Tunderid Int
            | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char
            | Tprimop J.Op
+           | Tobrack | Tcbrack | Tdcolon
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

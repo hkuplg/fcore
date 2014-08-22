@@ -22,6 +22,7 @@ transType d = go
     go (Fun t1 t2)  = FFun (go t1) (go t2)
     go (Product ts) = FProduct (map go ts)
     go (Forall a t) = FForall (\a' -> transType (Map.insert a a' d) t)
+    go (ListOf t)   = FListOf (go t)
 
 type DsEnv t e = (Map.Map Name t, Map.Map Name (Either e (PFExp t e)))
 
@@ -109,6 +110,9 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 
     go (JNewObj cName args)    = FJNewObj cName (map go args)
     go (JMethod ec mName args r) = FJMethod (go ec) mName (map go args) r
+    go (PrimList l)              = FPrimList (map go l)
+
+
 
 dsLetRecDirect :: DsEnv t e -> TcExpr -> PFExp t e
 dsLetRecDirect (d,g) = go

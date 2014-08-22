@@ -25,7 +25,11 @@ jbody = Just (J.Block [])
 init = [J.InitDecl False (J.Block [])]
 
 closureClass = "hk.hku.cs.f2j.Closure"
+primListClass = "hk.hku.cs.f2j.FunctionalList"
+pLNilClass = "hk.hku.cs.f2j.Nil"
+pLConsClass = "hk.hku.cs.f2j.Cons"
 
+primListType    = javaClassType primListClass
 closureType     = J.RefType (J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))
 javaClassType c = J.RefType (J.ClassRefType (J.ClassType [(J.Ident c, [])]))
 objType         = javaClassType "Object"
@@ -69,6 +73,18 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
         arrayAssignment = J.ArrayCreateInit (objType) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
         tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
 
+--consPrimList :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
+--consPrimList l = case l of
+
+--                               (n :: Int) <- get
+--                               put (n + 1)
+--                               let conlst = J.InstanceCreation [] 
+--                                          (J.ClassType [(J.Ident pLConsClass, [])]) ([eleExpr] ++ lsExpr) Nothing
+--                               let typ = CJClass primListClass
+--                               return ([assignVar (localvarstr ++ show n) conlst typ], var (localvarstr ++ show n), CListOf eleT)
+
+
+
 initStuff tempvarstr n j t = J.LocalVars [J.Final] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just exp)])
     where
         exp | t == objType = J.InitExp j
@@ -82,6 +98,8 @@ initObj tempvarstr n j = initStuff tempvarstr n j objType
 initClosure tempvarstr n j = initStuff tempvarstr n j closureType
 
 initObjArray tempvarstr n j = initStuff tempvarstr n j objArrayType
+
+initPrimList tempvarstr n j = initClassCast primListClass tempvarstr n j
 
 type Var = Int -- Either Int Int left -> standard variable; right -> recursive variable
 
@@ -133,12 +151,14 @@ chooseCastBox (CJClass c)       = (initClassCast c, javaClassType c)
 chooseCastBox (CForall _)       = (initClosure,closureType)
 chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
 chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
+chooseCastBox (CListOf t)       = (initPrimList, primListType)
 chooseCastBox _                 = (initObj,objType)
 
 javaType (CJClass c)      = javaClassType c
 javaType (CForall _)      = closureType
 javaType (CTupleType [t]) = javaType t -- optimization for tuples of size 1
 javaType (CTupleType _)   = objArrayType
+javaType (CListOf t)      = primListType
 javaType _                = objType
 
 getS3 this f t j3 cvarass =
@@ -258,7 +278,18 @@ trans self = let this = up self in T {
                                return (argsStatements ++ classStatement ++ [assignVar (localvarstr ++ show n) rhs typ],
                                        var (localvarstr ++ show n),
                                        typ)
-                           
+     CFPrimList l        -> case l of 
+                              []   -> do (expr, retvar, t) <- translateM this (CJNewObj pLNilClass [])
+                                         return (expr, retvar, CListOf (CJClass "java.lang.Integer"))
+                              x:xs -> do  (_, lsExpr, _) <- translateM this (CFPrimList xs) -- liftM consPrimList $ map (translateM this) (CFPrimList xs)
+                                          (eleStmt, eleExpr, eleT) <- translateM this x
+                                          (n::Int) <- get
+                                          put (n+1)
+                                          let conlst = J.InstanceCreation [] 
+                                                       (J.ClassType [(J.Ident pLConsClass, [])]) [eleExpr, lsExpr] Nothing
+                                          let typ = CJClass primListClass
+                                          -- return ([assignVar (localvarstr ++ show n) conlst typ], var (localvarstr ++ show n), CListOf eleT)
+                                          return ([], conlst, CListOf eleT)
      ,
 
   translateScopeM = \e m -> case e of
