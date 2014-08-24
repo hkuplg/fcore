@@ -46,7 +46,7 @@ tokens :-
     else        { \_ _ -> Telse }
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
-
+    
     -- Literal
     $digit+                { \_ s -> Tinteger (read s) }
     \"($printable # \")*\"  { \_ s -> Tstring (init $ tail s) }

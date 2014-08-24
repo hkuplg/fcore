@@ -110,7 +110,14 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 
     go (JNewObj cName args)    = FJNewObj cName (map go args)
     go (JMethod ec mName args r) = FJMethod (go ec) mName (map go args) r
-    go (PrimList l)              = FPrimList (map go l)
+    -- Non Java Class translation
+    -- go (PrimList l)              = FPrimList (map go l) 
+    
+    -- PLALT tranlation, to java class
+    
+    go (PrimList l)              = case l of     -- translate to java new obj
+                                     []   -> FJNewObj "hk.hku.cs.f2j.Nil" []
+                                     x:xs -> FJNewObj "hk.hku.cs.f2j.Cons" [go x, go (PrimList xs)]
 
 
 

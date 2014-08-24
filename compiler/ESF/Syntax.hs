@@ -73,7 +73,7 @@ data Expr id
   | LetOut RecFlag TcBinds (Expr TcId) -- Post typecheck only
   | JNewObj Name [Expr id]             -- New Java object
   | JMethod (Expr id) Name [Expr id] (Maybe Name)   -- Java method call
-  | PrimList [Expr id]
+  | PrimList [Expr id]				   -- New List
   deriving (Eq, Show)
 
 type RdrExpr = Expr Name

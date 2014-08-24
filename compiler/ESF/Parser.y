@@ -37,6 +37,7 @@ import ESF.Lexer
   "then"   { Tthen }
   "else"   { Telse }
   ","      { Tcomma }
+  
 
   UPPERID  { Tupperid $$ }
   LOWERID  { Tlowerid $$ }
@@ -140,10 +141,14 @@ aexp2 :: { Expr String }
     -- Java method call
     | aexp "." LOWERID "(" comma_exprs_emp ")"  { JMethod $1 $3 $5 Nothing }
     -- primitive list
-    | listexp                   { PrimList $1 }
+    | listexp                   { $1 }
 
-listexp :: { [Expr String] }
-    : "(" expr "::" listexp ")"  { $2:$4 }
+listexp :: { Expr String }
+    : listexps                  { PrimList $1 }
+
+
+listexps :: { [Expr String] }
+    : "(" expr "::" listexps ")"  { $2:$4 }
     | "[" comma_exprs_emp "]"	{ $2 }
 
 comma_exprs :: { [Expr String] }
