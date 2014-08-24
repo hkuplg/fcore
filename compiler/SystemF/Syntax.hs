@@ -131,14 +131,10 @@ fsubstEE (x,r) = go
           go (FTuple es)         = FTuple (map go es)
           go (FProj i' e)        = FProj i' (go e)
           go (FJNewObj s args)   = FJNewObj s (map go args)
-<<<<<<< local
-          go (FJMethod c s args ss) = FJMethod (go c) s (map go args) ss
-          go (FPrimList l)       = FPrimList (map go l)
-=======
           go (FJMethod c s args ss) =
             case c of (Left ce)  -> FJMethod (Left $ go ce) s (map go args) ss
                       (Right cn) -> FJMethod (Right cn) s (map go args) ss
->>>>>>> other
+          go (FPrimList l)       = FPrimList (map go l)
 
 fsubstTT :: (Int, PFTyp Int) -> PFTyp Int -> PFTyp Int
 fsubstTT (i,t) (FTVar j)
@@ -162,12 +158,7 @@ fsubstTE (i, t) = go
           go (FTuple es)         = FTuple (map go es)
           go (FProj i' e)        = FProj i' (go e)
           go (FJNewObj s args)   = FJNewObj s (map go args)
-<<<<<<< local
-          go (FJMethod c s args ss) = FJMethod (go c) s (map go args) ss
-          go (FPrimList l)       = FPrimList (map go l)
-
-=======
           go (FJMethod c s args ss) =
             case c of (Left ce)  -> FJMethod (Left $ go ce) s (map go args) ss
                       (Right cn) -> FJMethod (Right cn) s (map go args) ss
->>>>>>> other
+          go (FPrimList l)       = FPrimList (map go l)
