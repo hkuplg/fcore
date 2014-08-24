@@ -16,6 +16,7 @@ public class TypeServer {
         map.put(long.class, Long.class);
         map.put(float.class, Float.class);
         map.put(double.class, Double.class);
+        map.put(void.class, Void.class);
     }
 
 
@@ -31,7 +32,13 @@ public class TypeServer {
             } else if (words[0].equals("qConstructor")) {
                 result = queryNew(words[1], Arrays.copyOfRange(words, 2, words.length));
             } else if (words[0].equals("qMethod")) {
-                result = queryMethod(words[1], words[2], Arrays.copyOfRange(words, 3, words.length));
+                result = queryMethod(words[1], words[2], Arrays.copyOfRange(words, 3, words.length), false);
+            } else if (words[0].equals("qStaticMethod")) {
+                result = queryMethod(words[1], words[2], Arrays.copyOfRange(words, 3, words.length), true);
+            } else if (words[0].equals("qField")) {
+                result = queryField(words[1], words[2], false); 
+            } else if (words[0].equals("qStaticField")) {
+                result = queryField(words[1], words[2], true);
             } else {
                 System.err.println("######## BAD QUERY ########");
             }
@@ -66,21 +73,34 @@ public class TypeServer {
     }
 
 
-    public static String queryMethod(String classFullName, String methodName, String... methodArgs) {
-        String ret;
+    public static String queryMethod(String classFullName, String methodName, String[] methodArgs, boolean stat) {
         try {
             Class<?> c = Class.forName(classFullName);
             Class<?>[] givenClasses = getClassArray(methodArgs);
             Method[] mList = c.getMethods();
             for (int i = 0; i < mList.length; i++) {
                 Method m = mList[i];
-                if (m.getName().equals(methodName)) {
+                if (Modifier.isStatic(m.getModifiers()) == stat && m.getName().equals(methodName)) {
                     Class<?>[] actualClasses = m.getParameterTypes();
                     if (isArrayAssignableFrom(actualClasses, givenClasses))
                         return classFix(m.getReturnType()).getName();
                 }
             }
             return "$";
+        } catch (Exception e) {
+            return "$";
+        }
+    }
+
+
+    public static String queryField(String classFullName, String fieldName, boolean stat) {
+        try {
+            Class<?> c = Class.forName(classFullName);
+            Field f = c.getField(fieldName);
+            if (Modifier.isStatic(f.getModifiers()) == stat)
+                return classFix(f.getType()).getName();
+            else
+                return "$";
         } catch (Exception e) {
             return "$";
         }

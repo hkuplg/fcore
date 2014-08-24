@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module Java.Utils
-    ( compileJava
+    ( runtimeJarPath
+    , classpath
+    , compileJava
     , runJava
     , inferOutputPath
     , inferClassName
@@ -9,14 +11,20 @@ module Java.Utils
     ) where
 
 import System.Process           (system)
-import System.Directory         (setCurrentDirectory)
+import System.Directory         (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)
 import System.FilePath          (takeDirectory, takeBaseName, (</>))
 ------
 import Data.String.Utils        (capitalize)
 
 newtype ClassName = ClassName String deriving (Eq, Show)
 
-classpath = "~/.cabal/share/systemfcompiler-0.1.0.0/runtime/runtime.jar:. "
+runtimeJarPath :: IO FilePath
+runtimeJarPath = do h <- getHomeDirectory 
+                    return $ h ++ "/.cabal/share/systemfcompiler-0.1.0.0/runtime/runtime.jar"
+
+classpath :: IO FilePath
+classpath = do r <- runtimeJarPath
+               return $ r ++ ":./runtime.jar:. "
 
 inferOutputPath :: FilePath -> FilePath
 inferOutputPath srcPath = directory </> className ++ ".java"
@@ -27,12 +35,16 @@ inferClassName :: FilePath -> String
 inferClassName outputPath = capitalize $ takeBaseName outputPath
 
 compileJava :: FilePath -> IO ()
-compileJava srcPath = system ("javac -cp " ++ classpath ++ srcPath) >> return ()
+compileJava srcPath = do cp <- classpath
+                         system ("javac -cp " ++ cp ++ srcPath)
+                         return ()
 
 runJava :: FilePath -> IO ()
 runJava srcPath = do
-    -- Must "cd" into that directory in order to run the compiled Java code
-    setCurrentDirectory (takeDirectory srcPath)
-    system $ "java -cp " ++ classpath ++ takeBaseName srcPath
-    system $ "rm *.class"
-    setCurrentDirectory ".."
+    currDir <- getCurrentDirectory
+    let workDir = takeDirectory srcPath
+    setCurrentDirectory workDir
+    cp <- classpath
+    system $ "java -cp " ++ currDir ++ "/runtime.jar:" ++ cp ++ takeBaseName srcPath
+    system "rm *.class"
+    setCurrentDirectory currDir

@@ -72,8 +72,13 @@ data Expr id
   | Let RecFlag [Bind id] (Expr id)    -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag TcBinds (Expr TcId) -- Post typecheck only
   | JNewObj Name [Expr id]             -- New Java object
-  | JMethod (Expr id) Name [Expr id] (Maybe Name)   -- Java method call
-  | PrimList [Expr id]				   -- New List
+-- Either Expr   -> static/non static method call
+--        String -> static method call
+  | JMethod (Either (Expr id) String) Name [Expr id] Name
+  | JField (Either (Expr id) String) Name Name
+  | SeqExprs [Expr id]
+  | PrimList [Expr id]           -- New List
+
   deriving (Eq, Show)
 
 type RdrExpr = Expr Name
@@ -171,8 +176,10 @@ instance Pretty id => Pretty (Expr id) where
     text "in" <+>
     pretty e
   pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
-  pretty (JMethod e m args _) = pretty e <> dot <> text m <> tupled (map pretty args)
+  pretty (JMethod e m args _) = case e of (Left e')  -> pretty e' <> dot <> text m <> tupled (map pretty args)
+                                          (Right e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
+
 
 instance Pretty id => Pretty (Bind id) where
   pretty Bind{..} =

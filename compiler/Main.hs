@@ -16,6 +16,7 @@ import System.Console.CmdArgs
 
 import System.Environment        (getArgs, withArgs)
 import System.FilePath           (takeFileName)
+import System.Directory          (doesFileExist)
 import System.IO
 import Data.FileEmbed            (embedFile)
 import qualified Data.ByteString (ByteString, writeFile)
@@ -63,8 +64,8 @@ withMessage msg act = do { putStr msg; hFlush stdout; act }
 withMessageLn :: String -> IO () -> IO ()
 withMessageLn msg act = do { withMessage msg act; putStrLn "" }
 
-typeServerBytes :: Data.ByteString.ByteString
-typeServerBytes = $(embedFile "TypeServer.class")
+runtimeBytes :: Data.ByteString.ByteString
+runtimeBytes = $(embedFile "runtime/runtime.jar")
 
 main :: IO ()
 main = do
@@ -73,8 +74,10 @@ main = do
     Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
     when (optShowOpts) $ putStrLn (show Options{..} ++ "\n")
 
-    -- Write the bytes of TypeServer to file and run it
-    Data.ByteString.writeFile "./TypeServer.class" typeServerBytes
+    -- Write the bytes of runtime.jar to file
+    exists <- doesFileExist =<< runtimeJarPath
+    existsCur <- doesFileExist "./runtime.jar"
+    unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
           
     forM_
       (optSourceFiles)

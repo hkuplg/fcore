@@ -38,9 +38,11 @@ data PCExp t e =
    | CFix (PCTyp t) (e -> EScope t e)
    -- Java
    | CJNewObj String [PCExp t e]
-   | CJMethod (PCExp t e) String [PCExp t e] (Maybe String)
    -- Primitive List
-   | CFPrimList [PCExp t e]
+   --| CFPrimList [PCExp t e]
+   | CJMethod (Either (PCExp t e) String) String [PCExp t e] String
+   | CJField (Either (PCExp t e) String) String String
+   | CSeqExprs [PCExp t e]
 
 -- System F to Closure F
 
@@ -94,8 +96,18 @@ fexp2cexp (FFix f t1 t2) =
   let  g e = groupLambda (FLam t1 (f e)) -- is this right???? (BUG)
   in   CFix (CForall (adjust (FFun t1 t2) (g undefined))) g
 fexp2cexp (FJNewObj cName args)     = CJNewObj cName (map fexp2cexp args)
+<<<<<<< local
 fexp2cexp (FJMethod e mName args r) = CJMethod (fexp2cexp e) mName (map fexp2cexp args) r
 fexp2cexp (FPrimList l)             = CFPrimList (map fexp2cexp l)
+=======
+fexp2cexp (FJMethod c mName args r) =
+  case c of (Left ce)  -> CJMethod (Left $ fexp2cexp ce) mName (map fexp2cexp args) r
+            (Right cn) -> CJMethod (Right cn) mName (map fexp2cexp args) r
+fexp2cexp (FJField c fName r) =
+  case c of (Left ce)  -> CJField (Left $ fexp2cexp ce) fName r
+            (Right cn) -> CJField (Right cn) fName r
+fexp2cexp (FSeqExprs es)            = CSeqExprs (map fexp2cexp es)
+>>>>>>> other
 fexp2cexp e                         = CLam (groupLambda e)
 
 adjust :: PFTyp t -> EScope t e -> TScope t

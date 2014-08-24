@@ -26,6 +26,8 @@ import Data.Maybe       (fromJust)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import Java.Utils (classpath)
+
 import Control.Monad.IO.Class (liftIO)
 
 -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
@@ -45,6 +47,9 @@ data TypeError e
                       , mName     :: String
                       , argsExpr  :: [Expr e]
                       , argsType  :: [Type]
+                      }
+  | NoSuchField       { className :: String
+                      , fName     :: String
                       }
   | Mismatch          { term      :: Expr e
                       , expected  :: Type
@@ -89,7 +94,9 @@ checkWellformed _  d t =
 
 
 infer :: RdrExpr -> TCMonad (TcExpr, Type)
-infer e = do (Just inp, Just out, _, proch) <- liftIO $ createProcess (proc "java" ["TypeServer"]){std_in = CreatePipe, std_out = CreatePipe}
+infer e = do cp <- liftIO classpath
+             let p = (proc "java" ["-cp", cp, "hk.hku.cs.f2j.TypeServer"]){std_in = CreatePipe, std_out = CreatePipe}
+             (Just inp, Just out, _, proch) <- liftIO $ createProcess p
              liftIO $ hSetBuffering inp NoBuffering
              liftIO $ hSetBuffering out NoBuffering
              ret <- inferWith (inp, out) (Set.empty, Map.empty) e
@@ -251,14 +258,48 @@ inferWith io (d, g) = go
                                          else throwError NoSuchConstructor { className = c, argsExpr = args, argsType = typs' }
                                else throwError (NotAJVMType c)
 
-    go (JMethod e m args _) = 
-      do (e', t') <- go e
-         case t' of JClass cls -> do (args', typs') <- mapAndUnzipM go args
-                                     strArgs <- checkJavaArgs typs'
-                                     retName <- liftIO $ methodRetType io cls m strArgs
-                                     case retName of Just r  -> return (JMethod e' m args' (Just r), JClass r)
-                                                     Nothing -> throwError NoSuchMethod { className = cls, mName = m, argsExpr = args, argsType = typs'}
-                    otherType  -> throwError $ NotAJVMType $ show otherType
+    go (JMethod expr m args _) =
+      case expr of 
+        (Left e) ->
+          do (e', t') <- go e
+             case t' of
+               JClass cls -> do (args', typs') <- mapAndUnzipM go args
+                                strArgs <- checkJavaArgs typs'
+                                retName <- liftIO $ methodRetType io cls m strArgs
+                                case retName of Just r  -> return (JMethod (Left e') m args' r, JClass r)
+                                                Nothing -> throwError NoSuchMethod { className = cls
+                                                                                   , mName = m
+                                                                                   , argsExpr = args
+                                                                                   , argsType = typs' }
+               otherType -> throwError $ NotAJVMType $ show otherType
+        (Right className) ->
+          do (args', typs') <- mapAndUnzipM go args
+             strArgs <- checkJavaArgs typs'
+             retName <- liftIO $ staticMethodRetType io className m strArgs
+             case retName of Just r  -> return (JMethod (Right className) m args' r, JClass r)
+                             Nothing -> throwError NoSuchMethod { className = className
+                                                                , mName = m
+                                                                , argsExpr = args
+                                                                , argsType = typs' }
+
+    go (SeqExprs es) = do (es', typs') <- mapAndUnzipM go es
+                          return (SeqExprs es', last typs')
+
+    go (JField expr f _) =
+      case expr of
+        (Left e) -> do (e', t') <- go e
+                       case t' of 
+                         JClass cls -> do retName <- liftIO $ fieldType io cls f
+                                          case retName of
+                                            Just r -> return (JField (Left e') f r, JClass r)
+                                            Nothing -> throwError NoSuchField { className = cls
+                                                                              , fName = f }
+                         otherType -> throwError $ NotAJVMType $ show otherType
+        (Right cls) -> do retName <- liftIO $ staticFieldType io cls f
+                          case retName of Just r -> return (JField (Right cls) f r, JClass r)
+                                          Nothing -> throwError NoSuchField { className = cls
+                                                                            , fName = f }
+                          
 
     -- Non java class tranlation
     --go (PrimList l) = 

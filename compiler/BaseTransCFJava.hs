@@ -2,7 +2,6 @@
 
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
-import Prelude hiding (init, last)
 
 import ESF.Syntax
 import qualified Language.Java.Syntax as J
@@ -261,36 +260,74 @@ trans self = let this = up self in T {
                            let typ = CJClass c
                            return (argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ], var (localvarstr ++ show n), typ)
 
-     CJMethod c m args r -> do args' <- mapM (translateM this) args
-                               let argsStatements = concat $ map (\(x, _, _) -> x) args'
-                               let argsExprs = map (\(_, x, _) -> x) args'
-                               let argTypes = map (\(_, _, x) -> x) args'
-                               (classStatement, classExpr, _) <- translateM this c
-                               (n :: Int) <- get
-                               put (n + 1)
-                               let rhs = J.MethodInv $
-                                           J.PrimaryMethodCall classExpr
-                                                               (map (\(CJClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
-                                                               (J.Ident m)
-                                                               argsExprs
-                               let typ = case r of Just rc -> CJClass rc
-                                                   Nothing -> undefined
-                               return (argsStatements ++ classStatement ++ [assignVar (localvarstr ++ show n) rhs typ],
-                                       var (localvarstr ++ show n),
-                                       typ)
-     CFPrimList l        -> case l of 
-     	-- (expr, retvar, t) <- translateM this (CJNewObj pLNilClass [])
-                              []   -> do let nilins = J.InstanceCreation [] (J.ClassType [(J.Ident pLNilClass, [])]) [] Nothing
-                                         return ([], nilins, CListOf (CJClass "java.lang.Integer"))
-                              x:xs -> do  (_, lsExpr, _) <- translateM this (CFPrimList xs) -- liftM consPrimList $ map (translateM this) (CFPrimList xs)
-                                          (eleStmt, eleExpr, eleT) <- translateM this x
-                                          (n::Int) <- get
-                                          put (n+1)
-                                          let conlst = J.InstanceCreation [] 
-                                                       (J.ClassType [(J.Ident pLConsClass, [])]) [eleExpr, lsExpr] Nothing
-                                          let typ = CJClass primListClass
-                                          -- return ([assignVar (localvarstr ++ show n) conlst typ], var (localvarstr ++ show n), CListOf eleT)
-                                          return ([], conlst, CListOf eleT)
+     CJMethod (Left c) m args r ->
+       do args' <- mapM (translateM this) args
+          let argsStatements = concat $ map (\(x, _, _) -> x) args'
+          let argsExprs = map (\(_, x, _) -> x) args'
+          let argTypes = map (\(_, _, x) -> x) args'
+          (classStatement, classExpr, _) <- translateM this c
+          let refTypeArgs = (map (\(CJClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
+          let rhs = J.MethodInv $ J.PrimaryMethodCall classExpr refTypeArgs (J.Ident m) argsExprs 
+          let typ = CJClass r
+          if r /= "java.lang.Void"
+            then do (n :: Int) <- get
+                    put (n + 1)
+                    return ( argsStatements ++ classStatement ++ [assignVar (localvarstr ++ show n) rhs typ]
+                           , var (localvarstr ++ show n)
+                           , typ )
+            else return ( argsStatements ++ classStatement ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ ) 
+
+     CJMethod (Right c) m args r ->
+       do args' <- mapM (translateM this) args
+          let argsStatements = concat $ map (\(x, _, _) -> x) args'
+          let argsExprs = map (\(_, x, _) -> x) args'
+          let argTypes = map (\(_, _, x) -> x) args'
+          let refTypeArgs = (map (\(CJClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
+          let rhs = J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident c]) refTypeArgs (J.Ident m) argsExprs
+          let typ = CJClass r
+          if r /= "java.lang.Void"
+            then do (n :: Int) <- get
+                    put (n + 1)
+                    return ( argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ]
+                           , var (localvarstr ++ show n)
+                           , typ )
+            else return ( argsStatements ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ ) 
+
+     CJField c fName r -> 
+       case c of
+         (Left ce) -> do (classStatement, classExpr, _) <- translateM this ce
+                         let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
+                         let typ = CJClass r
+                         (n :: Int) <- get
+                         put (n + 1)
+                         let newName = localvarstr ++ show n
+                         return (classStatement ++ [assignVar newName rhs typ], var newName, typ)
+         (Right cn) -> do let classExpr = J.ExpName $ J.Name [J.Ident cn]
+                          let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
+                          let typ = CJClass r
+                          (n :: Int) <- get
+                          put (n + 1)
+                          let newName = localvarstr ++ show n
+                          return ([assignVar newName rhs typ], var newName, typ)
+                                      
+     CSeqExprs es -> do es' <- mapM (translateM this) es
+                        let (_, lastExp, lastType) = last es'
+                        let statements = concat $ map (\(x, _, _) -> x) es'
+                        return (statements, lastExp, lastType)
+-- passing the primitive list
+--     CFPrimList l -> case l of 
+---- (expr, retvar, t) <- translateM this (CJNewObj pLNilClass [])
+--                        []   -> do let nilins = J.InstanceCreation [] (J.ClassType [(J.Ident pLNilClass, [])]) [] Nothing
+--                                   return ([], nilins, CListOf (CJClass "java.lang.Integer"))
+--                        x:xs -> do  (_, lsExpr, _) <- translateM this (CFPrimList xs) -- liftM consPrimList $ map (translateM this) (CFPrimList xs)
+--                                    (eleStmt, eleExpr, eleT) <- translateM this x
+--                                    (n::Int) <- get
+--                                    put (n+1)
+--                                    let conlst = J.InstanceCreation [] 
+--                                                 (J.ClassType [(J.Ident pLConsClass, [])]) [eleExpr, lsExpr] Nothing
+--                                    let typ = CJClass primListClass
+--                                    -- return ([assignVar (localvarstr ++ show n) conlst typ], var (localvarstr ++ show n), CListOf eleT)
+--                                    return ([], conlst, CListOf eleT)
      ,
 
   translateScopeM = \e m -> case e of

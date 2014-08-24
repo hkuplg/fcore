@@ -1,4 +1,11 @@
-module JVMTypeQuery (isJVMType, hasConstructor, methodRetType) where 
+module JVMTypeQuery 
+( isJVMType
+, hasConstructor
+, methodRetType
+, staticMethodRetType
+, fieldType
+, staticFieldType
+) where 
 
 import Data.Char (isSpace, toLower)
 import System.IO
@@ -27,9 +34,27 @@ hasConstructor io className args = isTrue $ doQuery io $ ["qConstructor", classN
 
 
 --
+fixRet :: String -> IO (Maybe String)
+fixRet "$" = return Nothing
+fixRet str = return $ Just str
+
 
 methodRetType :: (Handle, Handle) -> String -> String -> [String] -> IO (Maybe String)
 methodRetType io className methodName args = 
-  do ret <- doQuery io $ ["qMethod", className, methodName] ++ args
-     return $ if ret == "$" then Nothing else Just ret
+  doQuery io (["qMethod", className, methodName] ++ args) >>= fixRet
+
+
+staticMethodRetType :: (Handle, Handle) -> String -> String -> [String] -> IO (Maybe String)
+staticMethodRetType io className methodName args =
+  doQuery io (["qStaticMethod", className, methodName] ++ args) >>= fixRet
+
+
+fieldType :: (Handle, Handle) -> String -> String -> IO (Maybe String)
+fieldType io className fieldName =
+  doQuery io ["qField", className, fieldName] >>= fixRet
+
+
+staticFieldType :: (Handle, Handle) -> String -> String -> IO (Maybe String)
+staticFieldType io className fieldName = 
+  doQuery io ["qStaticField", className, fieldName] >>= fixRet
 

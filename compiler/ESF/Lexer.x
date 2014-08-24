@@ -29,9 +29,12 @@ tokens :-
     \[          { \_ _ -> Tobrack}
     \]          { \_ _ -> Tcbrack}
     \::         { \_ _ -> Tdcolon}
+    \{          { \_ _ -> Tocurly }
+    \}          { \_ _ -> Tccurly }
     \/\\        { \_ _ -> Ttlam }
     \\          { \_ _ -> Tlam }
     \:          { \_ _ -> Tcolon }
+    \;          { \_ _ -> Tsemi }
     forall      { \_ _ -> Tforall }
     \-\>        { \_ _ -> Tarrow }
     \.          { \_ _ -> Tdot }
@@ -78,13 +81,13 @@ tokens :-
     \|\|        { \_ _ -> Tprimop J.COr    }
 
 {
-data Token = Toparen | Tcparen
+data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot
            | Tlet | Trec | Teq | Tand | Tin
            | Tint | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
-           | Tcomma
+           | Tcomma | Tsemi
            | Tupperid String | Tlowerid String | Tunderid Int
            | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char
            | Tprimop J.Op

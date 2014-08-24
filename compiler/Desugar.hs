@@ -109,16 +109,24 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec bs body)                  = dsLetRecEncode (d,g) (LetOut Rec bs body)
 
     go (JNewObj cName args)    = FJNewObj cName (map go args)
-    go (JMethod ec mName args r) = FJMethod (go ec) mName (map go args) r
+    go (JMethod c mName args r) = 
+      case c of 
+        (Left cExpr)  -> FJMethod (Left (go cExpr)) mName (map go args) r
+        (Right cName) -> FJMethod (Right cName) mName (map go args) r
+    go (JField c fName r) =
+      case c of
+        (Left cExpr)  -> FJField (Left (go cExpr)) fName r
+        (Right cName) -> FJField (Right cName) fName r
+    go (SeqExprs es) = FSeqExprs (map go es)
+
     -- Non Java Class translation
     -- go (PrimList l)              = FPrimList (map go l) 
     
-    -- PLALT tranlation, to java class
+    -- Primitive List to java class
     
     go (PrimList l)              = case l of     -- translate to java new obj
                                      []   -> FJNewObj "hk.hku.cs.f2j.Nil" []
                                      x:xs -> FJNewObj "hk.hku.cs.f2j.Cons" [go x, go (PrimList xs)]
-
 
 
 dsLetRecDirect :: DsEnv t e -> TcExpr -> PFExp t e
