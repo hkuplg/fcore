@@ -135,6 +135,7 @@ instance Pretty Type where
   pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
   pretty (Product ts) = tupled (map pretty ts)
   pretty (JClass c)   = text c
+  pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
 
 instance Pretty id => Pretty (Expr id) where
   pretty (Var x) = pretty x
@@ -174,6 +175,7 @@ instance Pretty id => Pretty (Expr id) where
   pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
   pretty (JMethod e m args _) = case e of (Left e')  -> pretty e' <> dot <> text m <> tupled (map pretty args)
                                           (Right e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
+  pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
 
 instance Pretty id => Pretty (Bind id) where
   pretty Bind{..} =
