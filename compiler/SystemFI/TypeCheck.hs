@@ -63,11 +63,19 @@ transType i (TVar a)      = FTVar a
 transType i Int           = FJClass "java.lang.Integer"
 transType i (a1 `Fun` a2) = transType i a1 `FFun` transType i a2
 transType i (a1 `And` a2) = FProduct [transType i a1, transType i a2]
-transType i (Forall f)    = FForall (\a -> transType (i + 1) (f i))
+transType i (Forall f)    = FForall (\a -> transType (i + 1) (f i)) -- bug!
+
+
+transType2 :: Type t -> PFTyp t
+transType2 (TVar a)      = FTVar a
+transType2 Int           = FJClass "java.lang.Integer"
+transType2 (a1 `Fun` a2) = transType2 a1 `FFun` transType2 a2
+transType2 (a1 `And` a2) = FProduct [transType2 a1, transType2 a2]
+transType2 (Forall f)    = FForall (transType2 . f)
 
 coerce :: Int -> Type Int -> Type Int -> Maybe (PFExp Int Int)
 coerce  i t1@Int         Int               = return (FLam (transType i t1) (\x -> FVar "" x))
-coerce  i t1@(TVar a)    (TVar b) | a == b = return (FLam (transType i t1) (\x -> FVar "" x))
+coerce  i t1@(TVar a)    (TVar b) | a == b = return (FLam (transType i t1) (\x -> FVar "" x)) -- requires variable identity
 coerce  i t1@(Forall f)  (Forall g)  =
   do c <- coerce (i + 1) (f i) (g i)
      return (FLam (transType i t1) (\x -> FBLam (\a -> c `FApp` (FVar "" x `FTApp` FTVar a))))

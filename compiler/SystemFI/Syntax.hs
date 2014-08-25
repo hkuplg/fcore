@@ -111,7 +111,7 @@ fsubstTT (x,r) (TVar a)
   | otherwise              = TVar a
 fsubstTT (x,r) Int         = Int
 fsubstTT (x,r) Nat         = Nat
-fsubstTT (x,r) (Forall f)  = Forall (fsubstTT (x,r) . f)
+fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
 fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 
