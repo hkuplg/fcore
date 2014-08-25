@@ -139,10 +139,6 @@ aexp2 :: { Expr String }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" comma_exprs ")"       { Tuple $2 }
     | "(" expr ")"              { $2 }
-    -- Java method call
-    | aexp "." LOWERID "(" comma_exprs_emp ")"  { JMethod $1 $3 $5 Nothing }
-    -- primitive list
-    | listexp                   { $1 }
     -- Java
     | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Left $1) $3 $5 "" }
     | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Right $1) $3 $5 "" } 
@@ -153,7 +149,8 @@ aexp2 :: { Expr String }
     | "{" semi_exprs "}"        { SeqExprs $2 }
     -- primitive list
     | listexp                   { $1 }
-    | listexp "." LOWERID       { JMethod (Right (PrimList $1))) $3 [] ""}
+
+-- listexp "." LOWERID       { JMethod (Left (PrimList $1))) $3 [] ""}
 
 
 

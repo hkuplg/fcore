@@ -24,11 +24,11 @@ jbody = Just (J.Block [])
 init = [J.InitDecl False (J.Block [])]
 
 closureClass = "hk.hku.cs.f2j.Closure"
-primListClass = "hk.hku.cs.f2j.FunctionalList"
-pLNilClass = "hk.hku.cs.f2j.Nil"
-pLConsClass = "hk.hku.cs.f2j.Cons"
+--primListClass = "hk.hku.cs.f2j.FunctionalList"
+--pLNilClass = "hk.hku.cs.f2j.Nil"
+--pLConsClass = "hk.hku.cs.f2j.Cons"
 
-primListType    = javaClassType primListClass
+--primListType    = javaClassType primListClass
 closureType     = J.RefType (J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))
 javaClassType c = J.RefType (J.ClassRefType (J.ClassType [(J.Ident c, [])]))
 objType         = javaClassType "Object"
@@ -98,7 +98,7 @@ initClosure tempvarstr n j = initStuff tempvarstr n j closureType
 
 initObjArray tempvarstr n j = initStuff tempvarstr n j objArrayType
 
-initPrimList tempvarstr n j = initClassCast primListClass tempvarstr n j
+--initPrimList tempvarstr n j = initClassCast primListClass tempvarstr n j
 
 type Var = Int -- Either Int Int left -> standard variable; right -> recursive variable
 
@@ -150,14 +150,14 @@ chooseCastBox (CJClass c)       = (initClassCast c, javaClassType c)
 chooseCastBox (CForall _)       = (initClosure,closureType)
 chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
 chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
-chooseCastBox (CListOf t)       = (initPrimList, primListType)
+--chooseCastBox (CListOf t)       = (initPrimList, primListType)
 chooseCastBox _                 = (initObj,objType)
 
 javaType (CJClass c)      = javaClassType c
 javaType (CForall _)      = closureType
 javaType (CTupleType [t]) = javaType t -- optimization for tuples of size 1
 javaType (CTupleType _)   = objArrayType
-javaType (CListOf t)      = primListType
+--javaType (CListOf t)      = primListType
 javaType _                = objType
 
 getS3 this f t j3 cvarass =
