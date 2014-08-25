@@ -15,6 +15,7 @@ module Translations
     , compileS
     , compileBN
     , compileBS
+    , compileTuple
     , compilesf2java
     ) where
 
@@ -30,6 +31,7 @@ import ApplyTransCFJava
 import StackTransCFJava
 import BenchGenCF2J
 import BenchGenStack
+import TupleTransCFJava
 
 import Inheritance
 import MonadLib
@@ -65,6 +67,7 @@ applyopt = new (transApply $> trans)
 
 stackNaive :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
 stackNaive = new (transS $> trans)
+
 
 -- Benchmark-link generation
 
@@ -105,6 +108,10 @@ instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
 instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
   up = TS . toTBSA
 
+tupleGen :: (MonadState Int m) => TupleTranslate m
+tupleGen = new (transTuple $> trans)
+
+
 -- Stack/Apply translation
 
 adaptApply mix' this super = toT $ mix' this super
@@ -117,9 +124,11 @@ stackApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitV
 stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
 -- Apply + Stack + Naive
+adaptTuple mix' this super = toTT $ mix' this super
 
 stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
 stackApplyNew = new ((transApply <.> adaptStack transSA) $> trans)
+
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
   up = NT . toTS
@@ -327,5 +336,17 @@ compileBN True = \name e -> evalState (translateBench name (fexp2cexp e)) 0--eva
 compileBS :: Bool -> Compilation
 compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) False) []) Set.empty) 0
 compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) False) []) Set.empty) 0
+
+
+-- Tuple
+tuplegeninst :: TupleTranslate NType
+tuplegeninst = tupleGen
+
+translateTuple :: String -> PCExp Int (Var, PCTyp Int) -> NType (J.CompilationUnit, PCTyp Int)
+translateTuple = createWrap (up tuplegeninst)
+
+compileTuple :: Compilation
+compileTuple name e = evalState (translateTuple name (fexp2cexp e)) 0
+
 
 
