@@ -153,7 +153,7 @@ aexp2 :: { Expr String }
     | "{" semi_exprs "}"        { SeqExprs $2 }
     -- primitive list
     | listexp                   { $1 }
-    | listexp "." LOWERID       { JMethod (Right $1) $3 [] ""}
+    | listexp "." LOWERID       { JMethod (Right (PrimList $1))) $3 [] ""}
 
 
 
