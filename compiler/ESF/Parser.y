@@ -27,6 +27,7 @@ import ESF.Lexer
   "forall" { Tforall }
   "->"     { Tarrow }
   "."      { Tdot }
+  "&"      { Tandtype }
   ",,"     { Tmerge }
   "let"    { Tlet }
   "rec"    { Trec }
@@ -195,6 +196,7 @@ typ :: { Type }
     -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
     -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
     | atyp "->" typ     { Fun $1 $3 }
+    | typ "&" atyp      { And $1 $3 }
 
     | atyp              { $1 }
 

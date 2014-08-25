@@ -35,6 +35,7 @@ tokens :-
     forall      { \_ _ -> Tforall }
     \-\>        { \_ _ -> Tarrow }
     \.          { \_ _ -> Tdot }
+    \&          { \_ _ -> Tandtype }
     \,\,        { \_ _ -> Tmerge }
     let         { \_ _ -> Tlet }
     rec         { \_ _ -> Trec }
@@ -80,7 +81,7 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tmerge
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge
            | Tlet | Trec | Teq | Tand | Tin
            | Tint | Tjavaclass String
            | Tnew

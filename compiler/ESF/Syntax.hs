@@ -42,6 +42,7 @@ data Type
   | Forall Name Type
   | Product [Type]
   | JClass Name
+  | And Type Type
   deriving (Eq, Show)
 
 
