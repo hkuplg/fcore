@@ -50,6 +50,7 @@ data TypeError e
                       }
   | NoSuchField       { className :: String
                       , fName     :: String
+                      , static    :: Bool
                       }
   | Mismatch          { term      :: Expr e
                       , expected  :: Type
@@ -76,7 +77,9 @@ instance Pretty e => Pretty (TypeError e) where
     text "Class" <+> text (q c) <+> text "has no such method:" <$>
     text "Name:" <+> text (q m) <$>
     text "Parameters:" <+> text "(" <> hsep (map pretty t) <> text ")"
-
+  pretty (NoSuchField c f b) =
+    let msg = text "Class" <+> text (q c) <+> text "has no such field:" <+> text (q f) in
+    if b then msg <+> text "(static)" else msg
 
 q :: Name -> String
 q x = "`" ++ x ++ "'"
@@ -293,12 +296,14 @@ inferWith io (d, g) = go
                                           case retName of
                                             Just r -> return (JField (Left e') f r, JClass r)
                                             Nothing -> throwError NoSuchField { className = cls
-                                                                              , fName = f }
+                                                                              , fName = f
+                                                                              , static = False }
                          otherType -> throwError $ NotAJVMType $ show otherType
         (Right cls) -> do retName <- liftIO $ staticFieldType io cls f
                           case retName of Just r -> return (JField (Right cls) f r, JClass r)
                                           Nothing -> throwError NoSuchField { className = cls
-                                                                            , fName = f }
+                                                                            , fName = f
+                                                                            , static = True }
                           
 
 
