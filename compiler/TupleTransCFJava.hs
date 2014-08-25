@@ -9,20 +9,39 @@ import Inheritance
 --import qualified Data.Map as Map
 import qualified Data.Set as Set
 import ClosureF
-import BaseTransCFJava
+import BaseTransCFJava hiding (chooseCastBox, getS3, javaType)
 import StringPrefixes
 import MonadLib
 import Control.Monad
 
 
---chooseCastBox (CJClass c)       = (initClassCast c, javaClassType c)
---chooseCastBox (CForall _)       = (initClosure,closureType)
---chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
---chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
-----chooseCastBox (CListOf t)       = (initPrimList, primListType)
---chooseCastBox _                 = (initObj,objType)
+tuple2Type = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "hk.hku.cs.f2j.Tuple2",[])]))
+initTuple2 tempvarstr n j = initStuff tempvarstr n j tuple2Type
 
+chooseCastBox (CJClass c)       = (initClassCast c, javaClassType c)
+chooseCastBox (CForall _)       = (initClosure,closureType)
+chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
+chooseCastBox (CTupleType [t1, t2]) = (initTuple2, tuple2Type)
+chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
+--chooseCastBox (CListOf t)       = (initPrimList, primListType)
+chooseCastBox _                 = (initObj,objType)
 
+javaType (CJClass c)      = javaClassType c
+javaType (CForall _)      = closureType
+javaType (CTupleType [t]) = javaType t -- optimization for tuples of size 1
+javaType (CTupleType [t1, t2]) = tuple2Type
+javaType (CTupleType _)   = objArrayType
+--javaType (CListOf t)      = primListType
+javaType _                = objType
+
+getS3 this f t j3 cvarass =
+  do (n :: Int) <- get
+     put (n+1)
+     let (cast,typ) = chooseCastBox (scope2ctyp t)
+     apply <- genApply this f t (var (tempvarstr ++ show n)) typ
+     rest <- genRes this t [cast tempvarstr n j3]                                                           
+     let r = cvarass ++ apply ++ rest
+     return (r, var (tempvarstr ++ show n))   
 
 
 data TupleTranslate m = TT {
@@ -51,20 +70,33 @@ transTuple this super = TT {
 	        put (n+1)
 	        return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) (newTuple2Class "hk.hku.cs.f2j.Tuple2" j1 j2) (CJClass "hk.hku.cs.f2j.Tuple2")], 
 	        	var (localvarstr ++ show n), CTupleType [t1,t2])
-	_               -> translateM super e
+	CFProj i e   ->
+	    do (s1,j1,t) <- translateM super e
+	       case t of 
+	       	  CTupleType [t1, t2] -> 
+	       	      case i of 
+	                  1 -> 
+	       	    	    let fj = J.FieldAccess (J.PrimaryFieldAccess j1 (J.Ident "fst")) 
+	       	    	    in 
+	       	    	    return (s1, J.Cast (javaType t1) fj, t1)
+	       	    	  2 -> 
+	       	    	    let fj = J.FieldAccess (J.PrimaryFieldAccess j1 (J.Ident "snd"))
+	            	    in
+	            	    return (s1, J.Cast (javaType t2) fj, t2)
+	            	  _ -> error "tuple index out of range"
+	_          -> translateM super e,
 
---CFProj i e ->
---   do (s1,j1,t) <- translateM this e
---      case t of 
---         -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED) 
---         CTupleType [t] -> return (s1,j1,t)
---         -- An alternative tranlation of tuple2
---         CTupleType [t1, t2] -> 
---         	let 
---         -- otherwise: (not optimized)
---         CTupleType ts  -> 
---           let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger (i-1)))) 
---           in return (s1, J.Cast (javaType (ts!!(i-1))) fj, ts!!(i-1))
---         otherwise -> error "expected tuple type" 
+  translateApply = \m1 m2 -> 
+   do  (n :: Int) <- get
+       put (n+1)
+       (s1,j1, CForall (Typ t1 g)) <- m1
+       (s2,j2,t2) <- m2
+       let t    = g ()
+       let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
+       cvarass <- getCvarAss (up this) t f j1 j2
+       let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
+       (s3, nje3) <- getS3 (up this) f t j3 cvarass
+       return (s1 ++ s2 ++ s3, nje3, scope2ctyp t)
+
   }
 }
