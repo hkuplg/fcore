@@ -39,7 +39,7 @@ data TypeError e
   = NotInScope        { msg       :: String }
   | General           { msg       :: String }
   | NotAJVMType       { msg       :: String }
-  | NoSuchConstructor { className :: String 
+  | NoSuchConstructor { className :: String
                       , argsExpr  :: [Expr e]
                       , argsType  :: [Type]
                       }
@@ -262,7 +262,7 @@ inferWith io (d, g) = go
                                else throwError (NotAJVMType c)
 
     go (JMethod expr m args _) =
-      case expr of 
+      case expr of
         (Left e) ->
           do (e', t') <- go e
              case t' of
@@ -291,7 +291,7 @@ inferWith io (d, g) = go
     go (JField expr f _) =
       case expr of
         (Left e) -> do (e', t') <- go e
-                       case t' of 
+                       case t' of
                          JClass cls -> do retName <- liftIO $ fieldType io cls f
                                           case retName of
                                             Just r -> return (JField (Left e') f r, JClass r)
@@ -304,7 +304,11 @@ inferWith io (d, g) = go
                                           Nothing -> throwError NoSuchField { className = cls
                                                                             , fName = f
                                                                             , static = True }
-                          
+
+    go (Merge e1 e2) =
+      do (e1', t1) <- go e1
+         (e2', t2) <- go e2
+         return (Merge e1' e2', And t1 t2)
 
 
 checkJavaArgs :: [Type] -> TCMonad [Name]
