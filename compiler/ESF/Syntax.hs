@@ -76,6 +76,7 @@ data Expr id
   | JMethod (Either (Expr id) String) Name [Expr id] Name
   | JField (Either (Expr id) String) Name Name
   | SeqExprs [Expr id]
+  | Merge (Expr id) (Expr id)
   deriving (Eq, Show)
 
 

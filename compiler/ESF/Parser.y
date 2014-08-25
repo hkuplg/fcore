@@ -27,6 +27,7 @@ import ESF.Lexer
   "forall" { Tforall }
   "->"     { Tarrow }
   "."      { Tdot }
+  ",,"     { Tmerge }
   "let"    { Tlet }
   "rec"    { Trec }
   "="      { Teq }
@@ -106,6 +107,7 @@ infixexpr :: { Expr String }
     | infixexpr "!=" infixexpr  { PrimOp $1 (Compare J.NotEq)  $3 }
     | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
+    | infixexpr ",," infixexpr  { Merge $1 $3 }
 
 expr10 :: { Expr String }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
@@ -137,7 +139,7 @@ aexp2 :: { Expr String }
     | "(" expr ")"              { $2 }
     -- Java
     | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Left $1) $3 $5 "" }
-    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Right $1) $3 $5 "" } 
+    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Right $1) $3 $5 "" }
     | aexp "." id      { JField (Left $1) $3 "" }
     | JAVACLASS "." id { JField (Right $1) $3 "" }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
