@@ -24,7 +24,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- The monad for typechecking
-type TCMonad = ErrorT (TypeError Name) IO
+type TcM = ErrorT (TypeError Name) IO
 
 data TypeError e
   = NotInScope        { msg       :: String }
@@ -32,21 +32,17 @@ data TypeError e
   | NotAJVMType       { msg       :: String }
   | NoSuchConstructor { className :: String
                       , argsExpr  :: [Expr e]
-                      , argsType  :: [Type]
-                      }
+                      , argsType  :: [Type] }
   | NoSuchMethod      { className :: String
                       , mName     :: String
                       , argsExpr  :: [Expr e]
-                      , argsType  :: [Type]
-                      }
+                      , argsType  :: [Type] }
   | NoSuchField       { className :: String
                       , fName     :: String
-                      , static    :: Bool
-                      }
+                      , static    :: Bool }
   | Mismatch          { term      :: Expr e
                       , expected  :: Type
-                      , actual    :: Type
-                      }
+                      , actual    :: Type }
   deriving (Show)
 
 instance Error e => Error (TypeError e) where
@@ -77,10 +73,10 @@ instance Pretty e => Pretty (TypeError e) where
 q :: Name -> String
 q x = "`" ++ x ++ "'"
 
---throwE :: TypeError Name -> TCMonad ()
+--throwE :: TypeError Name -> TcM ()
 --throwE te = throwError . show . pretty te
 
-checkWellformed :: (Handle, Handle) -> TypeContext -> Type -> TCMonad ()
+checkWellformed :: (Handle, Handle) -> TypeContext -> Type -> TcM ()
 checkWellformed io _ (JClass c) = do ok <- liftIO $ isJVMType io c
                                      unless ok (throwError (NotAJVMType c))
 checkWellformed _  d t =
@@ -89,7 +85,7 @@ checkWellformed _  d t =
     throwError NotInScope { msg = "type variable " ++ q (head $ Set.toList s) }
 
 
-infer :: RdrExpr -> TCMonad (TcExpr, Type)
+infer :: Expr Name -> TcM (Expr TcId, Type)
 infer e =
   do cp <- liftIO classpath
      let p = (proc "java" ["-cp", cp, "hk.hku.cs.f2j.TypeServer"])
@@ -97,21 +93,21 @@ infer e =
      (Just inp, Just out, _, proch) <- liftIO $ createProcess p
      liftIO $ hSetBuffering inp NoBuffering
      liftIO $ hSetBuffering out NoBuffering
-     ret <- inferWith (inp, out) (Set.empty, Map.empty) e
+     ret <- tcExpr (inp, out) (Set.empty, Map.empty) e
      liftIO $ terminateProcess proch
      return ret
 
 
-inferLit :: Lit -> TCMonad (TcExpr, Type)
+inferLit :: Lit -> TcM (Expr TcId, Type)
 inferLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
 inferLit (String s)  = return (Lit (String s), JClass "java.lang.String")
 inferLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
 inferLit (Char c)    = return (Lit (Char c), JClass "java.lang.Character")
 
 
-inferWith :: (Handle, Handle) -> (TypeContext, ValueContext)
-          -> RdrExpr -> TCMonad (TcExpr, Type)
-inferWith io (d, g) = go
+tcExpr :: (Handle, Handle) -> (TypeContext, ValueContext)
+          -> Expr Name -> TcM (Expr TcId, Type)
+tcExpr io (d, g) = go
   where
     go (Var x) = case Map.lookup x g of
                    Just t  -> return (Var (x,t), t)
@@ -128,8 +124,7 @@ inferWith io (d, g) = go
            Fun t1 _ -> throwError Mismatch { term = e2, expected = t1, actual = t' }
            _        -> throwError Mismatch { term = e1
                                            , expected = Fun t' (TyVar "_")
-                                           , actual = t
-                                           }
+                                           , actual = t }
 
     go (BLam a e)
       | a `Set.member` d =
@@ -138,12 +133,12 @@ inferWith io (d, g) = go
                             " shadows an existing type variable" ++
                             " in an outer scope"
                     }
-      | otherwise       = do (e', t) <- inferWith io (Set.insert a d, g) e
+      | otherwise       = do (e', t) <- tcExpr io (Set.insert a d, g) e
                              return (BLam a e', Forall a t)
 
     go (Lam (x,t) e) =
       do checkWellformed io d t
-         (e', t') <- inferWith io (d, Map.insert x t g) e
+         (e', t') <- tcExpr io (d, Map.insert x t g) e
          return (Lam (x,t) e', Fun t t')
 
     go (TApp e t) =
@@ -154,12 +149,11 @@ inferWith io (d, g) = go
            _           -> throwError
                             Mismatch { term     = TApp e t
                                      , expected = Forall "_" (TyVar "_")
-                                     , actual   = t1
-                                     }
+                                     , actual   = t1 }
 
     go (Tuple es)
       | length es < 2 = invariantFailed
-                          "inferWith"
+                          "tcExpr"
                           ("fewer than two items in the tuple " ++ show (Tuple es))
       | otherwise     = do (es', ts) <- mapAndUnzipM go es
                            return (Tuple es', Product ts)
@@ -194,20 +188,22 @@ inferWith io (d, g) = go
              (_, _)       -> throwError
                                Mismatch { term = e1, expected = t, actual = t1 }
 
-    go (If e1 e2 e3) = do
-      (e1', t1) <- go e1
-      case t1 of
+    go (If pred b1 b2) = do
+      (pred', predTy) <- go pred
+      case predTy of
         JClass "java.lang.Boolean" ->
-          do (e2', t2) <- go e2
-             (e3', t3) <- go e3
-             if t2 `alphaEqTy` t3
-               then return (If e1' e2' e3', t2)
-               else throwError Mismatch { term = e3, expected = t2, actual = t3 }
+          do (b1', b1Ty) <- go b1
+             (b2', b2Ty) <- go b2
+             if b1Ty `alphaEqTy` b2Ty
+               then return (If pred' b1' b2', b1Ty)
+               else throwError
+                      Mismatch { term     = b2
+                               , expected = b1Ty
+                               , actual   = b2Ty }
         _   -> throwError
-                 Mismatch { term = e1
+                 Mismatch { term     = pred
                           , expected = JClass "java.lang.Boolean"
-                          , actual = t1
-                          }
+                          , actual   = predTy }
 
     go (Let NonRec bs e) =
       do checkBinds io d bs
@@ -216,7 +212,7 @@ inferWith io (d, g) = go
              do let d_local = Set.fromList bindTargs
                     g_local = Map.fromList bindArgs
                 (rhs, inferredRhsTy) <-
-                  inferWith
+                  tcExpr
                     io
                     (d_local `Set.union` d,g_local `Map.union` g)
                     bindRhs
@@ -227,15 +223,13 @@ inferWith io (d, g) = go
                       throwError
                         Mismatch { term     = bindRhs
                                  , expected = claimedRhsTy
-                                 , actual   = inferredRhsTy
-                                 }
-                return (bindId
-                       ,wrap Forall bindTargs $
-                          wrap Fun [t | (_,t) <- bindArgs] inferredRhsTy
-                       ,wrap BLam bindTargs $ wrap Lam bindArgs rhs
-                       ))
+                                 , actual   = inferredRhsTy }
+                return ( bindId
+                       , wrap Forall bindTargs $
+                           wrap Fun [t | (_,t) <- bindArgs] inferredRhsTy
+                       , wrap BLam bindTargs $ wrap Lam bindArgs rhs))
          let (fs, ts, _es) = unzip3 bs'
-         (e', t) <- inferWith io (d, Map.fromList (zip fs ts) `Map.union` g) e
+         (e', t) <- tcExpr io (d, Map.fromList (zip fs ts) `Map.union` g) e
          return (LetOut NonRec bs' e', t)
 
     go (Let Rec bs e) =
@@ -248,15 +242,14 @@ inferWith io (d, g) = go
                    throwError
                      (General "Missing type annotation for the right hand side")
                  Just rhsTy ->
-                   return (bindId
+                   return ( bindId
                           , wrap Forall bindTargs $
-                              wrap Fun [t | (_,t) <- bindArgs] rhsTy
-                          ))
+                              wrap Fun [t | (_,t) <- bindArgs] rhsTy))
          bs' <-
            forM bs (\Bind{..} ->
              do let d_local = Set.fromList bindTargs
                     g_local = Map.fromList bindArgs
-                (rhs, inferredRhsTy) <- inferWith
+                (rhs, inferredRhsTy) <- tcExpr
                                           io
                                           (d_local `Set.union` d
                                           ,g_local `Map.union` sigs `Map.union` g)
@@ -266,19 +259,17 @@ inferWith io (d, g) = go
                   throwError
                     Mismatch { term = bindRhs
                              , expected = claimedRhsTy
-                             , actual = inferredRhsTy
-                             }
+                             , actual = inferredRhsTy }
                 return ( bindId
                        , wrap Forall bindTargs $
                            wrap Fun [t | (_,t) <- bindArgs] inferredRhsTy
-                       , wrap BLam bindTargs $ wrap Lam bindArgs rhs
-                       ))
+                       , wrap BLam bindTargs $ wrap Lam bindArgs rhs))
          let (fs, ts, _es) = unzip3 bs'
-         (e', t) <- inferWith io (d, Map.fromList (zip fs ts) `Map.union` g) e
+         (e', t) <- tcExpr io (d, Map.fromList (zip fs ts) `Map.union` g) e
          return (LetOut Rec bs' e', t)
 
     go (LetOut{..}) =
-      error (invariantFailed "inferWith" (show (LetOut{..} :: RdrExpr)))
+      error (invariantFailed "tcExpr" (show (LetOut{..} :: Expr Name)))
 
     go (JNewObj c args) =
       do ok <- liftIO $ isJVMType io c
@@ -291,8 +282,7 @@ inferWith io (d, g) = go
                      else throwError
                             NoSuchConstructor { className = c
                                               , argsExpr = args
-                                              , argsType = typs'
-                                              }
+                                              , argsType = typs' }
            else throwError (NotAJVMType c)
 
     go (JMethod expr m args _) =
@@ -310,8 +300,7 @@ inferWith io (d, g) = go
                                    NoSuchMethod { className = cls
                                                 , mName     = m
                                                 , argsExpr  = args
-                                                , argsType  = typs'
-                                                }
+                                                , argsType  = typs' }
                otherType -> throwError (NotAJVMType (show otherType))
         (Right className) ->
           do (args', typs') <- mapAndUnzipM go args
@@ -323,8 +312,7 @@ inferWith io (d, g) = go
                             NoSuchMethod { className = className
                                          , mName     = m
                                          , argsExpr  = args
-                                         , argsType  = typs'
-                                         }
+                                         , argsType  = typs' }
 
     go (SeqExprs es) = do (es', typs') <- mapAndUnzipM go es
                           return (SeqExprs es', last typs')
@@ -340,8 +328,7 @@ inferWith io (d, g) = go
                                   Nothing -> throwError
                                                NoSuchField { className = cls
                                                            , fName     = f
-                                                           , static    = False
-                                                           }
+                                                           , static    = False }
                otherType -> throwError $ NotAJVMType $ show otherType
         (Right cls) ->
           do retName <- liftIO $ staticFieldType io cls f
@@ -349,23 +336,21 @@ inferWith io (d, g) = go
                              Nothing -> throwError
                                           NoSuchField { className = cls
                                                       , fName     = f
-                                                      , static    = True
-                                                      }
+                                                      , static    = True }
 
     go (Merge e1 e2) =
       do (e1', t1) <- go e1
          (e2', t2) <- go e2
          return (Merge e1' e2', And t1 t2)
 
-
-checkJavaArgs :: [Type] -> TCMonad [Name]
+checkJavaArgs :: [Type] -> TcM [Name]
 checkJavaArgs = mapM check
   where
     check (JClass name) = return name
     check otherType     = throwError $ NotAJVMType $ show otherType
 
 
-checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TCMonad ()
+checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TcM ()
 checkBinds io d bs =
   do checkForDup "identifiers" (map bindId bs)
      forM_ bs (\Bind{..} ->
@@ -376,7 +361,7 @@ checkBinds io d bs =
                checkWellformed io d' t))
 
 
-checkForDup :: String -> [String] -> TCMonad ()
+checkForDup :: String -> [String] -> TcM ()
 checkForDup what xs =
   case findFirstDup xs of
     Just x  -> throwError General { msg = "Duplicate " ++ what ++ ": " ++ q x }

@@ -10,10 +10,11 @@ module ESF.Syntax
   , Lit(..)
   , Operator(..)
   , Name
-  , RdrExpr
+  , TcId
+  -- , RdrExpr
   , RecFlag(..)
-  , TcBinds
-  , TcExpr
+  -- , TcBinds
+  -- , TcExpr
   , Type(..)
   , TypeContext
   , ValueContext
@@ -70,7 +71,7 @@ data Expr id
   | PrimOp (Expr id) Operator (Expr id)    -- Primitive operation
   | If (Expr id) (Expr id) (Expr id)   -- If expression
   | Let RecFlag [Bind id] (Expr id)    -- Let (rec) ... (and) ... in ...
-  | LetOut RecFlag TcBinds (Expr TcId) -- Post typecheck only
+  | LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId) -- Post typecheck only
   | JNewObj Name [Expr id]             -- New Java object
 -- Either Expr   -> static/non static method call
 --        String -> static method call
@@ -81,11 +82,11 @@ data Expr id
   deriving (Eq, Show)
 
 
-type RdrExpr = Expr Name
-type TcExpr  = Expr TcId
+-- type RdrExpr = Expr Name
+-- type TcExpr  = Expr TcId
 
 
-type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
+-- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
 
 data Bind id = Bind
   { bindId       :: id             -- Identifier
