@@ -6,7 +6,7 @@
            , RankNTypes
            , TypeOperators
            , RecordWildCards
-           , TemplateHaskell 
+           , TemplateHaskell
            #-}
 
 module Main (main, TransMethod) where
@@ -21,7 +21,7 @@ import System.IO
 import Data.FileEmbed            (embedFile)
 import qualified Data.ByteString (ByteString, writeFile)
 
-import Java.Utils
+import JavaUtils
 import MonadLib
 import Translations
 
@@ -78,7 +78,7 @@ main = do
     exists <- doesFileExist =<< runtimeJarPath
     existsCur <- doesFileExist "./runtime.jar"
     unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
-          
+
     forM_
       (optSourceFiles)
       (\srcPath -> do
@@ -96,4 +96,3 @@ main = do
 
         when (optCompile || optCompileAndRun) $ withMessageLn "  Compiling Java" $ compileJava outputPath
         when (optCompileAndRun) $ withMessage "  Running Java\n  Output: " $ runJava outputPath)
-

@@ -8,7 +8,7 @@ module ESF.TypeCheck
 import ESF.Syntax
 
 import JVMTypeQuery
-import Java.Utils (classpath)
+import JavaUtils (classpath)
 
 import Text.PrettyPrint.Leijen
 
