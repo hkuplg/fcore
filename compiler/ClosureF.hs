@@ -1,9 +1,9 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances #-}
+{-# Language RankNTypes, FlexibleInstances #-}
 
 module ClosureF where
 
 import ESF.Syntax
-import SystemF.Syntax
+import qualified SystemF.Syntax as F
 
 -- Closure F syntax
 
@@ -43,80 +43,80 @@ data PCExp t e =
 
 -- System F to Closure F
 
-ftyp2scope :: PFTyp t -> TScope t
-ftyp2scope (FForall f)   = Kind (\a -> ftyp2scope (f a))
-ftyp2scope (FFun t1 t2)  = Typ (ftyp2ctyp t1) (\_ -> ftyp2scope t2)
+ftyp2scope :: F.Type t -> TScope t
+ftyp2scope (F.Forall f)   = Kind (\a -> ftyp2scope (f a))
+ftyp2scope (F.Fun t1 t2)  = Typ (ftyp2ctyp t1) (\_ -> ftyp2scope t2)
 ftyp2scope t             = Body (ftyp2ctyp t)
 -- ftyp2scope PFInt         = Body CInt
 -- ftyp2scope (FTVar x)     = Body (CTVar x)
 
 {-
-ftyp2ctyp2 :: PFTyp Int -> [t] -> PCTyp t
+ftyp2ctyp2 :: F.Type Int -> [t] -> PCTyp t
 ftyp2ctyp2 = undefined
 -}
 
-ftyp2ctyp :: PFTyp t -> PCTyp t
-ftyp2ctyp (FTVar x) = CTVar x
-ftyp2ctyp (FJClass c) = CJClass c
-ftyp2ctyp (FProduct ts) = CTupleType (map ftyp2ctyp ts)
+ftyp2ctyp :: F.Type t -> PCTyp t
+ftyp2ctyp (F.TVar x) = CTVar x
+ftyp2ctyp (F.JClass c) = CJClass c
+ftyp2ctyp (F.Product ts) = CTupleType (map ftyp2ctyp ts)
 ftyp2ctyp t         = CForall (ftyp2scope t)
 
 {-
-fexp2cexp2 :: PFExp Int (Int,PFTyp Int) -> [t] -> [e] -> PCExp t e
-fexp2cexp2 (FVar _ t) tenv env = CVar (env !! fst t)
+fexp2cexp2 :: F.Expr Int (Int,F.Type Int) -> [t] -> [e] -> PCExp t e
+fexp2cexp2 (F.Var _ t) tenv env = CVar (env !! fst t)
 fexp2cexp2 e tenv env = CLam (groupLambda2 e tenv env)
 -}
 
 {-
-fexp2cexp2 :: PFExp t (e, PCTyp t) -> (PCExp t e, PCTyp t)
-fexp2cexp2 (FVar _ (x,t))      = (CVar x,t)
-fexp2cexp2 (FApp e1 e2)        =
+fexp2cexp2 :: F.Expr t (e, PCTyp t) -> (PCExp t e, PCTyp t)
+fexp2cexp2 (F.Var _ (x,t))      = (CVar x,t)
+fexp2cexp2 (F.App e1 e2)        =
    let (c1,CForall (Typ t g))  = fexp2cexp2 e1
        (c2,t2)                 = fexp2cexp2 e2
    in (CApp c1 c2, undefined (g ()))
-fexp2cexp2 (FTApp e t)   =
+fexp2cexp2 (F.TApp e t)   =
    let (c1,t1) = fexp2cexp e
 CTApp (fexp2cexp e) (ftyp2ctyp t)
 -}
 
-fexp2cexp :: PFExp t e -> PCExp t e
-fexp2cexp (FVar _ x)                = CVar x
-fexp2cexp (FApp e1 e2)              = CApp (fexp2cexp e1) (fexp2cexp e2)
-fexp2cexp (FTApp e t)               = CTApp (fexp2cexp e) (ftyp2ctyp t)
-fexp2cexp (FPrimOp e1 op e2)        = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
-fexp2cexp (FLit e) = CFLit e
-fexp2cexp (FIf e1 e2 e3)            = CFIf (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
-fexp2cexp (FTuple tuple)            = CFTuple (map fexp2cexp tuple)
-fexp2cexp (FProj i e)               = CFProj i (fexp2cexp e)
-fexp2cexp (FFix f t1 t2) =
-  let  g e = groupLambda (FLam t1 (f e)) -- is this right???? (BUG)
-  in   CFix (CForall (adjust (FFun t1 t2) (g undefined))) g
-fexp2cexp (FJNewObj cName args)     = CJNewObj cName (map fexp2cexp args)
-fexp2cexp (FJMethod c mName args r) =
+fexp2cexp :: F.Expr t e -> PCExp t e
+fexp2cexp (F.Var _ x)                = CVar x
+fexp2cexp (F.App e1 e2)              = CApp (fexp2cexp e1) (fexp2cexp e2)
+fexp2cexp (F.TApp e t)               = CTApp (fexp2cexp e) (ftyp2ctyp t)
+fexp2cexp (F.PrimOp e1 op e2)        = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
+fexp2cexp (F.Lit e) = CFLit e
+fexp2cexp (F.If e1 e2 e3)            = CFIf (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
+fexp2cexp (F.Tuple tuple)            = CFTuple (map fexp2cexp tuple)
+fexp2cexp (F.Proj i e)               = CFProj i (fexp2cexp e)
+fexp2cexp (F.Fix f t1 t2) =
+  let  g e = groupLambda (F.Lam t1 (f e)) -- is this right???? (BUG)
+  in   CFix (CForall (adjust (F.Fun t1 t2) (g undefined))) g
+fexp2cexp (F.JNewObj cName args)     = CJNewObj cName (map fexp2cexp args)
+fexp2cexp (F.JMethod c mName args r) =
   case c of (Left ce)  -> CJMethod (Left $ fexp2cexp ce) mName (map fexp2cexp args) r
             (Right cn) -> CJMethod (Right cn) mName (map fexp2cexp args) r
-fexp2cexp (FJField c fName r) =
+fexp2cexp (F.JField c fName r) =
   case c of (Left ce)  -> CJField (Left $ fexp2cexp ce) fName r
             (Right cn) -> CJField (Right cn) fName r
-fexp2cexp (FSeqExprs es)            = CSeqExprs (map fexp2cexp es)
+fexp2cexp (F.Seq es)            = CSeqExprs (map fexp2cexp es)
 fexp2cexp e                         = CLam (groupLambda e)
 
-adjust :: PFTyp t -> EScope t e -> TScope t
-adjust (FFun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
-adjust (FForall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
+adjust :: F.Type t -> EScope t e -> TScope t
+adjust (F.Fun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
+adjust (F.Forall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
 adjust t (Body b)               = Body (ftyp2ctyp t)
 --adjust t u                      =
 
 {-
-groupLambda2 :: PFExp Int (Int,PFTyp Int) -> [t] -> [e] -> EScope t e
+groupLambda2 :: F.Expr Int (Int,F.Type Int) -> [t] -> [e] -> EScope t e
 groupLambda2 (FBLam f) tenv env = Kind (\a -> groupLambda2 (f (length tenv)) (a:tenv) env)
 groupLambda2 (FLam t f) tenv env =
   Typ (ftyp2ctyp2 t tenv) (\x -> groupLambda2 (f (length env,t)) tenv (x:env))
 -}
 
-groupLambda :: PFExp t e -> EScope t e
-groupLambda (FBLam f)  = Kind (\a -> groupLambda (f a))
-groupLambda (FLam t f) = Typ (ftyp2ctyp t) (\x -> groupLambda (f x))
+groupLambda :: F.Expr t e -> EScope t e
+groupLambda (F.BLam f)  = Kind (\a -> groupLambda (f a))
+groupLambda (F.Lam t f) = Typ (ftyp2ctyp t) (\x -> groupLambda (f x))
 groupLambda e          = Body (fexp2cexp e)
 
 -- join
@@ -128,20 +128,24 @@ scope2ctyp s         = CForall s
 joinPCTyp :: PCTyp (PCTyp t) -> PCTyp t
 joinPCTyp (CTVar t)   = t
 joinPCTyp (CForall s) = CForall (joinTScope s)
-joinPCTyp (CJClass c) = (CJClass c)
+joinPCTyp (CJClass c) = CJClass c
 joinPCTyp (CTupleType ts) = CTupleType (map joinPCTyp ts)
 
 joinTScope :: TScope (PCTyp t) -> TScope t
 joinTScope (Body b)   = Body (joinPCTyp b)
 joinTScope (Kind f)   = Kind (joinTScope . f . CTVar)
-joinTScope (Typ t f)  = let t' = (joinPCTyp t) in Typ t' (\x -> joinTScope (f x))
+joinTScope (Typ t f)  = let t' = joinPCTyp t in Typ t' (\x -> joinTScope (f x))
 
 -- Free variable substitution
 
+substScope
+  :: Subst t =>
+     Int -> PCTyp Int -> Scope (PCTyp t) t () -> Scope (PCTyp t) t ()
 substScope n t (Body t1) = Body (substType n t t1)
 substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
 substScope n t (Typ t1 f) = Typ (substType n t t1) (\x -> substScope n t (f x))
 
+substType :: Subst t => Int -> PCTyp Int -> PCTyp t -> PCTyp t
 substType n t (CTVar x) = subst n t x
 substType n t (CForall s) = CForall (substScope n t s)
 substType n t x = x
@@ -159,6 +163,7 @@ instance Subst t => Subst (PCTyp t) where
 
 -- Pretty Printing
 
+showPCExp :: PCExp Int Int -> Int -> String
 showPCTyp :: PCTyp Int -> Int -> String
 showPCTyp (CTVar i) n = "a" ++ show i
 showPCTyp (CForall s) n = "(forall " ++ showTScope s n ++ ")"
@@ -168,10 +173,12 @@ showPCTyp (CJClass c) n                   = c
 
 showPCTyp (CTupleType ts) n = "TODO!"
 
+showTScope :: Scope (PCTyp Int) Int () -> Int -> String
 showTScope (Body t) n = ". " ++ showPCTyp t n
 showTScope (Kind f) n = "a" ++ show n ++ " " ++ showTScope (f n) (n+1)
-showTScope (Typ t f) n = "(_ : " ++ showPCTyp t n ++ ") " ++ showTScope (f ()) (n)
+showTScope (Typ t f) n = "(_ : " ++ showPCTyp t n ++ ") " ++ showTScope (f ()) n
 
+showEScope :: EScope Int Int -> Int -> String
 showEScope (Body t) n = ". " ++ showPCExp t n
 showEScope (Kind f) n = "a" ++ show n ++ " " ++ showEScope (f n) (n+1)
 showEScope (Typ t f) n = "(x" ++ show n ++ " : " ++ showPCTyp t n ++ ") " ++ showEScope (f n) (n+1)
