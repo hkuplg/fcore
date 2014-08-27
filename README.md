@@ -1,19 +1,26 @@
-# A brief intro to the compiler frontend #
+# An overview of the compiler frontend #
 
-The components: "parser"      "typechecker"      "desugarer"            "deinterer"<br />
-What you get:   --------> ESF -------------> ESF -----------> System FI -----------> System F<br />
-Representation:           E.Expr Name        E.Expr TcId      FI.Expr t e            F.Expr t e<br />
+```
+The components:  reader      typechecker      desugarer            deinterer
+What you get:    ------> ESF -----------> ESF ---------> System FI ---------> System F
+Representation
+  in the source:         E.Expr Name      E.Expr TcId    FI.Expr t e          F.Expr t e
+```
 
-Synonym convention:<br />
-E  -> ESF.Syntax<br />
-FI -> SystemFI.Syntax<br />
-F  -> SystemF.Syntax<br />
+Synonym convention:
+```
+E  -> ESF.Syntax
+FI -> SystemFI.Syntax
+F  -> SystemF.Syntax
+```
 
-Component     Location in the repo (relative to compiler/)<br />
-parser      | ESF/Parser.hs<br />
-typechecker | ESF/TypeCheck.hs<br />
-desugarer   | Desugar.hs<br />
-deinterer   | DeInter.hs<br />
+Components and their location in the repo (relative to compiler/)
+```
+parser      -> ESF/Parser.hs
+typechecker -> ESF/TypeCheck.hs
+desugarer   -> Desugar.hs
+deinterer   -> DeInter.hs
+```
 
 # (External / Non-cabal-specified) Dependencies #
 GHC 7.6.x + cabal-install (put .cabal/bin in your path - e.g. PATH=$PATH:~/.cabal/bin/ )
