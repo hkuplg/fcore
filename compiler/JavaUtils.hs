@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
-module Java.Utils
+module JavaUtils
     ( runtimeJarPath
     , classpath
     , compileJava
@@ -10,16 +10,15 @@ module Java.Utils
     , ClassName(..)
     ) where
 
-import System.Process           (system)
-import System.Directory         (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)
-import System.FilePath          (takeDirectory, takeBaseName, (</>))
-------
-import Data.String.Utils        (capitalize)
+import System.FilePath   (takeDirectory, takeBaseName, (</>))
+import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)
+import System.Process    (system)
+import Data.String.Utils (capitalize)
 
 newtype ClassName = ClassName String deriving (Eq, Show)
 
 runtimeJarPath :: IO FilePath
-runtimeJarPath = do h <- getHomeDirectory 
+runtimeJarPath = do h <- getHomeDirectory
                     return $ h ++ "/.cabal/share/systemfcompiler-0.1.0.0/runtime/runtime.jar"
 
 classpath :: IO FilePath

@@ -21,7 +21,7 @@ import ESF.TypeCheck   (infer)
 import Desugar         (desugarTcExpr)
 import SystemF.Syntax
 import ClosureF
-import Java.Utils      (ClassName(..), inferClassName)
+import JavaUtils      (ClassName(..), inferClassName)
 
 import BaseTransCFJava
 import ApplyTransCFJava
@@ -116,7 +116,7 @@ stack = new (transS . transMix)
 -}
 
 type M1 = StateT (Map.Map String Int) (State Int)
-type M2 = State Int 
+type M2 = State Int
 type M3 = State Int
 
 type MAOpt = State Int
@@ -172,7 +172,7 @@ sf2java compilation (ClassName className) src =
      result <- runErrorT $ ESF.TypeCheck.infer expr
      case result of
        Left typeError       -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
-       Right (tcExpr, _t)   -> 
+       Right (tcExpr, _t)   ->
          do let sf = desugarTcExpr tcExpr
             let (cu, _) = compilation className sf
             return $ prettyPrint cu
@@ -226,4 +226,3 @@ translateS = createWrap (up stackinst)
 
 compileS :: Compilation
 compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) False) []) Set.empty) 0
-
