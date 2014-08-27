@@ -16,6 +16,8 @@ module SystemFI.Syntax
   , fsubstEE
   ) where
 
+import ESF.Syntax (Operator(..),Lit(..))
+
 import PrettyUtils
 
 import Text.PrettyPrint.Leijen
@@ -23,22 +25,32 @@ import Text.PrettyPrint.Leijen
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 
-data Type a
-  = TVar a                -- a
-  | Int                   -- Int
-  | Nat                  -- Nat
-  | Forall (a -> Type a)  -- ∀a. t
-  | Fun (Type a) (Type a) -- t1 → t2
-  | And (Type a) (Type a) -- t1 & t2
+data Type t
+  = TVar t                -- a
+  | Forall (t -> Type t)  -- ∀a. t
+  | Fun (Type t) (Type t) -- t1 → t2
+  | JClass String
+  | Product [Type t]
+  | And (Type t) (Type t) -- t1 & t2
 
 data Expr t e
   = Var e                        -- x
-  | Lit Integer                  -- i
+  | Lit Lit                  -- i
   | BLam (t -> Expr t e)         -- Λa. e
   | Lam (Type t) (e -> Expr t e) -- λ(x : t). e
   | TApp (Expr t e) (Type t )    -- e t
   | App (Expr t e) (Expr t e)    -- e1 e2
+  | PrimOp (Expr t e) Operator (Expr t e) -- SystemF extension from: https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf (no int restriction)
+  | If (Expr t e) (Expr t e) (Expr t e)
+  | Tuple [Expr t e]
+  | Proj Int (Expr t e)
+  | Fix (e -> e -> Expr t e) (Type t) (Type t)
   | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
+  | JNewObj String [Expr t e]
+  | JMethod (Either (Expr t e) String) String [Expr t e] String
+  | JField (Either (Expr t e) String) String String
+  | Seq [Expr t e]
+
 
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
@@ -53,8 +65,6 @@ structEqType = structEqType' 0
 
 structEqType' :: Int -> Type Int -> Type Int -> Bool
 structEqType' i (TVar a)    (TVar b)    = a == b
-structEqType' i  Int         Int        = True
-structEqType' i  Nat        Nat       = True
 structEqType' i (Forall f)  (Forall g)  = structEqType' i (f i) (g i)
 structEqType' i (Fun s1 s2) (Fun t1 t2) = structEqType' i s1 t1 && structEqType' i s2 t2
 structEqType' i (And s1 s2) (And t1 t2) = structEqType' i s1 t1 && structEqType' i s2 t2
@@ -69,8 +79,6 @@ instance Show (PrettyPHOAS (Type Int)) where
 
 prettyType :: PrecedenceEnv -> Int -> Type Int -> Doc
 prettyType p i (TVar a)    = text (nameTVar a)
-prettyType p i  Int        = text "Int"
-prettyType p i  Nat        = text "Nat"
 prettyType p i (Forall f)  = parensIf p 1 (text "forall" <+> text (nameTVar i) <> dot <+>
                                            prettyType (1,PrecMinus) (succ i) (f i))
 prettyType p i (Fun t1 t2) = parensIf p 2 (prettyType (2,PrecPlus) i t1 <+>
@@ -90,7 +98,9 @@ instance Pretty (Expr Int Int) where
 
 prettyExpr :: PrecedenceEnv -> (Int, Int) -> Expr Int Int -> Doc
 prettyExpr p (i,j) (Var x)       = text (nameVar x)
-prettyExpr p (i,j) (Lit n)       = integer n
+prettyExpr p (i,j) (Lit (Integer n)) = integer n
+prettyExpr p (i,j) (Lit (String s))  = string s
+prettyExpr p (i,j) (Lit (Boolean b)) = bool b
 prettyExpr p (i,j) (BLam f)      = parensIf p 1 (text "/\\" <> text (nameTVar i) <> dot <+>
                                                  prettyExpr (1,PrecMinus) (succ i, j) (f i))
 prettyExpr p (i,j) (Lam t f)     = parensIf p 1 (char '\\' <>
@@ -109,8 +119,6 @@ fsubstTT :: (Int, Type Int) -> Type Int -> Type Int
 fsubstTT (x,r) (TVar a)
   | a == x                 = r
   | otherwise              = TVar a
-fsubstTT (x,r) Int         = Int
-fsubstTT (x,r) Nat         = Nat
 fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
 fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)

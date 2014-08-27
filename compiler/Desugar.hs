@@ -1,57 +1,60 @@
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Desugar (desugarTcExpr) where
+module Desugar (desugar) where
 
 import ESF.Syntax
 -- import ESF.TypeCheck
 
-import SystemF.Syntax
+import qualified SystemFI.Syntax as FI
 
 import Data.Maybe       (fromJust)
 
 import qualified Data.Map as Map
 
-desugarTcExpr :: Expr TcId -> PFExp t e
-desugarTcExpr = dsTcExpr (Map.empty, Map.empty)
+desugar :: Expr TcId -> FI.Expr t e
+desugar = dsTcExpr (Map.empty, Map.empty)
 
-transType :: Map.Map Name t -> Type -> PFTyp t
+transType :: Map.Map Name t -> Type -> FI.Type t
 transType d = go
   where
-    go (TyVar a)    = FTVar (fromJust (Map.lookup a d))
-    go (JClass c)   = FJClass c
-    go (Fun t1 t2)  = FFun (go t1) (go t2)
-    go (Product ts) = FProduct (map go ts)
-    go (Forall a t) = FForall (\a' -> transType (Map.insert a a' d) t)
+    go (TyVar a)    = FI.TVar (fromJust (Map.lookup a d))
+    go (JClass c)   = FI.JClass c
+    go (Fun t1 t2)  = FI.Fun (go t1) (go t2)
+    go (Product ts) = FI.Product (map go ts)
+    go (Forall a t) = FI.Forall (\a' -> transType (Map.insert a a' d) t)
+    go (And t1 t2)  = FI.And (go t1) (go t2)
 
-type DsEnv t e = (Map.Map Name t, Map.Map Name (Either e (PFExp t e)))
+type DsEnv t e = (Map.Map Name t, Map.Map Name (Either e (FI.Expr t e)))
 
-dsTcExpr :: DsEnv t e -> Expr TcId -> PFExp t e
+dsTcExpr :: DsEnv t e -> Expr TcId -> FI.Expr t e
 dsTcExpr (d, g) = go
   where
     go (Var (x,_t))      = case fromJust (Map.lookup x g) of
-                             Left x' -> FVar x x'
+                             Left x' -> FI.Var x'
                              Right e -> e
-    go (Lit lit)         = FLit lit
-    go (App e1 e2)       = FApp (go e1) (go e2)
-    go (TApp e t)        = FTApp (go e) (transType d t)
-    go (Tuple es)        = FTuple (map go es)
-    go (Proj e i)        = FProj i (go e)
-    go (PrimOp e1 op e2) = FPrimOp (go e1) op (go e2)
-    go (If e1 e2 e3)     = FIf (go e1) (go e2) (go e3)
-    go (Lam (x, t) e)    = FLam
-                             (transType d t)
-                             (\x' -> dsTcExpr (d, Map.insert x (Left x') g) e)
-    go (BLam a e)        = FBLam (\a' -> dsTcExpr (Map.insert a a' d, g) e)
+    go (Lit lit)         = FI.Lit lit
+    go (App e1 e2)       = FI.App (go e1) (go e2)
+    go (TApp e t)        = FI.TApp (go e) (transType d t)
+    go (Tuple es)        = FI.Tuple (map go es)
+    go (Proj e i)        = FI.Proj i (go e)
+    go (PrimOp e1 op e2) = FI.PrimOp (go e1) op (go e2)
+    go (If e1 e2 e3)     = FI.If (go e1) (go e2) (go e3)
+    go (Lam (x, t) e)    = FI.Lam
+                               (transType d t)
+                               (\x' -> dsTcExpr (d, Map.insert x (Left x') g) e)
+    go (BLam a e)        = FI.BLam (\a' -> dsTcExpr (Map.insert a a' d, g) e)
     go Let{..}           = invariantFailed "dsTcExpr" (show (Let{..} :: Expr TcId))
     go (LetOut _ [] e)   = go e
+    go (Merge e1 e2)     = FI.Merge (go e1) (go e2)
 
 {-
    let f1 : t1 = e1 in e
 ~> (\(f1 : t1. e)) e1
 -}
     go (LetOut NonRec [(f1, t1, e1)] e) =
-      FApp
-        (FLam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (Left f1') g) e))
+      FI.App
+        (FI.Lam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (Left f1') g) e))
         (go e1)
 
 {-
@@ -69,8 +72,8 @@ variable renaming. An example:
 ~> (\(y : (t1, ..., tn)). e[*]) (e1, ..., en)
 -}
     go (LetOut NonRec bs@(_:_) e) =
-      FApp
-        (FLam
+      FI.App
+        (FI.Lam
           (transType d tupled_ts)
           (\y -> dsTcExpr (d, g' y `Map.union` g) e))
         (go tupled_es)
@@ -83,7 +86,7 @@ variable renaming. An example:
           -- Substitution: fi -> y._(i-1)
           g' = \y -> Map.fromList $
                        zipWith
-                         (\f i -> (f, Right (FProj i (FVar "" y))))
+                         (\f i -> (f, Right (FI.Proj i (FI.Var y))))
                          fs
                          [1..length bs]
 
@@ -107,37 +110,38 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec [(f,t,e)] body)           = dsLetRecEncode (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = dsLetRecEncode (d,g) (LetOut Rec bs body)
 
-    go (JNewObj cName args)    = FJNewObj cName (map go args)
+    go (JNewObj cName args)    = FI.JNewObj cName (map go args)
     go (JMethod c mName args r) =
       case c of
-        (Left cExpr)  -> FJMethod (Left (go cExpr)) mName (map go args) r
-        (Right cName) -> FJMethod (Right cName) mName (map go args) r
+        (Left cExpr)  -> FI.JMethod (Left (go cExpr)) mName (map go args) r
+        (Right cName) -> FI.JMethod (Right cName) mName (map go args) r
 
     go (JField c fName r) =
       case c of
-        (Left cExpr)  -> FJField (Left (go cExpr)) fName r
-        (Right cName) -> FJField (Right cName) fName r
+        (Left cExpr)  -> FI.JField (Left (go cExpr)) fName r
+        (Right cName) -> FI.JField (Right cName) fName r
 
-    go (SeqExprs es) = FSeqExprs (map go es)
+    go (SeqExprs es) = FI.Seq (map go es)
 
-dsLetRecDirect :: DsEnv t e -> Expr TcId -> PFExp t e
+dsLetRecDirect :: DsEnv t e -> Expr TcId -> FI.Expr t e
 dsLetRecDirect (d,g) = go
   where
     go (LetOut Rec [(f,t,e)] body) =
-      FApp
-        (FLam
-          (transType d t)
-          (\f' -> dsTcExpr (d, addToEnv [(f,Left f')] g) body))
-        (FFix
-          (\f' x1' -> dsTcExpr (d, addToEnv [(f, Left f'), (x1, Left x1')] g) peeled_e)
-          (transType d t1)
-          (transType d t2))
-          where
-            addToEnv bindings g = foldr (\(x,x') acc -> Map.insert x x' acc) g bindings
-            (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
+      FI.App
+          (FI.Lam
+              (transType d t)
+              (\f' -> dsTcExpr (d, addToEnv [(f,Left f')] g) body))
+          (FI.Fix
+              (\f' x1' -> dsTcExpr (d, addToEnv [(f, Left f'), (x1, Left x1')] g) peeled_e)
+              (transType d t1)
+              (transType d t2))
               where
-                peel Nothing (Lam (x1,t1) e, Fun _ t) = (Just (x1,t1), t, e)
-                peel _ _ = invariantFailed "peel" "I cannot peel an expression that is not a function"
+                addToEnv bindings g = foldr (\(x,x') acc -> Map.insert x x' acc) g bindings
+                (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
+                  where
+                    peel Nothing (Lam (x1,t1) e, Fun _ t) = (Just (x1,t1), t, e)
+                    peel _ _ = invariantFailed "peel" "I cannot peel an expression that is not a function"
+    go _ = invariantFailed "dsLetDirect" "Unexpected pattern for a partial function"
 
 {-
    let rec f1 = e1, ..., fn = en in e
@@ -145,28 +149,29 @@ dsLetRecDirect (d,g) = go
 ~> (\(y : Int -> (t1, ..., tn)). e[*])
      (fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*])
 -}
-dsLetRecEncode :: DsEnv t e -> Expr TcId -> PFExp t e
+dsLetRecEncode :: DsEnv t e -> Expr TcId -> FI.Expr t e
 dsLetRecEncode (d,g) = go
   where
     go (LetOut Rec bs@(_:_) e) =
-      FApp
-        (FLam
-          (FFun (FJClass "java.lang.Integer") (transType d tupled_ts))
-          (\y -> dsTcExpr (d, g' y `Map.union` g) e))
-        (FFix
-          (\y _dummy -> dsTcExpr (d, g' y `Map.union` g) tupled_es)
-          (FJClass "java.lang.Integer")
-          (transType d tupled_ts))
-          where
-            (fs, ts, es) = unzip3 bs
+      FI.App
+          (FI.Lam
+              (FI.Fun (FI.JClass "java.lang.Integer") (transType d tupled_ts))
+              (\y -> dsTcExpr (d, g' y `Map.union` g) e))
+          (FI.Fix
+              (\y _dummy -> dsTcExpr (d, g' y `Map.union` g) tupled_es)
+              (FI.JClass "java.lang.Integer")
+              (transType d tupled_ts))
+              where
+                (fs, ts, es) = unzip3 bs
 
-            tupled_es = Tuple es
-            tupled_ts = Product ts
+                tupled_es = Tuple es
+                tupled_ts = Product ts
 
-            -- Substitution: fi -> (y 0)._(i-1)
-            g' = \y -> Map.fromList
-                         (zipWith
-                          -- TODO: better var name
-                          (\f i -> (f, Right (FProj i (FApp (FVar "" y) (FLit (Integer 0))))))
-                          fs
-                          [1..length bs])
+                -- Substitution: fi -> (y 0)._(i-1)
+                g' = \y -> Map.fromList
+                             (zipWith
+                              -- TODO: better var name
+                              (\f i -> (f, Right (FI.Proj i (FI.App (FI.Var y) (FI.Lit (Integer 0))))))
+                              fs
+                              [1..length bs])
+    go _ = invariantFailed "dsLetDirect" "Unexpected pattern for a partial function"
