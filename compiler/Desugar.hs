@@ -11,7 +11,7 @@ import Data.Maybe       (fromJust)
 
 import qualified Data.Map as Map
 
-desugarTcExpr :: TcExpr -> PFExp t e
+desugarTcExpr :: Expr TcId -> PFExp t e
 desugarTcExpr = dsTcExpr (Map.empty, Map.empty)
 
 transType :: Map.Map Name t -> Type -> PFTyp t
@@ -25,7 +25,7 @@ transType d = go
 
 type DsEnv t e = (Map.Map Name t, Map.Map Name (Either e (PFExp t e)))
 
-dsTcExpr :: DsEnv t e -> TcExpr -> PFExp t e
+dsTcExpr :: DsEnv t e -> Expr TcId -> PFExp t e
 dsTcExpr (d, g) = go
   where
     go (Var (x,_t))      = case fromJust (Map.lookup x g) of
@@ -42,7 +42,7 @@ dsTcExpr (d, g) = go
                              (transType d t)
                              (\x' -> dsTcExpr (d, Map.insert x (Left x') g) e)
     go (BLam a e)        = FBLam (\a' -> dsTcExpr (Map.insert a a' d, g) e)
-    go Let{..}           = invariantFailed "dsTcExpr" (show (Let{..} :: TcExpr))
+    go Let{..}           = invariantFailed "dsTcExpr" (show (Let{..} :: Expr TcId))
     go (LetOut _ [] e)   = go e
 
 {-
@@ -108,8 +108,8 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec bs body)                  = dsLetRecEncode (d,g) (LetOut Rec bs body)
 
     go (JNewObj cName args)    = FJNewObj cName (map go args)
-    go (JMethod c mName args r) = 
-      case c of 
+    go (JMethod c mName args r) =
+      case c of
         (Left cExpr)  -> FJMethod (Left (go cExpr)) mName (map go args) r
         (Right cName) -> FJMethod (Right cName) mName (map go args) r
 
@@ -120,7 +120,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 
     go (SeqExprs es) = FSeqExprs (map go es)
 
-dsLetRecDirect :: DsEnv t e -> TcExpr -> PFExp t e
+dsLetRecDirect :: DsEnv t e -> Expr TcId -> PFExp t e
 dsLetRecDirect (d,g) = go
   where
     go (LetOut Rec [(f,t,e)] body) =
@@ -145,7 +145,7 @@ dsLetRecDirect (d,g) = go
 ~> (\(y : Int -> (t1, ..., tn)). e[*])
      (fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*])
 -}
-dsLetRecEncode :: DsEnv t e -> TcExpr -> PFExp t e
+dsLetRecEncode :: DsEnv t e -> Expr TcId -> PFExp t e
 dsLetRecEncode (d,g) = go
   where
     go (LetOut Rec bs@(_:_) e) =
