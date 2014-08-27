@@ -1,3 +1,21 @@
+# A brief intro to the compiler frontend #
+
+The components: "parser"      "typechecker"      "desugarer"            "deinterer"
+What you get:   --------> ESF -------------> ESF -----------> System FI -----------> System F
+Representation:           E.Expr Name        E.Expr TcId      FI.Expr t e            F.Expr t e
+
+Synonym convention:
+E  -> ESF.Syntax
+FI -> SystemFI.Syntax
+F  -> SystemF.Syntax
+
+Component     Location in the repo (relative to compiler/)
+
+parser      | ESF/Parser.hs
+typechecker | ESF/TypeCheck.hs
+desugarer   | Desugar.hs
+deinterer   | DeInter.hs
+
 # (External / Non-cabal-specified) Dependencies #
 GHC 7.6.x + cabal-install (put .cabal/bin in your path - e.g. PATH=$PATH:~/.cabal/bin/ )
 
@@ -7,7 +25,7 @@ ant 1.8.x and above
 
 # How do I get set up? #
 
-The toplevel Makefile sets up commands for running several of the most common tasks of the project, such as building the executable and running tests. To issue a command, run 
+The toplevel Makefile sets up commands for running several of the most common tasks of the project, such as building the executable and running tests. To issue a command, run
 ```
 #!bash
 
