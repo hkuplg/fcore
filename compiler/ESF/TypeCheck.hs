@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fwarn-unused-binds #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-unused-binds #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module ESF.TypeCheck
@@ -98,11 +98,11 @@ infer e =
      return ret
 
 
-inferLit :: Lit -> TcM (Expr TcId, Type)
-inferLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
-inferLit (String s)  = return (Lit (String s), JClass "java.lang.String")
-inferLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
-inferLit (Char c)    = return (Lit (Char c), JClass "java.lang.Character")
+tcLit :: Lit -> TcM (Expr TcId, Type)
+tcLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
+tcLit (String s)  = return (Lit (String s), JClass "java.lang.String")
+tcLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
+tcLit (Char c)    = return (Lit (Char c), JClass "java.lang.Character")
 
 
 tcExpr :: (Handle, Handle) -> (TypeContext, ValueContext)
@@ -113,7 +113,7 @@ tcExpr io (d, g) = go
                    Just t  -> return (Var (x,t), t)
                    Nothing -> throwError NotInScope { msg = "variable " ++ q x }
 
-    go (Lit lit) = inferLit lit
+    go (Lit lit) = tcLit lit
 
     go (App e1 e2) =
       do (e1', t)  <- go e1
@@ -122,9 +122,9 @@ tcExpr io (d, g) = go
            Fun t1 t2 | t' `alphaEqTy` t1 ->
                          return (App e1' e2', t2) -- TODO: need var renaming?
            Fun t1 _ -> throwError Mismatch { term = e2, expected = t1, actual = t' }
-           _        -> throwError Mismatch { term = e1
+           _        -> throwError Mismatch { term     = e1
                                            , expected = Fun t' (TyVar "_")
-                                           , actual = t }
+                                           , actual   = t }
 
     go (BLam a e)
       | a `Set.member` d =
