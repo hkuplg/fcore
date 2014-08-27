@@ -11,7 +11,7 @@ import qualified SystemF.Syntax as F
 data Scope b t e =
       Body b
     | Kind (t -> Scope b t e)
-    | Typ (Type t) (e -> Scope b t e)
+    | Type (Type t) (e -> Scope b t e)
 
 type TScope t = Scope (Type t) t ()
 
@@ -46,7 +46,7 @@ data Expr t e =
 
 ftyp2scope :: F.Type t -> TScope t
 ftyp2scope (F.Forall f)   = Kind (\a -> ftyp2scope (f a))
-ftyp2scope (F.Fun t1 t2)  = Typ (ftyp2ctyp t1) (\_ -> ftyp2scope t2)
+ftyp2scope (F.Fun t1 t2)  = Type (ftyp2ctyp t1) (\_ -> ftyp2scope t2)
 ftyp2scope t             = Body (ftyp2ctyp t)
 -- ftyp2scope PFInt         = Body CInt
 -- ftyp2scope (FTVar x)     = Body (CTVar x)
@@ -103,7 +103,7 @@ fexp2cexp (F.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp e                         = Lam (groupLambda e)
 
 adjust :: F.Type t -> EScope t e -> TScope t
-adjust (F.Fun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
+adjust (F.Fun t1 t2) (Type t1' g) = Type t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
 adjust (F.Forall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
 adjust t (Body b)               = Body (ftyp2ctyp t)
 --adjust t u                      =
@@ -117,7 +117,7 @@ groupLambda2 (FLam t f) tenv env =
 
 groupLambda :: F.Expr t e -> EScope t e
 groupLambda (F.BLam f)  = Kind (\a -> groupLambda (f a))
-groupLambda (F.Lam t f) = Typ (ftyp2ctyp t) (\x -> groupLambda (f x))
+groupLambda (F.Lam t f) = Type (ftyp2ctyp t) (\x -> groupLambda (f x))
 groupLambda e          = Body (fexp2cexp e)
 
 -- join
@@ -135,7 +135,7 @@ joinType (TupleType ts) = TupleType (map joinType ts)
 joinTScope :: TScope (Type t) -> TScope t
 joinTScope (Body b)   = Body (joinType b)
 joinTScope (Kind f)   = Kind (joinTScope . f . TVar)
-joinTScope (Typ t f)  = let t' = joinType t in Typ t' (\x -> joinTScope (f x))
+joinTScope (Type t f) = let t' = joinType t in Type t' (\x -> joinTScope (f x))
 
 -- Free variable substitution
 
@@ -144,7 +144,7 @@ substScope
      Int -> Type Int -> Scope (Type t) t () -> Scope (Type t) t ()
 substScope n t (Body t1) = Body (substType n t t1)
 substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
-substScope n t (Typ t1 f) = Typ (substType n t t1) (\x -> substScope n t (f x))
+substScope n t (Type t1 f) = Type (substType n t t1) (\x -> substScope n t (f x))
 
 substType :: Subst t => Int -> Type Int -> Type t -> Type t
 substType n t (TVar x) = subst n t x
@@ -176,12 +176,12 @@ showType (TupleType ts) n = "TODO!"
 showTScope :: Scope (Type Int) Int () -> Int -> String
 showTScope (Body t) n = ". " ++ showType t n
 showTScope (Kind f) n = "a" ++ show n ++ " " ++ showTScope (f n) (n+1)
-showTScope (Typ t f) n = "(_ : " ++ showType t n ++ ") " ++ showTScope (f ()) n
+showTScope (Type t f) n = "(_ : " ++ showType t n ++ ") " ++ showTScope (f ()) n
 
 showEScope :: EScope Int Int -> Int -> String
 showEScope (Body t) n = ". " ++ showExpr t n
 showEScope (Kind f) n = "a" ++ show n ++ " " ++ showEScope (f n) (n+1)
-showEScope (Typ t f) n = "(x" ++ show n ++ " : " ++ showType t n ++ ") " ++ showEScope (f n) (n+1)
+showEScope (Type t f) n = "(x" ++ show n ++ " : " ++ showType t n ++ ") " ++ showEScope (f n) (n+1)
 
 showExpr :: Expr Int Int -> Int -> String
 showExpr (Var x) n      = "x" ++ show x

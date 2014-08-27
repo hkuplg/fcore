@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Desugar (desugar) where
@@ -22,6 +23,7 @@ transType d = go
     go (Fun t1 t2)  = FI.Fun (go t1) (go t2)
     go (Product ts) = FI.Product (map go ts)
     go (Forall a t) = FI.Forall (\a' -> transType (Map.insert a a' d) t)
+    go (And t1 t2)  = FI.And (go t1) (go t2)
 
 type DsEnv t e = (Map.Map Name t, Map.Map Name (Either e (FI.Expr t e)))
 
@@ -44,6 +46,7 @@ dsTcExpr (d, g) = go
     go (BLam a e)        = FI.BLam (\a' -> dsTcExpr (Map.insert a a' d, g) e)
     go Let{..}           = invariantFailed "dsTcExpr" (show (Let{..} :: Expr TcId))
     go (LetOut _ [] e)   = go e
+    go (Merge e1 e2)     = FI.Merge (go e1) (go e2)
 
 {-
    let f1 : t1 = e1 in e
@@ -138,6 +141,7 @@ dsLetRecDirect (d,g) = go
                   where
                     peel Nothing (Lam (x1,t1) e, Fun _ t) = (Just (x1,t1), t, e)
                     peel _ _ = invariantFailed "peel" "I cannot peel an expression that is not a function"
+    go _ = invariantFailed "dsLetDirect" "Unexpected pattern for a partial function"
 
 {-
    let rec f1 = e1, ..., fn = en in e
@@ -170,3 +174,4 @@ dsLetRecEncode (d,g) = go
                               (\f i -> (f, Right (FI.Proj i (FI.App (FI.Var y) (FI.Lit (Integer 0))))))
                               fs
                               [1..length bs])
+    go _ = invariantFailed "dsLetDirect" "Unexpected pattern for a partial function"
