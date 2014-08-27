@@ -24,7 +24,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 -- The monad for typechecking
-type TCMonad = ErrorT (TypeError Name) IO
+type TcM = ErrorT (TypeError Name) IO
 
 data TypeError e
   = NotInScope        { msg       :: String }
@@ -77,10 +77,10 @@ instance Pretty e => Pretty (TypeError e) where
 q :: Name -> String
 q x = "`" ++ x ++ "'"
 
---throwE :: TypeError Name -> TCMonad ()
+--throwE :: TypeError Name -> TcM ()
 --throwE te = throwError . show . pretty te
 
-checkWellformed :: (Handle, Handle) -> TypeContext -> Type -> TCMonad ()
+checkWellformed :: (Handle, Handle) -> TypeContext -> Type -> TcM ()
 checkWellformed io _ (JClass c) = do ok <- liftIO $ isJVMType io c
                                      unless ok (throwError (NotAJVMType c))
 checkWellformed _  d t =
@@ -89,7 +89,7 @@ checkWellformed _  d t =
     throwError NotInScope { msg = "type variable " ++ q (head $ Set.toList s) }
 
 
-infer :: RdrExpr -> TCMonad (TcExpr, Type)
+infer :: RdrExpr -> TcM (TcExpr, Type)
 infer e =
   do cp <- liftIO classpath
      let p = (proc "java" ["-cp", cp, "hk.hku.cs.f2j.TypeServer"])
@@ -102,7 +102,7 @@ infer e =
      return ret
 
 
-inferLit :: Lit -> TCMonad (TcExpr, Type)
+inferLit :: Lit -> TcM (TcExpr, Type)
 inferLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
 inferLit (String s)  = return (Lit (String s), JClass "java.lang.String")
 inferLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
@@ -110,7 +110,7 @@ inferLit (Char c)    = return (Lit (Char c), JClass "java.lang.Character")
 
 
 inferWith :: (Handle, Handle) -> (TypeContext, ValueContext)
-          -> RdrExpr -> TCMonad (TcExpr, Type)
+          -> RdrExpr -> TcM (TcExpr, Type)
 inferWith io (d, g) = go
   where
     go (Var x) = case Map.lookup x g of
@@ -358,14 +358,14 @@ inferWith io (d, g) = go
          return (Merge e1' e2', And t1 t2)
 
 
-checkJavaArgs :: [Type] -> TCMonad [Name]
+checkJavaArgs :: [Type] -> TcM [Name]
 checkJavaArgs = mapM check
   where
     check (JClass name) = return name
     check otherType     = throwError $ NotAJVMType $ show otherType
 
 
-checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TCMonad ()
+checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TcM ()
 checkBinds io d bs =
   do checkForDup "identifiers" (map bindId bs)
      forM_ bs (\Bind{..} ->
@@ -376,7 +376,7 @@ checkBinds io d bs =
                checkWellformed io d' t))
 
 
-checkForDup :: String -> [String] -> TCMonad ()
+checkForDup :: String -> [String] -> TcM ()
 checkForDup what xs =
   case findFirstDup xs of
     Just x  -> throwError General { msg = "Duplicate " ++ what ++ ": " ++ q x }
