@@ -119,7 +119,7 @@ tcExpr io (d, g) = go
       do (e1', t)  <- go e1
          (e2', t') <- go e2
          case t of
-           Fun t1 t2 | t' `alphaEqTy` t1 ->
+           Fun t1 t2 | t' `subtype` t1 ->
                          return (App e1' e2', t2) -- TODO: need var renaming?
            Fun t1 _ -> throwError Mismatch { term = e2, expected = t1, actual = t' }
            _        -> throwError Mismatch { term     = e1

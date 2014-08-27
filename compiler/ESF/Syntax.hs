@@ -19,6 +19,7 @@ module ESF.Syntax
   , TypeContext
   , ValueContext
   , alphaEqTy
+  , subtype
   , freeTyVars
   , invariantFailed
   , substFreeTyVars
@@ -108,6 +109,15 @@ alphaEqTy (Fun t1 t2)    (Fun t3 t4)    = t1 `alphaEqTy` t3 && t2 `alphaEqTy` t4
 alphaEqTy (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEqTy `all` zip ts1 ts2
 alphaEqTy (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `alphaEqTy` t1
 alphaEqTy  _              _             = False
+
+subtype :: Type -> Type -> Bool
+subtype t1 t2
+  | t1 `alphaEqTy` t2 = True -- Refl
+  | otherwise =
+    case (t1, t2) of
+      (And t1_1 t1_2, _) -> t1_1 `subtype` t2 || t1_2 `subtype` t2
+      (_, And t2_1 t2_2) -> t1 `subtype` t2_1 && t1 `subtype` t2_2
+      (_, _)             -> False
 
 substFreeTyVars :: (Name, Type) -> Type -> Type
 substFreeTyVars (x, r) = go
