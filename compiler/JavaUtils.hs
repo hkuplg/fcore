@@ -15,7 +15,7 @@ import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirec
 import System.Process    (system)
 import Data.String.Utils (capitalize)
 
-newtype ClassName = ClassName String deriving (Eq, Show)
+type ClassName = String
 
 runtimeJarPath :: IO FilePath
 runtimeJarPath = do h <- getHomeDirectory
