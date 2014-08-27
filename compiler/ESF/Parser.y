@@ -90,10 +90,10 @@ import ESF.Lexer
 -- Reference for rules:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
-expr :: { Expr String }
+expr :: { Expr Name }
      : infixexpr %prec EOF      { $1 }
 
-infixexpr :: { Expr String }
+infixexpr :: { Expr Name }
     : expr10                    { $1 }
     | infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
     | infixexpr "/"  infixexpr  { PrimOp $1 (Arith J.Div)    $3 }
@@ -110,7 +110,7 @@ infixexpr :: { Expr String }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
 
-expr10 :: { Expr String }
+expr10 :: { Expr Name }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
     | "\\" var_with_annot "." expr        { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
@@ -118,18 +118,18 @@ expr10 :: { Expr String }
     | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
     | fexp                                { $1 }
 
-fexp :: { Expr String }
+fexp :: { Expr Name }
     : fexp aexp         { App  $1 $2 }
     | fexp typ          { TApp $1 $2 }
     | aexp              { $1 }
 
-aexp :: { Expr String }
+aexp :: { Expr Name }
     : aexp1             { $1 }
 
-aexp1 :: { Expr String }
+aexp1 :: { Expr Name }
     : aexp2             { $1 }
 
-aexp2 :: { Expr String }
+aexp2 :: { Expr Name }
     : var                       { Var $1 }
     | INTEGER                   { Lit (Integer $1) }
     | STRING                    { Lit (String $1) }
@@ -147,28 +147,28 @@ aexp2 :: { Expr String }
     -- Sequence of exprs
     | "{" semi_exprs "}"        { SeqExprs $2 }
 
-id :: { String }
+id :: { Name }
    : LOWERID { $1 }
    | UPPERID { $1 }
 
-semi_exprs :: { [Expr String] }
+semi_exprs :: { [Expr Name] }
            : expr                { [$1] }
            | expr ";" semi_exprs { $1:$3 }
 
-comma_exprs :: { [Expr String] }
+comma_exprs :: { [Expr Name] }
     : expr "," expr             { [$1, $3] }
     | expr "," comma_exprs      { $1:$3    }
 
-comma_exprs_emp :: { [Expr String] }
+comma_exprs_emp :: { [Expr Name] }
     : {- empty -}   { []   }
     | expr          { [$1] }
     | comma_exprs   { $1   }
 
-var_with_annot :: { (String, Type) }
+var_with_annot :: { (Name, Type) }
   : "(" var ":" typ ")"         { ($2, $4) }
   | "(" var_with_annot ")"      { $2       }
 
-bind :: { Bind String }
+bind :: { Bind Name }
     : var tvars_emp var_annots_emp maybe_sig "=" expr
         { Bind { bindId       = $1
                , bindTargs    = $2
@@ -182,7 +182,7 @@ maybe_sig :: { Maybe Type }
   : ":" typ     { Just $2 }
   | {- empty -} { Nothing }
 
-and_binds :: { [Bind String] }
+and_binds :: { [Bind Name] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
 
@@ -211,21 +211,21 @@ comma_typs :: { [Type] }
     : typ "," typ               { $1:[$3] }
     | typ "," comma_typs        { $1:$3   }
 
-tvars_emp :: { [String] }
+tvars_emp :: { [Name] }
   : {- empty -}         { []    }
   | tvar tvars_emp      { $1:$2 }
 
-var_annot :: { (String, Type) }
+var_annot :: { (Name, Type) }
     : "(" var ":" typ ")"       { ($2, $4) }
 
-var_annots_emp :: { [(String, Type)] }
+var_annots_emp :: { [(Name, Type)] }
     : {- empty -}               { []    }
     | var_annot var_annots_emp  { $1:$2 }
 
-var :: { String }
+var :: { Name }
     : LOWERID           { $1 }
 
-tvar :: { String }
+tvar :: { Name }
     : UPPERID           { $1 }
 
 {
@@ -240,7 +240,7 @@ instance Monad P where
 parseError :: [Token] -> P a
 parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
 
-reader :: String -> Expr String
+reader :: String -> Expr Name
 reader src = case (parser . lexer) src of
                  POk expr   -> expr
                  PError msg -> error msg
