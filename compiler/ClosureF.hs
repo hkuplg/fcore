@@ -1,8 +1,9 @@
+{-# OPTIONS_GHC -fno-warn-unused-matches #-}
 {-# Language RankNTypes, FlexibleInstances #-}
 
 module ClosureF where
 
-import ESF.Syntax
+import qualified ESF.Syntax     as E
 import qualified SystemF.Syntax as F
 
 -- Closure F syntax
@@ -10,36 +11,36 @@ import qualified SystemF.Syntax as F
 data Scope b t e =
       Body b
     | Kind (t -> Scope b t e)
-    | Typ (PCTyp t) (e -> Scope b t e)
+    | Typ (Type t) (e -> Scope b t e)
 
-type TScope t = Scope (PCTyp t) t ()
+type TScope t = Scope (Type t) t ()
 
-type EScope t e = Scope (PCExp t e) t e
+type EScope t e = Scope (Expr t e) t e
 
-data PCTyp t =
-      CTVar t
-    | CForall (TScope t)
-    | CJClass String
-    | CTupleType [PCTyp t]
+data Type t =
+      TVar t
+    | Forall (TScope t)
+    | JClass String
+    | TupleType [Type t]
 
-data PCExp t e =
-     CVar e
-   | CFVar Int
-   | CLam (EScope t e)
-   | CApp (PCExp t e) (PCExp t e)
-   | CTApp (PCExp t e) (PCTyp t)
-   | CFPrimOp (PCExp t e) Operator (PCExp t e)
-   | CFLit Lit
-   | CFIf (PCExp t e) (PCExp t e) (PCExp t e)
-   | CFTuple [PCExp t e]
-   | CFProj Int (PCExp t e)
+data Expr t e =
+     Var e
+   | FVar Int
+   | Lam (EScope t e)
+   | App (Expr t e) (Expr t e)
+   | TApp (Expr t e) (Type t)
+   | PrimOp (Expr t e) E.Operator (Expr t e)
+   | Lit E.Lit
+   | If (Expr t e) (Expr t e) (Expr t e)
+   | Tuple [Expr t e]
+   | Proj Int (Expr t e)
    -- fixpoints
-   | CFix (PCTyp t) (e -> EScope t e)
+   | Fix (Type t) (e -> EScope t e)
    -- Java
-   | CJNewObj String [PCExp t e]
-   | CJMethod (Either (PCExp t e) String) String [PCExp t e] String
-   | CJField (Either (PCExp t e) String) String String
-   | CSeqExprs [PCExp t e]
+   | JNewObj String [Expr t e]
+   | JMethod (Either (Expr t e) String) String [Expr t e] String
+   | JField (Either (Expr t e) String) String String
+   | SeqExprs [Expr t e]
 
 -- System F to Closure F
 
@@ -51,24 +52,24 @@ ftyp2scope t             = Body (ftyp2ctyp t)
 -- ftyp2scope (FTVar x)     = Body (CTVar x)
 
 {-
-ftyp2ctyp2 :: F.Type Int -> [t] -> PCTyp t
+ftyp2ctyp2 :: F.Type Int -> [t] -> Type t
 ftyp2ctyp2 = undefined
 -}
 
-ftyp2ctyp :: F.Type t -> PCTyp t
-ftyp2ctyp (F.TVar x) = CTVar x
-ftyp2ctyp (F.JClass c) = CJClass c
-ftyp2ctyp (F.Product ts) = CTupleType (map ftyp2ctyp ts)
-ftyp2ctyp t         = CForall (ftyp2scope t)
+ftyp2ctyp :: F.Type t -> Type t
+ftyp2ctyp (F.TVar x) = TVar x
+ftyp2ctyp (F.JClass c) = JClass c
+ftyp2ctyp (F.Product ts) = TupleType (map ftyp2ctyp ts)
+ftyp2ctyp t         = Forall (ftyp2scope t)
 
 {-
-fexp2cexp2 :: F.Expr Int (Int,F.Type Int) -> [t] -> [e] -> PCExp t e
+fexp2cexp2 :: F.Expr Int (Int,F.Type Int) -> [t] -> [e] -> Expr t e
 fexp2cexp2 (F.Var _ t) tenv env = CVar (env !! fst t)
 fexp2cexp2 e tenv env = CLam (groupLambda2 e tenv env)
 -}
 
 {-
-fexp2cexp2 :: F.Expr t (e, PCTyp t) -> (PCExp t e, PCTyp t)
+fexp2cexp2 :: F.Expr t (e, Type t) -> (Expr t e, Type t)
 fexp2cexp2 (F.Var _ (x,t))      = (CVar x,t)
 fexp2cexp2 (F.App e1 e2)        =
    let (c1,CForall (Typ t g))  = fexp2cexp2 e1
@@ -79,27 +80,27 @@ fexp2cexp2 (F.TApp e t)   =
 CTApp (fexp2cexp e) (ftyp2ctyp t)
 -}
 
-fexp2cexp :: F.Expr t e -> PCExp t e
-fexp2cexp (F.Var _ x)                = CVar x
-fexp2cexp (F.App e1 e2)              = CApp (fexp2cexp e1) (fexp2cexp e2)
-fexp2cexp (F.TApp e t)               = CTApp (fexp2cexp e) (ftyp2ctyp t)
-fexp2cexp (F.PrimOp e1 op e2)        = CFPrimOp (fexp2cexp e1) op (fexp2cexp e2)
-fexp2cexp (F.Lit e) = CFLit e
-fexp2cexp (F.If e1 e2 e3)            = CFIf (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
-fexp2cexp (F.Tuple tuple)            = CFTuple (map fexp2cexp tuple)
-fexp2cexp (F.Proj i e)               = CFProj i (fexp2cexp e)
+fexp2cexp :: F.Expr t e -> Expr t e
+fexp2cexp (F.Var _ x)                = Var x
+fexp2cexp (F.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
+fexp2cexp (F.TApp e t)               = TApp (fexp2cexp e) (ftyp2ctyp t)
+fexp2cexp (F.PrimOp e1 op e2)        = PrimOp (fexp2cexp e1) op (fexp2cexp e2)
+fexp2cexp (F.Lit e) = Lit e
+fexp2cexp (F.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
+fexp2cexp (F.Tuple tuple)            = Tuple (map fexp2cexp tuple)
+fexp2cexp (F.Proj i e)               = Proj i (fexp2cexp e)
 fexp2cexp (F.Fix f t1 t2) =
   let  g e = groupLambda (F.Lam t1 (f e)) -- is this right???? (BUG)
-  in   CFix (CForall (adjust (F.Fun t1 t2) (g undefined))) g
-fexp2cexp (F.JNewObj cName args)     = CJNewObj cName (map fexp2cexp args)
+  in   Fix (Forall (adjust (F.Fun t1 t2) (g undefined))) g
+fexp2cexp (F.JNewObj cName args)     = JNewObj cName (map fexp2cexp args)
 fexp2cexp (F.JMethod c mName args r) =
-  case c of (Left ce)  -> CJMethod (Left $ fexp2cexp ce) mName (map fexp2cexp args) r
-            (Right cn) -> CJMethod (Right cn) mName (map fexp2cexp args) r
+  case c of (Left ce)  -> JMethod (Left $ fexp2cexp ce) mName (map fexp2cexp args) r
+            (Right cn) -> JMethod (Right cn) mName (map fexp2cexp args) r
 fexp2cexp (F.JField c fName r) =
-  case c of (Left ce)  -> CJField (Left $ fexp2cexp ce) fName r
-            (Right cn) -> CJField (Right cn) fName r
-fexp2cexp (F.Seq es)            = CSeqExprs (map fexp2cexp es)
-fexp2cexp e                         = CLam (groupLambda e)
+  case c of (Left ce)  -> JField (Left $ fexp2cexp ce) fName r
+            (Right cn) -> JField (Right cn) fName r
+fexp2cexp (F.Seq es)            = SeqExprs (map fexp2cexp es)
+fexp2cexp e                         = Lam (groupLambda e)
 
 adjust :: F.Type t -> EScope t e -> TScope t
 adjust (F.Fun t1 t2) (Typ t1' g) = Typ t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
@@ -121,76 +122,76 @@ groupLambda e          = Body (fexp2cexp e)
 
 -- join
 
-scope2ctyp :: TScope t -> PCTyp t
+scope2ctyp :: TScope t -> Type t
 scope2ctyp (Body t)  = t
-scope2ctyp s         = CForall s
+scope2ctyp s         = Forall s
 
-joinPCTyp :: PCTyp (PCTyp t) -> PCTyp t
-joinPCTyp (CTVar t)   = t
-joinPCTyp (CForall s) = CForall (joinTScope s)
-joinPCTyp (CJClass c) = CJClass c
-joinPCTyp (CTupleType ts) = CTupleType (map joinPCTyp ts)
+joinType :: Type (Type t) -> Type t
+joinType (TVar t)   = t
+joinType (Forall s) = Forall (joinTScope s)
+joinType (JClass c) = JClass c
+joinType (TupleType ts) = TupleType (map joinType ts)
 
-joinTScope :: TScope (PCTyp t) -> TScope t
-joinTScope (Body b)   = Body (joinPCTyp b)
-joinTScope (Kind f)   = Kind (joinTScope . f . CTVar)
-joinTScope (Typ t f)  = let t' = joinPCTyp t in Typ t' (\x -> joinTScope (f x))
+joinTScope :: TScope (Type t) -> TScope t
+joinTScope (Body b)   = Body (joinType b)
+joinTScope (Kind f)   = Kind (joinTScope . f . TVar)
+joinTScope (Typ t f)  = let t' = joinType t in Typ t' (\x -> joinTScope (f x))
 
 -- Free variable substitution
 
 substScope
   :: Subst t =>
-     Int -> PCTyp Int -> Scope (PCTyp t) t () -> Scope (PCTyp t) t ()
+     Int -> Type Int -> Scope (Type t) t () -> Scope (Type t) t ()
 substScope n t (Body t1) = Body (substType n t t1)
 substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
 substScope n t (Typ t1 f) = Typ (substType n t t1) (\x -> substScope n t (f x))
 
-substType :: Subst t => Int -> PCTyp Int -> PCTyp t -> PCTyp t
-substType n t (CTVar x) = subst n t x
-substType n t (CForall s) = CForall (substScope n t s)
+substType :: Subst t => Int -> Type Int -> Type t -> Type t
+substType n t (TVar x) = subst n t x
+substType n t (Forall s) = Forall (substScope n t s)
 substType n t x = x
 
 class Subst t where
-   subst :: Int -> PCTyp Int -> t -> PCTyp t
+   subst :: Int -> Type Int -> t -> Type t
 
 instance Subst Int where
    subst n t x
       | n == x = t
-      | otherwise = CTVar x
+      | otherwise = TVar x
 
-instance Subst t => Subst (PCTyp t) where
-   subst n t x = CTVar (substType n t x)
+instance Subst t => Subst (Type t) where
+   subst n t x = TVar (substType n t x)
 
 -- Pretty Printing
 
-showPCExp :: PCExp Int Int -> Int -> String
-showPCTyp :: PCTyp Int -> Int -> String
-showPCTyp (CTVar i) n = "a" ++ show i
-showPCTyp (CForall s) n = "(forall " ++ showTScope s n ++ ")"
+showType :: Type Int -> Int -> String
+showType (TVar i) n = "a" ++ show i
+showType (Forall s) n = "(forall " ++ showTScope s n ++ ")"
 
--- showPCTyp (CJClass "java.lang.Integer") n = "Int"
-showPCTyp (CJClass c) n                   = c
+-- showType (CJClass "java.lang.Integer") n = "Int"
+showType (JClass c) n                   = c
 
-showPCTyp (CTupleType ts) n = "TODO!"
+showType (TupleType ts) n = "TODO!"
 
-showTScope :: Scope (PCTyp Int) Int () -> Int -> String
-showTScope (Body t) n = ". " ++ showPCTyp t n
+showTScope :: Scope (Type Int) Int () -> Int -> String
+showTScope (Body t) n = ". " ++ showType t n
 showTScope (Kind f) n = "a" ++ show n ++ " " ++ showTScope (f n) (n+1)
-showTScope (Typ t f) n = "(_ : " ++ showPCTyp t n ++ ") " ++ showTScope (f ()) n
+showTScope (Typ t f) n = "(_ : " ++ showType t n ++ ") " ++ showTScope (f ()) n
 
 showEScope :: EScope Int Int -> Int -> String
-showEScope (Body t) n = ". " ++ showPCExp t n
+showEScope (Body t) n = ". " ++ showExpr t n
 showEScope (Kind f) n = "a" ++ show n ++ " " ++ showEScope (f n) (n+1)
-showEScope (Typ t f) n = "(x" ++ show n ++ " : " ++ showPCTyp t n ++ ") " ++ showEScope (f n) (n+1)
+showEScope (Typ t f) n = "(x" ++ show n ++ " : " ++ showType t n ++ ") " ++ showEScope (f n) (n+1)
 
-showPCExp (CVar x) n      = "x" ++ show x
-showPCExp (CLam s) n      = "(\\" ++ showEScope s n ++ ")"
-showPCExp (CApp e1 e2) n  = showPCExp e1 n ++ " " ++ showPCExp e2 n
-showPCExp (CTApp e t) n   = showPCExp e n ++ " " ++ showPCTyp t n
-showPCExp (CFix t f) n    = "TODO!"
+showExpr :: Expr Int Int -> Int -> String
+showExpr (Var x) n      = "x" ++ show x
+showExpr (Lam s) n      = "(\\" ++ showEScope s n ++ ")"
+showExpr (App e1 e2) n  = showExpr e1 n ++ " " ++ showExpr e2 n
+showExpr (TApp e t) n   = showExpr e n ++ " " ++ showType t n
+showExpr (Fix t f) n    = "TODO!"
 
-instance Show (PCTyp Int) where
-   show e = showPCTyp e 0
+instance Show (Type Int) where
+   show e = showType e 0
 
 instance Show (TScope Int) where
    show e = showTScope e 0
@@ -198,5 +199,5 @@ instance Show (TScope Int) where
 instance Show (EScope Int Int) where
    show e = showEScope e 0
 
-instance Show (PCExp Int Int) where
-   show e = showPCExp e 0
+instance Show (Expr Int Int) where
+   show e = showExpr e 0
