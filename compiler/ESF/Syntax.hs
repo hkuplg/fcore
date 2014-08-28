@@ -26,6 +26,8 @@ module ESF.Syntax
   , wrap
   ) where
 
+import JavaUtils
+
 import qualified Language.Java.Syntax as J (Op(..))
 -- import qualified Language.Java.Pretty as P
 import Text.PrettyPrint.Leijen
@@ -43,7 +45,7 @@ data Type
   | Fun Type Type
   | Forall Name Type
   | Product [Type]
-  | JClass Name
+  | JClass ClassName
   | And Type Type
   deriving (Eq, Show)
 
@@ -74,10 +76,10 @@ data Expr id
   | Let RecFlag [Bind id] (Expr id)    -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId) -- Post typecheck only
   | JNewObj Name [Expr id]             -- New Java object
--- Either Expr   -> static/non static method call
---        String -> static method call
-  | JMethod (Either (Expr id) String) Name [Expr id] Name
-  | JField (Either (Expr id) String) Name Name
+-- Either Expr   -> static/non static method/field call
+--        String -> static method/field call
+  | JMethod (Either (Expr id) ClassName) MethodName [Expr id] ClassName
+  | JField  (Either (Expr id) ClassName) FieldName            ClassName
   | SeqExprs [Expr id]
   | Merge (Expr id) (Expr id)
   deriving (Eq, Show)

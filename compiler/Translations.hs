@@ -170,7 +170,7 @@ prettyJ = putStrLn . prettyPrint
 
 -- SystemF to Java
 sf2java :: Compilation -> ClassName -> String -> IO String
-sf2java compilation (ClassName className) src =
+sf2java compilation className src =
   do let expr = ESF.Parser.reader src
      result <- runErrorT $ ESF.TypeCheck.infer expr
      case result of
@@ -183,7 +183,7 @@ sf2java compilation (ClassName className) src =
 compilesf2java :: Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java compilation srcPath outputPath = do
     src <- readFile srcPath
-    output <- sf2java compilation (ClassName (inferClassName outputPath)) src
+    output <- sf2java compilation (inferClassName outputPath) src
     writeFile outputPath output
 
 type Compilation = String -> F.Expr Int (Var, C.Type Int) -> (J.CompilationUnit, C.Type Int)--PFExp Int (Var, C.Type Int) -> (J.Block, J.Exp, C.Type Int)

@@ -7,7 +7,9 @@ module JavaUtils
     , runJava
     , inferOutputPath
     , inferClassName
-    , ClassName(..)
+    , ClassName
+    , MethodName
+    , FieldName
     ) where
 
 import System.FilePath   (takeDirectory, takeBaseName, (</>))
@@ -15,7 +17,9 @@ import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirec
 import System.Process    (system)
 import Data.String.Utils (capitalize)
 
-newtype ClassName = ClassName String deriving (Eq, Show)
+type ClassName  = String
+type MethodName = String
+type FieldName  = String
 
 runtimeJarPath :: IO FilePath
 runtimeJarPath = do h <- getHomeDirectory
