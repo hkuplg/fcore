@@ -89,6 +89,10 @@ transExpr (JField (Right c) m retC) =
 transExpr (Seq es) =
   do (ts, es') <- mapAndUnzipM transExpr es
      return (last ts, F.Seq es')
+transExpr (Fix f t1 t) =
+  do i <- takeFreshIndex
+     return ( t1 `Fun` t
+            , F.Fix (\x x1 -> snd (evalState (transExpr (f (x, t1 `Fun` t) (x1, t1))) i)) (transType i t1) (transType i t))
 
 transType :: Int -> Type Int -> F.Type Int
 transType i (TVar a)      = F.TVar a
