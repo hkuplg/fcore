@@ -39,6 +39,7 @@ data Expr t e
 
     -- fix x (x1 : t1) : t2. e, or the new syntax:
     -- fix (x : t1 -> t2). \x1. e
+  | LetRec [(Type t, Type t)] ([e] -> [Expr t e]) ([e] -> Expr t e)
   | Fix (e -> e -> Expr t e)
          (Type t) -- t1
          (Type t) -- t2

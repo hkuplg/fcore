@@ -35,6 +35,7 @@ data Expr t e =
    | Tuple [Expr t e]
    | Proj Int (Expr t e)
    -- fixpoints
+   | LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
    | Fix (Type t) (e -> EScope t e)
    -- Java
    | JNewObj String [Expr t e]
@@ -92,6 +93,8 @@ fexp2cexp (F.Proj i e)               = Proj i (fexp2cexp e)
 fexp2cexp (F.Fix f t1 t2) =
   let  g e = groupLambda (F.Lam t1 (f e)) -- is this right???? (BUG)
   in   Fix (Forall (adjust (F.Fun t1 t2) (g undefined))) g
+fexp2cexp (F.LetRec ts f g) = LetRec (map (\t -> case t of (t1, t2) -> ftyp2ctyp (F.Fun t1 t2)) ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
+
 fexp2cexp (F.JNewObj cName args)     = JNewObj cName (map fexp2cexp args)
 fexp2cexp (F.JMethod c mName args r) =
   case c of (Left ce)  -> JMethod (Left $ fexp2cexp ce) mName (map fexp2cexp args) r
@@ -170,8 +173,6 @@ showType (Forall s) n = "(forall " ++ showTScope s n ++ ")"
 
 -- showType (CJClass "java.lang.Integer") n = "Int"
 showType (JClass c) n                   = c
-
-showType (TupleType ts) n = "TODO!"
 
 showTScope :: Scope (Type Int) Int () -> Int -> String
 showTScope (Body t) n = ". " ++ showType t n
