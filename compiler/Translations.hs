@@ -21,9 +21,10 @@ import ESF.TypeCheck   (infer)
 import Desugar         (desugar)
 import DeInter         (deInter)
 
-import qualified SystemF.Syntax as F
-import qualified ClosureF       as C
+import qualified SystemFI.Syntax as F
+import qualified ClosureF        as C
 
+import PrettyUtils
 import JavaUtils      (ClassName(..), inferClassName)
 
 import BaseTransCFJava
@@ -169,21 +170,26 @@ prettyJ = putStrLn . prettyPrint
 -- compileCU className e Nothing = let (cu,t) = createCU className (compile e) Nothing in (prettyJ cu >> print t)
 
 -- SystemF to Java
-sf2java :: Compilation -> ClassName -> String -> IO String
-sf2java compilation className src =
-  do let expr = ESF.Parser.reader src
-     result <- runErrorT $ ESF.TypeCheck.infer expr
+sf2java :: Bool -> Compilation -> ClassName -> String -> IO String
+sf2java optDump compilation className src =
+  do let rdESF = ESF.Parser.reader src
+     when optDump $ putStrLn "ESF (read)"
+     result <- runErrorT $ ESF.TypeCheck.infer rdESF
      case result of
        Left typeError       -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
-       Right (tcExpr, _t)   ->
-         do let sf = (deInter . desugar) tcExpr
-            let (cu, _) = compilation className sf
+       Right (tcESF, _t)   ->
+         do when optDump $ putStrLn "ESF (typechecked)"
+            let fi = desugar tcESF
+            when optDump $ putStrLn "System FI"
+            let f  = deInter fi
+            when optDump $ do { putStrLn "System F"; print $ F.prettyExpr basePrecEnv (0,0) f }
+            let (cu, _) = compilation className f
             return $ prettyPrint cu
 
-compilesf2java :: Compilation -> FilePath -> FilePath -> IO ()
-compilesf2java compilation srcPath outputPath = do
+compilesf2java :: Bool -> Compilation -> FilePath -> FilePath -> IO ()
+compilesf2java optDump compilation srcPath outputPath = do
     src <- readFile srcPath
-    output <- sf2java compilation (inferClassName outputPath) src
+    output <- sf2java optDump compilation (inferClassName outputPath) src
     writeFile outputPath output
 
 type Compilation = String -> F.Expr Int (Var, C.Type Int) -> (J.CompilationUnit, C.Type Int)--PFExp Int (Var, C.Type Int) -> (J.Block, J.Exp, C.Type Int)

@@ -3,8 +3,8 @@
 
 module ClosureF where
 
-import qualified ESF.Syntax     as E
-import qualified SystemF.Syntax as F
+import qualified ESF.Syntax      as E
+import qualified SystemFI.Syntax as F
 
 -- Closure F syntax
 
@@ -81,7 +81,7 @@ CTApp (fexp2cexp e) (ftyp2ctyp t)
 -}
 
 fexp2cexp :: F.Expr t e -> Expr t e
-fexp2cexp (F.Var _ x)                = Var x
+fexp2cexp (F.Var x)                  = Var x
 fexp2cexp (F.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (F.TApp e t)               = TApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (F.PrimOp e1 op e2)        = PrimOp (fexp2cexp e1) op (fexp2cexp e2)

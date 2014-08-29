@@ -4,57 +4,56 @@
 module Desugar (desugar) where
 
 import ESF.Syntax
--- import ESF.TypeCheck
 
-import qualified SystemFI.Syntax as FI
+import qualified SystemFI.Syntax as F
 
 import Data.Maybe       (fromJust)
 
 import qualified Data.Map as Map
 
-desugar :: Expr TcId -> FI.Expr t e
+desugar :: Expr TcId -> F.Expr t e
 desugar = dsTcExpr (Map.empty, Map.empty)
 
-transType :: Map.Map Name t -> Type -> FI.Type t
+transType :: Map.Map Name t -> Type -> F.Type t
 transType d = go
   where
-    go (TyVar a)    = FI.TVar (fromJust (Map.lookup a d))
-    go (JClass c)   = FI.JClass c
-    go (Fun t1 t2)  = FI.Fun (go t1) (go t2)
-    go (Product ts) = FI.Product (map go ts)
-    go (Forall a t) = FI.Forall (\a' -> transType (Map.insert a a' d) t)
-    go (And t1 t2)  = FI.And (go t1) (go t2)
+    go (TyVar a)    = F.TVar (fromJust (Map.lookup a d))
+    go (JClass c)   = F.JClass c
+    go (Fun t1 t2)  = F.Fun (go t1) (go t2)
+    go (Product ts) = F.Product (map go ts)
+    go (Forall a t) = F.Forall (\a' -> transType (Map.insert a a' d) t)
+    go (And t1 t2)  = F.And (go t1) (go t2)
 
-type DsEnv t e = (Map.Map Name t, Map.Map Name (Either e (FI.Expr t e)))
+type DsEnv t e = (Map.Map Name t, Map.Map Name (Either e (F.Expr t e)))
 
-dsTcExpr :: DsEnv t e -> Expr TcId -> FI.Expr t e
+dsTcExpr :: DsEnv t e -> Expr TcId -> F.Expr t e
 dsTcExpr (d, g) = go
   where
     go (Var (x,_t))      = case fromJust (Map.lookup x g) of
-                             Left x' -> FI.Var x'
+                             Left x' -> F.Var x'
                              Right e -> e
-    go (Lit lit)         = FI.Lit lit
-    go (App e1 e2)       = FI.App (go e1) (go e2)
-    go (TApp e t)        = FI.TApp (go e) (transType d t)
-    go (Tuple es)        = FI.Tuple (map go es)
-    go (Proj e i)        = FI.Proj i (go e)
-    go (PrimOp e1 op e2) = FI.PrimOp (go e1) op (go e2)
-    go (If e1 e2 e3)     = FI.If (go e1) (go e2) (go e3)
-    go (Lam (x, t) e)    = FI.Lam
+    go (Lit lit)         = F.Lit lit
+    go (App e1 e2)       = F.App (go e1) (go e2)
+    go (TApp e t)        = F.TApp (go e) (transType d t)
+    go (Tuple es)        = F.Tuple (map go es)
+    go (Proj e i)        = F.Proj i (go e)
+    go (PrimOp e1 op e2) = F.PrimOp (go e1) op (go e2)
+    go (If e1 e2 e3)     = F.If (go e1) (go e2) (go e3)
+    go (Lam (x, t) e)    = F.Lam
                                (transType d t)
                                (\x' -> dsTcExpr (d, Map.insert x (Left x') g) e)
-    go (BLam a e)        = FI.BLam (\a' -> dsTcExpr (Map.insert a a' d, g) e)
+    go (BLam a e)        = F.BLam (\a' -> dsTcExpr (Map.insert a a' d, g) e)
     go Let{..}           = invariantFailed "dsTcExpr" (show (Let{..} :: Expr TcId))
     go (LetOut _ [] e)   = go e
-    go (Merge e1 e2)     = FI.Merge (go e1) (go e2)
+    go (Merge e1 e2)     = F.Merge (go e1) (go e2)
 
 {-
    let f1 : t1 = e1 in e
 ~> (\(f1 : t1. e)) e1
 -}
     go (LetOut NonRec [(f1, t1, e1)] e) =
-      FI.App
-        (FI.Lam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (Left f1') g) e))
+      F.App
+        (F.Lam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (Left f1') g) e))
         (go e1)
 
 {-
@@ -72,8 +71,8 @@ variable renaming. An example:
 ~> (\(y : (t1, ..., tn)). e[*]) (e1, ..., en)
 -}
     go (LetOut NonRec bs@(_:_) e) =
-      FI.App
-        (FI.Lam
+      F.App
+        (F.Lam
           (transType d tupled_ts)
           (\y -> dsTcExpr (d, g' y `Map.union` g) e))
         (go tupled_es)
@@ -86,7 +85,7 @@ variable renaming. An example:
           -- Substitution: fi -> y._(i-1)
           g' = \y -> Map.fromList $
                        zipWith
-                         (\f i -> (f, Right (FI.Proj i (FI.Var y))))
+                         (\f i -> (f, Right (F.Proj i (F.Var y))))
                          fs
                          [1..length bs]
 
@@ -110,28 +109,28 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec [(f,t,e)] body)           = dsLetRecEncode (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = dsLetRecEncode (d,g) (LetOut Rec bs body)
 
-    go (JNewObj cName args)    = FI.JNewObj cName (map go args)
+    go (JNewObj cName args)    = F.JNewObj cName (map go args)
     go (JMethod c mName args r) =
       case c of
-        (Left cExpr)  -> FI.JMethod (Left (go cExpr)) mName (map go args) r
-        (Right cName) -> FI.JMethod (Right cName) mName (map go args) r
+        (Left cExpr)  -> F.JMethod (Left (go cExpr)) mName (map go args) r
+        (Right cName) -> F.JMethod (Right cName) mName (map go args) r
 
     go (JField c fName r) =
       case c of
-        (Left cExpr)  -> FI.JField (Left (go cExpr)) fName r
-        (Right cName) -> FI.JField (Right cName) fName r
+        (Left cExpr)  -> F.JField (Left (go cExpr)) fName r
+        (Right cName) -> F.JField (Right cName) fName r
 
-    go (SeqExprs es) = FI.Seq (map go es)
+    go (SeqExprs es) = F.Seq (map go es)
 
-dsLetRecDirect :: DsEnv t e -> Expr TcId -> FI.Expr t e
+dsLetRecDirect :: DsEnv t e -> Expr TcId -> F.Expr t e
 dsLetRecDirect (d,g) = go
   where
     go (LetOut Rec [(f,t,e)] body) =
-      FI.App
-          (FI.Lam
+      F.App
+          (F.Lam
               (transType d t)
               (\f' -> dsTcExpr (d, addToEnv [(f,Left f')] g) body))
-          (FI.Fix
+          (F.Fix
               (\f' x1' -> dsTcExpr (d, addToEnv [(f, Left f'), (x1, Left x1')] g) peeled_e)
               (transType d t1)
               (transType d t2))
@@ -149,17 +148,17 @@ dsLetRecDirect (d,g) = go
 ~> (\(y : Int -> (t1, ..., tn)). e[*])
      (fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*])
 -}
-dsLetRecEncode :: DsEnv t e -> Expr TcId -> FI.Expr t e
+dsLetRecEncode :: DsEnv t e -> Expr TcId -> F.Expr t e
 dsLetRecEncode (d,g) = go
   where
     go (LetOut Rec bs@(_:_) e) =
-      FI.App
-          (FI.Lam
-              (FI.Fun (FI.JClass "java.lang.Integer") (transType d tupled_ts))
+      F.App
+          (F.Lam
+              (F.Fun (F.JClass "java.lang.Integer") (transType d tupled_ts))
               (\y -> dsTcExpr (d, g' y `Map.union` g) e))
-          (FI.Fix
+          (F.Fix
               (\y _dummy -> dsTcExpr (d, g' y `Map.union` g) tupled_es)
-              (FI.JClass "java.lang.Integer")
+              (F.JClass "java.lang.Integer")
               (transType d tupled_ts))
               where
                 (fs, ts, es) = unzip3 bs
@@ -171,7 +170,7 @@ dsLetRecEncode (d,g) = go
                 g' = \y -> Map.fromList
                              (zipWith
                               -- TODO: better var name
-                              (\f i -> (f, Right (FI.Proj i (FI.App (FI.Var y) (FI.Lit (Integer 0))))))
+                              (\f i -> (f, Right (F.Proj i (F.App (F.Var y) (F.Lit (Integer 0))))))
                               fs
                               [1..length bs])
     go _ = invariantFailed "dsLetDirect" "Unexpected pattern for a partial function"
