@@ -10,6 +10,7 @@ import Inheritance
 import StringPrefixes
 import MonadLib
 import Data.Char
+import Debug.Trace
 
 instance (:<) (Translate m) (Translate m) where
    up = id
@@ -166,8 +167,12 @@ fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.N
 
 inputFieldAccess varId = fieldAccess varId localvarstr
 
-hax :: ([J.BlockStmt], J.Exp, C.Type Int) -> (Var, C.Type Int)
-hax (s,(J.ExpName (J.Name [J.Ident x])),t) = (read (filter isDigit x), t)
+pairUp :: [Var] -> [(J.Exp, C.Type Int)] -> ([(Var,J.Exp)],[(Var, C.Type Int)])
+pairUp bindings vars = (paired, exchanged)
+    where
+      z = bindings `zip` vars
+      paired = map (\x -> case x of (a,(b,c)) -> (a,b)) z
+      exchanged = map (\x -> case x of (a,(b,c)) -> (a,c)) z
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
@@ -231,14 +236,25 @@ trans self = let this = up self in T {
 
      C.LetRec t xs body ->
        do  (n :: Int) <- get
-           put (n+1)
-           let mfuns = \defs -> forM (xs defs) (translateM this)
+           let needed = length $ (xs (zip [n..] (repeat (t!!0))))
+           put (n+2+needed)
+           mfuns <- return (\defs -> forM (xs defs) (translateM this))
 
-           let vars = (liftM (map hax)) (mfuns [])
-           let finalFuns = join ((liftM mfuns) vars)
-           let appliedBody = (liftM body) vars
-           (s, je, t') <- join ((liftM (translateM this)) appliedBody)
-           return undefined
+           let vars = (liftM (map (\x -> case x of (a,b,c) -> (b,c)))) (mfuns (zip [n..] (repeat (t!!0))))
+           let (bindings :: [Var]) = [n+2..n+1+needed]
+           (x2xs, newvars) <- ((liftM (pairUp bindings)) vars)
+           let mDecls = map (\x -> J.MemberDecl (J.FieldDecl [J.Public] (closureType) [J.VarDecl (J.VarId (J.Ident (localvarstr ++ show x))) Nothing])) bindings
+           let finalFuns = mfuns newvars
+           let appliedBody = body newvars
+           (s, je, t') <- translateM this appliedBody--join ((liftM (translateM this)) appliedBody)
+           (stmts, _, _) <- ((liftM (unzip3)) (finalFuns))
+           let assm = map (\(i, jz) -> J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show i)])) J.EqualA jz))) x2xs
+           let stasm = concatMap (\(a,b) -> a ++ [b]) (stmts `zip` assm)
+           let letClass = [J.LocalClass (J.ClassDecl [] (J.Ident ("Let" ++ show n)) [] Nothing [] (J.ClassBody
+                           (J.MemberDecl (J.FieldDecl [J.Public] (objType) [J.VarDecl (J.VarId (J.Ident "out")) Nothing]) : mDecls ++ [J.InitDecl False (J.Block stasm)]))),
+                           J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show n)])) J.EqualA (J.InstanceCreation [] (J.ClassType [(J.Ident ("Let" ++ show n),[])]) [] Nothing))),
+                           J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show (n+1))])) J.EqualA (fieldAccess (localvarstr ++ show n) "out")))]
+           return (letClass, var (localvarstr ++ show (n+1)), t')
            --((liftM (!!1)) (finalFuns))--(s, je, t')
 
      C.App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
