@@ -39,6 +39,6 @@ Session.vim
 .hdevtools.sock
 
 *.log
-*.pdf
+formalization/*.pdf
 *.dvi
 *.aux
