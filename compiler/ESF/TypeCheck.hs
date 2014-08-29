@@ -8,7 +8,7 @@ module ESF.TypeCheck
 import ESF.Syntax
 
 import JVMTypeQuery
-import JavaUtils (classpath)
+import JavaUtils
 
 import Text.PrettyPrint.Leijen
 
@@ -99,10 +99,10 @@ infer e =
 
 
 tcLit :: Lit -> TcM (Expr TcId, Type)
-tcLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
-tcLit (String s)  = return (Lit (String s), JClass "java.lang.String")
-tcLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
-tcLit (Char c)    = return (Lit (Char c), JClass "java.lang.Character")
+tcLit (Integer n) = return (Lit (Integer n), JClass javaIntClass)
+tcLit (String s)  = return (Lit (String s), JClass javaStringClass)
+tcLit (Boolean b) = return (Lit (Boolean b), JClass javaBoolClass)
+tcLit (Char c)    = return (Lit (Char c), JClass javaCharClass)
 
 
 tcExpr :: (Handle, Handle) -> (TypeContext, ValueContext)
@@ -173,12 +173,12 @@ tcExpr io (d, g) = go
       do exp1@(e1', t1) <- go e1
          exp2@(e2', t2) <- go e2
          case op of
-           (Arith _)   -> shouldAllBe exp1 exp2 (JClass "java.lang.Integer")
+           (Arith _)   -> shouldAllBe exp1 exp2 (JClass javaIntClass)
            (Compare _) ->
              if alphaEqTy t1 t2
-               then return (PrimOp e1' op e2', JClass "java.lang.Boolean")
+               then return (PrimOp e1' op e2', JClass javaBoolClass)
                else throwError Mismatch { term = e2, expected = t1, actual = t2 }
-           (Logic _)   -> shouldAllBe exp1 exp2 (JClass "java.lang.Boolean")
+           (Logic _)   -> shouldAllBe exp1 exp2 (JClass javaBoolClass)
        where
          shouldAllBe (e1', t1) (e2', t2) t =
            case (alphaEqTy t t1, alphaEqTy t t2) of
@@ -202,7 +202,7 @@ tcExpr io (d, g) = go
                                , actual   = b2Ty }
         _   -> throwError
                  Mismatch { term     = pred
-                          , expected = JClass "java.lang.Boolean"
+                          , expected = JClass javaBoolClass
                           , actual   = predTy }
 
     go (Let NonRec bs e) =

@@ -1,145 +1,167 @@
+{-# LANGUAGE FlexibleContexts
+           , FlexibleInstances
+           , MultiParamTypeClasses
+           , TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns -fno-warn-unused-matches #-}
-{-# LANGUAGE FlexibleContexts, TypeSynonymInstances, FlexibleInstances, MultiParamTypeClasses #-}
 
-module SystemFI.TypeCheck
-  ( transExpr
-  , transType
-  , coerce
-  ) where
+module Simplify where
 
-import SystemFI.Syntax
-
+import Core
 import qualified ESF.Syntax as E
+
+import JavaUtils
+
+import Unsafe.Coerce
+import Control.Monad.Identity
+import Control.Monad.State
 
 -- import Mixins
 
 -- import Unsafe.Coerce
 
-import Control.Monad.Identity
-import Control.Monad.State
-
 import Prelude hiding (pred)
 
+simplify :: Expr t e -> Expr t e
+simplify e = unsafeCoerce $ snd (evalState (transExpr (unsafeCoerce e)) 0)
+
 transExpr:: Expr Int (Int, Type Int) -> State Int (Type Int, Expr Int Int)
+
 transExpr (Var (x, t)) = return (t, Var x)
-transExpr (Lit (E.Integer n)) = return (JClass "java.lang.Integer",   Lit (E.Integer n))
-transExpr (Lit (E.String s))  = return (JClass "java.lang.String",    Lit (E.String s))
-transExpr (Lit (E.Boolean b)) = return (JClass "java.lang.Boolean",   Lit (E.Boolean b))
-transExpr (Lit (E.Char c))    = return (JClass "java.lang.Character", Lit (E.Char c))
+
+transExpr (Lit (E.Integer n)) = return (JClass javaIntClass, Lit (E.Integer n))
+transExpr (Lit (E.String s))  = return (JClass javaStringClass, Lit (E.String s))
+transExpr (Lit (E.Boolean b)) = return (JClass javaBoolClass, Lit (E.Boolean b))
+transExpr (Lit (E.Char c))    = return (JClass javaCharClass, Lit (E.Char c))
+
 transExpr (BLam f) =
   do i <- takeFreshIndex
      (t, m) <- transExpr (f i)
      return ( Forall (\a -> fsubstTT (i, TVar a) t)
             , BLam (\a -> fsubstEE (i, Var a) m))
+
 transExpr (Lam t f) =
   do i <- takeFreshIndex
      (t1, m) <- transExpr (f (i, t))
      return (Fun t t1, Lam (transType i t) (\x -> fsubstEE (i, Var x) m))
+
 transExpr (TApp e t) =
   do i <- takeFreshIndex
      (t1, m) <- transExpr e
      case t1 of
        Forall f -> return (fsubstTT (i, t) (f i), TApp m (transType i t))
        _        -> fail ""
+
 transExpr (App e1 e2)  =
-  do (t1, m1) <- transExpr e1
+  do (t1, e1') <- transExpr e1
      case t1 of
         Fun t t'  ->
           do (t2, m2) <- transExpr e2
              i <- get
              case coerce i t2 t of
-               Just c  -> return (t', m1 `App` (c `optApp` m2))
+               Just c  -> return (t', e1' `App` (c `App` m2))
                Nothing -> fail ""
         _            -> fail ""
+
 transExpr (PrimOp e1 op e2) =
  do (t1, m1) <- transExpr e1
     (t2, m2) <- transExpr e2
     return (And t1 t2, PrimOp m1 op m2)
+
 transExpr (If pred b1 b2) =
   do (predTy, pred') <- transExpr pred
      (b1Ty, b1')     <- transExpr b1
      (b2Ty, b2')     <- transExpr b2
      return (b1Ty, If pred' b1' b2')
+
 transExpr (Tuple es) =
   do (ts, es') <- mapAndUnzipM transExpr es
      return (Product ts, Tuple es')
+
 transExpr (Proj i e) =
   do (Product ts, e') <- transExpr e
-     return (ts !! (i-1), Proj i e')
+     return (ts !! (i - 1), Proj i e')
+
 transExpr (Merge e1 e2) =
-  do (t1, m1) <- transExpr e1
-     (t2, m2) <- transExpr e2
-     return (And t1 t2, Tuple [m1, m2])
+  do (t1, e1') <- transExpr e1
+     (t2, e2') <- transExpr e2
+     return (And t1 t2, Tuple [e1', e2'])
+
 transExpr (JNewObj c es) =
   do (ts, es') <- mapAndUnzipM transExpr es
      return (JClass c, JNewObj c es')
+
 transExpr (JMethod (Left e) m args retC) =
   do (t, e') <- transExpr e
      (argsTys, args') <- mapAndUnzipM transExpr args
      return (JClass retC, JMethod (Left e') m args' retC)
+
 transExpr (JMethod (Right c) m args retC) =
   do (argsTys, args') <- mapAndUnzipM transExpr args
      return (JClass retC, JMethod (Right c) m args' retC)
+
 transExpr (JField (Left e) m retC) =
   do (t, e') <- transExpr e
      return (JClass retC, JField (Left e') m retC)
+
 transExpr (JField (Right c) m retC) =
   return (JClass retC, JField (Right c) m retC)
+
 transExpr (Seq es) =
   do (ts, es') <- mapAndUnzipM transExpr es
      return (last ts, Seq es')
+
 transExpr (Fix f t1 t) =
   do i <- takeFreshIndex
      return ( t1 `Fun` t
-            , Fix (\x x1 -> snd (evalState (transExpr (f (x, t1 `Fun` t) (x1, t1))) i)) (transType i t1) (transType i t))
+            , Fix (\x x1 -> snd (evalState (transExpr (f (x, t1 `Fun` t) (x1, t1))) i))
+                  (transType i t1)
+                  (transType i t))
+
+
+infer :: Expr t e -> Type t
+infer e = unsafeCoerce $ fst (evalState (transExpr e') 0)
+  where e' = unsafeCoerce e
 
 transType :: Int -> Type Int -> Type Int
 transType i (TVar a)      = TVar a
-transType i (JClass c)    = JClass c
 transType i (a1 `Fun` a2) = transType i a1 `Fun` transType i a2
-transType i (a1 `And` a2) = Product [transType i a1, transType i a2]
 transType i (Forall f)    = Forall (\a -> transType (i + 1) (f i)) -- bug!
 transType i (Product ts)  = Product (map (transType i) ts)
+transType i (JClass c)    = JClass c
+transType i (a1 `And` a2) = Product [transType i a1, transType i a2]
 
-coerce :: Int -> Type Int -> Type Int -> Maybe (Maybe (Expr Int Int))
-coerce  i t1@(JClass c1) (JClass c2)
-  | c1 == c2  = Just Nothing
+coerce :: Int -> Type Int -> Type Int -> Maybe (Expr Int Int)
+coerce i (TVar a) (TVar b)
+  | a == b    = Just (Lam (transType i (TVar a)) (\x -> Var x))
+    -- TODO: requires variable identity
   | otherwise = Nothing
-coerce  i t1@(TVar a) (TVar b)
-  | a == b = Just Nothing -- TODO: requires variable identity
-coerce  i t1@(Forall f) (Forall g)  =
+coerce i (Fun t1 t2) (Fun t3 t4) =
+  do c1 <- coerce i t3 t1
+     c2 <- coerce i t2 t4
+     Just (Lam (transType i (Fun t1 t2))
+               (\f -> Lam (transType i t3)
+               (\x -> (App c2 .  App (Var f) . App c1) (Var x))))
+coerce i (Forall f) (Forall g) =
   do c <- coerce (i + 1) (f i) (g i)
-     Just
-       (Just
-          (Lam (transType i t1) (\x -> BLam (\a -> c `optApp` (Var x `TApp` TVar a)))))
-coerce  i f1@(Fun t1 t2) (Fun t3 t4) =
-  do c1 <- coerce  i t3 t1
-     c2 <- coerce  i t2 t4
-     Just
-       (Just
-          (Lam
-             (transType i f1)
-             (\f -> Lam
-                      (transType i t3)
-                      (\x -> c2 `optApp` (Var f `App` (c1 `optApp` Var x))))))
-coerce  i t1 (And t2 t3) =
-  do c1 <- coerce  i t1 t2
-     c2 <- coerce  i t1 t3
-     Just
-       (Just (Lam (transType i t1) (\x -> Tuple [c1 `optApp` Var x, c2 `optApp` Var x])))
-coerce  i t@(And t1 t2) t3 =
+     Just (Lam (transType i (Forall f))
+               (\f -> BLam (\a -> (App c . TApp (Var f)) (TVar a))))
+coerce i (Product ss) (Product ts) = error "not implemented"
+coerce i (JClass c) (JClass d)
+  | c == d    = Just (Lam (transType i (JClass c)) (\x -> Var x))
+  | otherwise = Nothing
+coerce i t1 (And t2 t3) =
+  do c1 <- coerce i t1 t2
+     c2 <- coerce i t1 t3
+     Just (Lam (transType i t1)
+               (\x -> Tuple [c1 `App` Var x, c2 `App` Var x]))
+coerce i (And t1 t2) t3 =
   case coerce i t1 t3 of
+    Just c  -> Just (Lam (transType i (And t1 t2)) (\x -> c `App` Proj 1 (Var x)))
     Nothing ->
       case coerce i t2 t3 of
         Nothing -> Nothing
-        Just c  ->
-          Just (Just (Lam (transType i t1) (\x -> c `optApp` Proj 2 (Var x))))
-    Just c -> Just (Just (Lam (transType i t1) (\x -> c `optApp` Proj 1 (Var x))))
+        Just c  -> Just (Lam (transType i (And t1 t2)) (\x -> c `App` Proj 2 (Var x)))
 coerce  i _ _ = Nothing
-
-optApp :: Maybe (Expr Int Int) -> Expr Int Int -> Expr Int Int
-optApp Nothing   e2 = e2
-optApp (Just e1) e2 = e1 `App` e2
 
 takeFreshIndex :: State Int Int
 takeFreshIndex =
@@ -163,10 +185,10 @@ takeFreshIndex =
 
 -- inferM:: Monad m => Open (Int -> Expr Int (Type Int) -> m (Type Int, Int))
 -- inferM this i (Var x)       = return (x, i)
--- inferM this i (Lit (E.Integer _)) = return (JClass "java.lang.Integer", i)
--- inferM this i (Lit (E.String _))  = return (JClass "java.lang.String", i)
--- inferM this i (Lit (E.Boolean _)) = return (JClass "java.lang.Boolean", i)
--- inferM this i (Lit (E.Char _))    = return (JClass "java.lang.Character", i)
+-- inferM this i (Lit (E.Integer _)) = return (JClass javaIntClass, i)
+-- inferM this i (Lit (E.String _))  = return (JClass javaStringClass, i)
+-- inferM this i (Lit (E.Boolean _)) = return (JClass javaBoolClass, i)
+-- inferM this i (Lit (E.Char _))    = return (JClass javaCharClass, i)
 -- inferM this i (BLam f)      = do (t, _) <- this (i + 1) (f i)
 --                                  return (Forall (\a -> fsubstTT (i, TVar a) t), i)
 -- inferM this i (Lam t f)     = do (t', _) <- this i (f t)

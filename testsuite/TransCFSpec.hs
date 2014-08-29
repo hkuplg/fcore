@@ -8,7 +8,7 @@ import TestTerms
 
 import ESF.Parser       (reader)
 import ESF.TypeCheck    (infer)
-import Desugar          (desugarTcExpr)
+import Desugar          (desugar)
 
 import Translations     (compileN, compileAO, compileS)
 
@@ -42,7 +42,7 @@ esf2sf expr =
   do res <- runErrorT (ESF.TypeCheck.infer expr)
      case res of
        Left typeError     -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
-       Right (tcExpr, _t) -> return (desugarTcExpr tcExpr)
+       Right (tcExpr, _t) -> return (desugar tcExpr)
 
 testAbstractSyn compilation (name, ast, expectedOutput) =
   it ("should compile and run " ++ name ++ " and get \"" ++ expectedOutput ++ "\"") $
