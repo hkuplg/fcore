@@ -90,10 +90,10 @@ import ESF.Lexer
 -- Reference for rules:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
-expr :: { Expr Name }
+expr :: { Expr String }
      : infixexpr %prec EOF      { $1 }
 
-infixexpr :: { Expr Name }
+infixexpr :: { Expr String }
     : expr10                    { $1 }
     | infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
     | infixexpr "/"  infixexpr  { PrimOp $1 (Arith J.Div)    $3 }
@@ -110,7 +110,7 @@ infixexpr :: { Expr Name }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
 
-expr10 :: { Expr Name }
+expr10 :: { Expr String }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
     | "\\" var_with_annot "." expr        { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
@@ -118,18 +118,18 @@ expr10 :: { Expr Name }
     | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
     | fexp                                { $1 }
 
-fexp :: { Expr Name }
+fexp :: { Expr String }
     : fexp aexp         { App  $1 $2 }
     | fexp typ          { TApp $1 $2 }
     | aexp              { $1 }
 
-aexp :: { Expr Name }
+aexp :: { Expr String }
     : aexp1             { $1 }
 
-aexp1 :: { Expr Name }
+aexp1 :: { Expr String }
     : aexp2             { $1 }
 
-aexp2 :: { Expr Name }
+aexp2 :: { Expr String }
     : var                       { Var $1 }
     | INTEGER                   { Lit (Integer $1) }
     | STRING                    { Lit (String $1) }
@@ -139,36 +139,36 @@ aexp2 :: { Expr Name }
     | "(" comma_exprs ")"       { Tuple $2 }
     | "(" expr ")"              { $2 }
     -- Java
-    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Left $1) $3 $5 undefined }
-    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Right $1) $3 $5 undefined }
-    | aexp "." id      { JField (Left $1) $3 undefined }
-    | JAVACLASS "." id { JField (Right $1) $3 undefined }
+    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Left $1) $3 $5 "" }
+    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Right $1) $3 $5 "" }
+    | aexp "." id      { JField (Left $1) $3 "" }
+    | JAVACLASS "." id { JField (Right $1) $3 "" }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
     | "{" semi_exprs "}"        { SeqExprs $2 }
 
-id :: { Name }
+id :: { String }
    : LOWERID { $1 }
    | UPPERID { $1 }
 
-semi_exprs :: { [Expr Name] }
+semi_exprs :: { [Expr String] }
            : expr                { [$1] }
            | expr ";" semi_exprs { $1:$3 }
 
-comma_exprs :: { [Expr Name] }
+comma_exprs :: { [Expr String] }
     : expr "," expr             { [$1, $3] }
     | expr "," comma_exprs      { $1:$3    }
 
-comma_exprs_emp :: { [Expr Name] }
+comma_exprs_emp :: { [Expr String] }
     : {- empty -}   { []   }
     | expr          { [$1] }
     | comma_exprs   { $1   }
 
-var_with_annot :: { (Name, Type) }
+var_with_annot :: { (String, Type) }
   : "(" var ":" typ ")"         { ($2, $4) }
   | "(" var_with_annot ")"      { $2       }
 
-bind :: { Bind Name }
+bind :: { Bind String }
     : var tvars_emp var_annots_emp maybe_sig "=" expr
         { Bind { bindId       = $1
                , bindTargs    = $2
@@ -182,7 +182,7 @@ maybe_sig :: { Maybe Type }
   : ":" typ     { Just $2 }
   | {- empty -} { Nothing }
 
-and_binds :: { [Bind Name] }
+and_binds :: { [Bind String] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
 
@@ -211,21 +211,21 @@ comma_typs :: { [Type] }
     : typ "," typ               { $1:[$3] }
     | typ "," comma_typs        { $1:$3   }
 
-tvars_emp :: { [Name] }
+tvars_emp :: { [String] }
   : {- empty -}         { []    }
   | tvar tvars_emp      { $1:$2 }
 
-var_annot :: { (Name, Type) }
+var_annot :: { (String, Type) }
     : "(" var ":" typ ")"       { ($2, $4) }
 
-var_annots_emp :: { [(Name, Type)] }
+var_annots_emp :: { [(String, Type)] }
     : {- empty -}               { []    }
     | var_annot var_annots_emp  { $1:$2 }
 
-var :: { Name }
+var :: { String }
     : LOWERID           { $1 }
 
-tvar :: { Name }
+tvar :: { String }
     : UPPERID           { $1 }
 
 {
@@ -240,7 +240,7 @@ instance Monad P where
 parseError :: [Token] -> P a
 parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
 
-reader :: String -> Expr Name
+reader :: String -> Expr String
 reader src = case (parser . lexer) src of
                  POk expr   -> expr
                  PError msg -> error msg

@@ -3,19 +3,17 @@
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 
-import qualified ESF.Syntax           as E
+import ESF.Syntax
 import qualified Language.Java.Syntax as J
-import qualified ClosureF             as C
+import ClosureF
 import Inheritance
 import StringPrefixes
 import MonadLib
-import Data.Char
-import Debug.Trace
 
 instance (:<) (Translate m) (Translate m) where
    up = id
 
-type InitVars = [J.BlockStmt]
+type InitVars = [J.BlockStmt]                 
 
 -- Closure F to Java
 
@@ -62,12 +60,12 @@ getClassDecl className bs ass returnType mainbodyDef = J.ClassTypeDecl (J.ClassD
     where
         body = Just (J.Block (bs ++ ass))
 
-reduceTTuples :: [([a], J.Exp, C.Type t)] -> ([a], J.Exp, C.Type t)
+reduceTTuples :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
 reduceTTuples all = (merged, arrayAssignment, tupleType)
     where
         merged = concat $ map (\x -> case x of (a,b,c) -> a) all
         arrayAssignment = J.ArrayCreateInit (objType) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
-        tupleType = C.TupleType (map (\x -> case x of (a,b,c) -> c) all)
+        tupleType = CTupleType (map (\x -> case x of (a,b,c) -> c) all)
 
 initStuff tempvarstr n j t = J.LocalVars [J.Final] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just exp)])
     where
@@ -103,7 +101,7 @@ currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureT
 outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
 
 {-
-translateScopeTyp javaExpression statementsBeforeOA currentId nextId initVars generateClone =
+translateScopeTyp javaExpression statementsBeforeOA currentId nextId initVars generateClone = 
      [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
         (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
         (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId generateClone))),
@@ -112,52 +110,52 @@ translateScopeTyp javaExpression statementsBeforeOA currentId nextId initVars ge
 
 data Translate m = T {
   translateM ::
-     C.Expr Int (Var, C.Type Int) ->
-     m ([J.BlockStmt], J.Exp, C.Type Int),
+     PCExp Int (Var, PCTyp Int) ->
+     m ([J.BlockStmt], J.Exp, PCTyp Int),
   translateScopeM ::
-    C.Scope (C.Expr Int (Var, C.Type Int)) Int (Var, C.Type Int) ->
-    Maybe (Int,C.Type Int) ->
-    m ([J.BlockStmt], J.Exp, C.TScope Int),
-  translateApply ::  m ([J.BlockStmt], J.Exp, C.Type Int) ->  m ([J.BlockStmt], J.Exp, C.Type Int) ->  m ([J.BlockStmt], J.Exp, C.Type Int),
-  translateIf ::  m ([J.BlockStmt], J.Exp, C.Type Int) -> m ([J.BlockStmt], J.Exp, C.Type Int) ->  m ([J.BlockStmt], J.Exp, C.Type Int) ->  m ([J.BlockStmt], J.Exp, C.Type Int),
-  translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> C.Scope (C.Expr Int (Var, C.Type Int)) Int (Var, C.Type Int) -> m ([J.BlockStmt], J.Exp, C.TScope Int) -> m ([J.BlockStmt], C.TScope Int),
-  genApply :: J.Ident -> C.TScope Int -> J.Exp -> J.Type -> m [J.BlockStmt],
-  genRes :: C.TScope Int -> [J.BlockStmt] -> m [J.BlockStmt],
+    Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) ->
+    Maybe (Int,PCTyp Int) ->
+    m ([J.BlockStmt], J.Exp, TScope Int),
+  translateApply ::  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int),
+  translateIf ::  m ([J.BlockStmt], J.Exp, PCTyp Int) -> m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int) ->  m ([J.BlockStmt], J.Exp, PCTyp Int),
+  translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (PCExp Int (Var, PCTyp Int)) Int (Var, PCTyp Int) -> m ([J.BlockStmt], J.Exp, TScope Int) -> m ([J.BlockStmt], TScope Int), 
+  genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> m [J.BlockStmt],
+  genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt],
   genClone :: m Bool,
-  getCvarAss :: C.TScope Int -> J.Ident -> J.Exp -> J.Exp -> m [J.BlockStmt],
+  getCvarAss :: TScope Int -> J.Ident -> J.Exp -> J.Exp -> m [J.BlockStmt],
   -- getS3 :: TScope Int -> J.Exp -> (J.Exp -> J.Type -> [J.BlockStmt]) -> ([J.BlockStmt] -> [J.BlockStmt]) -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
-  createWrap :: String -> C.Expr Int (Var, C.Type Int) -> m (J.CompilationUnit, C.Type Int)
+  createWrap :: String -> PCExp Int (Var, PCTyp Int) -> m (J.CompilationUnit, PCTyp Int)
   }
 
-chooseCastBox (C.JClass c)       = (initClassCast c, javaClassType c)
-chooseCastBox (C.Forall _)       = (initClosure,closureType)
-chooseCastBox (C.TupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
-chooseCastBox (C.TupleType _)    = (initObjArray,objArrayType)
+chooseCastBox (CJClass c)       = (initClassCast c, javaClassType c)
+chooseCastBox (CForall _)       = (initClosure,closureType)
+chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
+chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
 chooseCastBox _                 = (initObj,objType)
 
-javaType (C.JClass c)      = javaClassType c
-javaType (C.Forall _)      = closureType
-javaType (C.TupleType [t]) = javaType t -- optimization for tuples of size 1
-javaType (C.TupleType _)   = objArrayType
+javaType (CJClass c)      = javaClassType c
+javaType (CForall _)      = closureType
+javaType (CTupleType [t]) = javaType t -- optimization for tuples of size 1
+javaType (CTupleType _)   = objArrayType
 javaType _                = objType
 
 getS3 this f t j3 cvarass =
   do (n :: Int) <- get
      put (n+1)
-     let (cast,typ) = chooseCastBox (C.scope2ctyp t)
+     let (cast,typ) = chooseCastBox (scope2ctyp t)
      apply <- genApply this f t (var (tempvarstr ++ show n)) typ
-     rest <- genRes this t [cast tempvarstr n j3]
+     rest <- genRes this t [cast tempvarstr n j3]                                                           
      let r = cvarass ++ apply ++ rest
-     return (r, var (tempvarstr ++ show n))
+     return (r, var (tempvarstr ++ show n))   
 
-genIfBody this m2 m3 j1 s1 n = do
+genIfBody this m2 m3 j1 s1 n = do 
             (s2,j2,t2) <- m2 {-translateM this e2-}
             (s3,j3,t3) <- m3 {-translateM this e3-}
             let ifvarname = (ifresultstr ++ show n)
             let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
             let ifresdecl = J.LocalVars [] (javaType t2) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
             let (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
-            return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)  -- need to check t2 == t3
+            return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)  -- need to check t2 == t3   
 
 --(J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA
 
@@ -167,199 +165,169 @@ fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.N
 
 inputFieldAccess varId = fieldAccess varId localvarstr
 
-pairUp :: [Var] -> [(J.Exp, C.Type Int)] -> ([(Var,J.Exp)],[(Var, C.Type Int)])
-pairUp bindings vars = (paired, exchanged)
-    where
-      z = bindings `zip` vars
-      paired = map (\x -> case x of (a,(b,c)) -> (a,b)) z
-      exchanged = map (\x -> case x of (a,(b,c)) -> (a,c)) z
-
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of
-     C.Var (i, t) ->
+     CVar (i, t) ->
        do return ([],var (localvarstr ++ show i), t)
 
-     C.Lit lit -> case lit of (E.Integer i) -> return ([], J.Lit $ J.Int i, C.JClass "java.lang.Integer")
-                              (E.String s)  -> return ([], J.Lit $ J.String s, C.JClass "java.lang.String")
-                              (E.Boolean b) -> return ([], J.Lit $ J.Boolean b, C.JClass "java.lang.Boolean")
-                              (E.Char c)    -> return ([], J.Lit $ J.Char c, C.JClass "java.lang.Character")
+     CFLit lit -> case lit of (Integer i) -> return ([], J.Lit $ J.Int i, CJClass "java.lang.Integer")
+                              (String s)  -> return ([], J.Lit $ J.String s, CJClass "java.lang.String")
+                              (Boolean b) -> return ([], J.Lit $ J.Boolean b, CJClass "java.lang.Boolean")
+                              (Char c)    -> return ([], J.Lit $ J.Char c, CJClass "java.lang.Character")
 
-     C.PrimOp e1 op e2 ->
+     CFPrimOp e1 op e2 ->
        do  (n :: Int) <- get
            put (n+1)
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
-           let (je, typ) = case op of (E.Arith realOp)   -> (J.BinOp j1 realOp j2, C.JClass "java.lang.Integer")
-                                      (E.Compare realOp) -> (J.BinOp j1 realOp j2, C.JClass "java.lang.Boolean")
-                                      (E.Logic realOp)   -> (J.BinOp j1 realOp j2, C.JClass "java.lang.Boolean")
-           return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je typ],
+           let (je, typ) = case op of (Arith realOp)   -> (J.BinOp j1 realOp j2, CJClass "java.lang.Integer")
+                                      (Compare realOp) -> (J.BinOp j1 realOp j2, CJClass "java.lang.Boolean")
+                                      (Logic realOp)   -> (J.BinOp j1 realOp j2, CJClass "java.lang.Boolean")
+           return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je typ], 
                    var (localvarstr ++ show n), typ)
 
-     C.If e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3)
-
-     -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)
-     C.Tuple [e] ->
+     CFIf e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3) 
+     
+     -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)     
+     CFTuple [e] -> 
        do  (s1,j1,t1) <- translateM this e
-           return (s1,j1,C.TupleType [t1])
+           return (s1,j1,CTupleType [t1])
 
      -- otherwise: (not optimized)
-     C.Tuple tuple ->
+     CFTuple tuple ->
        liftM reduceTTuples $ mapM (translateM this) tuple
 
-     C.Proj i e ->
+     CFProj i e ->
        do (s1,j1,t) <- translateM this e
-          case t of
-             -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)
-             C.TupleType [t] -> return (s1,j1,t)
+          case t of 
+             -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED) 
+             CTupleType [t] -> return (s1,j1,t)
              -- otherwise: (not optimized)
-             C.TupleType ts  ->
-               let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger (i-1))))
+             CTupleType ts  -> 
+               let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger (i-1)))) 
                in return (s1, J.Cast (javaType (ts!!(i-1))) fj, ts!!(i-1))
              otherwise -> error "expected tuple type"
 
-     C.TApp e t ->
+     CTApp e t ->
        do  n <- get
-           (s,je, C.Forall (C.Kind f)) <- translateM this e
-           return (s,je, C.scope2ctyp (C.substScope n t (f n)))
+           (s,je, CForall (Kind f)) <- translateM this e
+           return (s,je, scope2ctyp (substScope n t (f n)))
     -- TODO: CLam and CFix generation of top-level Fun closures is a bit ad-hoc transformation from the old generated code + duplicate code
-     C.Lam se ->
+     CLam se ->
        do  (n :: Int) <- get
            (s,je, t) <- translateScopeM this se Nothing
-           return (s,je, C.Forall t)
+           return (s,je, CForall t)
 
-     C.Fix t s   ->
+     CFix t s   ->
        do  (n :: Int) <- get
            put (n+1)
            (s, je, t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
-           return (s,je, C.Forall t')
+           return (s,je, CForall t')
 
-     C.LetRec t xs body ->
-       do  (n :: Int) <- get
-           let needed = length $ (xs (zip [n..] (repeat (t!!0))))
-           put (n+2+needed)
-           mfuns <- return (\defs -> forM (xs defs) (translateM this))
-
-           let vars = (liftM (map (\x -> case x of (a,b,c) -> (b,c)))) (mfuns (zip [n..] (repeat (t!!0))))
-           let (bindings :: [Var]) = [n+2..n+1+needed]
-           (x2xs, newvars) <- ((liftM (pairUp bindings)) vars)
-           let mDecls = map (\x -> J.MemberDecl (J.FieldDecl [J.Public] (closureType) [J.VarDecl (J.VarId (J.Ident (localvarstr ++ show x))) Nothing])) bindings
-           let finalFuns = mfuns newvars
-           let appliedBody = body newvars
-           (s, je, t') <- translateM this appliedBody--join ((liftM (translateM this)) appliedBody)
-           (stmts, _, _) <- ((liftM (unzip3)) (finalFuns))
-           let assm = map (\(i, jz) -> J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show i)])) J.EqualA jz))) x2xs
-           let stasm = concatMap (\(a,b) -> a ++ [b]) (stmts `zip` assm)
-           let letClass = [J.LocalClass (J.ClassDecl [] (J.Ident ("Let" ++ show n)) [] Nothing [] (J.ClassBody
-                           (J.MemberDecl (J.FieldDecl [J.Public] (objType) [J.VarDecl (J.VarId (J.Ident "out")) Nothing]) : mDecls ++ [J.InitDecl False (J.Block stasm)]))),
-                           J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show n)])) J.EqualA (J.InstanceCreation [] (J.ClassType [(J.Ident ("Let" ++ show n),[])]) [] Nothing))),
-                           J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show (n+1))])) J.EqualA (fieldAccess (localvarstr ++ show n) "out")))]
-           return (letClass, var (localvarstr ++ show (n+1)), t')
-           --((liftM (!!1)) (finalFuns))--(s, je, t')
-
-     C.App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
+     CApp e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
 
      -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
-     C.JNewObj c args -> do args' <- mapM (translateM this) args
-                            let argsStatements = concat $ map (\(x, _, _) -> x) args'
-                            let argsExprs = map (\(_, x, _) -> x) args'
-                            let argTypes = map (\(_, _, x) -> x) args'
-                            (n :: Int) <- get
-                            put (n + 1)
-                            let rhs = J.InstanceCreation (map (\(C.JClass x) -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
-                                                         (J.ClassType [(J.Ident c, [])]) argsExprs Nothing
-                            let typ = C.JClass c
-                            return (argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ], var (localvarstr ++ show n), typ)
+     CJNewObj c args -> do args' <- mapM (translateM this) args
+                           let argsStatements = concat $ map (\(x, _, _) -> x) args'
+                           let argsExprs = map (\(_, x, _) -> x) args'
+                           let argTypes = map (\(_, _, x) -> x) args'
+                           (n :: Int) <- get
+                           put (n + 1)
+                           let rhs = J.InstanceCreation (map (\(CJClass x) -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes) 
+                                                        (J.ClassType [(J.Ident c, [])]) argsExprs Nothing
+                           let typ = CJClass c
+                           return (argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ], var (localvarstr ++ show n), typ)
 
-     C.JMethod (Left c) m args r ->
+     CJMethod (Left c) m args r ->
        do args' <- mapM (translateM this) args
           let argsStatements = concat $ map (\(x, _, _) -> x) args'
           let argsExprs = map (\(_, x, _) -> x) args'
           let argTypes = map (\(_, _, x) -> x) args'
           (classStatement, classExpr, _) <- translateM this c
-          let refTypeArgs = (map (\(C.JClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
-          let rhs = J.MethodInv $ J.PrimaryMethodCall classExpr refTypeArgs (J.Ident m) argsExprs
-          let typ = C.JClass r
+          let refTypeArgs = (map (\(CJClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
+          let rhs = J.MethodInv $ J.PrimaryMethodCall classExpr refTypeArgs (J.Ident m) argsExprs 
+          let typ = CJClass r
           if r /= "java.lang.Void"
             then do (n :: Int) <- get
                     put (n + 1)
                     return ( argsStatements ++ classStatement ++ [assignVar (localvarstr ++ show n) rhs typ]
                            , var (localvarstr ++ show n)
                            , typ )
-            else return ( argsStatements ++ classStatement ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ )
+            else return ( argsStatements ++ classStatement ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ ) 
 
-     C.JMethod (Right c) m args r ->
+     CJMethod (Right c) m args r ->
        do args' <- mapM (translateM this) args
           let argsStatements = concat $ map (\(x, _, _) -> x) args'
           let argsExprs = map (\(_, x, _) -> x) args'
           let argTypes = map (\(_, _, x) -> x) args'
-          let refTypeArgs = (map (\(C.JClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
+          let refTypeArgs = (map (\(CJClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
           let rhs = J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident c]) refTypeArgs (J.Ident m) argsExprs
-          let typ = C.JClass r
+          let typ = CJClass r
           if r /= "java.lang.Void"
             then do (n :: Int) <- get
                     put (n + 1)
                     return ( argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ]
                            , var (localvarstr ++ show n)
                            , typ )
-            else return ( argsStatements ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ )
+            else return ( argsStatements ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ ) 
 
-     C.JField c fName r ->
+     CJField c fName r -> 
        case c of
          (Left ce) -> do (classStatement, classExpr, _) <- translateM this ce
                          let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
-                         let typ = C.JClass r
+                         let typ = CJClass r
                          (n :: Int) <- get
                          put (n + 1)
                          let newName = localvarstr ++ show n
                          return (classStatement ++ [assignVar newName rhs typ], var newName, typ)
          (Right cn) -> do let classExpr = J.ExpName $ J.Name [J.Ident cn]
                           let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
-                          let typ = C.JClass r
+                          let typ = CJClass r
                           (n :: Int) <- get
                           put (n + 1)
                           let newName = localvarstr ++ show n
                           return ([assignVar newName rhs typ], var newName, typ)
-
-     C.SeqExprs es -> do es' <- mapM (translateM this) es
-                         let (_, lastExp, lastType) = last es'
-                         let statements = concat $ map (\(x, _, _) -> x) es'
-                         return (statements, lastExp, lastType)
-
+                                      
+     CSeqExprs es -> do es' <- mapM (translateM this) es
+                        let (_, lastExp, lastType) = last es'
+                        let statements = concat $ map (\(x, _, _) -> x) es'
+                        return (statements, lastExp, lastType)
+                           
      ,
 
   translateScopeM = \e m -> case e of
-      C.Body t ->
+      Body t ->
         do  (s,je, t1) <- translateM this t
-            return (s,je, C.Body t1)
+            return (s,je, Body t1)
 
-      C.Kind f ->
+      Kind f ->
         do  n <- get
             put (n+1) -- needed?
             (s,je,t1) <- translateScopeM this (f n) m
-            return (s,je, C.Kind (\a -> C.substScope n (C.TVar a) t1))
+            return (s,je, Kind (\a -> substScope n (CTVar a) t1))
 
-      C.Type t g ->
+      Typ t g ->
         do  n <- get
             let f       = J.Ident (localvarstr ++ show n) -- use a fresh variable
             let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
             put (n' + 1)
             let nextInClosure = g (n',t)
-            let js = (initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t))
-            (cvar,t1) <- translateScopeTyp this v n [js] nextInClosure (translateScopeM this nextInClosure Nothing)
-            return (cvar,J.ExpName (J.Name [f]), C.Type t (\_ -> t1) ),
+            let js = (initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) (javaType t)) 
+            (cvar,t1) <- translateScopeTyp this v n [js] nextInClosure (translateScopeM this nextInClosure Nothing) 
+            return (cvar,J.ExpName (J.Name [f]), Typ t (\_ -> t1) ),
 
-  translateApply = \m1 m2 ->
+  translateApply = \m1 m2 -> 
        do  (n :: Int) <- get
            put (n+1)
-           (s1,j1, C.Forall (C.Type t1 g)) <- m1
+           (s1,j1, CForall (Typ t1 g)) <- m1
            (s2,j2,t2) <- m2
            let t    = g ()
            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
            cvarass <- getCvarAss (up this) t f j1 j2
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
            (s3, nje3) <- getS3 (up this) f t j3 cvarass
-           return (s1 ++ s2 ++ s3, nje3, C.scope2ctyp t),
+           return (s1 ++ s2 ++ s3, nje3, scope2ctyp t),
 
   translateIf = \m1 m2 m3 ->
         do  n <- get
@@ -382,7 +350,7 @@ trans self = let this = up self in T {
 
   genRes = \t -> return,
 
-  getCvarAss = \t f j1 j2 ->
+  getCvarAss = \t f j1 j2 -> 
      return [ J.LocalVars [] closureType ([J.VarDecl (J.VarId f) (Just (J.InitExp j1))]),
               J.BlockStmt (J.ExpStmt (J.Assign (J.FieldLhs (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident localvarstr))) J.EqualA j2) )],
 
@@ -390,7 +358,7 @@ trans self = let this = up self in T {
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM this exp
-           let returnType = case t of C.JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
            let classDecl = getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) returnType mainbody
            return (createCUB this [classDecl], t)
