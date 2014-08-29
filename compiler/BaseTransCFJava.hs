@@ -9,6 +9,7 @@ import qualified ClosureF             as C
 import Inheritance
 import StringPrefixes
 import MonadLib
+import Data.Char
 
 instance (:<) (Translate m) (Translate m) where
    up = id
@@ -165,6 +166,9 @@ fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.N
 
 inputFieldAccess varId = fieldAccess varId localvarstr
 
+hax :: ([J.BlockStmt], J.Exp, C.Type Int) -> (Var, C.Type Int)
+hax (s,(J.ExpName (J.Name [J.Ident x])),t) = (read (filter isDigit x), t)
+
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of
@@ -224,6 +228,18 @@ trans self = let this = up self in T {
            put (n+1)
            (s, je, t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
            return (s,je, C.Forall t')
+
+     C.LetRec t xs body ->
+       do  (n :: Int) <- get
+           put (n+1)
+           let mfuns = \defs -> forM (xs defs) (translateM this)
+
+           let vars = (liftM (map hax)) (mfuns [])
+           let finalFuns = join ((liftM mfuns) vars)
+           let appliedBody = (liftM body) vars
+           (s, je, t') <- join ((liftM (translateM this)) appliedBody)
+           return undefined
+           --((liftM (!!1)) (finalFuns))--(s, je, t')
 
      C.App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
 
