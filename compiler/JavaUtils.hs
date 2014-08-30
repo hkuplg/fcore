@@ -1,21 +1,22 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module JavaUtils
-    ( runtimeJarPath
-    , classpath
-    , compileJava
-    , runJava
-    , inferOutputPath
-    , inferClassName
-    , ClassName(..)
-    ) where
+  ( runtimeJarPath
+  , classpath
+  , compileJava, runJava
+  , inferOutputPath, inferClassName
+  , ClassName, MethodName, FieldName
+  , javaIntClass, javaStringClass, javaBoolClass, javaCharClass
+  ) where
 
 import System.FilePath   (takeDirectory, takeBaseName, (</>))
 import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)
 import System.Process    (system)
 import Data.String.Utils (capitalize)
 
-newtype ClassName = ClassName String deriving (Eq, Show)
+type ClassName  = String
+type MethodName = String
+type FieldName  = String
 
 runtimeJarPath :: IO FilePath
 runtimeJarPath = do h <- getHomeDirectory
@@ -47,3 +48,8 @@ runJava srcPath = do
     system $ "java -cp " ++ currDir ++ "/runtime.jar:" ++ cp ++ takeBaseName srcPath
     system "rm *.class"
     setCurrentDirectory currDir
+
+javaIntClass    = "java.lang.Integer"
+javaStringClass = "java.lang.String"
+javaBoolClass   = "java.lang.Boolean"
+javaCharClass   = "java.lang.Character"

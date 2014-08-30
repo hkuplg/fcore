@@ -29,8 +29,8 @@ data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
     , optSourceFiles   :: [String]
-    , optShowOpts      :: Bool
-    , optDumpTcExpr    :: Bool
+    -- , optShowOpts      :: Bool
+    , optDump          :: Bool
     , optTransMethod   :: TransMethod
     } deriving (Eq, Show, Data, Typeable)
 
@@ -40,8 +40,8 @@ optionsSpec :: Options
 optionsSpec = Options
     { optCompile       = False &= explicit &= name "c" &= name "compile"         &= help "Compile Java source"
     , optCompileAndRun = False &= explicit &= name "r" &= name "compile-and-run" &= help "Compile & run Java source"
-    , optShowOpts         = False &= explicit &= name "d" &= name "debug"           &= help "Show the parsed options"
-    , optDumpTcExpr    = False &= explicit &= name "dumptcexpr" &= help "Dump typechecked ESF expression"
+    -- , optShowOpts      = False &= explicit &= name "d" &= name "debug"           &= help "Show the parsed options"
+    , optDump          = False &= explicit &= name "d" &= name "dump" &= help "Print expressions in the pipeline to stdout"
     , optSourceFiles   = []    &= args     &= typ "<source files>"
     , optTransMethod   = ApplyOpt
                       &= explicit &= name "m" &= name "method"
@@ -58,11 +58,11 @@ getOpts = cmdArgs $ optionsSpec -- cmdArgs :: Data a => a -> IO a
     &= program "f2j"
     &= summary "SystemF to Java compiler"
 
-withMessage :: String -> IO () -> IO ()
-withMessage msg act = do { putStr msg; hFlush stdout; act }
+-- withMessage :: String -> IO () -> IO ()
+-- withMessage msg act = do { putStr msg; hFlush stdout; act }
 
-withMessageLn :: String -> IO () -> IO ()
-withMessageLn msg act = do { withMessage msg act; putStrLn "" }
+-- withMessageLn :: String -> IO () -> IO ()
+-- withMessageLn msg act = do { withMessage msg act; putStrLn "" }
 
 runtimeBytes :: Data.ByteString.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
@@ -72,7 +72,8 @@ main = do
     rawArgs <- getArgs
     -- If the user did not specify any arguments, pretend as "--help" was given
     Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
-    when (optShowOpts) $ putStrLn (show Options{..} ++ "\n")
+
+    -- when (optShowOpts) $ putStrLn (show Options{..} ++ "\n")
 
     -- Write the bytes of runtime.jar to file
     exists <- doesFileExist =<< runtimeJarPath
@@ -84,15 +85,18 @@ main = do
       (\srcPath -> do
         putStrLn (takeFileName srcPath)
         let outputPath = inferOutputPath srcPath
-
         let method = optTransMethod
-        withMessageLn
-          (concat ["  Compiling System F to Java using ", show method, " ( ", outputPath, " )"]) $
-            compilesf2java
-              (case method of Naive    -> compileN
-                              ApplyOpt -> compileAO
-                              Stack    -> compileS)
-              srcPath outputPath
+        -- putStrLn (concat ["  Compiling System F to Java using ", show method, " ( ", outputPath, " )"])
+        compilesf2java optDump
+          (case method of Naive    -> compileN
+                          ApplyOpt -> compileAO
+                          Stack    -> compileS)
+          srcPath outputPath
 
-        when (optCompile || optCompileAndRun) $ withMessageLn "  Compiling Java" $ compileJava outputPath
-        when (optCompileAndRun) $ withMessage "  Running Java\n  Output: " $ runJava outputPath)
+        when (optCompile || optCompileAndRun) $
+          do putStrLn "  Compiling Java"
+             compileJava outputPath
+
+        when optCompileAndRun $
+          do putStrLn "  Running Java\n  Output: "
+             runJava outputPath)

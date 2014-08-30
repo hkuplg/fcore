@@ -7,6 +7,8 @@ import qualified Language.Java.Syntax as J (Op (..))
 
 import ESF.Syntax
 import ESF.Lexer
+
+import JavaUtils
 }
 
 %name parser
@@ -202,7 +204,7 @@ typ :: { Type }
 
 atyp :: { Type }
     : tvar                      { TyVar $1 }
-    | "Int"                     { JClass "java.lang.Integer" }
+    | "Int"                     { JClass javaIntClass }
     | "(" typ ")"               { $2 }
     | "(" comma_typs ")"        { Product $2 }
     | JAVACLASS                 { JClass $1 }
