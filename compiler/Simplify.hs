@@ -7,7 +7,7 @@
 module Simplify where
 
 import Core
-import qualified ESF.Syntax as E
+import qualified Src.Syntax as S
 
 import JavaUtils
 import Panic
@@ -29,10 +29,10 @@ transExpr:: Expr Int (Int, Type Int) -> State Int (Type Int, Expr Int Int)
 
 transExpr (Var (x, t)) = return (t, Var x)
 
-transExpr (Lit (E.Integer n)) = return (JClass javaIntClass, Lit (E.Integer n))
-transExpr (Lit (E.String s))  = return (JClass javaStringClass, Lit (E.String s))
-transExpr (Lit (E.Boolean b)) = return (JClass javaBoolClass, Lit (E.Boolean b))
-transExpr (Lit (E.Char c))    = return (JClass javaCharClass, Lit (E.Char c))
+transExpr (Lit (S.Integer n)) = return (JClass javaIntClass, Lit (S.Integer n))
+transExpr (Lit (S.String s))  = return (JClass javaStringClass, Lit (S.String s))
+transExpr (Lit (S.Boolean b)) = return (JClass javaBoolClass, Lit (S.Boolean b))
+transExpr (Lit (S.Char c))    = return (JClass javaCharClass, Lit (S.Char c))
 
 transExpr (BLam f) =
   do i <- takeFreshIndex
@@ -186,10 +186,10 @@ takeFreshIndex =
 
 -- inferM:: Monad m => Open (Int -> Expr Int (Type Int) -> m (Type Int, Int))
 -- inferM this i (Var x)       = return (x, i)
--- inferM this i (Lit (E.Integer _)) = return (JClass javaIntClass, i)
--- inferM this i (Lit (E.String _))  = return (JClass javaStringClass, i)
--- inferM this i (Lit (E.Boolean _)) = return (JClass javaBoolClass, i)
--- inferM this i (Lit (E.Char _))    = return (JClass javaCharClass, i)
+-- inferM this i (Lit (S.Integer _)) = return (JClass javaIntClass, i)
+-- inferM this i (Lit (S.String _))  = return (JClass javaStringClass, i)
+-- inferM this i (Lit (S.Boolean _)) = return (JClass javaBoolClass, i)
+-- inferM this i (Lit (S.Char _))    = return (JClass javaCharClass, i)
 -- inferM this i (BLam f)      = do (t, _) <- this (i + 1) (f i)
 --                                  return (Forall (\a -> fsubstTT (i, TVar a) t), i)
 -- inferM this i (Lam t f)     = do (t', _) <- this i (f t)

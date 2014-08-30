@@ -4,7 +4,7 @@
 
 {-# LANGUAGE RecordWildCards #-}
 
-module ESF.Syntax
+module Src.Syntax
   ( Bind(..)
   , Expr(..)
   , Lit(..)
@@ -217,4 +217,4 @@ opPrec (Compare J.Equal)  = 7
 opPrec (Compare J.NotEq)  = 7
 opPrec (Logic J.CAnd)     = 11
 opPrec (Logic J.COr)      = 12
-opPrec op = panic $ "ESF.Syntax.opPrec: " ++ show op
+opPrec op = panic $ "Src.Syntax.opPrec: " ++ show op

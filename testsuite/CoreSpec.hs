@@ -25,7 +25,7 @@ ident = BLam (\a -> Lam (TVar a) (\x -> Var x))
 
 spec :: Spec
 spec =
-  describe "NOTE infer is skipped" $ do
+  describe "*** Notice: Tests for `infer' is skipped" $ do
     return ()
     -- describe "type application" $ do
     --   mapM_ (\(name, input, expectedOutput) ->

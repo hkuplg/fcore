@@ -1,11 +1,11 @@
 {-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-unused-binds #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module ESF.TypeCheck
+module Src.TypeCheck
   ( infer
   ) where
 
-import ESF.Syntax
+import Src.Syntax
 
 import JvmTypeQuery
 import JavaUtils
@@ -155,7 +155,7 @@ tcExpr io (d, g) = go
                                      , actual   = t1 }
 
     go (Tuple es)
-      | length es < 2 = panic "ESF.TypeCheck.tcExpr: fewer than two items in tuple"
+      | length es < 2 = panic "Src.TypeCheck.tcExpr: fewer than two items in tuple"
       | otherwise     = do (es', ts) <- mapAndUnzipM go es
                            return (Tuple es', Product ts)
 
@@ -269,7 +269,7 @@ tcExpr io (d, g) = go
          (e', t) <- tcExpr io (d, Map.fromList (zip fs ts) `Map.union` g) e
          return (LetOut Rec bs' e', t)
 
-    go (LetOut{..}) = panic "ESF.TypeCheck.tcExpr: LetOut"
+    go (LetOut{..}) = panic "Src.TypeCheck.tcExpr: LetOut"
 
     go (JNewObj c args) =
       do ok <- liftIO $ isJvmType io c

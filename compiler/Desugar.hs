@@ -3,7 +3,7 @@
 
 module Desugar (desugar) where
 
-import ESF.Syntax
+import Src.Syntax
 
 import qualified Core as C
 

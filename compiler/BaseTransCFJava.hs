@@ -3,7 +3,7 @@
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 
-import qualified ESF.Syntax           as E
+import qualified Src.Syntax           as Src
 import qualified Language.Java.Syntax as J
 import ClosureF
 import Inheritance
@@ -172,10 +172,10 @@ trans self = let this = up self in T {
      Var (i, t) -> return ([],var (localvarstr ++ show i), t)
 
      Lit lit -> case lit of
-                  (E.Integer i) -> return ([], J.Lit $ J.Int i, JClass "java.lang.Integer")
-                  (E.String s)  -> return ([], J.Lit $ J.String s, JClass "java.lang.String")
-                  (E.Boolean b) -> return ([], J.Lit $ J.Boolean b, JClass "java.lang.Boolean")
-                  (E.Char c)    -> return ([], J.Lit $ J.Char c, JClass "java.lang.Character")
+                  (Src.Integer i) -> return ([], J.Lit $ J.Int i, JClass "java.lang.Integer")
+                  (Src.String s)  -> return ([], J.Lit $ J.String s, JClass "java.lang.String")
+                  (Src.Boolean b) -> return ([], J.Lit $ J.Boolean b, JClass "java.lang.Boolean")
+                  (Src.Char c)    -> return ([], J.Lit $ J.Char c, JClass "java.lang.Character")
 
      PrimOp e1 op e2 ->
        do  (n :: Int) <- get
@@ -183,9 +183,9 @@ trans self = let this = up self in T {
            (s1,j1,t1) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            let (je, typ) = case op of
-                             (E.Arith realOp)   -> (J.BinOp j1 realOp j2, JClass "java.lang.Integer")
-                             (E.Compare realOp) -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
-                             (E.Logic realOp)   -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
+                             (Src.Arith realOp)   -> (J.BinOp j1 realOp j2, JClass "java.lang.Integer")
+                             (Src.Compare realOp) -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
+                             (Src.Logic realOp)   -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
            return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je typ],
                    var (localvarstr ++ show n), typ)
 
@@ -243,7 +243,7 @@ trans self = let this = up self in T {
 
      JMethod (Left c) m args r ->
        do args' <- mapM (translateM this) args
-          let argsStatements = concat $ map (\(x, _, _) -> x) args'
+          let argsStatements = concatMap (\(x, _, _) -> x) args'
           let argsExprs = map (\(_, x, _) -> x) args'
           let argTypes = map (\(_, _, x) -> x) args'
           (classStatement, classExpr, _) <- translateM this c

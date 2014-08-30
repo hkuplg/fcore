@@ -3,7 +3,7 @@
 
 module ClosureF where
 
-import qualified ESF.Syntax  as E
+import qualified Src.Syntax  as S
 import qualified Core        as C
 
 import JavaUtils
@@ -32,8 +32,8 @@ data Expr t e =
    | Lam (EScope t e)
    | App (Expr t e) (Expr t e)
    | TApp (Expr t e) (Type t)
-   | PrimOp (Expr t e) E.Operator (Expr t e)
-   | Lit E.Lit
+   | PrimOp (Expr t e) S.Operator (Expr t e)
+   | Lit S.Lit
    | If (Expr t e) (Expr t e) (Expr t e)
    | Tuple [Expr t e]
    | Proj Int (Expr t e)

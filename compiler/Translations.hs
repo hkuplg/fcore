@@ -17,13 +17,13 @@ module Translations
     , compilesf2java
     ) where
 
-import ESF.Parser    (reader)
-import ESF.TypeCheck (infer)
+import Src.Parser    (reader)
+import Src.TypeCheck (infer)
 import Desugar       (desugar)
 import Simplify      (simplify)
 
-import qualified Core     as Co
-import qualified ClosureF as Cl
+import qualified Core
+import ClosureF
 
 import PrettyUtils
 import JavaUtils      (ClassName, inferClassName)
@@ -143,10 +143,10 @@ type MAOpt = StateT Int (StateT (Map J.Exp Int) (Reader (Set.Set Int)))
 sopt :: Translate MAOpt  -- instantiation; all coinstraints resolved
 sopt = naive
 
-translate ::  Cl.Expr Int (Var, Cl.Type Int) -> MAOpt ([BlockStmt], Exp, Cl.Type Int)
+translate ::  Expr Int (Var, Type Int) -> MAOpt ([BlockStmt], Exp, Type Int)
 translate e = translateM (up sopt) e
 
-compile ::  PFExp Int (Var, Cl.Type Int) -> (Block, Exp, Cl.Type Int)
+compile ::  PFExp Int (Var, Type Int) -> (Block, Exp, Type Int)
 compile e =
   case runReader (evalStateT (evalStateT (translate (fexp2cexp e)) 0) empty) Set.empty of
       (ss,exp,t) -> (J.Block ss,exp, t)
@@ -167,26 +167,26 @@ translate e = translateM (to sopt) e
 prettyJ :: Language.Java.Pretty.Pretty a => a -> IO ()
 prettyJ = putStrLn . prettyPrint
 
--- compilePretty :: PFExp Int (Var, Cl.Type Int) -> IO ()
+-- compilePretty :: PFExp Int (Var, Type Int) -> IO ()
 -- compilePretty e = let (b,e1,t) = compile e in (prettyJ b >> prettyJ e1 >> print t)
 
--- compileCU :: String -> PFExp Int (Var, Cl.Type Int) -> Maybe String -> IO ()
+-- compileCU :: String -> PFExp Int (Var, Type Int) -> Maybe String -> IO ()
 -- compileCU className e (Just nameStr) = let (cu,t) = createCU className (compile e) (Just nameStr) in (prettyJ cu >> print t)
 -- compileCU className e Nothing = let (cu,t) = createCU className (compile e) Nothing in (prettyJ cu >> print t)
 
 -- SystemF to Java
 sf2java :: Bool -> Compilation -> ClassName -> String -> IO String
 sf2java optDump compilation className src =
-  do let readESF = ESF.Parser.reader src
-     when optDump $ putStrLn "Read ESF"
-     result <- runErrorT $ ESF.TypeCheck.infer readESF
+  do let readSrc = Src.Parser.reader src
+     when optDump $ putStrLn "Read Src"
+     result <- runErrorT $ Src.TypeCheck.infer readSrc
      case result of
        Left typeError       -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
-       Right (tcheckedESF, _t)   ->
-         do let core = desugar tcheckedESF
+       Right (tcheckedSrc, _t)   ->
+         do let core = desugar tcheckedSrc
             when optDump $ putStrLn "Core"
             let simpleCore = simplify core
-            when optDump $ do { putStrLn "Simplified Core"; print $ Co.pprExpr basePrec (0,0) simpleCore }
+            when optDump $ do { putStrLn "Simplified Core"; print $ Core.pprExpr basePrec (0,0) simpleCore }
             let (cu, _) = compilation className simpleCore
             return $ prettyPrint cu
 
@@ -196,7 +196,7 @@ compilesf2java optDump compilation srcPath outputPath = do
     output <- sf2java optDump compilation (inferClassName outputPath) src
     writeFile outputPath output
 
-type Compilation = String -> Co.Expr Int (Var, Cl.Type Int) -> (J.CompilationUnit, Cl.Type Int)--PFExp Int (Var, Cl.Type Int) -> (J.Block, J.Exp, Cl.Type Int)
+type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)--PFExp Int (Var, Type Int) -> (J.Block, J.Exp, Type Int)
 
 -- setting
 type AOptType = StateT Int (StateT (Set.Set J.Exp) (Reader InitVars))
@@ -204,24 +204,24 @@ type AOptType = StateT Int (StateT (Set.Set J.Exp) (Reader InitVars))
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
 
-translate :: String -> Cl.Expr Int (Var, Cl.Type Int) -> MAOpt (J.CompilationUnit, Cl.Type Int)
+translate :: String -> Expr Int (Var, Type Int) -> MAOpt (J.CompilationUnit, Type Int)
 translate = createWrap (up sopt)
 
-translateAO :: String -> Cl.Expr Int (Var, Cl.Type Int) -> AOptType (J.CompilationUnit, Cl.Type Int)
+translateAO :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
 translateAO = createWrap (up aoptinst)
 
 compileAO :: Compilation
-compileAO name e = runReader (evalStateT (evalStateT (translateAO name (Cl.fexp2cexp e)) 0) Set.empty) []
+compileAO name e = runReader (evalStateT (evalStateT (translateAO name (fexp2cexp e)) 0) Set.empty) []
 
 type NType = State Int
 ninst :: Translate NType  -- instantiation; all coinstraints resolved
 ninst = naive
 
-translateN :: String -> Cl.Expr Int (Var, Cl.Type Int) -> NType (J.CompilationUnit, Cl.Type Int)
+translateN :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
 translateN = createWrap (up ninst)
 
 compileN :: Compilation
-compileN name e = evalState (translateN name (Cl.fexp2cexp e)) 0
+compileN name e = evalState (translateN name (fexp2cexp e)) 0
 
 type StackType = ReaderT Bool (ReaderT InitVars (StateT (Set.Set J.Exp) (State Int)))
 
@@ -234,8 +234,8 @@ stackNaiveinst = stackNaive
 stackinst :: ApplyOptTranslate StackType  -- instantiation; all coinstraints resolved
 stackinst = stackApplyNew --stackNaive
 
-translateS :: String -> Cl.Expr Int (Var, Cl.Type Int) -> StackType (J.CompilationUnit, Cl.Type Int)
+translateS :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit, Type Int)
 translateS = createWrap (up stackinst)
 
 compileS :: Compilation
-compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (Cl.fexp2cexp e)) False) []) Set.empty) 0
+compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) False) []) Set.empty) 0

@@ -21,7 +21,7 @@ module Core
   , javaInt, javaString, javaBool, javaChar
   ) where
 
-import qualified ESF.Syntax as E
+import qualified Src.Syntax as Src
 
 import JavaUtils
 import PrettyUtils
@@ -49,9 +49,9 @@ data Expr t e
   | BLam (t -> Expr t e)
   | TApp (Expr t e) (Type t)
 
-  | Lit E.Lit                           -- Literal introduction
+  | Lit Src.Lit                           -- Literal introduction
   | If (Expr t e) (Expr t e) (Expr t e) -- Literal elimination
-  | PrimOp (Expr t e) E.Operator (Expr t e)
+  | PrimOp (Expr t e) Src.Operator (Expr t e)
       -- SystemF extension from:
       -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
       -- (no int restriction)
@@ -157,10 +157,10 @@ pprExpr p (i,j) (TApp e t) =
   parensIf p 4
     (pprExpr (4,PrecMinus) (i,j) e <+> pprType (4,PrecPlus) i t)
 
-pprExpr p (i,j) (Lit (E.Integer n)) = integer n
-pprExpr p (i,j) (Lit (E.String s))  = string s
-pprExpr p (i,j) (Lit (E.Boolean b)) = bool b
-pprExpr p (i,j) (Lit (E.Char c))    = char c
+pprExpr p (i,j) (Lit (Src.Integer n)) = integer n
+pprExpr p (i,j) (Lit (Src.String s))  = string s
+pprExpr p (i,j) (Lit (Src.Boolean b)) = bool b
+pprExpr p (i,j) (Lit (Src.Char c))    = char c
 
 pprExpr p (i,j) (If e1 e2 e3) =
   parensIf p 1

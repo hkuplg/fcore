@@ -6,8 +6,8 @@ import Test.Hspec
 import SpecHelper
 import TestTerms
 
-import ESF.Parser       (reader)
-import ESF.TypeCheck    (infer)
+import Src.Parser       (reader)
+import Src.TypeCheck    (infer)
 import Desugar          (desugar)
 
 import Translations     (compileN, compileAO, compileS)
@@ -39,7 +39,7 @@ compileAndRun name compileF exp =
      return result
 
 esf2sf expr =
-  do res <- runErrorT (ESF.TypeCheck.infer expr)
+  do res <- runErrorT (Src.TypeCheck.infer expr)
      case res of
        Left typeError     -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
        Right (tcExpr, _t) -> return (desugar tcExpr)
@@ -55,7 +55,7 @@ testConcreteSyn compilation (name, filePath) =
                          "The integration test file should start with '-->', \
                          \followed by the expected output")
        Just expectedOutput ->
-         do ast <- runIO (esf2sf (ESF.Parser.reader source))
+         do ast <- runIO (esf2sf (Src.Parser.reader source))
             testAbstractSyn compilation (name, ast, expectedOutput)
 
 abstractCases =
