@@ -1,11 +1,11 @@
-module JVMTypeQuery 
-( isJVMType
+module JvmTypeQuery
+( isJvmType
 , hasConstructor
 , methodRetType
 , staticMethodRetType
 , fieldType
 , staticFieldType
-) where 
+) where
 
 import Data.Char (isSpace, toLower)
 import System.IO
@@ -23,8 +23,8 @@ isTrue str = str >>= (\s -> return $ "true" == map toLower (filter (not . isSpac
 
 --
 
-isJVMType :: (Handle, Handle) -> String -> IO Bool
-isJVMType io name = isTrue $ doQuery io ["qType", name]
+isJvmType :: (Handle, Handle) -> String -> IO Bool
+isJvmType io name = isTrue $ doQuery io ["qType", name]
 
 
 --
@@ -40,7 +40,7 @@ fixRet str = return $ Just str
 
 
 methodRetType :: (Handle, Handle) -> String -> String -> [String] -> IO (Maybe String)
-methodRetType io className methodName args = 
+methodRetType io className methodName args =
   doQuery io (["qMethod", className, methodName] ++ args) >>= fixRet
 
 
@@ -55,6 +55,5 @@ fieldType io className fieldName =
 
 
 staticFieldType :: (Handle, Handle) -> String -> String -> IO (Maybe String)
-staticFieldType io className fieldName = 
+staticFieldType io className fieldName =
   doQuery io ["qStaticField", className, fieldName] >>= fixRet
-

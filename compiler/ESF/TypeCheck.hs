@@ -7,7 +7,7 @@ module ESF.TypeCheck
 
 import ESF.Syntax
 
-import JVMTypeQuery
+import JvmTypeQuery
 import JavaUtils
 import Panic
 
@@ -24,22 +24,24 @@ import Data.Maybe       (fromJust)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import Prelude hiding (pred)
+
 -- The monad for typechecking
 type TcM = ErrorT (TypeError Name) IO
 
 data TypeError e
   = NotInScope        { msg       :: String }
   | General           { msg       :: String }
-  | NotAJVMType       { msg       :: String }
-  | NoSuchConstructor { className :: String
+  | NotAJvmType       { msg       :: ClassName }
+  | NoSuchConstructor { className :: ClassName
                       , argsExpr  :: [Expr e]
                       , argsType  :: [Type] }
-  | NoSuchMethod      { className :: String
-                      , mName     :: String
+  | NoSuchMethod      { className :: ClassName
+                      , mName     :: MethodName
                       , argsExpr  :: [Expr e]
                       , argsType  :: [Type] }
-  | NoSuchField       { className :: String
-                      , fName     :: String
+  | NoSuchField       { className :: ClassName
+                      , fName     :: FieldName
                       , static    :: Bool }
   | Mismatch          { term      :: Expr e
                       , expected  :: Type
@@ -57,7 +59,7 @@ instance Pretty e => Pretty (TypeError e) where
     text "In the expression:" <+> pretty term
   pretty NotInScope{..}  = text "Not in scope:" <+> string msg
   pretty General{..}     = string msg
-  pretty (NotAJVMType c) = text (q c) <+> text "is not a JVM type"
+  pretty (NotAJvmType c) = text (q c) <+> text "is not a JVM type"
   pretty (NoSuchConstructor c _ t) =
     text "Class" <+> text (q c) <+> text "has no such constructor:" <$>
     text "Parameters:" <+> text "(" <> hsep (map pretty t) <> text ")"
@@ -78,8 +80,8 @@ q x = "`" ++ x ++ "'"
 --throwE te = throwError . show . pretty te
 
 checkWellformed :: (Handle, Handle) -> TypeContext -> Type -> TcM ()
-checkWellformed io _ (JClass c) = do ok <- liftIO $ isJVMType io c
-                                     unless ok (throwError (NotAJVMType c))
+checkWellformed io _ (JClass c) = do ok <- liftIO $ isJvmType io c
+                                     unless ok (throwError (NotAJvmType c))
 checkWellformed _  d t =
   let s = freeTyVars t `Set.difference` d in
   unless (Set.null s) $
@@ -270,7 +272,7 @@ tcExpr io (d, g) = go
     go (LetOut{..}) = panic "ESF.TypeCheck.tcExpr: LetOut"
 
     go (JNewObj c args) =
-      do ok <- liftIO $ isJVMType io c
+      do ok <- liftIO $ isJvmType io c
          if ok
            then do (args', typs') <- mapAndUnzipM go args
                    strArgs <- checkJavaArgs typs'
@@ -281,7 +283,7 @@ tcExpr io (d, g) = go
                             NoSuchConstructor { className = c
                                               , argsExpr = args
                                               , argsType = typs' }
-           else throwError (NotAJVMType c)
+           else throwError (NotAJvmType c)
 
     go (JMethod expr m args _) =
       case expr of
@@ -299,7 +301,7 @@ tcExpr io (d, g) = go
                                                 , mName     = m
                                                 , argsExpr  = args
                                                 , argsType  = typs' }
-               otherType -> throwError (NotAJVMType (show otherType))
+               otherType -> throwError (NotAJvmType (show otherType))
         (Right className) ->
           do (args', typs') <- mapAndUnzipM go args
              strArgs <- checkJavaArgs typs'
@@ -327,7 +329,7 @@ tcExpr io (d, g) = go
                                                NoSuchField { className = cls
                                                            , fName     = f
                                                            , static    = False }
-               otherType -> throwError $ NotAJVMType $ show otherType
+               otherType -> throwError $ NotAJvmType $ show otherType
         (Right cls) ->
           do retName <- liftIO $ staticFieldType io cls f
              case retName of Just r  -> return (JField (Right cls) f r, JClass r)
@@ -345,7 +347,7 @@ checkJavaArgs :: [Type] -> TcM [Name]
 checkJavaArgs = mapM check
   where
     check (JClass name) = return name
-    check otherType     = throwError $ NotAJVMType $ show otherType
+    check otherType     = throwError $ NotAJvmType $ show otherType
 
 
 checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TcM ()
