@@ -53,7 +53,7 @@ ftyp2scope t             = Body (ftyp2ctyp t)
 
 {-
 ftyp2ctyp2 :: C.Type Int -> [t] -> Type t
-ftyp2ctyp2 = undefined
+ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 -}
 
 ftyp2ctyp :: C.Type t -> Type t

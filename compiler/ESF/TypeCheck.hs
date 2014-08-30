@@ -9,6 +9,7 @@ import ESF.Syntax
 
 import JVMTypeQuery
 import JavaUtils
+import Panic
 
 import Text.PrettyPrint.Leijen
 
@@ -152,9 +153,7 @@ tcExpr io (d, g) = go
                                      , actual   = t1 }
 
     go (Tuple es)
-      | length es < 2 = invariantFailed
-                          "tcExpr"
-                          ("fewer than two items in the tuple " ++ show (Tuple es))
+      | length es < 2 = panic "ESF.TypeCheck.tcExpr: fewer than two items in tuple"
       | otherwise     = do (es', ts) <- mapAndUnzipM go es
                            return (Tuple es', Product ts)
 
@@ -268,8 +267,7 @@ tcExpr io (d, g) = go
          (e', t) <- tcExpr io (d, Map.fromList (zip fs ts) `Map.union` g) e
          return (LetOut Rec bs' e', t)
 
-    go (LetOut{..}) =
-      error (invariantFailed "tcExpr" (show (LetOut{..} :: Expr Name)))
+    go (LetOut{..}) = panic "ESF.TypeCheck.tcExpr: LetOut"
 
     go (JNewObj c args) =
       do ok <- liftIO $ isJVMType io c

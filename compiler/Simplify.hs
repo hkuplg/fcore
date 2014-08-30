@@ -10,6 +10,7 @@ import Core
 import qualified ESF.Syntax as E
 
 import JavaUtils
+import Panic
 
 import Unsafe.Coerce
 import Control.Monad.Identity
@@ -145,7 +146,7 @@ coerce i (Forall f) (Forall g) =
   do c <- coerce (i + 1) (f i) (g i)
      Just (Lam (transType i (Forall f))
                (\f -> BLam (\a -> (App c . TApp (Var f)) (TVar a))))
-coerce i (Product ss) (Product ts) = error "not implemented"
+coerce i (Product ss) (Product ts) = sorry "Simplify.coerce: Product"
 coerce i (JClass c) (JClass d)
   | c == d    = Just (Lam (transType i (JClass c)) (\x -> Var x))
   | otherwise = Nothing

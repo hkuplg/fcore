@@ -186,7 +186,7 @@ sf2java optDump compilation className src =
          do let core = desugar tcheckedESF
             when optDump $ putStrLn "Core"
             let simpleCore = simplify core
-            when optDump $ do { putStrLn "Simplified Core"; print $ Co.prettyExpr basePrec (0,0) simpleCore }
+            when optDump $ do { putStrLn "Simplified Core"; print $ Co.pprExpr basePrec (0,0) simpleCore }
             let (cu, _) = compilation className simpleCore
             return $ prettyPrint cu
 

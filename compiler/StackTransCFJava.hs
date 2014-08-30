@@ -11,8 +11,9 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import BaseTransCFJava
 import ApplyTransCFJava (last)
-import StringPrefixes
+-- import StringPrefixes
 import MonadLib
+import Panic
 
 data TranslateStack m = TS {
   toTS :: Translate m -- supertype is a subtype of Translate (later on at least)
@@ -86,7 +87,7 @@ transS this super = TS {toTS = super {
             J.ExpName (J.Name [h]) -> if genApplys then -- relies on translated code!
                                          return (whileApply (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
                                       else return (nextApply (J.ExpName (J.Name [f])) h jType)
-            _ -> error "expected temporary variable name" ,
+            _ -> panic "expected temporary variable name" ,
 
   genRes = \t s -> return [],
 

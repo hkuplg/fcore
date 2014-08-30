@@ -21,13 +21,13 @@ module ESF.Syntax
   , alphaEqTy
   , subtype
   , freeTyVars
-  , invariantFailed
   , substFreeTyVars
   , wrap
   , opPrec
   ) where
 
 import JavaUtils
+import Panic
 
 import qualified Language.Java.Syntax as J (Op(..))
 -- import qualified Language.Java.Pretty as P
@@ -198,26 +198,23 @@ instance Pretty RecFlag where
   pretty Rec    = text "rec"
   pretty NonRec = empty
 
-invariantFailed :: String -> String -> a
-invariantFailed location msg = error ("Invariant failed in " ++ location ++ ": " ++ msg)
-
 wrap :: (b -> a -> a) -> [b] -> a -> a
 wrap cons xs t = foldr cons t xs
 
 -- Precedence of operators based on the table in:
 -- http://en.wikipedia.org/wiki/Order_of_operations#Programming_languages
 opPrec :: Num a => Operator -> a
-opPrec (Arith J.Mult)    = 3
-opPrec (Arith J.Div)     = 3
-opPrec (Arith J.Rem)     = 3
-opPrec (Arith J.Add)     = 4
-opPrec (Arith J.Sub)     = 4
-opPrec (Compare J.LThan)   = 6
-opPrec (Compare J.GThan)   = 6
-opPrec (Compare J.LThanE)  = 6
-opPrec (Compare J.GThanE)  = 6
-opPrec (Compare J.Equal)   = 7
-opPrec (Compare J.NotEq)   = 7
-opPrec (Logic J.CAnd)    = 11
-opPrec (Logic J.COr)     = 12
-opPrec op = error $ "Something impossible happens! The operator '" ++ show op ++ "' is not part of the language."
+opPrec (Arith J.Mult)     = 3
+opPrec (Arith J.Div)      = 3
+opPrec (Arith J.Rem)      = 3
+opPrec (Arith J.Add)      = 4
+opPrec (Arith J.Sub)      = 4
+opPrec (Compare J.LThan)  = 6
+opPrec (Compare J.GThan)  = 6
+opPrec (Compare J.LThanE) = 6
+opPrec (Compare J.GThanE) = 6
+opPrec (Compare J.Equal)  = 7
+opPrec (Compare J.NotEq)  = 7
+opPrec (Logic J.CAnd)     = 11
+opPrec (Logic J.COr)      = 12
+opPrec op = panic $ "ESF.Syntax.opPrec: " ++ show op

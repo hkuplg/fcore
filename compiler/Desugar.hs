@@ -8,6 +8,7 @@ import ESF.Syntax
 import qualified Core as C
 
 import JavaUtils
+import Panic
 
 import Data.Maybe       (fromJust)
 
@@ -45,7 +46,7 @@ dsTcExpr (d, g) = go
                                (transType d t)
                                (\x' -> dsTcExpr (d, Map.insert x (Left x') g) e)
     go (BLam a e)        = C.BLam (\a' -> dsTcExpr (Map.insert a a' d, g) e)
-    go Let{..}           = invariantFailed "dsTcExpr" (show (Let{..} :: Expr TcId))
+    go Let{..}           = panic "Desugar.dsTcExpr: Let"
     go (LetOut _ [] e)   = go e
     go (Merge e1 e2)     = C.Merge (go e1) (go e2)
 
@@ -141,8 +142,8 @@ dsLetRecDirect (d,g) = go
                 (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
                   where
                     peel Nothing (Lam (x1,t1) e, Fun _ t) = (Just (x1,t1), t, e)
-                    peel _ _ = invariantFailed "peel" "I cannot peel an expression that is not a function"
-    go _ = invariantFailed "dsLetDirect" "Unexpected pattern for a partial function"
+                    peel _ _ = panic "Desugar.dsLetRecDirect: not a function"
+    go _ = panic "Desugar.dsLetRecDirect: unhandled case"
 
 {-
     let rec f1 = e1, ..., fn = en in e
@@ -175,4 +176,4 @@ dsLetRecEncode (d,g) = go
                               (\f i -> (f, Right (C.Proj i (C.App (C.Var y) (C.Lit (Integer 0))))))
                               fs
                               [1..length bs])
-    go _ = invariantFailed "dsLetDirect" "Unexpected pattern for a partial function"
+    go _ = panic "Desugar.dsLetRecEncode: unhandled case"
