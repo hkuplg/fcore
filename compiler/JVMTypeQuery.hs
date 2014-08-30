@@ -1,59 +1,56 @@
 module JvmTypeQuery
-( isJvmType
-, hasConstructor
-, methodRetType
-, staticMethodRetType
-, fieldType
-, staticFieldType
-) where
+  ( isJvmType
+  , hasConstructor
+  , methodTypeOf
+  , fieldTypeOf
+  ) where
 
-import Data.Char (isSpace, toLower)
-import System.IO
+import JavaUtils
 
+import System.IO           (hPutStrLn, hGetLine, Handle)
+import Control.Applicative ((<$>))
+import Data.Char           (isSpace, toLower)
 
--- send data & get result back
-doQuery :: (Handle, Handle) -> [String] -> IO String
-doQuery (inp, out) args = do hPutStrLn inp $ unwords args
-                             hGetLine out
+sendRecv :: (Handle, Handle) -> [String] -> IO String
+sendRecv (to, from) args =
+  do hPutStrLn to (unwords args)
+     hGetLine from
 
---
-
-isTrue :: IO String -> IO Bool
-isTrue str = str >>= (\s -> return $ "true" == map toLower (filter (not . isSpace) s))
-
---
-
-isJvmType :: (Handle, Handle) -> String -> IO Bool
-isJvmType io name = isTrue $ doQuery io ["qType", name]
-
-
---
-
-hasConstructor :: (Handle, Handle) -> String -> [String] -> IO Bool
-hasConstructor io className args = isTrue $ doQuery io $ ["qConstructor", className] ++ args
-
-
---
 fixRet :: String -> IO (Maybe String)
 fixRet "$" = return Nothing
-fixRet str = return $ Just str
+fixRet str = return (Just str)
 
+isTrue :: String -> Bool
+isTrue s = (map toLower . filter (not . isSpace)) s == "true"
 
-methodRetType :: (Handle, Handle) -> String -> String -> [String] -> IO (Maybe String)
-methodRetType io className methodName args =
-  doQuery io (["qMethod", className, methodName] ++ args) >>= fixRet
+isJvmType :: (Handle, Handle) -> ClassName -> IO Bool
+isJvmType h c = isTrue <$> sendRecv h ["qType", c]
 
+hasConstructor :: (Handle, Handle) -> ClassName -> [ClassName] -> IO Bool
+hasConstructor h c args
+  = isTrue <$> sendRecv h (["qConstructor", c] ++ args)
 
-staticMethodRetType :: (Handle, Handle) -> String -> String -> [String] -> IO (Maybe String)
-staticMethodRetType io className methodName args =
-  doQuery io (["qStaticMethod", className, methodName] ++ args) >>= fixRet
+methodTypeOf
+  :: (Handle, Handle)
+  -> ClassName
+  -> (MethodName, Bool)   -- True <=> static method
+  -> [ClassName]          -- Class of the arguments
+  -> IO (Maybe ClassName)
+methodTypeOf h c (m, is_static) args
+  = sendRecv h ([tag, c, m] ++ args) >>= fixRet
+  where
+    tag = if is_static
+             then "qStaticMethod"
+             else "qMethod"
 
-
-fieldType :: (Handle, Handle) -> String -> String -> IO (Maybe String)
-fieldType io className fieldName =
-  doQuery io ["qField", className, fieldName] >>= fixRet
-
-
-staticFieldType :: (Handle, Handle) -> String -> String -> IO (Maybe String)
-staticFieldType io className fieldName =
-  doQuery io ["qStaticField", className, fieldName] >>= fixRet
+fieldTypeOf
+  :: (Handle, Handle)
+  -> ClassName
+  -> (FieldName, Bool)    -- True <=> static field
+  -> IO (Maybe ClassName)
+fieldTypeOf h c (f, is_static)
+  = sendRecv h [tag, c, f] >>= fixRet
+  where
+    tag = if is_static
+             then "qStaticField"
+             else "qField"
