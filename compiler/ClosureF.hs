@@ -6,6 +6,7 @@ module ClosureF where
 import qualified ESF.Syntax  as E
 import qualified Core        as C
 
+import JavaUtils
 import Panic
 
 -- Closure F syntax
@@ -203,3 +204,9 @@ instance Show (EScope Int Int) where
 
 instance Show (Expr Int Int) where
    show e = showExpr e 0
+
+javaInt, javaString, javaBool, javaChar :: Type t
+javaInt    = JClass javaIntClass
+javaString = JClass javaStringClass
+javaBool   = JClass javaBoolClass
+javaChar   = JClass javaCharClass
