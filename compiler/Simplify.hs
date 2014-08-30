@@ -29,10 +29,10 @@ transExpr:: Expr Int (Int, Type Int) -> State Int (Type Int, Expr Int Int)
 
 transExpr (Var (x, t)) = return (t, Var x)
 
-transExpr (Lit (S.Integer n)) = return (JClass javaIntClass, Lit (S.Integer n))
-transExpr (Lit (S.String s))  = return (JClass javaStringClass, Lit (S.String s))
-transExpr (Lit (S.Boolean b)) = return (JClass javaBoolClass, Lit (S.Boolean b))
-transExpr (Lit (S.Char c))    = return (JClass javaCharClass, Lit (S.Char c))
+transExpr (Lit (S.Integer n)) = return (JClass "java.lang.Integer", Lit (S.Integer n))
+transExpr (Lit (S.String s))  = return (JClass "java.lang.String", Lit (S.String s))
+transExpr (Lit (S.Boolean b)) = return (JClass "java.lang.Boolean", Lit (S.Boolean b))
+transExpr (Lit (S.Char c))    = return (JClass "java.lang.Character", Lit (S.Char c))
 
 transExpr (BLam f) =
   do i <- takeFreshIndex
@@ -186,10 +186,10 @@ takeFreshIndex =
 
 -- inferM:: Monad m => Open (Int -> Expr Int (Type Int) -> m (Type Int, Int))
 -- inferM this i (Var x)       = return (x, i)
--- inferM this i (Lit (S.Integer _)) = return (JClass javaIntClass, i)
--- inferM this i (Lit (S.String _))  = return (JClass javaStringClass, i)
--- inferM this i (Lit (S.Boolean _)) = return (JClass javaBoolClass, i)
--- inferM this i (Lit (S.Char _))    = return (JClass javaCharClass, i)
+-- inferM this i (Lit (S.Integer _)) = return (JClass "java.lang.Integer", i)
+-- inferM this i (Lit (S.String _))  = return (JClass "java.lang.String", i)
+-- inferM this i (Lit (S.Boolean _)) = return (JClass "java.lang.Boolean", i)
+-- inferM this i (Lit (S.Char _))    = return (JClass "java.lang.Character", i)
 -- inferM this i (BLam f)      = do (t, _) <- this (i + 1) (f i)
 --                                  return (Forall (\a -> fsubstTT (i, TVar a) t), i)
 -- inferM this i (Lam t f)     = do (t', _) <- this i (f t)

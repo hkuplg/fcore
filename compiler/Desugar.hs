@@ -7,7 +7,6 @@ import Src.Syntax
 
 import qualified Core as C
 
-import JavaUtils
 import Panic
 
 import Data.Maybe       (fromJust)
@@ -86,11 +85,10 @@ variable renaming. An example:
           tupled_ts = Product ts
 
           -- Substitution: fi -> y._(i-1)
-          g' = \y -> Map.fromList $
-                       zipWith
-                         (\f i -> (f, Right (C.Proj i (C.Var y))))
-                         fs
-                         [1..length bs]
+          g' y = Map.fromList $
+                   zipWith (\f i -> (f, Right (C.Proj i (C.Var y))))
+                           fs
+                           [1..length bs]
 
 {-
    let f : forall A1...An. t1 -> t2 = e@(\(x : t1). peeled_e) in body
@@ -157,11 +155,11 @@ dsLetRecEncode (d,g) = go
     go (LetOut Rec bs@(_:_) e) =
       C.App
           (C.Lam
-              (C.Fun (C.JClass javaIntClass) (transType d tupled_ts))
+              (C.Fun (C.JClass "java.lang.Integer") (transType d tupled_ts))
               (\y -> dsTcExpr (d, g' y `Map.union` g) e))
           (C.Fix
               (\y _dummy -> dsTcExpr (d, g' y `Map.union` g) tupled_es)
-              (C.JClass javaIntClass)
+              (C.JClass "java.lang.Integer")
               (transType d tupled_ts))
               where
                 (fs, ts, es) = unzip3 bs
@@ -170,10 +168,10 @@ dsLetRecEncode (d,g) = go
                 tupled_ts = Product ts
 
                 -- Substitution: fi -> (y 0)._(i-1)
-                g' = \y -> Map.fromList
-                             (zipWith
-                              -- TODO: better var name
-                              (\f i -> (f, Right (C.Proj i (C.App (C.Var y) (C.Lit (Integer 0))))))
-                              fs
-                              [1..length bs])
+                g' y = Map.fromList $
+                         zipWith
+                             -- TODO: better var name
+                           (\f i -> (f, Right (C.Proj i (C.App (C.Var y) (C.Lit (Integer 0))))))
+                           fs
+                           [1..length bs]
     go _ = panic "Desugar.dsLetRecEncode: unhandled case"

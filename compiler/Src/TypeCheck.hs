@@ -1,5 +1,5 @@
-{-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-unused-binds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-unused-binds #-}
 
 module Src.TypeCheck
   ( infer
@@ -179,12 +179,12 @@ tcExpr io (d, g) = go
       do exp1@(e1', t1) <- go e1
          exp2@(e2', t2) <- go e2
          case op of
-           (Arith _)   -> shouldAllBe exp1 exp2 (JClass javaIntClass)
+           (Arith _)   -> shouldAllBe exp1 exp2 (JClass "java.lang.Integer")
            (Compare _) ->
              if alphaEqTy t1 t2
-               then return (PrimOp e1' op e2', JClass javaBoolClass)
+               then return (PrimOp e1' op e2', JClass "java.lang.Boolean")
                else throwError Mismatch { expr = e2, expected = t1, actual = t2 }
-           (Logic _)   -> shouldAllBe exp1 exp2 (JClass javaBoolClass)
+           (Logic _)   -> shouldAllBe exp1 exp2 (JClass "java.lang.Boolean")
        where
          shouldAllBe (e1', t1) (e2', t2) t =
            case (alphaEqTy t t1, alphaEqTy t t2) of
@@ -208,7 +208,7 @@ tcExpr io (d, g) = go
                                , actual   = b2Ty }
         _   -> throwError
                  Mismatch { expr     = pred
-                          , expected = JClass javaBoolClass
+                          , expected = JClass "java.lang.Boolean"
                           , actual   = predTy }
 
     go (Let NonRec bs e) =
@@ -354,7 +354,6 @@ checkJavaArgs = mapM check
     check (JClass name) = return name
     check otherType     = throwError $ NotAJvmType $ show otherType
 
-
 checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TcM ()
 checkBinds io d bs =
   do checkForDup "identifiers" (map bindId bs)
@@ -365,13 +364,11 @@ checkBinds io d bs =
             do let d' = Set.fromList bindTargs `Set.union` d
                checkWellformed io d' t))
 
-
 checkForDup :: String -> [String] -> TcM ()
 checkForDup what xs =
   case findFirstDup xs of
     Just x  -> throwError General { msg = "Duplicate " ++ what ++ ": " ++ q x }
     Nothing -> return ()
-
 
 findFirstDup :: Ord a => [a] -> Maybe a
 findFirstDup xs = go xs Set.empty

@@ -17,8 +17,6 @@ module Core
   , fsubstTT, fsubstTE, fsubstEE
 
   , isSystemfType, isSystemfExpr
-
-  , javaInt, javaString, javaBool, javaChar
   ) where
 
 import qualified Src.Syntax as Src
@@ -246,9 +244,3 @@ isSystemfType = sorry "Core.isSystemfType"
 
 isSystemfExpr :: Expr t e -> Bool
 isSystemfExpr = sorry "Core.isSystemfExpr"
-
-javaInt, javaString, javaBool, javaChar :: Type t
-javaInt    = JClass javaIntClass
-javaString = JClass javaStringClass
-javaBool   = JClass javaBoolClass
-javaChar   = JClass javaCharClass

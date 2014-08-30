@@ -6,7 +6,6 @@ module JavaUtils
   , compileJava, runJava
   , inferOutputPath, inferClassName
   , ClassName, MethodName, FieldName
-  , javaIntClass, javaStringClass, javaBoolClass, javaCharClass
   ) where
 
 import System.FilePath   (takeDirectory, takeBaseName, (</>))
@@ -48,8 +47,3 @@ runJava srcPath = do
     system $ "java -cp " ++ currDir ++ "/runtime.jar:" ++ cp ++ takeBaseName srcPath
     system "rm *.class"
     setCurrentDirectory currDir
-
-javaIntClass    = "java.lang.Integer"
-javaStringClass = "java.lang.String"
-javaBoolClass   = "java.lang.Boolean"
-javaCharClass   = "java.lang.Character"
