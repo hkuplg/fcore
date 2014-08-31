@@ -3,7 +3,7 @@
 
 module Desugar (desugar) where
 
-import Src.Syntax
+import Src
 
 import qualified Core as C
 
@@ -113,15 +113,15 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (JNewObj cName args)    = C.JNewObj cName (map go args)
     go (JMethod c mName args r) =
       case c of
-        (Left cExpr)  -> C.JMethod (Left (go cExpr)) mName (map go args) r
-        (Right cName) -> C.JMethod (Right cName) mName (map go args) r
+        (Left cName)  -> C.JMethod (Left cName) mName (map go args) r
+        (Right cExpr) -> C.JMethod (Right (go cExpr)) mName (map go args) r
 
     go (JField c fName r) =
       case c of
-        (Left cExpr)  -> C.JField (Left (go cExpr)) fName r
-        (Right cName) -> C.JField (Right cName) fName r
+        (Left cName)  -> C.JField (Left cName) fName r
+        (Right cExpr) -> C.JField (Right (go cExpr)) fName r
 
-    go (SeqExprs es) = C.Seq (map go es)
+    go (Seq es) = C.Seq (map go es)
 
 dsLetRecDirect :: DsEnv t e -> Expr TcId -> C.Expr t e
 dsLetRecDirect (d,g) = go

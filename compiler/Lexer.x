@@ -1,7 +1,7 @@
 {
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module Src.Lexer
+module Lexer
     ( lexer
     , Token(..)
     ) where

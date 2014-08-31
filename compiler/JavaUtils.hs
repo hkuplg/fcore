@@ -8,10 +8,11 @@ module JavaUtils
   , ClassName, MethodName, FieldName
   ) where
 
+import StringUtils       (capitalize)
+
 import System.FilePath   (takeDirectory, takeBaseName, (</>))
 import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)
 import System.Process    (system)
-import Data.String.Utils (capitalize)
 
 type ClassName  = String
 type MethodName = String

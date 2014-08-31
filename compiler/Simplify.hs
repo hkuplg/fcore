@@ -7,7 +7,7 @@
 module Simplify where
 
 import Core
-import qualified Src.Syntax as S
+import qualified Src as S
 
 import JavaUtils
 import Panic
@@ -91,21 +91,21 @@ transExpr (JNewObj c es) =
   do (ts, es') <- mapAndUnzipM transExpr es
      return (JClass c, JNewObj c es')
 
-transExpr (JMethod (Left e) m args retC) =
+transExpr (JMethod (Right e) m args retC) =
   do (t, e') <- transExpr e
      (argsTys, args') <- mapAndUnzipM transExpr args
-     return (JClass retC, JMethod (Left e') m args' retC)
+     return (JClass retC, JMethod (Right e') m args' retC)
 
-transExpr (JMethod (Right c) m args retC) =
+transExpr (JMethod (Left c) m args retC) =
   do (argsTys, args') <- mapAndUnzipM transExpr args
-     return (JClass retC, JMethod (Right c) m args' retC)
+     return (JClass retC, JMethod (Left c) m args' retC)
 
-transExpr (JField (Left e) m retC) =
+transExpr (JField (Right e) m retC) =
   do (t, e') <- transExpr e
-     return (JClass retC, JField (Left e') m retC)
+     return (JClass retC, JField (Right e') m retC)
 
-transExpr (JField (Right c) m retC) =
-  return (JClass retC, JField (Right c) m retC)
+transExpr (JField (Left c) m retC) =
+  return (JClass retC, JField (Left c) m retC)
 
 transExpr (Seq es) =
   do (ts, es') <- mapAndUnzipM transExpr es

@@ -19,7 +19,7 @@ module Core
   , isSystemfType, isSystemfExpr
   ) where
 
-import qualified Src.Syntax as Src
+import qualified Src
 
 import JavaUtils
 import PrettyUtils
@@ -67,10 +67,10 @@ data Expr t e
   -- Java
   | JNewObj ClassName [Expr t e]
   | JMethod
-      (Either (Expr t e) ClassName) MethodName [Expr t e]
+      (Either ClassName (Expr t e)) MethodName [Expr t e]
       ClassName
   | JField
-      (Either (Expr t e) ClassName) FieldName
+      (Either ClassName (Expr t e)) FieldName
       ClassName
   | Seq [Expr t e]
 
@@ -232,10 +232,10 @@ fsubstEE (x,r)
     go (Proj i e)                     = Proj i (go e)
     go (Fix f t1 t)                   = Fix (\x' x1 -> go (f x' x1)) t1 t
     go (JNewObj s args)               = JNewObj s (map go args)
-    go (JMethod (Left e)  m args ret) = JMethod (Left (go e)) m (map go args) ret
-    go (JMethod (Right c) m args ret) = JMethod (Right c)     m (map go args) ret
-    go (JField (Left e) f ret)        = JField (Left (go e)) f ret
-    go (JField (Right c) f ret)       = JField (Right c)     f ret
+    go (JMethod (Right e)  m args ret) = JMethod (Right (go e)) m (map go args) ret
+    go (JMethod (Left c) m args ret)  = JMethod (Left c)     m (map go args) ret
+    go (JField (Right e) f ret)       = JField (Right (go e)) f ret
+    go (JField (Left c) f ret)        = JField (Left c)     f ret
     go (Seq es)                       = Seq (map go es)
     go (Merge e1 e2)                  = Merge (go e1) (go e2)
 

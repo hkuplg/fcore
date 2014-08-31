@@ -17,10 +17,10 @@ module Translations
     , compilesf2java
     ) where
 
-import Src.Parser    (reader)
-import Src.TypeCheck (infer)
-import Desugar       (desugar)
-import Simplify      (simplify)
+import Parser    (reader)
+import TypeCheck (typeCheck)
+import Desugar   (desugar)
+import Simplify  (simplify)
 
 import qualified Core
 import ClosureF
@@ -177,11 +177,11 @@ prettyJ = putStrLn . prettyPrint
 -- SystemF to Java
 sf2java :: Bool -> Compilation -> ClassName -> String -> IO String
 sf2java optDump compilation className src =
-  do let readSrc = Src.Parser.reader src
+  do let readSrc = Parser.reader src
      when optDump $ putStrLn "Read Src"
-     result <- runErrorT $ Src.TypeCheck.infer readSrc
+     result <- typeCheck readSrc
      case result of
-       Left typeError       -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
+       Left typeError -> error $ show ({- Text.PrettyPrint.Leijen.pretty-} typeError)
        Right (tcheckedSrc, _t)   ->
          do let core = desugar tcheckedSrc
             when optDump $ putStrLn "Core"

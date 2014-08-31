@@ -3,7 +3,7 @@
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 
-import qualified Src.Syntax           as Src
+import qualified Src                  as Src
 import qualified Language.Java.Syntax as J
 import ClosureF
 import Inheritance
@@ -154,7 +154,7 @@ genIfBody this m2 m3 j1 s1 n = do
             (s3,j3,t3) <- m3 {-translateM this e3-}
             let ifvarname = (ifresultstr ++ show n)
             let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-            let ifresdecl = J.LocalVars [] (javaType t2) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)])
+            let ifresdecl = J.LocalVars [] (javaType t2) [J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)]
             let (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
             return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)  -- need to check t2 == t3
 
@@ -241,7 +241,7 @@ trans self = let this = up self in T {
                           let typ = JClass c
                           return (argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ], var (localvarstr ++ show n), typ)
 
-     JMethod (Left c) m args r ->
+     JMethod (Right c) m args r ->
        do args' <- mapM (translateM this) args
           let argsStatements = concatMap (\(x, _, _) -> x) args'
           let argsExprs = map (\(_, x, _) -> x) args'
@@ -258,7 +258,7 @@ trans self = let this = up self in T {
                            , typ )
             else return ( argsStatements ++ classStatement ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ )
 
-     JMethod (Right c) m args r ->
+     JMethod (Left c) m args r ->
        do args' <- mapM (translateM this) args
           let argsStatements = concat $ map (\(x, _, _) -> x) args'
           let argsExprs = map (\(_, x, _) -> x) args'
@@ -276,20 +276,20 @@ trans self = let this = up self in T {
 
      JField c fName r ->
        case c of
-         (Left ce) -> do (classStatement, classExpr, _) <- translateM this ce
-                         let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
-                         let typ = JClass r
-                         (n :: Int) <- get
-                         put (n + 1)
-                         let newName = localvarstr ++ show n
-                         return (classStatement ++ [assignVar newName rhs typ], var newName, typ)
-         (Right cn) -> do let classExpr = J.ExpName $ J.Name [J.Ident cn]
+         (Right ce) -> do (classStatement, classExpr, _) <- translateM this ce
                           let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
                           let typ = JClass r
                           (n :: Int) <- get
                           put (n + 1)
                           let newName = localvarstr ++ show n
-                          return ([assignVar newName rhs typ], var newName, typ)
+                          return (classStatement ++ [assignVar newName rhs typ], var newName, typ)
+         (Left cn) -> do let classExpr = J.ExpName $ J.Name [J.Ident cn]
+                         let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
+                         let typ = JClass r
+                         (n :: Int) <- get
+                         put (n + 1)
+                         let newName = localvarstr ++ show n
+                         return ([assignVar newName rhs typ], var newName, typ)
 
      SeqExprs es -> do es' <- mapM (translateM this) es
                        let (_, lastExp, lastType) = last es'
