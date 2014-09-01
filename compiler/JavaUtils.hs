@@ -1,16 +1,12 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module JavaUtils
-    ( runtimeJarPath
-    , classpath
-    , compileJava
-    , runJava
-    , inferOutputPath
-    , inferClassName
-    , ClassName
-    , MethodName
-    , FieldName
-    ) where
+  ( runtimeJarPath
+  , classpath
+  , compileJava, runJava
+  , inferOutputPath, inferClassName
+  , ClassName, MethodName, FieldName
+  ) where
 
 import System.FilePath   (takeDirectory, takeBaseName, (</>))
 import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)

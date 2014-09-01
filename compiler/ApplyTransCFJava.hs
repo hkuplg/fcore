@@ -22,8 +22,8 @@ instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where
    up              = id
 
 last (Type _ _) = False
-last (Kind f)  = last (f 0)
-last (Body _)  = True
+last (Kind f)   = last (f 0)
+last (Body _)   = True
 
 -- main translation function
 transApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
@@ -44,7 +44,7 @@ transApply this super = NT {toT = super {
                                    return j1
                                 _ ->
                                    if (Set.member j1 usedCl) then
-                                      return $ J.MethodInv (J.PrimaryMethodCall j1 [] (J.Ident "clone") [])
+                                      return $ J.MethodInv (J.PrimaryMethodCall (j1) [] (J.Ident "clone") [])
                                    else do
                                            put (Set.insert j1 usedCl)
                                            return j1

@@ -1,6 +1,6 @@
 # Makefile for generating lexers and parsers
 
-languages = ESF
+languages = Src
 
 # Append "/Lexer.hs" & prepend "Language" to language names
 lexers  = $(languages:%=%/Lexer.hs)

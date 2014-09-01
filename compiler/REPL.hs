@@ -1,12 +1,11 @@
 module Main (main) where
 
-import ESF.Syntax
-import ESF.Parser       (reader)
-import ESF.TypeCheck
-import ESF.Translation  (transTcExpr)
+import Src.Syntax
+import Src.Parser       (reader)
+import Src.TypeCheck
+import Src.Translation  (transTcExpr)
 
-import SystemF.Syntax
-import SystemF.Pretty
+import Core
 
 import Control.Monad    (forever)
 

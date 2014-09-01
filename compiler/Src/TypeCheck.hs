@@ -1,14 +1,15 @@
-{-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-unused-binds #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-unused-binds #-}
 
-module ESF.TypeCheck
+module Src.TypeCheck
   ( infer
   ) where
 
-import ESF.Syntax
+import Src.Syntax
 
-import JVMTypeQuery
-import JavaUtils (classpath)
+import JvmTypeQuery
+import JavaUtils
+import Panic
 
 import Text.PrettyPrint.Leijen
 
@@ -23,40 +24,44 @@ import Data.Maybe       (fromJust)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
--- The monad for typechecking
-type TcM = ErrorT (TypeError Name) IO
+import Prelude hiding (pred)
 
-data TypeError e
+-- The monad for typechecking
+type TcM = ErrorT TypeError IO
+
+-- State TcEnv (Either TypeError ?)
+
+data TypeError
   = NotInScope        { msg       :: String }
   | General           { msg       :: String }
-  | NotAJVMType       { msg       :: String }
-  | NoSuchConstructor { className :: String
-                      , argsExpr  :: [Expr e]
+  | NotAJvmType       { msg       :: ClassName }
+  | NoSuchConstructor { className :: ClassName
+                      , argsExpr  :: [Expr Name]
                       , argsType  :: [Type] }
-  | NoSuchMethod      { className :: String
-                      , mName     :: String
-                      , argsExpr  :: [Expr e]
+  | NoSuchMethod      { className :: ClassName
+                      , mName     :: MethodName
+                      , argsExpr  :: [Expr Name]
                       , argsType  :: [Type] }
-  | NoSuchField       { className :: String
-                      , fName     :: String
+  | NoSuchField       { className :: ClassName
+                      , fName     :: FieldName
                       , static    :: Bool }
-  | Mismatch          { term      :: Expr e
+  | Mismatch          { expr      :: Expr Name
                       , expected  :: Type
                       , actual    :: Type }
   deriving (Show)
 
-instance Error e => Error (TypeError e) where
+instance Error TypeError where
 --   strMsg
 
-instance Pretty e => Pretty (TypeError e) where
+instance Pretty TypeError where
   pretty Mismatch{..} =
     text "Type mismatch:" <$>
     text "Expected type:" <+> pretty expected <$>
     text "  Actual type:" <+> pretty actual <$>
-    text "In the expression:" <+> pretty term
+    text "In the expression:" <+> pretty expr
   pretty NotInScope{..}  = text "Not in scope:" <+> string msg
   pretty General{..}     = string msg
-  pretty (NotAJVMType c) = text (q c) <+> text "is not a JVM type"
+  pretty (NotAJvmType c) = text (q c) <+> text "is not a JVM type"
   pretty (NoSuchConstructor c _ t) =
     text "Class" <+> text (q c) <+> text "has no such constructor:" <$>
     text "Parameters:" <+> text "(" <> hsep (map pretty t) <> text ")"
@@ -77,36 +82,38 @@ q x = "`" ++ x ++ "'"
 --throwE te = throwError . show . pretty te
 
 checkWellformed :: (Handle, Handle) -> TypeContext -> Type -> TcM ()
-checkWellformed io _ (JClass c) = do ok <- liftIO $ isJVMType io c
-                                     unless ok (throwError (NotAJVMType c))
+checkWellformed io _ (JClass c) = do ok <- liftIO $ isJvmType io c
+                                     unless ok (throwError (NotAJvmType c))
 checkWellformed _  d t =
   let s = freeTyVars t `Set.difference` d in
   unless (Set.null s) $
     throwError NotInScope { msg = "type variable " ++ q (head $ Set.toList s) }
 
-
-infer :: Expr Name -> TcM (Expr TcId, Type)
-infer e =
+withTypeServer do_this =
   do cp <- liftIO classpath
      let p = (proc "java" ["-cp", cp, "hk.hku.cs.f2j.TypeServer"])
                { std_in = CreatePipe, std_out = CreatePipe }
      (Just inp, Just out, _, proch) <- liftIO $ createProcess p
      liftIO $ hSetBuffering inp NoBuffering
      liftIO $ hSetBuffering out NoBuffering
-     ret <- tcExpr (inp, out) (Set.empty, Map.empty) e
+     res <- do_this (inp, out)
      liftIO $ terminateProcess proch
-     return ret
+     return res
 
+infer :: Expr Name -> TcM (Expr TcId, Type)
+infer e = withTypeServer
+            (\h -> tcExpr h (Set.empty, Map.empty) e)
 
 tcLit :: Lit -> TcM (Expr TcId, Type)
 tcLit (Integer n) = return (Lit (Integer n), JClass "java.lang.Integer")
-tcLit (String s)  = return (Lit (String s), JClass "java.lang.String")
+tcLit (String s)  = return (Lit (String s),  JClass "java.lang.String")
 tcLit (Boolean b) = return (Lit (Boolean b), JClass "java.lang.Boolean")
-tcLit (Char c)    = return (Lit (Char c), JClass "java.lang.Character")
+tcLit (Char c)    = return (Lit (Char c),    JClass "java.lang.Character")
 
-
-tcExpr :: (Handle, Handle) -> (TypeContext, ValueContext)
-          -> Expr Name -> TcM (Expr TcId, Type)
+tcExpr :: (Handle, Handle)
+       -> (TypeContext, ValueContext)
+       -> Expr Name
+       -> TcM (Expr TcId, Type)
 tcExpr io (d, g) = go
   where
     go (Var x) = case Map.lookup x g of
@@ -121,8 +128,8 @@ tcExpr io (d, g) = go
          case t of
            Fun t1 t2 | t' `subtype` t1 ->
                          return (App e1' e2', t2) -- TODO: need var renaming?
-           Fun t1 _ -> throwError Mismatch { term = e2, expected = t1, actual = t' }
-           _        -> throwError Mismatch { term     = e1
+           Fun t1 _ -> throwError Mismatch { expr = e2, expected = t1, actual = t' }
+           _        -> throwError Mismatch { expr     = e1
                                            , expected = Fun t' (TyVar "_")
                                            , actual   = t }
 
@@ -147,14 +154,13 @@ tcExpr io (d, g) = go
          case t1 of
            Forall a t' -> return (TApp e' t, substFreeTyVars (a, t) t')
            _           -> throwError
-                            Mismatch { term     = TApp e t
+                            Mismatch { expr     = TApp e t
                                      , expected = Forall "_" (TyVar "_")
                                      , actual   = t1 }
 
     go (Tuple es)
-      | length es < 2 = invariantFailed
-                          "tcExpr"
-                          ("fewer than two items in the tuple " ++ show (Tuple es))
+      | length es < 2 = panic $ "Src.TypeCheck.tcExpr: Tuple: " ++
+                                "fewer than two items"
       | otherwise     = do (es', ts) <- mapAndUnzipM go es
                            return (Tuple es', Product ts)
 
@@ -166,8 +172,8 @@ tcExpr io (d, g) = go
                then return (Proj e' i, ts !! (i-1))
                else throwError General { msg = "Index too large in projection" }
            _          ->
-             throwError
-                General { msg = "Projection of a term that is not of product type" }
+             throwError $
+                General "Projection of a expression that is not of product type"
 
     go (PrimOp e1 op e2) =
       do exp1@(e1', t1) <- go e1
@@ -177,16 +183,16 @@ tcExpr io (d, g) = go
            (Compare _) ->
              if alphaEqTy t1 t2
                then return (PrimOp e1' op e2', JClass "java.lang.Boolean")
-               else throwError Mismatch { term = e2, expected = t1, actual = t2 }
+               else throwError Mismatch { expr = e2, expected = t1, actual = t2 }
            (Logic _)   -> shouldAllBe exp1 exp2 (JClass "java.lang.Boolean")
        where
          shouldAllBe (e1', t1) (e2', t2) t =
            case (alphaEqTy t t1, alphaEqTy t t2) of
              (True, True) -> return (PrimOp e1' op e2', t)
              (True, _)    -> throwError
-                               Mismatch { term = e2, expected = t, actual = t2 }
+                               Mismatch { expr = e2, expected = t, actual = t2 }
              (_, _)       -> throwError
-                               Mismatch { term = e1, expected = t, actual = t1 }
+                               Mismatch { expr = e1, expected = t, actual = t1 }
 
     go (If pred b1 b2) = do
       (pred', predTy) <- go pred
@@ -197,11 +203,11 @@ tcExpr io (d, g) = go
              if b1Ty `alphaEqTy` b2Ty
                then return (If pred' b1' b2', b1Ty)
                else throwError
-                      Mismatch { term     = b2
+                      Mismatch { expr     = b2
                                , expected = b1Ty
                                , actual   = b2Ty }
         _   -> throwError
-                 Mismatch { term     = pred
+                 Mismatch { expr     = pred
                           , expected = JClass "java.lang.Boolean"
                           , actual   = predTy }
 
@@ -221,7 +227,7 @@ tcExpr io (d, g) = go
                   Just claimedRhsTy ->
                     unless (claimedRhsTy `alphaEqTy` inferredRhsTy) $
                       throwError
-                        Mismatch { term     = bindRhs
+                        Mismatch { expr     = bindRhs
                                  , expected = claimedRhsTy
                                  , actual   = inferredRhsTy }
                 return ( bindId
@@ -257,9 +263,9 @@ tcExpr io (d, g) = go
                 let claimedRhsTy = fromJust bindRhsAnnot
                 unless (claimedRhsTy `alphaEqTy` inferredRhsTy) $
                   throwError
-                    Mismatch { term = bindRhs
+                    Mismatch { expr     = bindRhs
                              , expected = claimedRhsTy
-                             , actual = inferredRhsTy }
+                             , actual   = inferredRhsTy }
                 return ( bindId
                        , wrap Forall bindTargs $
                            wrap Fun [t | (_,t) <- bindArgs] inferredRhsTy
@@ -268,11 +274,10 @@ tcExpr io (d, g) = go
          (e', t) <- tcExpr io (d, Map.fromList (zip fs ts) `Map.union` g) e
          return (LetOut Rec bs' e', t)
 
-    go (LetOut{..}) =
-      error (invariantFailed "tcExpr" (show (LetOut{..} :: Expr Name)))
+    go (LetOut{..}) = panic "Src.TypeCheck.tcExpr: LetOut"
 
     go (JNewObj c args) =
-      do ok <- liftIO $ isJVMType io c
+      do ok <- liftIO $ isJvmType io c
          if ok
            then do (args', typs') <- mapAndUnzipM go args
                    strArgs <- checkJavaArgs typs'
@@ -283,7 +288,7 @@ tcExpr io (d, g) = go
                             NoSuchConstructor { className = c
                                               , argsExpr = args
                                               , argsType = typs' }
-           else throwError (NotAJVMType c)
+           else throwError (NotAJvmType c)
 
     go (JMethod expr m args _) =
       case expr of
@@ -293,7 +298,7 @@ tcExpr io (d, g) = go
                JClass cls ->
                  do (args', typs') <- mapAndUnzipM go args
                     strArgs <- checkJavaArgs typs'
-                    retName <- liftIO $ methodRetType io cls m strArgs
+                    retName <- liftIO $ methodTypeOf io cls (m, False) strArgs
                     case retName of
                       Just r  -> return (JMethod (Left e') m args' r, JClass r)
                       Nothing -> throwError
@@ -301,11 +306,11 @@ tcExpr io (d, g) = go
                                                 , mName     = m
                                                 , argsExpr  = args
                                                 , argsType  = typs' }
-               otherType -> throwError (NotAJVMType (show otherType))
+               otherType -> throwError (NotAJvmType (show otherType))
         (Right className) ->
           do (args', typs') <- mapAndUnzipM go args
              strArgs <- checkJavaArgs typs'
-             retName <- liftIO $ staticMethodRetType io className m strArgs
+             retName <- liftIO $ methodTypeOf io className (m, True) strArgs
              case retName of
                Just r  -> return (JMethod (Right className) m args' r, JClass r)
                Nothing -> throwError
@@ -322,16 +327,16 @@ tcExpr io (d, g) = go
         (Left e) ->
           do (e', t') <- go e
              case t' of
-               JClass cls -> do retName <- liftIO $ fieldType io cls f
+               JClass cls -> do retName <- liftIO $ fieldTypeOf io cls (f, False)
                                 case retName of
                                   Just r  -> return (JField (Left e') f r, JClass r)
                                   Nothing -> throwError
                                                NoSuchField { className = cls
                                                            , fName     = f
                                                            , static    = False }
-               otherType -> throwError $ NotAJVMType $ show otherType
+               otherType -> throwError $ NotAJvmType (show otherType)
         (Right cls) ->
-          do retName <- liftIO $ staticFieldType io cls f
+          do retName <- liftIO $ fieldTypeOf io cls (f, True)
              case retName of Just r  -> return (JField (Right cls) f r, JClass r)
                              Nothing -> throwError
                                           NoSuchField { className = cls
@@ -347,8 +352,7 @@ checkJavaArgs :: [Type] -> TcM [Name]
 checkJavaArgs = mapM check
   where
     check (JClass name) = return name
-    check otherType     = throwError $ NotAJVMType $ show otherType
-
+    check otherType     = throwError $ NotAJvmType $ show otherType
 
 checkBinds :: (Handle, Handle) -> TypeContext -> [Bind Name] -> TcM ()
 checkBinds io d bs =
@@ -360,13 +364,11 @@ checkBinds io d bs =
             do let d' = Set.fromList bindTargs `Set.union` d
                checkWellformed io d' t))
 
-
 checkForDup :: String -> [String] -> TcM ()
 checkForDup what xs =
   case findFirstDup xs of
     Just x  -> throwError General { msg = "Duplicate " ++ what ++ ": " ++ q x }
     Nothing -> return ()
-
 
 findFirstDup :: Ord a => [a] -> Maybe a
 findFirstDup xs = go xs Set.empty
