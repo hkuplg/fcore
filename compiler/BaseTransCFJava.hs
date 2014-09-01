@@ -248,12 +248,13 @@ trans self = let this = up self in T {
            let tnv = map fst newvars
            (s, je, t') <- translateM this appliedBody--join ((liftM (translateM this)) appliedBody)
            (stmts, jex, _) <- ((liftM (unzip3)) (finalFuns))
+           let typ = javaType t'
            let assm = map (\(i, jz) -> J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show i)])) J.EqualA jz))) (tnv `zip` jex)
            let stasm = (concatMap (\(a,b) -> a ++ [b]) (stmts `zip` assm)) ++ s ++ [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "out"])) J.EqualA je))]
            let letClass = [J.LocalClass (J.ClassDecl [] (J.Ident ("Let" ++ show n)) [] Nothing [] (J.ClassBody
                            (J.MemberDecl (J.FieldDecl [J.Public] (objType) [J.VarDecl (J.VarId (J.Ident "out")) Nothing]) : mDecls ++ [J.InitDecl False (J.Block stasm)]))),
-                           J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show n)])) J.EqualA (J.InstanceCreation [] (J.ClassType [(J.Ident ("Let" ++ show n),[])]) [] Nothing))),
-                           J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show (n+1))])) J.EqualA (fieldAccess (localvarstr ++ show n) "out")))]
+                           J.LocalVars [] (J.RefType (J.ClassRefType (J.ClassType [(J.Ident ("Let" ++ show n),[])]))) [J.VarDecl (J.VarId (J.Ident (localvarstr ++ show n))) (Just (J.InitExp (J.InstanceCreation [] (J.ClassType [(J.Ident ("Let" ++ show n),[])]) [] Nothing)))],
+                           J.LocalVars [] typ [J.VarDecl (J.VarId (J.Ident (localvarstr ++ show (n+1)))) (Just (J.InitExp (J.Cast (typ) (J.ExpName (J.Name [J.Ident (localvarstr ++ show n),J.Ident "out"])))))]]
            return (letClass, var (localvarstr ++ show (n+1)), t')
 
      App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
