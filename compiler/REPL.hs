@@ -1,28 +1,41 @@
 module Main (main) where
 
-import Src.Syntax
-import Src.Parser       (reader)
-import Src.TypeCheck
-import Src.Translation  (transTcExpr)
+-- import Src
+-- import Parser
+-- import TypeCheck
+-- import Desugar
+-- import Core
+-- import Simplify
+-- import Translations
 
-import Core
+-- REPL parameterised by the type of its state
+type REPLLoop s = (String, s) -> IO (String, Prompt, s)
 
-import Control.Monad    (forever)
+data REPL s = REPL { replInit :: IO s
+                   , replLoop :: REPLLoop s }
 
-import System.IO        (hFlush, stdout)
-import Text.PrettyPrint.Leijen
+type Prompt = String
+
+runREPL :: REPL s -> IO ()
+runREPL repl
+  = do init_state <- replInit repl
+       runREPLLoop (replLoop repl) init_state
+
+runREPLLoop :: REPLLoop s -> s -> IO ()
+runREPLLoop repl_loop state
+  = do input <- getLine
+       (output, new_prompt, new_state) <- repl_loop (input, state)
+       putStrLn output
+       putStr   new_prompt
+       runREPLLoop repl_loop new_state
+
+adder :: REPL Int
+adder = REPL
+  { replInit = do { putStr "adder> "; return 0 }
+  , replLoop = \(input, state) ->
+               do let new_state = state + read input
+                  return (show new_state, "adder> ", new_state)
+  }
 
 main :: IO ()
-main = repl
-
-repl :: IO ()
-repl = forever $ do
-  putStr "> "; hFlush stdout
-  s <- getLine
-  let esf = reader s
-  case infer esf of
-    Left err -> print (pretty err)
-    Right t  -> do
-      print (pretty esf </> text "::" <+> pretty t)
-      let sf = transTcExpr esf :: PFExp Int Int
-      putStrLn $ SystemF.Pretty.prettyPrint sf
+main = runREPL adder
