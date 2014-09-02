@@ -37,6 +37,7 @@ data Expr t e =
    | Tuple [Expr t e]
    | Proj Int (Expr t e)
    -- fixpoints
+   | LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
    | Fix (Type t) (e -> EScope t e)
    -- Java
    | JNewObj String [Expr t e]
@@ -91,6 +92,7 @@ fexp2cexp (C.Lit e) = Lit e
 fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
+fexp2cexp (C.LetRec ts f g) = LetRec (map (\t -> case t of (t1, t2) -> ftyp2ctyp (C.Fun t1 t2)) ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
 fexp2cexp (C.Fix f t1 t2) =
   let  g e = groupLambda (C.Lam t1 (f e)) -- is this right???? (BUG)
   in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g
