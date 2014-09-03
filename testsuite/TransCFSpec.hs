@@ -9,18 +9,16 @@ import TestTerms
 import Parser       (reader)
 import TypeCheck    (typeCheck)
 import Desugar      (desugar)
+import Simplify     (simplify)
 
-import Translations     (compileN, compileAO, compileS)
+import Translations (compileN, compileAO, compileS)
 
 import MonadLib
 
 import Language.Java.Pretty
-import Text.PrettyPrint.Leijen
 
 import System.Directory
 import System.Process
-
-import Control.Monad.Trans.Error (runErrorT)
 
 import qualified Data.List as List      (isSuffixOf)
 
@@ -42,7 +40,7 @@ esf2sf expr =
   do res <- TypeCheck.typeCheck expr
      case res of
        Left typeError     -> error $ show ({- Text.PrettyPrint.Leijen.pretty -} typeError)
-       Right (tcExpr, _t) -> return (desugar tcExpr)
+       Right (tcExpr, _t) -> return ((simplify . desugar) tcExpr)
 
 testAbstractSyn compilation (name, ast, expectedOutput) =
   it ("should compile and run " ++ name ++ " and get \"" ++ expectedOutput ++ "\"") $
