@@ -15,7 +15,7 @@ module Main (main, TransMethod) where
 import System.Console.CmdArgs
 
 import System.Environment        (getArgs, withArgs)
-import System.FilePath           (takeFileName)
+import System.FilePath           (takeBaseName)
 import System.Directory          (doesFileExist)
 import System.IO
 import Data.FileEmbed            (embedFile)
@@ -41,15 +41,14 @@ optionsSpec = Options
     { optCompile       = False &= explicit &= name "c" &= name "compile"         &= help "Compile Java source"
     , optCompileAndRun = False &= explicit &= name "r" &= name "compile-and-run" &= help "Compile & run Java source"
     -- , optShowOpts      = False &= explicit &= name "d" &= name "debug"           &= help "Show the parsed options"
-    , optDump          = False &= explicit &= name "d" &= name "dump" &= help "Print expressions in the pipeline to stdout"
+    , optDump          = False &= explicit &= name "d" &= name "dump" &= help "Dump intermediate representations"
     , optSourceFiles   = []    &= args     &= typ "<source files>"
     , optTransMethod   = ApplyOpt
                       &= explicit &= name "m" &= name "method"
                       &= typ "<method>"
-                      &= help (unwords [ "Translations method."
-                                       , "Can be either 'naive', 'applyopt', or 'stack' (use without quotes)."
-                                       , "The default is 'applyopt'."
-                                       ])
+                      &= help ("Translations method." ++
+                               "Can be either 'naive', 'applyopt', or 'stack' (use without quotes)." ++
+                               "The default is 'applyopt'.")
     }
 
 getOpts :: IO Options
@@ -69,34 +68,33 @@ runtimeBytes = $(embedFile "runtime/runtime.jar")
 
 main :: IO ()
 main = do
-    rawArgs <- getArgs
-    -- If the user did not specify any arguments, pretend as "--help" was given
-    Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
+  rawArgs <- getArgs
+  -- If the user did not specify any arguments, pretend as "--help" was given
+  Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
 
-    -- when (optShowOpts) $ putStrLn (show Options{..} ++ "\n")
+  -- when (optShowOpts) $ putStrLn (show Options{..} ++ "\n")
 
-    -- Write the bytes of runtime.jar to file
-    exists <- doesFileExist =<< runtimeJarPath
-    existsCur <- doesFileExist "./runtime.jar"
-    unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
+  -- Write the bytes of runtime.jar to file
+  exists <- doesFileExist =<< runtimeJarPath
+  existsCur <- doesFileExist "./runtime.jar"
+  unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
 
-    forM_
-      (optSourceFiles)
-      (\srcPath -> do
-        putStrLn (takeFileName srcPath)
-        let outputPath = inferOutputPath srcPath
-        let method = optTransMethod
-        -- putStrLn (concat ["  Compiling System F to Java using ", show method, " ( ", outputPath, " )"])
-        compilesf2java optDump
-          (case method of Naive    -> compileN
-                          ApplyOpt -> compileAO
-                          Stack    -> compileS)
-          srcPath outputPath
+  forM_ optSourceFiles (\source_path ->
+    do let output_path      = inferOutputPath source_path
+           translate_method = optTransMethod
+       putStrLn (unwords ["Compiling", takeBaseName source_path
+                         , "using", show translate_method
+                         , "(", output_path, ")"])
+       compilesf2java optDump
+         (case translate_method of Naive    -> compileN
+                                   ApplyOpt -> compileAO
+                                   Stack    -> compileS)
+         source_path output_path
 
-        when (optCompile || optCompileAndRun) $
-          do putStrLn "  Compiling Java"
-             compileJava outputPath
+       when (optCompile || optCompileAndRun) $
+         do putStrLn "  Compiling Java"
+            compileJava output_path
 
-        when optCompileAndRun $
-          do putStrLn "  Running Java\n  Output: "
-             runJava outputPath)
+       when optCompileAndRun $
+         do putStrLn "  Running Java\n  Output: "
+            runJava output_path)

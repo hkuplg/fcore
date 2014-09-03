@@ -4,26 +4,22 @@
 
 {-# LANGUAGE RecordWildCards #-}
 
-module Src.Syntax
-  ( Bind(..)
-  , Expr(..)
-  , Lit(..)
-  , Operator(..)
-  , Name
-  , TcId
+module Src
+  ( Type(..)
+  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..)
+  , TypeContext, ValueContext
+  , Name, TcId
   -- , RdrExpr
-  , RecFlag(..)
   -- , TcBinds
   -- , TcExpr
-  , Type(..)
-  , TypeContext
-  , ValueContext
   , alphaEqTy
   , subtype
   , freeTyVars
   , substFreeTyVars
   , wrap
   , opPrec
+  , unwrapOp
+  , opReturnType
   ) where
 
 import JavaUtils
@@ -59,24 +55,22 @@ data Operator = Arith J.Op | Compare J.Op | Logic J.Op
     deriving (Eq, Show)
 
 data Expr id
-  = Var id                             -- Variable
-  | Lit Lit                            -- Literals
-  | Lam (Name, Type) (Expr id)         -- Lambda abstraction
-  | App  (Expr id) (Expr id)           -- Application
-  | BLam Name (Expr id)                -- Type lambda abstraction
-  | TApp (Expr id) Type                -- Type application
-  | Tuple [Expr id]                    -- Tuples
-  | Proj (Expr id) Int                 -- Tuple projection
-  | PrimOp (Expr id) Operator (Expr id)    -- Primitive operation
-  | If (Expr id) (Expr id) (Expr id)   -- If expression
-  | Let RecFlag [Bind id] (Expr id)    -- Let (rec) ... (and) ... in ...
+  = Var id                              -- Variable
+  | Lit Lit                             -- Literals
+  | Lam (Name, Type) (Expr id)          -- Lambda
+  | App  (Expr id) (Expr id)            -- Application
+  | BLam Name (Expr id)                 -- Big lambda
+  | TApp (Expr id) Type                 -- Type application
+  | Tuple [Expr id]                     -- Tuples
+  | Proj (Expr id) Int                  -- Tuple projection
+  | PrimOp (Expr id) Operator (Expr id) -- Primitive operation
+  | If (Expr id) (Expr id) (Expr id)    -- If expression
+  | Let RecFlag [Bind id] (Expr id)     -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId) -- Post typecheck only
-  | JNewObj Name [Expr id]             -- New Java object
--- Either Expr   -> static/non static method/field call
---        String -> static method/field call
-  | JMethod (Either (Expr id) ClassName) MethodName [Expr id] ClassName
-  | JField  (Either (Expr id) ClassName) FieldName            ClassName
-  | SeqExprs [Expr id]
+  | JNewObj ClassName [Expr id]
+  | JMethod (Either ClassName (Expr id)) MethodName [Expr id] ClassName
+  | JField  (Either ClassName (Expr id)) FieldName            ClassName
+  | Seq [Expr id]
   | Merge (Expr id) (Expr id)
   deriving (Eq, Show)
 
@@ -218,3 +212,13 @@ opPrec (Compare J.NotEq)  = 7
 opPrec (Logic J.CAnd)     = 11
 opPrec (Logic J.COr)      = 12
 opPrec op = panic $ "Src.Syntax.opPrec: " ++ show op
+
+unwrapOp :: Operator -> J.Op
+unwrapOp (Arith op)   = op
+unwrapOp (Compare op) = op
+unwrapOp (Logic op)   = op
+
+opReturnType :: Operator -> Type
+opReturnType (Arith _)   = JClass "java.lang.Integer"
+opReturnType (Compare _) = JClass "java.lang.Boolean"
+opReturnType (Logic _)   = JClass "java.lang.Boolean"

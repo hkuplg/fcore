@@ -1,11 +1,11 @@
-module Src.TypeCheckSpec where
+module TypeCheckSpec where
 
 import Test.Hspec
 import SpecHelper
 
-import Src.Syntax    hiding (Name)
-import Src.Parser    (reader)
-import Src.TypeCheck (infer)
+import Src    hiding (Name)
+import Parser    (reader)
+import TypeCheck (typeCheck)
 
 import Control.Monad             (forM_)
 import Control.Monad.Trans.Error (runErrorT)

@@ -3,9 +3,10 @@
 
 module ClosureF where
 
-import qualified Src.Syntax  as S
-import qualified Core        as C
+import qualified Src  as S
+import qualified Core as C
 
+import JavaUtils
 import Panic
 
 -- Closure F syntax
@@ -22,7 +23,7 @@ type EScope t e = Scope (Expr t e) t e
 data Type t =
       TVar t
     | Forall (TScope t)
-    | JClass String
+    | JClass ClassName
     | TupleType [Type t]
 
 data Expr t e =
@@ -40,9 +41,9 @@ data Expr t e =
    | LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
    | Fix (Type t) (e -> EScope t e)
    -- Java
-   | JNewObj String [Expr t e]
-   | JMethod (Either (Expr t e) String) String [Expr t e] String
-   | JField (Either (Expr t e) String) String String
+   | JNewObj ClassName [Expr t e]
+   | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
+   | JField  (Either ClassName (Expr t e)) FieldName ClassName
    | SeqExprs [Expr t e]
 
 -- System F to Closure F
@@ -98,11 +99,11 @@ fexp2cexp (C.Fix f t1 t2) =
   in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g
 fexp2cexp (C.JNewObj cName args)     = JNewObj cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
-  case c of (Left ce)  -> JMethod (Left $ fexp2cexp ce) mName (map fexp2cexp args) r
-            (Right cn) -> JMethod (Right cn) mName (map fexp2cexp args) r
+  case c of (Right ce)  -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
+            (Left cn) -> JMethod (Left cn) mName (map fexp2cexp args) r
 fexp2cexp (C.JField c fName r) =
-  case c of (Left ce)  -> JField (Left $ fexp2cexp ce) fName r
-            (Right cn) -> JField (Right cn) fName r
+  case c of (Right ce)  -> JField (Right $ fexp2cexp ce) fName r
+            (Left cn) -> JField (Left cn) fName r
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp e                         = Lam (groupLambda e)
 

@@ -15,20 +15,24 @@ module Core
   , pprType, pprExpr
 
   , fsubstTT, fsubstTE, fsubstEE
-
   , isSystemfType, isSystemfExpr
+  , opReturnType
   ) where
 
-import qualified Src.Syntax as Src
+import qualified Src
 
 import JavaUtils
 import PrettyUtils
 import Panic
 
 import Text.PrettyPrint.Leijen
+import qualified Language.Java.Pretty (prettyPrint)
 
-import qualified Data.Set as Set
+import Data.List (intersperse)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
+
+import Prelude hiding (id)
 
 data Type t
   = TVar t                -- a
@@ -64,14 +68,16 @@ data Expr t e
       (Type t) -- t1
       (Type t) -- t
 
-  | LetRec [(Type t, Type t)] ([e] -> [Expr t e]) ([e] -> Expr t e)
+  | LetRec [(Type t, Type t)]  -- Signatures
+           ([e] -> [Expr t e]) -- Bindings
+           ([e] -> Expr t e)   -- Body
   -- Java
   | JNewObj ClassName [Expr t e]
   | JMethod
-      (Either (Expr t e) ClassName) MethodName [Expr t e]
+      (Either ClassName (Expr t e)) MethodName [Expr t e]
       ClassName
   | JField
-      (Either (Expr t e) ClassName) FieldName
+      (Either ClassName (Expr t e)) FieldName
       ClassName
   | Seq [Expr t e]
 
@@ -114,6 +120,7 @@ pprType p i (Forall f)   =
 
 pprType p i (Product ts) = tupled (map (pprType basePrec i) ts)
 
+
 pprType p i (JClass "java.lang.Integer")   = text "Int"
 pprType p i (JClass "java.lang.String")    = text "String"
 pprType p i (JClass "java.lang.Boolean")   = text "Bool"
@@ -126,8 +133,8 @@ pprType p i (And t1 t2) =
      ampersand  <+>
      pprType (2,PrecPlus) i t2)
 
-instance Show (Expr Int Int) where
-  show = show . pretty
+-- instance Show (Expr Int Int) where
+--   show = show . pretty
 
 instance Pretty (Expr Int Int) where
   pretty = pprExpr basePrec (0, 0)
@@ -138,10 +145,8 @@ pprExpr p (i,j) (Var x) = pprVar x
 
 pprExpr p (i,j) (Lam t f) =
   parensIf p 2
-    (lambda <>
-     parens (pprVar j <+> colon <+> pprType basePrec i t) <>
-     dot <+>
-     pprExpr (2,PrecMinus) (i, succ j) (f j))
+    (hang 3 (lambda <> parens (pprVar j <+> colon <+> pprType basePrec i t) <> dot <$$>
+             pprExpr (2,PrecMinus) (i, succ j) (f j)))
 
 pprExpr p (i,j) (App e1 e2) =
   parensIf p 4
@@ -161,15 +166,17 @@ pprExpr p (i,j) (Lit (Src.String s))  = string s
 pprExpr p (i,j) (Lit (Src.Boolean b)) = bool b
 pprExpr p (i,j) (Lit (Src.Char c))    = char c
 
-pprExpr p (i,j) (If e1 e2 e3) =
-  parensIf p 1
-    (text "if"   <+> pprExpr (1,PrecMinus) (i,j) e1 <+>
-     text "then" <+> pprExpr (1,PrecMinus) (i,j) e2 <+>
-     text "else" <+> pprExpr (1,PrecMinus) (i,j) e3)
+pprExpr p (i,j) (If e1 e2 e3)
+  = parensIf p prec
+      (hang 3 (text "if"   <+> pprExpr (prec,PrecMinus) (i,j) e1 <$$>
+               text "then" <+> pprExpr (prec,PrecMinus) (i,j) e2 <$$>
+               text "else" <+> pprExpr (prec,PrecMinus) (i,j) e3))
+  where prec = 3
 
-pprExpr p (i,j) (PrimOp e1 op e2) =
-  parens (pprExpr p (i,j) e1 <+> text "_" <+> pprExpr p (i,j) e2)
-    -- TODO: consider precedence & pretty-print operator
+pprExpr p (i,j) (PrimOp e1 op e2)
+  = parens (pprExpr p (i,j) e1 <+> ppr_op <+> pprExpr p (i,j) e2)
+  where
+    ppr_op = text (Language.Java.Pretty.prettyPrint (Src.unwrapOp op))
 
 pprExpr p (i,j) (Tuple es) = tupled (map (pprExpr basePrec (i,j)) es)
 
@@ -191,8 +198,24 @@ pprExpr p (i,j) (Fix f t1 t) =
     (text "fix" <+> pprVar j <+>
      parens (pprVar (succ j) <+> colon <+> pprType p i t1) <+>
      colon <+>
-     pprType p i t <> dot <+>
-     pprExpr p (i, succ (succ j)) (f j (succ j)))
+     pprType p i t <> dot <$$>
+     indent 2 (pprExpr p (i, j + 2) (f j (j + 1))))
+
+pprExpr p (i,j) (LetRec sigs binds body)
+  = text "let" <+> text "rec" <$$>
+    vcat (intersperse (text "and") (map (indent 2) ppr_binds)) <$$>
+    text "in" <$$>
+    ppr_body
+  where
+    n   = length sigs
+    ids = [i..(i+n-1)]
+    ppr_ids   = map pprVar ids
+    ppr_sigs  = map (\(t1,t2) -> pprType p i (Fun t1 t2)) sigs
+    ppr_defs  = map (pprExpr p (i, j + n)) (binds ids)
+    ppr_binds = zipWith3 (\ppr_id ppr_sig ppr_def ->
+                  ppr_id <+> colon <+> ppr_sig <$$> indent 2 (equals <+> ppr_def))
+                  ppr_ids ppr_sigs ppr_defs
+    ppr_body  = pprExpr p (i, j + n) (body ids)
 
 pprExpr p (i,j) (Merge e1 e2) =
   parens $ pprExpr p (i,j) e1 <+> dcomma <+> pprExpr p (i,j) e2
@@ -233,10 +256,10 @@ fsubstEE (x,r)
     go (Proj i e)                     = Proj i (go e)
     go (Fix f t1 t)                   = Fix (\x' x1 -> go (f x' x1)) t1 t
     go (JNewObj s args)               = JNewObj s (map go args)
-    go (JMethod (Left e)  m args ret) = JMethod (Left (go e)) m (map go args) ret
-    go (JMethod (Right c) m args ret) = JMethod (Right c)     m (map go args) ret
-    go (JField (Left e) f ret)        = JField (Left (go e)) f ret
-    go (JField (Right c) f ret)       = JField (Right c)     f ret
+    go (JMethod (Right e)  m args ret) = JMethod (Right (go e)) m (map go args) ret
+    go (JMethod (Left c) m args ret)  = JMethod (Left c)     m (map go args) ret
+    go (JField (Right e) f ret)       = JField (Right (go e)) f ret
+    go (JField (Left c) f ret)        = JField (Left c)     f ret
     go (Seq es)                       = Seq (map go es)
     go (Merge e1 e2)                  = Merge (go e1) (go e2)
 
@@ -245,3 +268,8 @@ isSystemfType = sorry "Core.isSystemfType"
 
 isSystemfExpr :: Expr t e -> Bool
 isSystemfExpr = sorry "Core.isSystemfExpr"
+
+opReturnType :: Src.Operator -> Type t
+opReturnType (Src.Arith _)   = JClass "java.lang.Integer"
+opReturnType (Src.Compare _) = JClass "java.lang.Boolean"
+opReturnType (Src.Logic _)   = JClass "java.lang.Boolean"

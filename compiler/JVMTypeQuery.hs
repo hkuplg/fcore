@@ -5,7 +5,7 @@ module JvmTypeQuery
   , fieldTypeOf
   ) where
 
-import JavaUtils
+import JavaUtils (ClassName, MethodName, FieldName)
 
 import System.IO           (hPutStrLn, hGetLine, Handle)
 import Control.Applicative ((<$>))

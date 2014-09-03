@@ -1,10 +1,10 @@
-module Src.ParserSpec where
+module ParserSpec where
 
 import Control.Monad    (forM_)
 import Test.Hspec
 
-import Src.Syntax
-import Src.Parser
+import Src
+import Parser
 
 import qualified Language.Java.Syntax as J (Op(..))
 
