@@ -19,6 +19,7 @@ module Src
   , wrap
   , opPrec
   , unwrapOp
+  , opReturnType
   ) where
 
 import JavaUtils
@@ -216,3 +217,8 @@ unwrapOp :: Operator -> J.Op
 unwrapOp (Arith op)   = op
 unwrapOp (Compare op) = op
 unwrapOp (Logic op)   = op
+
+opReturnType :: Operator -> Type
+opReturnType (Arith _)   = JClass "java.lang.Integer"
+opReturnType (Compare _) = JClass "java.lang.Boolean"
+opReturnType (Logic _)   = JClass "java.lang.Boolean"

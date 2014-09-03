@@ -11,6 +11,8 @@ module Simplify where
 import Core
 import qualified Src as S
 
+import Panic
+
 import Unsafe.Coerce
 import Control.Monad.Identity
 import Control.Monad.State
@@ -49,7 +51,7 @@ transExpr (TApp e t) =
      (t1, m) <- transExpr e
      case t1 of
        Forall f -> return (fsubstTT (i, t) (f i), TApp m (transType i t))
-       _        -> fail ""
+       _        -> panic "Simplify.transExpr: TApp"
 
 transExpr (App e1 e2)  =
   do (t1, e1') <- transExpr e1
@@ -59,13 +61,13 @@ transExpr (App e1 e2)  =
              i <- get
              case coerce i t2 t of
                Just c  -> return (t', e1' `App` (c `appC` m2))
-               Nothing -> fail ""
-        _            -> fail ""
+               Nothing -> panic "Simplify.transExpr: App: Incompatible types"
+        _            -> panic "Simplify.transExpr: App: Not a function"
 
 transExpr (PrimOp e1 op e2) =
  do (t1, m1) <- transExpr e1
     (t2, m2) <- transExpr e2
-    return (And t1 t2, PrimOp m1 op m2)
+    return (opReturnType op, PrimOp m1 op m2)
 
 transExpr (If pred b1 b2) =
   do (predTy, pred') <- transExpr pred

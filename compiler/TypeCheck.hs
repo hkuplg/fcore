@@ -258,10 +258,8 @@ tcBind Bind{..}
                                   (withLocalVars bindArgs
                                      (tcExpr bindRhs))
        return ( bindId
-              , wrap Forall bindTargs
-                  (wrap Fun (map snd bindArgs)
-                     bindRhsTy)
-              , bindRhs')
+              , wrap Forall bindTargs (wrap Fun (map snd bindArgs) bindRhsTy)
+              , wrap BLam bindTargs (wrap Lam bindArgs bindRhs'))
 
 checkBindLHS :: Bind Name -> TcM ()
 checkBindLHS Bind{..}

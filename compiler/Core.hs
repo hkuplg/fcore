@@ -15,8 +15,8 @@ module Core
   , pprType, pprExpr
 
   , fsubstTT, fsubstTE, fsubstEE
-
   , isSystemfType, isSystemfExpr
+  , opReturnType
   ) where
 
 import qualified Src
@@ -120,6 +120,7 @@ pprType p i (Forall f)   =
 
 pprType p i (Product ts) = tupled (map (pprType basePrec i) ts)
 
+
 pprType p i (JClass "java.lang.Integer")   = text "Int"
 pprType p i (JClass "java.lang.String")    = text "String"
 pprType p i (JClass "java.lang.Boolean")   = text "Bool"
@@ -197,8 +198,8 @@ pprExpr p (i,j) (Fix f t1 t) =
     (text "fix" <+> pprVar j <+>
      parens (pprVar (succ j) <+> colon <+> pprType p i t1) <+>
      colon <+>
-     pprType p i t <> dot <+>
-     pprExpr p (i, succ (succ j)) (f j (succ j)))
+     pprType p i t <> dot <$$>
+     indent 2 (pprExpr p (i, j + 2) (f j (j + 1))))
 
 pprExpr p (i,j) (LetRec sigs binds body)
   = text "let" <+> text "rec" <$$>
@@ -267,3 +268,8 @@ isSystemfType = sorry "Core.isSystemfType"
 
 isSystemfExpr :: Expr t e -> Bool
 isSystemfExpr = sorry "Core.isSystemfExpr"
+
+opReturnType :: Src.Operator -> Type t
+opReturnType (Src.Arith _)   = JClass "java.lang.Integer"
+opReturnType (Src.Compare _) = JClass "java.lang.Boolean"
+opReturnType (Src.Logic _)   = JClass "java.lang.Boolean"

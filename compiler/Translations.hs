@@ -183,7 +183,7 @@ sf2java optDump compilation className src =
        Left typeError -> error $ show ({- Text.PrettyPrint.Leijen.pretty-} typeError)
        Right (tcheckedSrc, _t)   ->
          do let core = desugar tcheckedSrc
-            when optDump $ putStrLn "Core"
+            when optDump $ do { putStrLn "Core"; print $ Core.pprExpr basePrec (0,0) core }
             let simpleCore = simplify core
             when optDump $ do { putStrLn "Simplified Core"; print $ Core.pprExpr basePrec (0,0) simpleCore }
             let (cu, _) = compilation className simpleCore
