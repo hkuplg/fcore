@@ -45,7 +45,7 @@ data TcEnv
   { tceTypeCtxt     :: TypeContext
   , tceValueCtxt    :: ValueContext
   , tceTypeserver   :: Connection
-  , tceMemoJClasses :: Set.Set ClassName -- Memoized Java class names
+  , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
 
 mkInitTcEnv :: Connection -> TcEnv
@@ -54,7 +54,7 @@ mkInitTcEnv type_server
   { tceTypeCtxt     = Set.empty
   , tceValueCtxt    = Map.empty
   , tceTypeserver   = type_server
-  , tceMemoJClasses = Set.empty
+  , tceMemoizedJavaClasses = Set.empty
   }
 
 data TypeError
@@ -95,6 +95,15 @@ getValueCtxt = liftM tceValueCtxt getTcEnv
 
 getTypeServer :: TcM (Handle, Handle)
 getTypeServer = liftM tceTypeserver getTcEnv
+
+getMemoizedJavaClasses :: TcM (Set.Set ClassName)
+getMemoizedJavaClasses = liftM tceMemoizedJavaClasses getTcEnv
+
+memoizeJavaClass :: ClassName -> TcM ()
+memoizeJavaClass c
+  = do TcEnv{..} <- getTcEnv
+       memoized_java_classes <- getMemoizedJavaClasses
+       setTcEnv TcEnv{ tceMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
 
 withLocalTyVars :: [Name] -> TcM a -> TcM a
 withLocalTyVars tyvars do_this
@@ -303,9 +312,13 @@ unlessIO test do_this
 
 checkClassName :: ClassName -> TcM ()
 checkClassName c
-  = do h  <- getTypeServer
-       unlessIO (isJvmType h c) $
-         throwError (NoSuchClass c)
+  = do memoized_java_classes <- getMemoizedJavaClasses
+       unless (c `Set.member` memoized_java_classes) $
+         do h  <- getTypeServer
+            res <- liftIO (isJvmType h c)
+            if res
+               then memoizeJavaClass c
+               else throwError (NoSuchClass c)
 
 checkNew :: ClassName -> [ClassName] -> TcM ()
 checkNew c args
