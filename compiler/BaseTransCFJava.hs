@@ -3,7 +3,7 @@
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 
-import qualified Src                  as Src
+import qualified Src
 import qualified Language.Java.Syntax as J
 import ClosureF
 import Inheritance

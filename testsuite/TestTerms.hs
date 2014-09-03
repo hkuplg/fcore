@@ -1,6 +1,6 @@
 module TestTerms where
 
-import qualified Src.Syntax as Src
+import qualified Src
 import Core
 
 import Language.Java.Syntax as J (Op(..))

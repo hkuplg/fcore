@@ -16,50 +16,54 @@ import System.IO
 import System.Process
 
 import Control.Monad.Error
-import Control.Monad.State
 
-import Data.Maybe                (fromJust)
-import qualified Data.List as List
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
 
 import Prelude hiding (pred)
 
-typeCheck e = evalIOEnv undefined (runErrorT (tcExpr e))
+type Connection = (Handle, Handle)
 
--- withTypeServer do_this =
---   do cp <- liftIO classpath
---      let p = (proc "java" ["-cp", cp, "hk.hku.cs.f2j.TypeServer"])
---                { std_in = CreatePipe, std_out = CreatePipe }
---      (Just inp, Just out, _, proch) <- liftIO $ createProcess p
---      liftIO $ hSetBuffering inp NoBuffering
---      liftIO $ hSetBuffering out NoBuffering
---      res <- do_this (inp, out)
---      liftIO $ terminateProcess proch
---      return res
+typeCheck :: Expr Name -> IO (Either TypeError (Expr TcId, Type))
+typeCheck e = withTypeServer (\type_server ->
+  (evalIOEnv (mkInitTcEnv type_server) . runErrorT . tcExpr) e)
+
+withTypeServer :: (Connection -> IO a) -> IO a
+withTypeServer do_this =
+  do cp <- getClassPath
+     let p = (proc "java" ["-cp", cp, "hk.hku.cs.f2j.TypeServer"])
+               { std_in = CreatePipe, std_out = CreatePipe }
+     (Just inp, Just out, _, proch) <- createProcess p
+     hSetBuffering inp NoBuffering
+     hSetBuffering out NoBuffering
+     res <- do_this (inp, out)
+     terminateProcess proch
+     return res
 
 data TcEnv
   = TcEnv
-  { tceTypeCtxt      :: TypeContext
-  , tceValueCtxt     :: ValueContext
-  , tceTypeserver    :: (Handle, Handle)
-  , tceMemoJavaTypes :: Set.Set ClassName -- Memoized Java class names
+  { tceTypeCtxt     :: TypeContext
+  , tceValueCtxt    :: ValueContext
+  , tceTypeserver   :: Connection
+  , tceMemoJClasses :: Set.Set ClassName -- Memoized Java class names
   }
 
--- initTcEnv :: TcEnv
--- initTcEnv
---   = TcEnv
---   { tceTypeCtxt      = Set.empty
---   , tceValueCtxt     = Map.empty
---   , tceTypeserver    = (undefined, undefined)
---   , tceMemoJavaTypes = Set.empty
---   }
+mkInitTcEnv :: Connection -> TcEnv
+mkInitTcEnv type_server
+  = TcEnv
+  { tceTypeCtxt     = Set.empty
+  , tceValueCtxt    = Map.empty
+  , tceTypeserver   = type_server
+  , tceMemoJClasses = Set.empty
+  }
 
 data TypeError
-  = ConflictingDefinitions Name
+  = General String
+  | ConflictingDefinitions Name
   | ExpectJClass
   | IndexTooLarge
   | Mismatch { expectedTy :: Type, actualTy :: Type }
+  | ExpectedSubtype
   | MissingRHSAnnot
   | NotInScopeTyVar Name
   | NotInScopeVar   Name
@@ -134,7 +138,7 @@ tcExpr (App e1 e2)
        case t1 of
          Fun t3 t4 -> do checkSubtype t2 t3
                          return (App e1' e2', t4)
-         _         -> sorry "Src.TypeCheck.tcExpr: App"
+         _         -> throwError (General (show e1 ++ "::" ++ show t1))
 
 tcExpr (BLam a e)
   = do (e', t) <- withLocalTyVars [a] (tcExpr e)
@@ -198,7 +202,7 @@ tcExpr (JNewObj c args)
        checkNew c arg_cs
        return (JNewObj c args', JClass c)
 
-tcExpr (JMethod object m args _undefined)
+tcExpr (JMethod object m args _)
   = case object of
       Left c ->
         do (args', arg_cs) <- mapAndUnzipM tcExprAgainstAnyJClass args
@@ -210,7 +214,7 @@ tcExpr (JMethod object m args _undefined)
            ret_c <- checkMethodCall c m arg_cs
            return (JMethod (Right e') m args' ret_c, JClass ret_c)
 
-tcExpr (JField object f _undefined)
+tcExpr (JField object f _)
   = case object of
       Left c ->
         do ret_c <- checkStaticFieldAccess c f
@@ -246,10 +250,25 @@ tcExprAgainstMaybe :: Expr Name -> Maybe Type -> TcM (Expr TcId, Type)
 tcExprAgainstMaybe e Nothing  = tcExpr e
 tcExprAgainstMaybe e (Just t) = tcExprAgainst e t
 
+-- f A1 ... An (x1:T1) ... (xn:Tn) = e
 tcBind :: Bind Name -> TcM (Name, Type, Expr TcId)
-tcBind bind
-  = do checkBindLHS bind
-       undefined
+tcBind Bind{..}
+  = do checkBindLHS Bind{..}
+       (bindRhs', bindRhsTy) <- withLocalTyVars bindTargs
+                                  (withLocalVars bindArgs
+                                     (tcExpr bindRhs))
+       return ( bindId
+              , wrap Forall bindTargs
+                  (wrap Fun (map snd bindArgs)
+                     bindRhsTy)
+              , bindRhs')
+
+checkBindLHS :: Bind Name -> TcM ()
+checkBindLHS Bind{..}
+  = do checkDupNames bindTargs
+       checkDupNames [arg_name | (arg_name, _) <- bindArgs]
+       withLocalTyVars bindTargs $
+         mapM_ (\(_, arg_ty) -> checkType arg_ty) bindArgs
 
 collectBindNameSigs :: [Bind Name] -> TcM [(Name, Type)]
 collectBindNameSigs
@@ -264,15 +283,10 @@ collectBindNameSigs
 checkBindNames :: [Bind Name] -> TcM ()
 checkBindNames bnds = checkDupNames (map bindId bnds)
 
-checkBindLHS :: Bind Name -> TcM ()
-checkBindLHS Bind{..}
-  = do checkDupNames bindTargs
-       checkDupNames [arg_name | (arg_name, _) <- bindArgs]
-       withLocalTyVars bindTargs $
-         mapM_ (\ (_, arg_ty) -> checkType arg_ty) bindArgs
-
 checkSubtype :: Type -> Type -> TcM ()
-checkSubtype t1 t2 = undefined
+checkSubtype t1 t2
+  | t1 `subtype` t2 = return ()
+  | otherwise       = throwError ExpectedSubtype
 
 checkType :: Type -> TcM ()
 checkType t
@@ -297,15 +311,41 @@ checkClassName c
 
 checkNew :: ClassName -> [ClassName] -> TcM ()
 checkNew c args
-  = do h  <- getTypeServer
+  = do h <- getTypeServer
        unlessIO (hasConstructor h c args) $
          throwError (NoSuchConstructor c args)
 
-checkMethodCall = undefined
-checkStaticMethodCall = undefined
+checkMethodCall :: ClassName -> MethodName -> [ClassName] -> TcM ClassName
+checkMethodCall c m args
+  = do h <- getTypeServer
+       res <- liftIO $ methodTypeOf h c (m, False) args
+       case res of
+         Nothing -> throwError (NoSuchMethod c m False args)
+         Just ret_c -> return ret_c
 
-checkFieldAccess = undefined
-checkStaticFieldAccess = undefined
+checkStaticMethodCall :: ClassName -> MethodName -> [ClassName] -> TcM ClassName
+checkStaticMethodCall c m args
+  = do h <- getTypeServer
+       res <- liftIO $ methodTypeOf h c (m, True) args
+       case res of
+         Nothing -> throwError (NoSuchMethod c m True args)
+         Just ret_c -> return ret_c
+
+checkFieldAccess :: ClassName -> FieldName -> TcM ClassName
+checkFieldAccess c f
+  = do h <- getTypeServer
+       res <- liftIO $ fieldTypeOf h c (f, False)
+       case res of
+         Nothing -> throwError (NoSuchField c f False)
+         Just ret_c -> return ret_c
+
+checkStaticFieldAccess :: ClassName -> FieldName -> TcM ClassName
+checkStaticFieldAccess c f
+  = do h <- getTypeServer
+       res <- liftIO $ fieldTypeOf h c (f, True)
+       case res of
+         Nothing -> throwError (NoSuchField c f True)
+         Just ret_c -> return ret_c
 
 srcLitType :: Lit -> Type
 srcLitType (Integer _) = JClass "java.lang.Integer"
