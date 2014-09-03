@@ -10,7 +10,7 @@ module JavaUtils
 
 import StringUtils       (capitalize)
 
-import System.FilePath   (takeDirectory, takeBaseName, replaceExtension, (</>))
+import System.FilePath   (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>))
 import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)
 import System.Process    (system)
 
@@ -32,7 +32,7 @@ getClassPath = do r <- runtimeJarPath
 -- "tests/pinepine/even_odd.sf" => "tests/pinepine/Even_odd.java"
 inferOutputPath :: FilePath -> FilePath
 inferOutputPath source_path
-  = takeDirectory source_path </> capitalize (replaceExtension source_path "java")
+  = takeDirectory source_path </> capitalize (replaceExtension (takeFileName source_path) "java")
 
 inferClassName :: FilePath -> String
 inferClassName outputPath = capitalize $ takeBaseName outputPath
