@@ -1,3 +1,5 @@
+-- The simplifier: translate System F with intersection types to vanilla System F
+
 {-# LANGUAGE FlexibleContexts
            , FlexibleInstances
            , MultiParamTypeClasses
@@ -8,9 +10,6 @@ module Simplify where
 
 import Core
 import qualified Src as S
-
-import JavaUtils
-import Panic
 
 import Unsafe.Coerce
 import Control.Monad.Identity
@@ -59,7 +58,7 @@ transExpr (App e1 e2)  =
           do (t2, m2) <- transExpr e2
              i <- get
              case coerce i t2 t of
-               Just c  -> return (t', e1' `App` (c `App` m2))
+               Just c  -> return (t', e1' `App` (c `appC` m2))
                Nothing -> fail ""
         _            -> fail ""
 
@@ -118,6 +117,21 @@ transExpr (Fix f t1 t) =
                   (transType i t1)
                   (transType i t))
 
+-- LetRec [(Type t, Type t)] ([e] -> [Expr t e]) ([e] -> Expr t e)
+transExpr (LetRec sigs binds body) =
+  do i <- takeFreshIndex
+     let sigs' = map (\(t1,t2) -> (transType i t1, transType i t2)) sigs
+     js <- replicateM (length sigs) takeFreshIndex
+     k <- takeFreshIndex
+     let binds' = (\names' ->
+                    map (\e -> snd (evalState (transExpr e) k))
+                      (binds (zipWith (\n (t1,t2) -> (n, Fun t1 t2)) names' sigs)))
+     let body' = (\names' ->
+                      snd (evalState (transExpr (body (zipWith (\n (t1,t2) -> (n, Fun t1 t2)) names' sigs))) k))
+
+     let t = infer ((unsafeCoerce body') (map (\(t1,t2) -> Fun t1 t2) sigs))
+     k  <- takeFreshIndex
+     return (t, LetRec sigs' binds' body')
 
 infer :: Expr t e -> Type t
 infer e = unsafeCoerce $ fst (evalState (transExpr e') 0)
@@ -131,37 +145,68 @@ transType i (Product ts)  = Product (map (transType i) ts)
 transType i (JClass c)    = JClass c
 transType i (a1 `And` a2) = Product [transType i a1, transType i a2]
 
-coerce :: Int -> Type Int -> Type Int -> Maybe (Expr Int Int)
+-- A `Coercion` is either an identity function or some non-trivial function.
+-- The purpose is to avoid applying the identity functions to an expression.
+data Coercion t e = Id | C (Expr t e)
+
+isIdC :: Coercion t e -> Bool
+isIdC  Id   = True
+isIdC (C _) = False
+
+appC :: Coercion t e -> Expr t e -> Expr t e
+appC Id e      = e
+appC (C e1) e2 = App e1 e2
+
+coerce :: Int -> Type Int -> Type Int -> Maybe (Coercion Int Int)
 coerce i (TVar a) (TVar b)
-  | a == b    = Just (Lam (transType i (TVar a)) (\x -> Var x))
+  | a == b    = return Id
     -- TODO: requires variable identity
   | otherwise = Nothing
 coerce i (Fun t1 t2) (Fun t3 t4) =
   do c1 <- coerce i t3 t1
      c2 <- coerce i t2 t4
-     Just (Lam (transType i (Fun t1 t2))
-               (\f -> Lam (transType i t3)
-               (\x -> (App c2 .  App (Var f) . App c1) (Var x))))
+     case (c1,c2) of
+       (Id,Id) ->
+         return Id
+       (_,_)    ->
+         return (C (Lam (transType i (Fun t1 t2))
+                      (\f -> Lam (transType i t3)
+                               (\x -> (appC c2 .  App (Var f) . appC c1) (Var x)))))
 coerce i (Forall f) (Forall g) =
   do c <- coerce (i + 1) (f i) (g i)
-     Just (Lam (transType i (Forall f))
-               (\f -> BLam (\a -> (App c . TApp (Var f)) (TVar a))))
-coerce i (Product ss) (Product ts) = sorry "Simplify.coerce: Product"
+     case c of
+       Id -> return Id
+       _  -> return (C (Lam (transType i (Forall f))
+                         (\f -> BLam (\a -> (appC c . TApp (Var f)) (TVar a)))))
+coerce i (Product ss) (Product ts)
+  | length ss == length ts = Nothing
+  | otherwise =
+    do cs <- zipWithM (coerce i) ss ts
+       if isIdC `all` cs
+          then return Id
+          else
+            let f x = Tuple (zipWith (\c idx -> appC c (Proj idx x))
+                                     cs [1.. (length ss)])
+            in
+            return (C (Lam (transType i (Product ss)) (\tuple -> f (Var tuple))))
 coerce i (JClass c) (JClass d)
-  | c == d    = Just (Lam (transType i (JClass c)) (\x -> Var x))
+  | c == d    = return Id
   | otherwise = Nothing
 coerce i t1 (And t2 t3) =
   do c1 <- coerce i t1 t2
      c2 <- coerce i t1 t3
-     Just (Lam (transType i t1)
-               (\x -> Tuple [c1 `App` Var x, c2 `App` Var x]))
+     case (c1,c2) of
+       (Id,Id) -> return Id
+       (_,_)   -> return (C (Lam (transType i t1)
+                              (\x -> Tuple [c1 `appC` Var x, c2 `appC` Var x])))
 coerce i (And t1 t2) t3 =
   case coerce i t1 t3 of
-    Just c  -> Just (Lam (transType i (And t1 t2)) (\x -> c `App` Proj 1 (Var x)))
+    Just c  -> Just (C (Lam (transType i (And t1 t2)) (\x -> c `appC` Proj 1 (Var x))))
     Nothing ->
       case coerce i t2 t3 of
         Nothing -> Nothing
-        Just c  -> Just (Lam (transType i (And t1 t2)) (\x -> c `App` Proj 2 (Var x)))
+        Just c  -> return (C (Lam (transType i (And t1 t2))
+                               (\x -> c `appC` Proj 2 (Var x))))
 coerce  i _ _ = Nothing
 
 takeFreshIndex :: State Int Int

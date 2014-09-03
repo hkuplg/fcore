@@ -166,6 +166,12 @@ fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.N
 
 inputFieldAccess varId = fieldAccess varId localvarstr
 
+pairUp :: [Var] -> [(J.Exp, Type Int)] -> [(Var, Type Int)]
+pairUp bindings vars = exchanged
+    where
+      z = bindings `zip` vars
+      exchanged = map (\x -> case x of (a,(b,c)) -> (a,c)) z
+
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
   translateM = \e -> case e of
@@ -226,6 +232,30 @@ trans self = let this = up self in T {
            put (n+1)
            (s, je, t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
            return (s,je, Forall t')
+
+     LetRec t xs body ->
+       do  (n :: Int) <- get
+           let needed = length $ (xs (zip [n..] (repeat (t!!0))))
+           put (n+2+needed)
+           mfuns <- return (\defs -> forM (xs defs) (translateM this))
+
+           let vars = (liftM (map (\x -> case x of (a,b,c) -> (b,c)))) (mfuns (zip [n..] (repeat (t!!0))))
+           let (bindings :: [Var]) = [n+2..n+1+needed]
+           newvars <- ((liftM (pairUp bindings)) vars)
+           let mDecls = map (\x -> J.MemberDecl (J.FieldDecl [J.Public] (closureType) [J.VarDecl (J.VarId (J.Ident (localvarstr ++ show x))) Nothing])) bindings
+           let finalFuns = mfuns newvars
+           let appliedBody = body newvars
+           let tnv = map fst newvars
+           (s, je, t') <- translateM this appliedBody--join ((liftM (translateM this)) appliedBody)
+           (stmts, jex, _) <- ((liftM (unzip3)) (finalFuns))
+           let typ = javaType t'
+           let assm = map (\(i, jz) -> J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++ show i)])) J.EqualA jz))) (tnv `zip` jex)
+           let stasm = (concatMap (\(a,b) -> a ++ [b]) (stmts `zip` assm)) ++ s ++ [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "out"])) J.EqualA je))]
+           let letClass = [J.LocalClass (J.ClassDecl [] (J.Ident ("Let" ++ show n)) [] Nothing [] (J.ClassBody
+                           (J.MemberDecl (J.FieldDecl [J.Public] (objType) [J.VarDecl (J.VarId (J.Ident "out")) Nothing]) : mDecls ++ [J.InitDecl False (J.Block stasm)]))),
+                           J.LocalVars [] (J.RefType (J.ClassRefType (J.ClassType [(J.Ident ("Let" ++ show n),[])]))) [J.VarDecl (J.VarId (J.Ident (localvarstr ++ show n))) (Just (J.InitExp (J.InstanceCreation [] (J.ClassType [(J.Ident ("Let" ++ show n),[])]) [] Nothing)))],
+                           J.LocalVars [] typ [J.VarDecl (J.VarId (J.Ident (localvarstr ++ show (n+1)))) (Just (J.InitExp (J.Cast (typ) (J.ExpName (J.Name [J.Ident (localvarstr ++ show n),J.Ident "out"])))))]]
+           return (letClass, var (localvarstr ++ show (n+1)), t')
 
      App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
 

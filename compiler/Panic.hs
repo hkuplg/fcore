@@ -23,7 +23,7 @@ data F2jException
 instance Exception F2jException
 
 instance Show F2jException where
-  showsPrec _ e = showString progName . showString ": " . showF2jException e
+  showsPrec _ = showF2jException
 
 progName :: String
 progName = "f2j"

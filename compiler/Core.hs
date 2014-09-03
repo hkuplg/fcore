@@ -64,6 +64,7 @@ data Expr t e
       (Type t) -- t1
       (Type t) -- t
 
+  | LetRec [(Type t, Type t)] ([e] -> [Expr t e]) ([e] -> Expr t e)
   -- Java
   | JNewObj ClassName [Expr t e]
   | JMethod
