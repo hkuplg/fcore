@@ -56,8 +56,8 @@ tokens :-
     $digit+                { \_ s -> Tinteger (read s) }
     \"($printable # \")*\"  { \_ s -> Tstring (init $ tail s) }
     \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
-    true                   { \_ s -> Tboolean True}
-    false                  { \_ s -> Tboolean False}
+    True                   { \_ s -> Tboolean True}
+    False                  { \_ s -> Tboolean False}
 
     -- java.package.path.Classname
     ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavaclass s }
