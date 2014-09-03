@@ -12,6 +12,7 @@ import Core
 import qualified Src as S
 
 import Panic
+import PrettyUtils
 
 import Unsafe.Coerce
 import Control.Monad.Identity
@@ -56,12 +57,14 @@ transExpr (TApp e t) =
 transExpr (App e1 e2)  =
   do (t1, e1') <- transExpr e1
      case t1 of
-        Fun t t'  ->
-          do (t2, m2) <- transExpr e2
+        Fun t11 t12  ->
+          do (t2, e2') <- transExpr e2
              i <- get
-             case coerce i t2 t of
-               Just c  -> return (t', e1' `App` (c `appC` m2))
-               Nothing -> panic "Simplify.transExpr: App: Incompatible types"
+             case coerce i t2 t11 of
+               Just c  -> return (t12, e1' `App` (c `appC` e2'))
+               Nothing -> panic ("Simplify.transExpr: App: Cannot coerce " ++
+                                 show (pprType basePrec i t2) ++ " to " ++
+                                 show (pprType basePrec i t11))
         _            -> panic "Simplify.transExpr: App: Not a function"
 
 transExpr (PrimOp e1 op e2) =
@@ -181,7 +184,7 @@ coerce i (Forall f) (Forall g) =
        _  -> return (C (Lam (transType i (Forall f))
                          (\f -> BLam (\a -> (appC c . TApp (Var f)) (TVar a)))))
 coerce i (Product ss) (Product ts)
-  | length ss == length ts = Nothing
+  | length ss /= length ts = Nothing
   | otherwise =
     do cs <- zipWithM (coerce i) ss ts
        if isIdC `all` cs

@@ -18,6 +18,9 @@ import qualified Language.Java.Syntax as J (Op(..))
 instance Show (Expr t e) where
   show e = show $ pprExpr basePrec (0,0) (unsafeCoerce e)
 
+instance Show (Type t) where
+  show e = show $ pprType basePrec 0 (unsafeCoerce e)
+
 -- let tailFact : Int -> Int -> Int
 --   = \(acc : Int). \(n : Int). if n == 0 then acc else tailFact (acc * n) (n - 1)
 -- in
@@ -55,7 +58,12 @@ evenOdd
       (\ids ->
          App (Var (ids !! 1)) magicNumber)
 
+-- Int -> (Int -> Bool, Int -> Bool)
+evenOddEncodedTy :: Type t
+evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` javaBool]
+
 javaInt      = JClass "java.lang.Integer"
+javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (Src.Integer 0)
 one          = Lit (Src.Integer 1)
 magicNumber  = Lit (Src.Integer 42)
