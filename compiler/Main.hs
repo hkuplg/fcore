@@ -40,7 +40,7 @@ optionsSpec = Options
   , optCompileAndRun = False &= explicit &= name "r" &= name "run" &= help "Compile & run Java source"
   , optDump = False &= explicit &= name "d" &= name "dump" &= help "Dump intermediate representations"
   , optSourceFiles = [] &= args &= typ "SOURCE FILES"
-  , optTransMethod = ApplyOpt &= explicit &= name "method" &= typ "METHOD"
+  , optTransMethod = ApplyOpt &= explicit &= name "m" &= name "method" &= typ "METHOD"
                   &= help ("Translations method." ++
                            "Can be either 'naive', 'applyopt', or 'stack'" ++
                            "(use without quotes)." ++
