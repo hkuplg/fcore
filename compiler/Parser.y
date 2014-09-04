@@ -133,9 +133,6 @@ aexp :: { Expr Name }
     : aexp1             { $1 }
 
 aexp1 :: { Expr Name }
-    : aexp2             { $1 }
-
-aexp2 :: { Expr Name }
     : var                       { Var $1 }
     | INTEGER                   { Lit (Integer $1) }
     | STRING                    { Lit (String $1) }
