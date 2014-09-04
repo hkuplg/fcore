@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module JavaUtils
-  ( runtimeJarPath
+  ( getRuntimeJarPath
   , getClassPath
   , compileJava, runJava
   , inferOutputPath, inferClassName
@@ -11,20 +11,20 @@ module JavaUtils
 import StringUtils       (capitalize)
 
 import System.FilePath   (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>))
-import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)
+import System.Directory  (setCurrentDirectory, getCurrentDirectory)
 import System.Process    (system)
 
 type ClassName  = String
 type MethodName = String
 type FieldName  = String
 
-runtimeJarPath :: IO FilePath
-runtimeJarPath
-  = do h <- getHomeDirectory
-       return $ h ++ "/.cabal/share/systemfcompiler-0.1.0.0/runtime/runtime.jar"
+getRuntimeJarPath :: IO FilePath
+getRuntimeJarPath
+  = do project_root <- getCurrentDirectory
+       return $ project_root </> "runtime/runtime.jar"
 
 getClassPath :: IO FilePath
-getClassPath = do r <- runtimeJarPath
+getClassPath = do r <- getRuntimeJarPath
                   return $ r ++ ":./runtime.jar:. "
 
 -- Given the path to the source file,

@@ -63,7 +63,7 @@ main = do
   Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
 
   -- Write the bytes of runtime.jar to file
-  exists <- doesFileExist =<< runtimeJarPath
+  exists <- doesFileExist =<< getRuntimeJarPath
   existsCur <- doesFileExist "./runtime.jar"
   unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
 
