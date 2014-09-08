@@ -11,6 +11,7 @@ compiler :
 
 .PHONY : test
 test : parsers
+	cp runtime/runtime.jar .
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
 
 .PHONY : parsers
