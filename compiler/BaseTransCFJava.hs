@@ -271,14 +271,16 @@ trans self = let this = up self in T {
                           let typ = JClass c
                           return (argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ], var (localvarstr ++ show n), typ)
 
-     JMethod (Right c) m args r ->
+     JMethod c m args r ->
        do args' <- mapM (translateM this) args
           let argsStatements = concatMap (\(x, _, _) -> x) args'
           let argsExprs = map (\(_, x, _) -> x) args'
           let argTypes = map (\(_, _, x) -> x) args'
-          (classStatement, classExpr, _) <- translateM this c
           let refTypeArgs = (map (\(JClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
-          let rhs = J.MethodInv $ J.PrimaryMethodCall classExpr refTypeArgs (J.Ident m) argsExprs
+          (classStatement, rhs) <- case c of 
+                                     (Right ce) -> do (classS, classE, _) <- translateM this ce
+                                                      return (classS, J.MethodInv $ J.PrimaryMethodCall classE refTypeArgs (J.Ident m) argsExprs)       
+                                     (Left cn)  -> return ([], J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypeArgs (J.Ident m) argsExprs)
           let typ = JClass r
           if r /= "java.lang.Void"
             then do (n :: Int) <- get
@@ -288,21 +290,6 @@ trans self = let this = up self in T {
                            , typ )
             else return ( argsStatements ++ classStatement ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ )
 
-     JMethod (Left c) m args r ->
-       do args' <- mapM (translateM this) args
-          let argsStatements = concat $ map (\(x, _, _) -> x) args'
-          let argsExprs = map (\(_, x, _) -> x) args'
-          let argTypes = map (\(_, _, x) -> x) args'
-          let refTypeArgs = (map (\(JClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
-          let rhs = J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident c]) refTypeArgs (J.Ident m) argsExprs
-          let typ = JClass r
-          if r /= "java.lang.Void"
-            then do (n :: Int) <- get
-                    put (n + 1)
-                    return ( argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ]
-                           , var (localvarstr ++ show n)
-                           , typ )
-            else return ( argsStatements ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ )
 
      JField c fName r ->
        do (classStatement, classExpr, _) <- case c of (Right ce) -> translateM this ce
