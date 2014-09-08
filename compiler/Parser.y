@@ -36,10 +36,6 @@ import JavaUtils
   "="      { Teq }
   "and"    { Tand }
   "in"     { Tin }
-  "Int"    { Tintty }
-  "String" { Tstringty }
-  "Bool"   { Tboolty }
-  "Char"   { Tcharty }
   "if"     { Tif }
   "then"   { Tthen }
   "else"   { Telse }
@@ -205,10 +201,6 @@ typ :: { Type }
 
 atyp :: { Type }
     : tvar                      { TyVar $1 }
-    | "Int"                     { JClass "java.lang.Integer" }
-    | "String"                  { JClass "java.lang.String" }
-    | "Bool"                    { JClass "java.lang.Boolean" }
-    | "Char"                    { JClass "java.lang.Char" }
     | "(" typ ")"               { $2 }
     | "(" comma_typs ")"        { Product $2 }
     | JAVACLASS                 { JClass $1 }

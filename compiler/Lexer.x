@@ -42,10 +42,11 @@ tokens :-
     \=          { \_ _ -> Teq }
     and         { \_ _ -> Tand }
     in          { \_ _ -> Tin }
-    Int         { \_ _ -> Tintty }
-    String      { \_ _ -> Tstringty }
-    Bool        { \_ _ -> Tboolty }
-    Char        { \_ _ -> Tcharty }
+    Int         { \_ _ -> Tjavaclass "java.lang.Integer" }
+    String      { \_ _ -> Tjavaclass "java.lang.String" }
+    Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
+    Char        { \_ _ -> Tjavaclass "java.lang.Character" }
+    Double      { \_ _ -> Tjavaclass "java.lang.Double" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
@@ -86,7 +87,6 @@ tokens :-
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge
            | Tlet | Trec | Teq | Tand | Tin
-           | Tintty | Tstringty | Tboolty | Tcharty
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
