@@ -305,21 +305,14 @@ trans self = let this = up self in T {
             else return ( argsStatements ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ )
 
      JField c fName r ->
-       case c of
-         (Right ce) -> do (classStatement, classExpr, _) <- translateM this ce
-                          let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
-                          let typ = JClass r
-                          (n :: Int) <- get
-                          put (n + 1)
-                          let newName = localvarstr ++ show n
-                          return (classStatement ++ [assignVar newName rhs typ], var newName, typ)
-         (Left cn) -> do let classExpr = J.ExpName $ J.Name [J.Ident cn]
-                         let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
-                         let typ = JClass r
-                         (n :: Int) <- get
-                         put (n + 1)
-                         let newName = localvarstr ++ show n
-                         return ([assignVar newName rhs typ], var newName, typ)
+       do (classStatement, classExpr, _) <- case c of (Right ce) -> translateM this ce
+                                                      (Left cn)  -> return ([], J.ExpName $ J.Name [J.Ident cn], undefined)
+          (n :: Int) <- get
+          put (n + 1)
+          let newName = localvarstr ++ show n
+          let typ = JClass r
+          let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
+          return (classStatement ++ [assignVar newName rhs typ], var newName, typ)
 
      SeqExprs es -> do es' <- mapM (translateM this) es
                        let (_, lastExp, lastType) = last es'
