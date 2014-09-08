@@ -1,31 +1,59 @@
-module PrettyUtils where
+module PrettyUtils
+  ( -- Type classes
+    Outputable(..)
+
+  , PrecLevel
+  , PrecDelta(..)
+  , Prec
+  , basePrec
+
+  , parensIf
+
+    -- Pretty printing combinators
+  , arrow, forall, ampersand, lambda, biglambda, dcomma
+
+  , pprTVar, pprVar
+  ) where
 
 import Text.PrettyPrint.Leijen
 import Data.Char (ord, chr)
 
-type PrecedenceEnv   = (PrecedenceLevel, PrecedenceDelta)
-type PrecedenceLevel = Int
+class Outputable a where
+  ppr :: a -> Doc
+  ppr = pprPrec basePrec
 
-data PrecedenceDelta = PrecMinus | PrecPlus
+  pprPrec   :: Prec -> a -> Doc
+  pprPrec _ = ppr
 
-basePrecEnv :: PrecedenceEnv
-basePrecEnv = (0, PrecMinus)
+arrow, forall, ampersand, lambda, biglambda, dcomma :: Doc
+arrow     = text "->"
+forall    = text "forall"
+ampersand = text "&"
+lambda    = text "\\"
+biglambda = text "/\\"
+dcomma    = text ",,"
 
-parensIf :: PrecedenceEnv -> PrecedenceLevel -> Doc -> Doc
+type PrecLevel = Int
+data PrecDelta = PrecMinus | PrecPlus
+type Prec      = (PrecLevel, PrecDelta)
+
+basePrec :: Prec
+basePrec = (0, PrecMinus)
+
+parensIf :: Prec -> PrecLevel -> Doc -> Doc
 parensIf (envLevel, envDelta) myLevel doc
   | envLevel > myLevel  = parens doc
   | envLevel == myLevel =
-    case envDelta of PrecPlus  -> parens doc
-                     PrecMinus -> doc
-  | otherwise = doc
+    case envDelta of
+      PrecPlus  -> parens doc
+      PrecMinus -> doc
+  | otherwise           = doc
 
-nameTVar :: Int -> String
-nameTVar = nameVarFrom 'A'
+pprTVar, pprVar :: Int -> Doc
+pprTVar = pprVarFrom 'A'
+pprVar  = pprVarFrom 'a'
 
-nameVar :: Int -> String
-nameVar = nameVarFrom 'a'
-
-nameVarFrom :: Char -> Int -> String
-nameVarFrom c n
-  | n < 26    = [chr (ord c + n)]
-  | otherwise = c : show n
+pprVarFrom :: Char -> Int -> Doc
+pprVarFrom c n
+  | n < 26    = text [chr (ord c + n)]
+  | otherwise = text (c : show n)

@@ -6,21 +6,19 @@ import Test.Hspec
 import SpecHelper
 import TestTerms
 
-import ESF.Parser       (reader)
-import ESF.TypeCheck    (infer)
-import Desugar          (desugarTcExpr)
+import Parser       (reader)
+import TypeCheck    (typeCheck)
+import Desugar      (desugar)
+import Simplify     (simplify)
 
-import Translations     (compileN, compileAO, compileS)
+import Translations (compileN, compileAO, compileS)
 
 import MonadLib
 
 import Language.Java.Pretty
-import Text.PrettyPrint.Leijen
 
 import System.Directory
 import System.Process
-
-import Control.Monad.Trans.Error (runErrorT)
 
 import qualified Data.List as List      (isSuffixOf)
 
@@ -39,10 +37,10 @@ compileAndRun name compileF exp =
      return result
 
 esf2sf expr =
-  do res <- runErrorT (ESF.TypeCheck.infer expr)
+  do res <- TypeCheck.typeCheck expr
      case res of
-       Left typeError     -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
-       Right (tcExpr, _t) -> return (desugarTcExpr tcExpr)
+       Left typeError     -> error $ show ({- Text.PrettyPrint.Leijen.pretty -} typeError)
+       Right (tcExpr, _t) -> return ((simplify . desugar) tcExpr)
 
 testAbstractSyn compilation (name, ast, expectedOutput) =
   it ("should compile and run " ++ name ++ " and get \"" ++ expectedOutput ++ "\"") $
@@ -55,7 +53,7 @@ testConcreteSyn compilation (name, filePath) =
                          "The integration test file should start with '-->', \
                          \followed by the expected output")
        Just expectedOutput ->
-         do ast <- runIO (esf2sf (ESF.Parser.reader source))
+         do ast <- runIO (esf2sf (Parser.reader source))
             testAbstractSyn compilation (name, ast, expectedOutput)
 
 abstractCases =

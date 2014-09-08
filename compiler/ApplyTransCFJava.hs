@@ -9,7 +9,7 @@ import qualified Data.Set as Set
 import qualified Language.Java.Syntax as J
 import ClosureF
 import Inheritance
-import BaseTransCFJava 
+import BaseTransCFJava
 import StringPrefixes
 import MonadLib
 
@@ -18,17 +18,17 @@ data ApplyOptTranslate m = NT {toT :: Translate m}
 instance (:<) (ApplyOptTranslate m) (Translate m) where
    up              = up . toT
 
-instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where 
+instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where
    up              = id
 
-last (Typ _ _) = False
-last (Kind f)  = last (f 0)
-last (Body _)  = True
+last (Type _ _) = False
+last (Kind f)   = last (f 0)
+last (Body _)   = True
 
 -- main translation function
 transApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transApply this super = NT {toT = super {
-  translateScopeTyp = \currentId nextId initVars nextInClosure m -> 
+  translateScopeTyp = \currentId nextId initVars nextInClosure m ->
     case last nextInClosure of
          True -> do   (initVars' :: InitVars) <- ask
                       translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m)
@@ -38,12 +38,12 @@ transApply this super = NT {toT = super {
   genApply = \f t x y -> if (last t) then genApply super f t x y else return [],
 
   getCvarAss = \t f j1 j2 -> do
-              (usedCl :: Set.Set J.Exp) <- get                                       
+              (usedCl :: Set.Set J.Exp) <- get
               maybeCloned <-  case t of
                                 Body _ ->
                                    return j1
                                 _ ->
-                                   if (Set.member j1 usedCl) then 
+                                   if (Set.member j1 usedCl) then
                                       return $ J.MethodInv (J.PrimaryMethodCall (j1) [] (J.Ident "clone") [])
                                    else do
                                            put (Set.insert j1 usedCl)

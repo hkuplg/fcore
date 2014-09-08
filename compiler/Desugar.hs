@@ -1,57 +1,64 @@
+-- The desugarer: turning the source language into System F (with intersection types).
+
 {-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns #-}
 
-module Desugar (desugarTcExpr) where
+module Desugar (desugar) where
 
-import ESF.Syntax
--- import ESF.TypeCheck
+import Src
 
-import SystemF.Syntax
+import qualified Core as C
 
-import Data.Maybe       (fromJust)
+import Panic
+
+import Data.Maybe       (fromMaybe)
 
 import qualified Data.Map as Map
 
-desugarTcExpr :: TcExpr -> PFExp t e
-desugarTcExpr = dsTcExpr (Map.empty, Map.empty)
+desugar :: Expr TcId -> C.Expr t e
+desugar = dsTcExpr (Map.empty, Map.empty)
 
-transType :: Map.Map Name t -> Type -> PFTyp t
+type DsTyVarMap t = Map.Map Name t
+type DsVarMap t e = Map.Map Name (C.Expr t e)
+
+type DsMap t e = (DsTyVarMap t, DsVarMap t e)
+
+transType :: DsTyVarMap t -> Type -> C.Type t
 transType d = go
   where
-    go (TyVar a)    = FTVar (fromJust (Map.lookup a d))
-    go (JClass c)   = FJClass c
-    go (Fun t1 t2)  = FFun (go t1) (go t2)
-    go (Product ts) = FProduct (map go ts)
-    go (Forall a t) = FForall (\a' -> transType (Map.insert a a' d) t)
+    go (TyVar a)    = C.TVar (fromMaybe (panic "Desugar.transType: TyVar") (Map.lookup a d))
+    go (JClass c)   = C.JClass c
+    go (Fun t1 t2)  = C.Fun (go t1) (go t2)
+    go (Product ts) = C.Product (map go ts)
+    go (Forall a t) = C.Forall (\a' -> transType (Map.insert a a' d) t)
+    go (And t1 t2)  = C.And (go t1) (go t2)
 
-type DsEnv t e = (Map.Map Name t, Map.Map Name (Either e (PFExp t e)))
-
-dsTcExpr :: DsEnv t e -> TcExpr -> PFExp t e
+dsTcExpr :: DsMap t e -> Expr TcId -> C.Expr t e
 dsTcExpr (d, g) = go
   where
-    go (Var (x,_t))      = case fromJust (Map.lookup x g) of
-                             Left x' -> FVar x x'
-                             Right e -> e
-    go (Lit lit)         = FLit lit
-    go (App e1 e2)       = FApp (go e1) (go e2)
-    go (TApp e t)        = FTApp (go e) (transType d t)
-    go (Tuple es)        = FTuple (map go es)
-    go (Proj e i)        = FProj i (go e)
-    go (PrimOp e1 op e2) = FPrimOp (go e1) op (go e2)
-    go (If e1 e2 e3)     = FIf (go e1) (go e2) (go e3)
-    go (Lam (x, t) e)    = FLam
-                             (transType d t)
-                             (\x' -> dsTcExpr (d, Map.insert x (Left x') g) e)
-    go (BLam a e)        = FBLam (\a' -> dsTcExpr (Map.insert a a' d, g) e)
-    go Let{..}           = invariantFailed "dsTcExpr" (show (Let{..} :: TcExpr))
+    go (Var (x,_t))      = fromMaybe (panic "Desugar.dsTcExpr: Var") (Map.lookup x g)
+    go (Lit lit)         = C.Lit lit
+    go (App e1 e2)       = C.App (go e1) (go e2)
+    go (TApp e t)        = C.TApp (go e) (transType d t)
+    go (Tuple es)        = C.Tuple (map go es)
+    go (Proj e i)        = C.Proj i (go e)
+    go (PrimOp e1 op e2) = C.PrimOp (go e1) op (go e2)
+    go (If e1 e2 e3)     = C.If (go e1) (go e2) (go e3)
+    go (Lam (x, t) e)    = C.Lam
+                               (transType d t)
+                               (\x' -> dsTcExpr (d, Map.insert x (C.Var x') g) e)
+    go (BLam a e)        = C.BLam (\a' -> dsTcExpr (Map.insert a a' d, g) e)
+    go Let{..}           = panic "Desugar.dsTcExpr: Let"
     go (LetOut _ [] e)   = go e
+    go (Merge e1 e2)     = C.Merge (go e1) (go e2)
 
 {-
    let f1 : t1 = e1 in e
 ~> (\(f1 : t1. e)) e1
 -}
     go (LetOut NonRec [(f1, t1, e1)] e) =
-      FApp
-        (FLam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (Left f1') g) e))
+      C.App
+        (C.Lam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e))
         (go e1)
 
 {-
@@ -69,8 +76,8 @@ variable renaming. An example:
 ~> (\(y : (t1, ..., tn)). e[*]) (e1, ..., en)
 -}
     go (LetOut NonRec bs@(_:_) e) =
-      FApp
-        (FLam
+      C.App
+        (C.Lam
           (transType d tupled_ts)
           (\y -> dsTcExpr (d, g' y `Map.union` g) e))
         (go tupled_es)
@@ -81,11 +88,10 @@ variable renaming. An example:
           tupled_ts = Product ts
 
           -- Substitution: fi -> y._(i-1)
-          g' = \y -> Map.fromList $
-                       zipWith
-                         (\f i -> (f, Right (FProj i (FVar "" y))))
-                         fs
-                         [1..length bs]
+          g' y = Map.fromList $
+                   zipWith (\f i -> (f, (C.Proj i (C.Var y))))
+                           fs
+                           [1..length bs]
 
 {-
    let f : forall A1...An. t1 -> t2 = e@(\(x : t1). peeled_e) in body
@@ -103,70 +109,89 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 ~> (\(f : forall A1...An. t1 -> t2). body)
      (/\A1...An. fix y (x1 : t1) : t2. peeled_e)
 -}
-    go (LetOut Rec [(f,t@(Fun _ _),e)] body) = dsLetRecDirect (d,g) (LetOut Rec [(f,t,e)] body)
-    go (LetOut Rec [(f,t,e)] body)           = dsLetRecEncode (d,g) (LetOut Rec [(f,t,e)] body)
-    go (LetOut Rec bs body)                  = dsLetRecEncode (d,g) (LetOut Rec bs body)
+    go (LetOut Rec [(f,t@(Fun _ _),e)] body) = dsLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
+    go (LetOut Rec [(f,t,e)] body)           = dsLetRecToFixEncoded (d,g) (LetOut Rec [(f,t,e)] body)
+    go (LetOut Rec bs body)                  = dsLetRecToLetRec (d,g) (LetOut Rec bs body)
 
-    go (JNewObj cName args)    = FJNewObj cName (map go args)
-    go (JMethod c mName args r) = 
-      case c of 
-        (Left cExpr)  -> FJMethod (Left (go cExpr)) mName (map go args) r
-        (Right cName) -> FJMethod (Right cName) mName (map go args) r
+    go (JNewObj cName args)    = C.JNewObj cName (map go args)
+    go (JMethod c mName args r) =
+      case c of
+        (Left cName)  -> C.JMethod (Left cName) mName (map go args) r
+        (Right cExpr) -> C.JMethod (Right (go cExpr)) mName (map go args) r
 
     go (JField c fName r) =
       case c of
-        (Left cExpr)  -> FJField (Left (go cExpr)) fName r
-        (Right cName) -> FJField (Right cName) fName r
+        (Left cName)  -> C.JField (Left cName) fName r
+        (Right cExpr) -> C.JField (Right (go cExpr)) fName r
 
-    go (SeqExprs es) = FSeqExprs (map go es)
+    go (Seq es) = C.Seq (map go es)
 
-dsLetRecDirect :: DsEnv t e -> TcExpr -> PFExp t e
-dsLetRecDirect (d,g) = go
+dsLetRecToFix :: DsMap t e -> Expr TcId -> C.Expr t e
+dsLetRecToFix (d,g) = go
   where
     go (LetOut Rec [(f,t,e)] body) =
-      FApp
-        (FLam
-          (transType d t)
-          (\f' -> dsTcExpr (d, addToEnv [(f,Left f')] g) body))
-        (FFix
-          (\f' x1' -> dsTcExpr (d, addToEnv [(f, Left f'), (x1, Left x1')] g) peeled_e)
-          (transType d t1)
-          (transType d t2))
-          where
-            addToEnv bindings g = foldr (\(x,x') acc -> Map.insert x x' acc) g bindings
-            (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
+      C.App
+          (C.Lam
+              (transType d t)
+              (\f' -> dsTcExpr (d, addToEnv [(f,C.Var f')] g) body))
+          (C.Fix
+              (\f' x1' -> dsTcExpr (d, addToEnv [(f, C.Var f'), (x1, C.Var x1')] g) peeled_e)
+              (transType d t1)
+              (transType d t2))
               where
-                peel Nothing (Lam (x1,t1) e, Fun _ t) = (Just (x1,t1), t, e)
-                peel _ _ = invariantFailed "peel" "I cannot peel an expression that is not a function"
+                addToEnv binds g = foldr (\(x,x') acc -> Map.insert x x' acc) g binds -- TODO: subsumed
+                (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
+                  where
+                    peel Nothing (Lam (x1,t1) e, Fun _ t) = (Just (x1,t1), t, e)
+                    peel _ _ = panic "Desugar.dsLetRecToFix: not a function"
+    go _ = panic "Desugar.dsLetRecToFix"
 
 {-
-   let rec f1 = e1, ..., fn = en in e
-~> let y = fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*] in e[*]
-~> (\(y : Int -> (t1, ..., tn)). e[*])
-     (fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*])
+    let rec f1 = e1, ..., fn = en in e
+~>  let y = fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*] in e[*]
+~>  (\(y : Int -> (t1, ..., tn)). e[*])
+      (fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*])
 -}
-dsLetRecEncode :: DsEnv t e -> TcExpr -> PFExp t e
-dsLetRecEncode (d,g) = go
+dsLetRecToFixEncoded :: DsMap t e -> Expr TcId -> C.Expr t e
+dsLetRecToFixEncoded (d,g) = go
   where
     go (LetOut Rec bs@(_:_) e) =
-      FApp
-        (FLam
-          (FFun (FJClass "java.lang.Integer") (transType d tupled_ts))
-          (\y -> dsTcExpr (d, g' y `Map.union` g) e))
-        (FFix
-          (\y _dummy -> dsTcExpr (d, g' y `Map.union` g) tupled_es)
-          (FJClass "java.lang.Integer")
-          (transType d tupled_ts))
-          where
-            (fs, ts, es) = unzip3 bs
+      C.App
+          (C.Lam
+              (C.Fun (C.JClass "java.lang.Integer") (transType d tupled_ts))
+              (\y -> dsTcExpr (d, g' y `Map.union` g) e))
+          (C.Fix
+              (\y _dummy -> dsTcExpr (d, g' y `Map.union` g) tupled_es)
+              (C.JClass "java.lang.Integer")
+              (transType d tupled_ts))
+              where
+                (fs, ts, es) = unzip3 bs
 
-            tupled_es = Tuple es
-            tupled_ts = Product ts
+                tupled_es = Tuple es
+                tupled_ts = Product ts
 
-            -- Substitution: fi -> (y 0)._(i-1)
-            g' = \y -> Map.fromList
-                         (zipWith
-                          -- TODO: better var name
-                          (\f i -> (f, Right (FProj i (FApp (FVar "" y) (FLit (Integer 0))))))
-                          fs
-                          [1..length bs])
+                -- Substitution: fi -> (y 0)._(i-1)
+                g' y = Map.fromList $
+                         zipWith
+                             -- TODO: better var name
+                           (\f i -> (f, C.Proj i (C.App (C.Var y) (C.Lit (Integer 0)))))
+                           fs
+                           [1..length bs]
+    go _ = panic "Desugar.dsLetRecEncode"
+
+-- Convert from: LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId)
+-- To:           LetRec [(Type t, Type t)] ([e] -> [Expr t e]) ([e] -> Expr t e)
+dsLetRecToLetRec :: DsMap t e -> Expr TcId -> C.Expr t e
+dsLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec sigs' binds' body'
+  where
+    (names, sigs, defs) = unzip3 binds
+    sigs'  = map (\t -> case t of
+                          Fun t1 t2 -> (transType d t1, transType d t2)
+                          _ -> sorry "dsLetRecToLetRec: not a Fun") sigs
+    binds' = \names' -> map (dsTcExpr (d, zip names (map C.Var names') `addToVarMap` g)) defs
+    body'  = \names' -> dsTcExpr (d, zip names (map C.Var names') `addToVarMap` g) body
+
+dsLetRecToLetRec _ _ = panic "Desugar.dsLetRecToLetRec"
+
+addToVarMap :: [(Name, C.Expr t e)] -> DsVarMap t e -> DsVarMap t e
+addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs

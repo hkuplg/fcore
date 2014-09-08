@@ -1,7 +1,7 @@
 {
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-module ESF.Lexer
+module Lexer
     ( lexer
     , Token(..)
     ) where
@@ -35,12 +35,18 @@ tokens :-
     forall      { \_ _ -> Tforall }
     \-\>        { \_ _ -> Tarrow }
     \.          { \_ _ -> Tdot }
+    \&          { \_ _ -> Tandtype }
+    \,\,        { \_ _ -> Tmerge }
     let         { \_ _ -> Tlet }
     rec         { \_ _ -> Trec }
     \=          { \_ _ -> Teq }
     and         { \_ _ -> Tand }
     in          { \_ _ -> Tin }
-    Int         { \_ _ -> Tint }
+    Int         { \_ _ -> Tjavaclass "java.lang.Integer" }
+    String      { \_ _ -> Tjavaclass "java.lang.String" }
+    Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
+    Char        { \_ _ -> Tjavaclass "java.lang.Character" }
+    Double      { \_ _ -> Tjavaclass "java.lang.Double" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
@@ -51,8 +57,8 @@ tokens :-
     $digit+                { \_ s -> Tinteger (read s) }
     \"($printable # \")*\"  { \_ s -> Tstring (init $ tail s) }
     \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
-    true                   { \_ s -> Tboolean True}
-    false                  { \_ s -> Tboolean False}
+    True                   { \_ s -> Tboolean True}
+    False                  { \_ s -> Tboolean False}
 
     -- java.package.path.Classname
     ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavaclass s }
@@ -79,9 +85,9 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge
            | Tlet | Trec | Teq | Tand | Tin
-           | Tint | Tjavaclass String
+           | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
            | Tcomma | Tsemi

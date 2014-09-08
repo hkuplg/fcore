@@ -1,0 +1,7 @@
+--> true
+
+let rec evenOdd (dummy : Int) : (Int -> Bool, Int -> Bool) =
+ ( \(n : Int). if n == 0 then True  else (evenOdd 7)._2 (n - 1)
+ , \(n : Int). if n == 0 then False else (evenOdd 7)._1 (n - 1))
+in
+(evenOdd 7)._1 42
