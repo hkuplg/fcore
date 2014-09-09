@@ -262,6 +262,7 @@ fsubstEE (x,r)
     go (JField (Left c) f ret)        = JField (Left c)     f ret
     go (Seq es)                       = Seq (map go es)
     go (Merge e1 e2)                  = Merge (go e1) (go e2)
+    go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))
 
 isSystemfType :: Type t -> Bool
 isSystemfType = sorry "Core.isSystemfType"
