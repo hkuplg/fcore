@@ -3,13 +3,14 @@
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 
-import qualified Src
+import           ClosureF
+import           Inheritance
 import qualified Language.Java.Syntax as J
-import ClosureF
-import Inheritance
-import StringPrefixes
-import MonadLib
-import Panic
+import           MonadLib
+import           Panic
+import           Prelude hiding (init)
+import qualified Src
+import           StringPrefixes
 
 instance (:<) (Translate m) (Translate m) where
    up = id
@@ -18,38 +19,67 @@ type InitVars = [J.BlockStmt]
 
 -- Closure F to Java
 
+var :: String -> J.Exp
 var x = J.ExpName (J.Name [J.Ident x])
 
+jbody :: Maybe J.Block
 jbody = Just (J.Block [])
 
+init :: [J.Decl]
 init = [J.InitDecl False (J.Block [])]
 
+closureClass :: String
 closureClass = "hk.hku.cs.f2j.Closure"
 
-closureType     = J.RefType (J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))
-javaClassType c = J.RefType (J.ClassRefType (J.ClassType [(J.Ident c, [])]))
+classRefType :: String -> J.RefType
+classRefType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
+
+javaClassType :: String -> J.Type
+javaClassType t = J.RefType $ classRefType t
+
+closureType :: J.Type
+closureType     = javaClassType closureClass
+
+objType :: J.Type
 objType         = javaClassType "Object"
-objArrayType    = J.RefType (J.ArrayType (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))))
+
+arrayType :: J.Type -> J.Type
+arrayType ty  = J.RefType (J.ArrayType ty)
+
+objArrayType :: J.Type
+objArrayType = arrayType objType
 
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
-ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
-    where
-        j2Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp j2))]))]
-        j3Stmt = [(J.LocalVars [] (J.RefType (refType "")) ([J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp j3))]))]
-        ifvarname = (ifresultstr ++ show n)
-        refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-        newvar = var ifvarname
+ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse j1
+                                                             (J.StmtBlock $ J.Block (s2 ++ j2Stmt))
+                                                             (J.StmtBlock $ J.Block (s3 ++ j3Stmt))
+                                 , newvar)
+    where j2Stmt = [localVarDecl j2]
+          j3Stmt = [localVarDecl j3]
+          localVarDecl e = J.LocalVars []
+                                       (J.RefType (classRefType ""))
+                                       [J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp e))]
+          ifvarname = (ifresultstr ++ show n)
+          newvar = var ifvarname
 
-field name = J.MemberDecl (J.FieldDecl [] (objType) [
-             J.VarDecl (J.VarId (J.Ident name)) Nothing])
+field :: String -> J.Decl
+field name = J.MemberDecl (J.FieldDecl []
+                                       objType
+                                       [J.VarDecl (J.VarId (J.Ident name)) Nothing])
 
-app mod b rt en args = J.MemberDecl (J.MethodDecl mod [] (rt) (J.Ident en) args [] (J.MethodBody b))
+app :: [J.Modifier] -> Maybe J.Block -> Maybe J.Type -> String -> [J.FormalParam] -> J.Decl
+app modi b rt en args = J.MemberDecl (J.MethodDecl modi [] rt (J.Ident en) args [] (J.MethodBody b))
 
+applyCall :: J.BlockStmt
 applyCall = J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident "apply"]) [])))
 
-refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
+mainArgType :: [J.FormalParam]
+mainArgType = [J.FormalParam []
+                             (arrayType $ javaClassType "String")
+                             False
+                             (J.VarId (J.Ident "args"))]
 
-mainArgType = [J.FormalParam [] (J.RefType $ J.ArrayType (J.RefType (refType "String"))) False (J.VarId (J.Ident "args"))]
+mainbody :: Maybe J.Block
 mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("apply" ++ "()")]])))])
 
@@ -277,9 +307,9 @@ trans self = let this = up self in T {
           let argsExprs = map (\(_, x, _) -> x) args'
           let argTypes = map (\(_, _, x) -> x) args'
           let refTypeArgs = (map (\(JClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
-          (classStatement, rhs) <- case c of 
+          (classStatement, rhs) <- case c of
                                      (Right ce) -> do (classS, classE, _) <- translateM this ce
-                                                      return (classS, J.MethodInv $ J.PrimaryMethodCall classE refTypeArgs (J.Ident m) argsExprs)       
+                                                      return (classS, J.MethodInv $ J.PrimaryMethodCall classE refTypeArgs (J.Ident m) argsExprs)
                                      (Left cn)  -> return ([], J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypeArgs (J.Ident m) argsExprs)
           let typ = JClass r
           if r /= "java.lang.Void"
