@@ -88,15 +88,15 @@ getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.C
     where
         body = Just (J.Block (bs ++ ass))
 
-getParaType :: (PCTyp t) -> [String]
+getParaType :: (Type t) -> [String]
 getParaType tp = case tp of
-					CForall a -> getScopeType a 0
+					Forall a -> getScopeType a 0
 					_ -> []
 
 -- (Scope b t e) -> [Int]
 getScopeType (Kind f) n = []
-getScopeType (Typ (CTVar i) f) n = "Integer" : (getScopeType (f ()) 0)
-getScopeType (Typ (CJClass s) f) n = s : (getScopeType (f ()) 0)
+getScopeType (Type (TVar i) f) n = "Integer" : (getScopeType (f ()) 0)
+getScopeType (Type (JClass s) f) n = s : (getScopeType (f ()) 0)
 getScopeType _ _= []
 
 benchmarkPackage name = Just (J.PackageDecl (J.Name [(J.Ident name)]))
@@ -123,7 +123,7 @@ transBench this super = TB {
   -- here, I guess, you will mainly do the changes: have a look at BaseTransCFJava (and StackTransCFJava) how it's done currently             
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
            let paraType = getParaType t
            let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) paraType testfuncBody returnType mainbody
@@ -149,7 +149,7 @@ transBenchOpt this super = TBA {
   toTBA = super { 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
            let paraType = getParaType t
            let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) paraType testfuncBody returnType mainbody

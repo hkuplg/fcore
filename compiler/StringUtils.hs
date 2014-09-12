@@ -1,6 +1,6 @@
-module Data.String.Utils 
-    ( capitalize
-    ) where
+module StringUtils
+  ( capitalize
+  ) where
 
 import qualified Data.Char as Char (toUpper)
 

@@ -1,10 +1,10 @@
-module ESF.ParserSpec where
+module ParserSpec where
 
 import Control.Monad    (forM_)
 import Test.Hspec
 
-import ESF.Syntax
-import ESF.Parser
+import Src
+import Parser
 
 import qualified Language.Java.Syntax as J (Op(..))
 
@@ -21,10 +21,10 @@ testCases =
     , ("1 (2 3 4)", App (Lit (Integer 1)) (App (App (Lit (Integer 2)) (Lit (Integer 3))) (Lit (Integer 4))))
     , ("1 (2 (3 4))", App (Lit (Integer 1)) (App (Lit (Integer 2)) (App (Lit (Integer 3)) (Lit (Integer 4)))))
     , ("if 1 == 0 then 2 else 3 + 4", If (PrimOp (Lit (Integer 1)) (Compare J.Equal) (Lit (Integer 0))) (Lit (Integer 2)) (PrimOp (Lit (Integer 3)) (Arith J.Add) (Lit (Integer 4))))
-    , ("true", Lit (Boolean True))
-    , ("false", Lit (Boolean False))
-    , ("true && true", PrimOp (Lit (Boolean True)) (Logic J.CAnd) (Lit (Boolean True)))
-    , ("false || true", PrimOp (Lit (Boolean False)) (Logic J.COr) (Lit (Boolean True)))
+    , ("True", Lit (Boolean True))
+    , ("False", Lit (Boolean False))
+    , ("True && True", PrimOp (Lit (Boolean True)) (Logic J.CAnd) (Lit (Boolean True)))
+    , ("False || True", PrimOp (Lit (Boolean False)) (Logic J.COr) (Lit (Boolean True)))
     , ("\"hello\"", Lit (String "hello"))
     ]
 

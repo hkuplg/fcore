@@ -18,19 +18,19 @@ import Control.Monad
 tuple2Type = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "hk.hku.cs.f2j.Tuple2",[])]))
 initTuple2 tempvarstr n j = initStuff tempvarstr n j tuple2Type
 
-chooseCastBox (CJClass c)       = (initClassCast c, javaClassType c)
-chooseCastBox (CForall _)       = (initClosure,closureType)
-chooseCastBox (CTupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
-chooseCastBox (CTupleType [t1, t2]) = (initTuple2, tuple2Type)
-chooseCastBox (CTupleType _)    = (initObjArray,objArrayType)
+chooseCastBox (JClass c)       = (initClassCast c, javaClassType c)
+chooseCastBox (Forall _)       = (initClosure,closureType)
+chooseCastBox (TupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
+chooseCastBox (TupleType [t1, t2]) = (initTuple2, tuple2Type)
+chooseCastBox (TupleType _)    = (initObjArray,objArrayType)
 --chooseCastBox (CListOf t)       = (initPrimList, primListType)
 chooseCastBox _                 = (initObj,objType)
 
-javaType (CJClass c)      = javaClassType c
-javaType (CForall _)      = closureType
-javaType (CTupleType [t]) = javaType t -- optimization for tuples of size 1
-javaType (CTupleType [t1, t2]) = tuple2Type
-javaType (CTupleType _)   = objArrayType
+javaType (JClass c)      = javaClassType c
+javaType (Forall _)      = closureType
+javaType (TupleType [t]) = javaType t -- optimization for tuples of size 1
+javaType (TupleType [t1, t2]) = tuple2Type
+javaType (TupleType _)   = objArrayType
 --javaType (CListOf t)      = primListType
 javaType _                = objType
 
@@ -63,17 +63,17 @@ transTuple this super = TT {
 
   translateM = \e -> case e of
   	-- an optimization for 2 element tuple
-	CFTuple [e1,e2] ->
+	Tuple [e1,e2] ->
 	    do  (s1,j1,t1) <- translateM super e1
 	        (s2,j2,t2) <- translateM super e2
 	        (n :: Int) <- get
 	        put (n+1)
-	        return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) (newTuple2Class "hk.hku.cs.f2j.Tuple2" j1 j2) (CJClass "hk.hku.cs.f2j.Tuple2")], 
-	        	var (localvarstr ++ show n), CTupleType [t1,t2])
-	CFProj i e   ->
+	        return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) (newTuple2Class "hk.hku.cs.f2j.Tuple2" j1 j2) (JClass "hk.hku.cs.f2j.Tuple2")], 
+	        	var (localvarstr ++ show n), TupleType [t1,t2])
+	Proj i e   ->
 	    do (s1,j1,t) <- translateM super e
 	       case t of 
-	       	  CTupleType [t1, t2] -> 
+	       	  TupleType [t1, t2] -> 
 	       	      case i of 
 	                  1 -> 
 	       	    	    let fj = J.FieldAccess (J.PrimaryFieldAccess j1 (J.Ident "fst")) 
@@ -89,7 +89,7 @@ transTuple this super = TT {
   translateApply = \m1 m2 -> 
    do  (n :: Int) <- get
        put (n+1)
-       (s1,j1, CForall (Typ t1 g)) <- m1
+       (s1,j1, Forall (Type t1 g)) <- m1
        (s2,j2,t2) <- m2
        let t    = g ()
        let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable

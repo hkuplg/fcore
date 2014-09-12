@@ -11,6 +11,9 @@ systemf/.project
 *Parser.hs
 *Parser.info
 
+runtime/
+runtime.jar
+
 ### Haskell ###
 dist
 cabal-dev

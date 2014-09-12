@@ -106,7 +106,7 @@ transBenchStack this super = TBS {
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
            let paraType = getParaType t
            --let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType BenchGenStack.testfuncBody returnType mainbody
@@ -133,7 +133,7 @@ transBenchStackOpt this super = TBSA {
   toTBSA = super { 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of CJClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just $ objType
            let paraType = getParaType t
            let stackDecl = BenchGenStack.getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) paraType BenchGenStack.testfuncBody returnType (Just $ J.Block $ stackbody t)

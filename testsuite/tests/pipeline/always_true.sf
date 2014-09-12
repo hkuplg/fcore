@@ -1,5 +1,5 @@
 --> true
 
-let fun(b : java.lang.Boolean) : java.lang.Boolean = true
+let fun(b : java.lang.Boolean) : java.lang.Boolean = True
 in
-fun false
+fun False
