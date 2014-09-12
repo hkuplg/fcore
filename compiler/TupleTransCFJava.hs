@@ -15,7 +15,7 @@ import MonadLib
 import Control.Monad
 
 
-tuple2Type = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "hk.hku.cs.f2j.Tuple2",[])]))
+tuple2Type = J.RefType (J.ClassRefType (J.ClassType [(J.Ident "hk.hku.cs.f2j.tuples.Tuple2",[])]))
 initTuple2 tempvarstr n j = initStuff tempvarstr n j tuple2Type
 
 chooseCastBox (JClass c)       = (initClassCast c, javaClassType c)
@@ -68,7 +68,7 @@ transTuple this super = TT {
 	        (s2,j2,t2) <- translateM super e2
 	        (n :: Int) <- get
 	        put (n+1)
-	        return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) (newTuple2Class "hk.hku.cs.f2j.Tuple2" j1 j2) (JClass "hk.hku.cs.f2j.Tuple2")], 
+	        return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) (newTuple2Class "hk.hku.cs.f2j.tuples.Tuple2" j1 j2) (JClass "hk.hku.cs.f2j.tuples.Tuple2")], 
 	        	var (localvarstr ++ show n), TupleType [t1,t2])
 	Proj i e   ->
 	    do (s1,j1,t) <- translateM super e
