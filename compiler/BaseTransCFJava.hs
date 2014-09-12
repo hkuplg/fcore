@@ -19,8 +19,11 @@ type InitVars = [J.BlockStmt]
 
 -- Closure F to Java
 
+names :: [String] -> J.Name
+names xs = J.Name $ map J.Ident xs
+
 var :: String -> J.Exp
-var x = J.ExpName (J.Name [J.Ident x])
+var x = J.ExpName $ names [x]
 
 jbody :: Maybe J.Block
 jbody = Just (J.Block [])
@@ -31,11 +34,8 @@ init = [J.InitDecl False (J.Block [])]
 closureClass :: String
 closureClass = "hk.hku.cs.f2j.Closure"
 
-classRefType :: String -> J.RefType
-classRefType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-
 javaClassType :: String -> J.Type
-javaClassType t = J.RefType $ classRefType t
+javaClassType t = J.RefType $ J.ClassRefType (J.ClassType [(J.Ident t,[])])
 
 closureType :: J.Type
 closureType     = javaClassType closureClass
@@ -49,6 +49,9 @@ arrayType ty  = J.RefType (J.ArrayType ty)
 objArrayType :: J.Type
 objArrayType = arrayType objType
 
+varDecl :: String -> Maybe J.VarInit -> J.VarDecl
+varDecl name e = J.VarDecl (J.VarId $ J.Ident name) e
+
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
 ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse j1
                                                              (J.StmtBlock $ J.Block (s2 ++ j2Stmt))
@@ -57,15 +60,15 @@ ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse j1
     where j2Stmt = [localVarDecl j2]
           j3Stmt = [localVarDecl j3]
           localVarDecl e = J.LocalVars []
-                                       (J.RefType (classRefType ""))
-                                       [J.VarDecl (J.VarId $ J.Ident ifvarname) (Just (J.InitExp e))]
+                                       (javaClassType "")
+                                       [varDecl ifvarname (Just (J.InitExp e))]
           ifvarname = (ifresultstr ++ show n)
           newvar = var ifvarname
 
 field :: String -> J.Decl
-field name = J.MemberDecl (J.FieldDecl []
-                                       objType
-                                       [J.VarDecl (J.VarId (J.Ident name)) Nothing])
+field name = J.MemberDecl $ J.FieldDecl []
+                                        objType
+                                        [varDecl name Nothing]
 
 app :: [J.Modifier] -> Maybe J.Block -> Maybe J.Type -> String -> [J.FormalParam] -> J.Decl
 app modi b rt en args = J.MemberDecl (J.MethodDecl modi [] rt (J.Ident en) args [] (J.MethodBody b))
@@ -80,56 +83,85 @@ mainArgType = [J.FormalParam []
                              (J.VarId (J.Ident "args"))]
 
 mainbody :: Maybe J.Block
-mainbody = Just (J.Block [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
-    (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident ("apply" ++ "()")]])))])
+mainbody = Just (J.Block [J.BlockStmt $ J.ExpStmt $
+                                          J.MethodInv $
+                                             J.PrimaryMethodCall
+                                                (var "System.out")
+                                                []
+                                                (J.Ident "println")
+                                                [var "apply()"]])
 
-createCUB this compDef = cu where
-   cu = J.CompilationUnit Nothing [] compDef
+createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
+createCUB _ compDef = cu
+  where cu = J.CompilationUnit Nothing [] compDef
 
-getClassDecl className bs ass returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
-    (J.ClassBody [app [J.Static] body returnType "apply" [], app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
-    where
-        body = Just (J.Block (bs ++ ass))
+getClassDecl :: String -> [J.BlockStmt] -> [J.BlockStmt] -> Maybe J.Type -> Maybe J.Block -> J.TypeDecl
+getClassDecl className bs ass returnType mainbodyDef =
+  J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] Nothing []
+                               (J.ClassBody [app [J.Static] body returnType "apply" []
+                                            ,app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
+    where body = Just (J.Block (bs ++ ass))
+
 
 reduceTTuples :: [([a], J.Exp, Type t)] -> ([a], J.Exp, Type t)
-reduceTTuples all = (merged, arrayAssignment, tupleType)
+reduceTTuples all' = (merged, arrayAssignment, tupleType)
     where
-        merged = concat $ map (\x -> case x of (a,b,c) -> a) all
-        arrayAssignment = J.ArrayCreateInit (objType) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
-        tupleType = TupleType (map (\x -> case x of (a,b,c) -> c) all)
+        merged = concatMap (\x -> case x of (a, _, _) -> a) all'
+        arrayAssignment = J.ArrayCreateInit objType
+                                            1
+                                            (J.ArrayInit (map (\x -> case x of (_, b, _) -> J.InitExp b) all'))
+        tupleType = TupleType (map (\x -> case x of (_, _, c) -> c) all')
 
-initStuff tempvarstr n j t = J.LocalVars [J.Final] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just exp)])
+initStuff :: Show a => String -> a -> J.Exp -> J.Type -> J.BlockStmt
+initStuff tempVarStr n j t = J.LocalVars [J.Final] t [varDecl (tempVarStr ++ show n) (Just e)]
     where
-        exp | t == objType = J.InitExp j
-            | otherwise = J.InitExp $ J.Cast t j
+        e | t == objType = J.InitExp j
+          | otherwise = J.InitExp $ J.Cast t j
 
 
-initClassCast c tempvarstr n j = initStuff tempvarstr n j (javaClassType c)
+initClassCast :: Show a => String -> String -> a -> J.Exp -> J.BlockStmt
+initClassCast c tempVarStr n j = initStuff tempVarStr n j (javaClassType c)
 
-initObj tempvarstr n j = initStuff tempvarstr n j objType
+initObj :: Show a => String -> a -> J.Exp -> J.BlockStmt
+initObj tempVarStr n j = initStuff tempVarStr n j objType
 
-initClosure tempvarstr n j = initStuff tempvarstr n j closureType
+initClosure :: Show a => String -> a -> J.Exp -> J.BlockStmt
+initClosure tempVarStr n j = initStuff tempVarStr n j closureType
 
-initObjArray tempvarstr n j = initStuff tempvarstr n j objArrayType
+initObjArray :: Show a => String -> a -> J.Exp -> J.BlockStmt
+initObjArray tempVarStr n j = initStuff tempVarStr n j objArrayType
 
 type Var = Int -- Either Int Int left -> standard variable; right -> recursive variable
 
+instCreat :: Show a => a -> J.Exp
 instCreat i = J.InstanceCreation [] (J.ClassType [(J.Ident ("Fun" ++ show i),[])]) [] Nothing
 
-jexp init body idCF generateClone =
-       J.ClassBody (init ++  [J.MemberDecl (J.MethodDecl [J.Public] [] Nothing (J.Ident "apply") [] [] (J.MethodBody body))] ++
-          (if generateClone then [J.MemberDecl (J.MethodDecl [J.Public] [] (Just closureType) (J.Ident "clone") [] [] (J.MethodBody cloneBody))] else [])
-       )
+jexp :: Show a => [J.Decl] -> Maybe J.Block -> a -> Bool -> J.ClassBody
+jexp init' body idCF generateClone =
+       J.ClassBody $ init'
+                  ++ [J.MemberDecl $ methodDecl "apply" Nothing body]
+                  ++ if generateClone
+                       then [J.MemberDecl $ methodDecl "clone" (Just closureType) cloneBody] 
+                       else []
         where
-            cloneBody = Just (J.Block [J.LocalVars [] (closureType) [J.VarDecl (J.VarId (J.Ident "c"))
-                (Just $ J.InitExp $ instCreat idCF)],J.BlockStmt
-                (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA
-                (J.ExpName (J.Name [J.Ident "this",J.Ident localvarstr])))),J.BlockStmt (J.ExpStmt (J.MethodInv
-                (J.PrimaryMethodCall (J.ExpName (J.Name [J.Ident "c"])) [] (J.Ident "apply") []))),J.BlockStmt (J.Return (Just
-                (J.Cast (closureType) (J.ExpName (J.Name [J.Ident "c"])))))])
+            methodDecl name typ by = J.MethodDecl [J.Public] [] typ (J.Ident name) [] [] (J.MethodBody by)
+            cloneBody = Just (J.Block [J.LocalVars [] closureType [varDecl "c"
+                                                                           (Just $ J.InitExp $ instCreat idCF)]
+                                    , J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs $ names ["c", localvarstr]) 
+                                                                       J.EqualA
+                                                                       (J.ExpName $ names ["this", localvarstr])))
+                                    , J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (var "c") [] (J.Ident "apply") [])))
+                                    , J.BlockStmt (J.Return (Just (J.Cast closureType (var "c"))))])
 
-currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
-outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [(J.Ident "out")])) J.EqualA  javaExpression))
+currentInitialDeclaration :: J.Ident -> J.Decl
+currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl []
+                                                                     closureType 
+                                                                     [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
+
+outputAssignment :: J.Exp -> J.BlockStmt
+outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (names ["out"])) 
+                                                                   J.EqualA
+                                                                   javaExpression))
 
 {-
 translateScopeTyp javaExpression statementsBeforeOA currentId nextId initVars generateClone =
@@ -139,6 +171,9 @@ translateScopeTyp javaExpression statementsBeforeOA currentId nextId initVars ge
         J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
 -}
 
+type TransType = ([J.BlockStmt], J.Exp, Type Int)
+
+
 data Translate m = T {
   translateM ::
      Expr Int (Var, Type Int) ->
@@ -147,8 +182,8 @@ data Translate m = T {
     Scope (Expr Int (Var, Type Int)) Int (Var, Type Int) ->
     Maybe (Int,Type Int) ->
     m ([J.BlockStmt], J.Exp, TScope Int),
-  translateApply ::  m ([J.BlockStmt], J.Exp, Type Int) ->  m ([J.BlockStmt], J.Exp, Type Int) ->  m ([J.BlockStmt], J.Exp, Type Int),
-  translateIf ::  m ([J.BlockStmt], J.Exp, Type Int) -> m ([J.BlockStmt], J.Exp, Type Int) ->  m ([J.BlockStmt], J.Exp, Type Int) ->  m ([J.BlockStmt], J.Exp, Type Int),
+  translateApply ::  m TransType ->  m TransType ->  m TransType,
+  translateIf ::  m TransType -> m TransType ->  m TransType ->  m TransType,
   translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var, Type Int)) Int (Var, Type Int) -> m ([J.BlockStmt], J.Exp, TScope Int) -> m ([J.BlockStmt], TScope Int),
   genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> m [J.BlockStmt],
   genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt],
@@ -158,18 +193,21 @@ data Translate m = T {
   createWrap :: String -> Expr Int (Var, Type Int) -> m (J.CompilationUnit, Type Int)
   }
 
+chooseCastBox :: Show a => Type t -> (String -> a -> J.Exp -> J.BlockStmt, J.Type)
 chooseCastBox (JClass c)       = (initClassCast c, javaClassType c)
 chooseCastBox (Forall _)       = (initClosure,closureType)
 chooseCastBox (TupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
 chooseCastBox (TupleType _)    = (initObjArray,objArrayType)
 chooseCastBox _                 = (initObj,objType)
 
+javaType :: Type t -> J.Type
 javaType (JClass c)      = javaClassType c
 javaType (Forall _)      = closureType
 javaType (TupleType [t]) = javaType t -- optimization for tuples of size 1
 javaType (TupleType _)   = objArrayType
 javaType _                = objType
 
+getS3 :: MonadState Int m => Translate m -> J.Ident -> TScope Int -> J.Exp -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
 getS3 this f t j3 cvarass =
   do (n :: Int) <- get
      put (n+1)
