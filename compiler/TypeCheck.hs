@@ -241,6 +241,14 @@ tcExpr (Merge e1 e2) =
      (e2', t2) <- tcExpr e2
      return (Merge e1' e2', And t1 t2)
 
+tcExpr (PrimList l) =
+      do (es, ts) <- mapAndUnzipM tcExpr l
+         case ts of [] -> return (PrimList es, (JClass "hk.hku.cs.f2j.Nil"))
+                    _  -> if (all (`alphaEqTy` (ts !! 0)) ts)
+                            then return (PrimList es, (JClass "hk.hku.cs.f2j.Cons"))
+                            else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
+
+
 tcExprAgainst :: Expr Name -> Type -> TcM (Expr TcId, Type)
 tcExprAgainst expr expected_ty
   = do (expr', actual_ty) <- tcExpr expr

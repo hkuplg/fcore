@@ -25,7 +25,11 @@ jbody = Just (J.Block [])
 init = [J.InitDecl False (J.Block [])]
 
 closureClass = "hk.hku.cs.f2j.Closure"
+--primListClass = "hk.hku.cs.f2j.FunctionalList"
+--pLNilClass = "hk.hku.cs.f2j.Nil"
+--pLConsClass = "hk.hku.cs.f2j.Cons"
 
+--primListType    = javaClassType primListClass
 closureType     = J.RefType (J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))
 javaClassType c = J.RefType (J.ClassRefType (J.ClassType [(J.Ident c, [])]))
 objType         = javaClassType "Object"
@@ -57,7 +61,8 @@ createCUB this compDef = cu where
    cu = J.CompilationUnit Nothing [] compDef
 
 getClassDecl className bs ass returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
-    (J.ClassBody [app [J.Static] body returnType "apply" [], app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
+    (J.ClassBody [app [J.Static] body returnType "apply" [], 
+      app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
     where
         body = Just (J.Block (bs ++ ass))
 
@@ -67,6 +72,18 @@ reduceTTuples all = (merged, arrayAssignment, tupleType)
         merged = concat $ map (\x -> case x of (a,b,c) -> a) all
         arrayAssignment = J.ArrayCreateInit (objType) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
         tupleType = TupleType (map (\x -> case x of (a,b,c) -> c) all)
+
+--consPrimList :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
+--consPrimList l = case l of
+
+--                               (n :: Int) <- get
+--                               put (n + 1)
+--                               let conlst = J.InstanceCreation [] 
+--                                          (J.ClassType [(J.Ident pLConsClass, [])]) ([eleExpr] ++ lsExpr) Nothing
+--                               let typ = CJClass primListClass
+--                               return ([assignVar (localvarstr ++ show n) conlst typ], var (localvarstr ++ show n), CListOf eleT)
+
+
 
 initStuff tempvarstr n j t = J.LocalVars [J.Final] (t) ([J.VarDecl (J.VarId $ J.Ident (tempvarstr ++ show n)) (Just exp)])
     where
@@ -81,6 +98,8 @@ initObj tempvarstr n j = initStuff tempvarstr n j objType
 initClosure tempvarstr n j = initStuff tempvarstr n j closureType
 
 initObjArray tempvarstr n j = initStuff tempvarstr n j objArrayType
+
+--initPrimList tempvarstr n j = initClassCast primListClass tempvarstr n j
 
 type Var = Int -- Either Int Int left -> standard variable; right -> recursive variable
 
@@ -290,7 +309,6 @@ trans self = let this = up self in T {
                            , typ )
             else return ( argsStatements ++ classStatement ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ )
 
-
      JField c fName r ->
        do (classStatement, classExpr, _) <- case c of (Right ce) -> translateM this ce
                                                       (Left cn)  -> return ([], J.ExpName $ J.Name [J.Ident cn], undefined)
@@ -305,7 +323,6 @@ trans self = let this = up self in T {
                        let (_, lastExp, lastType) = last es'
                        let statements = concat $ map (\(x, _, _) -> x) es'
                        return (statements, lastExp, lastType)
-
      ,
 
   translateScopeM = \e m -> case e of

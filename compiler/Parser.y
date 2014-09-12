@@ -20,6 +20,9 @@ import JavaUtils
 
   "("      { Toparen }
   ")"      { Tcparen }
+  "["      { Tobrack }
+  "]"      { Tcbrack }
+  "::"     { Tdcolon }
   "{"      { Tocurly }
   "}"      { Tccurly }
   "/\\"    { Ttlam }
@@ -40,6 +43,7 @@ import JavaUtils
   "then"   { Tthen }
   "else"   { Telse }
   ","      { Tcomma }
+  
 
   UPPERID  { Tupperid $$ }
   LOWERID  { Tlowerid $$ }
@@ -145,6 +149,17 @@ aexp1 :: { Expr Name }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
     | "{" semi_exprs "}"        { Seq $2 }
+    -- primitive list
+    | listexp                   { $1 }
+
+-- listexp "." LOWERID       { JMethod (Left (PrimList $1))) $3 [] ""}
+
+listexp :: { Expr String }
+    : listexps                  { PrimList $1 }
+
+listexps :: { [Expr String] }
+    : "(" expr "::" listexps ")"  { $2:$4 }
+    | "[" comma_exprs_emp "]" { $2 }
 
 id :: { Name }
    : LOWERID { $1 }
@@ -195,9 +210,10 @@ typ :: { Type }
     -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
     -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
     | atyp "->" typ     { Fun $1 $3 }
+    | atyp              { $1 }
+    | "[" atyp "]"     { ListOf $2 }
     --| typ "&" atyp      { And $1 $3 }
 
-    | atyp              { $1 }
 
 atyp :: { Type }
     : tvar                      { TyVar $1 }

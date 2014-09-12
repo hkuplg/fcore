@@ -32,7 +32,7 @@ transType d = go
     go (Product ts) = C.Product (map go ts)
     go (Forall a t) = C.Forall (\a' -> transType (Map.insert a a' d) t)
     go (And t1 t2)  = C.And (go t1) (go t2)
-
+    
 dsTcExpr :: DsMap t e -> Expr TcId -> C.Expr t e
 dsTcExpr (d, g) = go
   where
@@ -112,17 +112,24 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec [(f,t@(Fun _ _),e)] body) = dsLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec [(f,t,e)] body)           = dsLetRecToFixEncoded (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = dsLetRecToLetRec (d,g) (LetOut Rec bs body)
-
     go (JNewObj cName args)    = C.JNewObj cName (map go args)
     go (JMethod c mName args r) =
       case c of
         (Left cName)  -> C.JMethod (Left cName) mName (map go args) r
         (Right cExpr) -> C.JMethod (Right (go cExpr)) mName (map go args) r
-
     go (JField c fName r) =
       case c of
         (Left cName)  -> C.JField (Left cName) fName r
         (Right cExpr) -> C.JField (Right (go cExpr)) fName r
+
+    -- Non Java Class translation
+    -- go (PrimList l)              = FPrimList (map go l) 
+    
+    -- Primitive List to java class
+    
+    go (PrimList l)              = case l of     -- translate to java new obj
+                                     []   -> C.JNewObj "hk.hku.cs.f2j.Nil" []
+                                     x:xs -> C.JNewObj "hk.hku.cs.f2j.Cons" [go x, go (PrimList xs)]
 
     go (Seq es) = C.Seq (map go es)
 
