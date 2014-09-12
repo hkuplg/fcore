@@ -14,6 +14,9 @@ module Translations
     , compileN
     , compileAO
     , compileS
+    , compileBN
+    , compileBS
+    , compileTuple
     , compilesf2java
     ) where
 
@@ -31,6 +34,9 @@ import JavaUtils      (ClassName, inferClassName)
 import BaseTransCFJava
 import ApplyTransCFJava
 import StackTransCFJava
+import BenchGenCF2J
+import BenchGenStack
+import TupleTransCFJava
 
 import Inheritance
 import MonadLib
@@ -67,6 +73,50 @@ applyopt = new (transApply $> trans)
 stackNaive :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
 stackNaive = new (transS $> trans)
 
+
+-- Benchmark-link generation
+
+-- bench for naive
+benchGen :: (MonadState Int m) => BenchGenTranslate m
+benchGen = new (transBench $> trans)
+
+
+
+-- bench for naive + applyopt
+inheritNOpt mix' this super = toT $ mix' this super
+
+benchGenNOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => BenchGenTranslateOpt m
+benchGenNOpt = new ((transBenchOpt <.> inheritNOpt transApply) $> trans)
+
+instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
+  up = NT . toTBA
+
+
+-- bench for stack
+
+benchGenStack :: (MonadState Int m, MonadReader Bool m) => BenchGenTranslateStack m
+benchGenStack = new ((transBenchStack <.> adaptStack transS) $> trans)
+
+instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
+  up = TS . toTBS
+
+-- bench for stack + apply opt
+--benchGenStackOpt ::  (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
+
+
+benchGenStackOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
+benchGenStackOpt = new ((transBenchStackOpt <.> (adaptApply transApply <.> adaptStack transSA)) $> trans)
+
+instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
+  up = NT . toTBSA
+
+instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
+  up = TS . toTBSA
+
+tupleGen :: (MonadState Int m) => TupleTranslate m
+tupleGen = new (transTuple $> trans)
+
+
 -- Stack/Apply translation
 
 adaptApply :: forall (m :: * -> *) t t1.
@@ -83,9 +133,11 @@ stackApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitV
 stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
 -- Apply + Stack + Naive
+adaptTuple mix' this super = toTT $ mix' this super
 
 stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
 stackApplyNew = new ((transApply <.> adaptStack transSA) $> trans)
+
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
   up = NT . toTS
@@ -194,6 +246,11 @@ compilesf2java optDump compilation srcPath outputPath = do
     src <- readFile srcPath
     output <- sf2java optDump compilation (inferClassName outputPath) src
     writeFile outputPath output
+    --let closureClassDef = closureClass compilation
+    --writeFile "Closure.java" (prettyPrint closureClassDef)
+
+--abstractClosureClass compilation = prettyPrint $ closureClass (up benchinst)
+
 
 type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)--PFExp Int (Var, Type Int) -> (J.Block, J.Exp, Type Int)
 
@@ -238,3 +295,68 @@ translateS = createWrap (up stackinst)
 
 compileS :: Compilation
 compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) False) []) Set.empty) 0
+
+-- Bench Naive
+benchinst :: BenchGenTranslate NType  -- instantiation; all coinstraints resolved
+benchinst = benchGen
+
+translateBench :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
+translateBench = createWrap (up benchinst)
+
+
+--closureBench :: NType (J.TypeDecl)
+--closureBench = closureClass (up benchinst)
+
+--compileClosureBench = evalState (evalStateT (evalStateT closureBench 0) Map.empty) Set.empty--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+
+
+--genClosure :: J.CompilationUnit
+--genClosure = (J.CompilationUnit (Just (J.PackageDecl (J.Name [(J.Ident "benchmark")]))) 
+--                                                [] [(closureClass)])
+
+-- Bench naive+ applyopt
+benchnaiveopt :: BenchGenTranslateOpt AOptType
+benchnaiveopt = benchGenNOpt
+
+translateBenchOpt :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
+translateBenchOpt = createWrap (up benchnaiveopt)
+
+-- Bench stack
+benchstackinst :: BenchGenTranslateStack StackType  -- instantiation; all coinstraints resolved
+benchstackinst = benchGenStack -- stack naive
+
+translateBenchStack :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit, Type Int)
+translateBenchStack = createWrap (up benchstackinst)
+
+
+
+-- TODO Bench stack + applyopt
+-- translateBSA
+benchstackoptinst :: BenchGenTranslateStackOpt StackType
+benchstackoptinst = benchGenStackOpt
+
+translateBenchStackOpt :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit, Type Int)
+translateBenchStackOpt = createWrap (up benchstackoptinst)
+
+compileBN :: Bool -> Compilation
+compileBN False = \name e -> evalState (translateBench name (fexp2cexp e)) 0--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+compileBN True = \name e -> evalState (translateBench name (fexp2cexp e)) 0--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+
+
+-- BenchGenStack
+
+compileBS :: Bool -> Compilation
+compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) False) []) Set.empty) 0
+compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) False) []) Set.empty) 0
+
+
+-- Tuple
+tuplegeninst :: TupleTranslate NType
+tuplegeninst = tupleGen
+
+translateTuple :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
+translateTuple = createWrap (up tuplegeninst)
+
+compileTuple :: Compilation
+compileTuple name e = evalState (translateTuple name (fexp2cexp e)) 0
+

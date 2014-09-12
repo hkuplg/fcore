@@ -42,6 +42,8 @@ data Type
   | Product [Type]
   | JClass ClassName
   | And Type Type
+  | ListOf Type
+
   deriving (Eq, Show)
 
 data Lit
@@ -72,11 +74,11 @@ data Expr id
   | JField  (Either ClassName (Expr id)) FieldName            ClassName
   | Seq [Expr id]
   | Merge (Expr id) (Expr id)
+  | PrimList [Expr id]           -- New List
   deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
 -- type TcExpr  = Expr TcId
-
 -- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
 
 data Bind id = Bind
@@ -99,6 +101,7 @@ alphaEqTy (Fun t1 t2)    (Fun t3 t4)    = t1 `alphaEqTy` t3 && t2 `alphaEqTy` t4
 alphaEqTy (Product ts1)  (Product ts2)  = length ts1 == length ts2 &&
                                           uncurry alphaEqTy `all` zip ts1 ts2
 alphaEqTy (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `alphaEqTy` t1
+alphaEqTy (ListOf a) (ListOf b)         = a == b  -- ???
 alphaEqTy  _              _             = False
 
 subtype :: Type -> Type -> Bool
@@ -123,6 +126,7 @@ substFreeTyVars (x, r) = go
       | a == x                      = Forall a t
       | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
       | otherwise                   = Forall a (go t)
+    go (ListOf a)   = ListOf (go a)
 
 freeTyVars :: Type -> Set.Set Name
 freeTyVars (TyVar x)    = Set.singleton x
@@ -130,6 +134,7 @@ freeTyVars (JClass _)   = Set.empty
 freeTyVars (Forall a t) = Set.delete a (freeTyVars t)
 freeTyVars (Fun t1 t2)  = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (Product ts) = Set.unions (map freeTyVars ts)
+freeTyVars (ListOf a)   = Set.empty
 
 instance Pretty Type where
   pretty (TyVar a)    = text a
@@ -137,6 +142,7 @@ instance Pretty Type where
   pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
   pretty (Product ts) = tupled (map pretty ts)
   pretty (JClass c)   = text c
+  pretty (ListOf a)   = brackets $ pretty a
   pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
 
 instance Pretty id => Pretty (Expr id) where
@@ -177,6 +183,7 @@ instance Pretty id => Pretty (Expr id) where
   pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
   pretty (JMethod e m args _) = case e of (Left e')  -> pretty e' <> dot <> text m <> tupled (map pretty args)
                                           (Right e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
+  pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
 
 instance Pretty id => Pretty (Bind id) where

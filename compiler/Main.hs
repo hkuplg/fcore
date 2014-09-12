@@ -32,7 +32,7 @@ data Options = Options
     , optTransMethod   :: TransMethod
     } deriving (Eq, Show, Data, Typeable)
 
-data TransMethod = Naive | ApplyOpt | Stack deriving (Eq, Show, Data, Typeable)
+data TransMethod = Naive | ApplyOpt | Stack | BenchN | BenchS | BenchNA | BenchSA | Tuple deriving (Eq, Show, Data, Typeable)
 
 optionsSpec :: Options
 optionsSpec = Options
@@ -66,7 +66,6 @@ main = do
   exists <- doesFileExist =<< getRuntimeJarPath
   existsCur <- doesFileExist "./runtime.jar"
   unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
-
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod
@@ -75,13 +74,17 @@ main = do
        compilesf2java optDump
          (case translate_method of Naive    -> compileN
                                    ApplyOpt -> compileAO
-                                   Stack    -> compileS)
+                                   Stack    -> compileS
+                                   BenchN    -> compileBN False
+                                   BenchS    -> compileBS False
+                                   BenchNA   -> compileBN True
+                                   BenchSA   -> compileBS True
+                                   Tuple     -> compileTuple)
          source_path output_path
 
        when (optCompile || optCompileAndRun) $
          do putStrLn "  Compiling to Java bytecode"
             compileJava output_path
-
        when optCompileAndRun $
          do putStr "  Running Java\n  Output: "; hFlush stdout
             runJava output_path)

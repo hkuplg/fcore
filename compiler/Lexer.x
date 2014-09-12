@@ -26,6 +26,9 @@ tokens :-
 
     \(          { \_ _ -> Toparen }
     \)          { \_ _ -> Tcparen }
+    \[          { \_ _ -> Tobrack}
+    \]          { \_ _ -> Tcbrack}
+    \::         { \_ _ -> Tdcolon}
     \{          { \_ _ -> Tocurly }
     \}          { \_ _ -> Tccurly }
     \/\\        { \_ _ -> Ttlam }
@@ -52,7 +55,7 @@ tokens :-
     else        { \_ _ -> Telse }
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
-
+    
     -- Literal
     $digit+                { \_ s -> Tinteger (read s) }
     \"($printable # \")*\"  { \_ s -> Tstring (init $ tail s) }
@@ -94,6 +97,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tupperid String | Tlowerid String | Tunderid Int
            | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char
            | Tprimop J.Op
+           | Tobrack | Tcbrack | Tdcolon
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

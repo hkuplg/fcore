@@ -76,6 +76,8 @@ app modi b rt en args = J.MemberDecl (J.MethodDecl modi [] rt (J.Ident en) args 
 applyCall :: J.BlockStmt
 applyCall = J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident "apply"]) [])))
 
+refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
+
 mainArgType :: [J.FormalParam]
 mainArgType = [J.FormalParam []
                              (arrayType $ javaClassType "String")
@@ -130,6 +132,8 @@ initClosure tempVarStr n j = initStuff tempVarStr n j closureType
 
 initObjArray :: Show a => String -> a -> J.Exp -> J.BlockStmt
 initObjArray tempVarStr n j = initStuff tempVarStr n j objArrayType
+
+--initPrimList tempvarstr n j = initClassCast primListClass tempvarstr n j
 
 type Var = Int -- Either Int Int left -> standard variable; right -> recursive variable
 

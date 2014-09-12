@@ -45,6 +45,7 @@ data Expr t e =
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
    | JField  (Either ClassName (Expr t e)) FieldName ClassName
    | SeqExprs [Expr t e]
+   
 
 -- System F to Closure F
 
@@ -83,6 +84,7 @@ fexp2cexp2 (C.TApp e t)   =
    let (c1,t1) = fexp2cexp e
 CTApp (fexp2cexp e) (ftyp2ctyp t)
 -}
+
 
 fexp2cexp :: C.Expr t e -> Expr t e
 fexp2cexp (C.Var x)                  = Var x
