@@ -33,7 +33,6 @@ closureClass = "hk.hku.cs.f2j.Closure"
 closureType     = J.RefType (J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))
 javaClassType c = J.RefType (J.ClassRefType (J.ClassType [(J.Ident c, [])]))
 objType         = javaClassType "Object"
-objArrayType    = J.RefType (J.ArrayType (J.RefType (J.ClassRefType (J.ClassType [(J.Ident "Object",[])]))))
 
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
 ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse (j1) (J.StmtBlock $ J.Block (s2 ++ j2Stmt)) (J.StmtBlock $ J.Block (s3 ++ j3Stmt)), newvar)
@@ -66,12 +65,6 @@ getClassDecl className bs ass returnType mainbodyDef = J.ClassTypeDecl (J.ClassD
     where
         body = Just (J.Block (bs ++ ass))
 
-reduceTTuples :: [([a], J.Exp, Type t)] -> ([a], J.Exp, Type t)
-reduceTTuples all = (merged, arrayAssignment, tupleType)
-    where
-        merged = concat $ map (\x -> case x of (a,b,c) -> a) all
-        arrayAssignment = J.ArrayCreateInit (objType) 1 (J.ArrayInit (map (\x -> case x of (a,b,c) -> J.InitExp b) all))
-        tupleType = TupleType (map (\x -> case x of (a,b,c) -> c) all)
 
 --consPrimList :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
 --consPrimList l = case l of
@@ -96,8 +89,6 @@ initClassCast c tempvarstr n j = initStuff tempvarstr n j (javaClassType c)
 initObj tempvarstr n j = initStuff tempvarstr n j objType
 
 initClosure tempvarstr n j = initStuff tempvarstr n j closureType
-
-initObjArray tempvarstr n j = initStuff tempvarstr n j objArrayType
 
 --initPrimList tempvarstr n j = initClassCast primListClass tempvarstr n j
 
@@ -147,17 +138,27 @@ data Translate m = T {
   createWrap :: String -> Expr Int (Var, Type Int) -> m (J.CompilationUnit, Type Int)
   }
 
-chooseCastBox (JClass c)       = (initClassCast c, javaClassType c)
-chooseCastBox (Forall _)       = (initClosure,closureType)
-chooseCastBox (TupleType [t])  = chooseCastBox t -- optimization for tuples of size 1
-chooseCastBox (TupleType _)    = (initObjArray,objArrayType)
+getTupleClassName :: [a] -> String
+getTupleClassName tuple =
+  if lengthOfTuple > 50
+    then panic "The length of tuple is too long (>50)!"
+    else "hk.hku.cs.f2j.tuples.Tuple" ++ show lengthOfTuple
+  where
+    lengthOfTuple = length tuple
+
+chooseCastBox (JClass c)        = (initClassCast c, javaClassType c)
+chooseCastBox (Forall _)        = (initClosure,closureType)
+chooseCastBox (TupleType tuple) =
+  case tuple of [t] -> chooseCastBox t
+                _   -> (initClassCast tupleClassName, javaClassType tupleClassName)
+                       where tupleClassName = getTupleClassName tuple
 chooseCastBox _                 = (initObj,objType)
 
-javaType (JClass c)      = javaClassType c
-javaType (Forall _)      = closureType
-javaType (TupleType [t]) = javaType t -- optimization for tuples of size 1
-javaType (TupleType _)   = objArrayType
-javaType _                = objType
+javaType (JClass c)        = javaClassType c
+javaType (Forall _)        = closureType
+javaType (TupleType tuple) = case tuple of [t] -> javaType t
+                                           _   -> javaClassType $ getTupleClassName tuple
+javaType _                 = objType
 
 getS3 this f t j3 cvarass =
   do (n :: Int) <- get
@@ -189,7 +190,21 @@ pairUp :: [Var] -> [(J.Exp, Type Int)] -> [(Var, Type Int)]
 pairUp bindings vars = exchanged
     where
       z = bindings `zip` vars
-      exchanged = map (\x -> case x of (a,(b,c)) -> (a,c)) z
+      exchanged = map (\(a, (_, c)) -> (a, c)) z
+
+toTupleOf3Lists :: [(a, b, c)] -> ([a], [b], [c])
+toTupleOf3Lists list = (first, second, third)
+  where
+    first  = map (\(x, _, _) -> x) list
+    second = map (\(_, y, _) -> y) list
+    third  = map (\(_, _, z) -> z) list
+
+concatFirst :: ([[a]], [b], [c]) -> ([a], [b], [c])
+concatFirst (xs, y, z) = (concat xs, y, z)
+
+getNewVarName this = do (n :: Int) <- get
+                        put (n + 1)
+                        return $ localvarstr ++ show n
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
@@ -203,38 +218,34 @@ trans self = let this = up self in T {
                   (Src.Char c)    -> return ([], J.Lit $ J.Char c, JClass "java.lang.Character")
 
      PrimOp e1 op e2 ->
-       do  (n :: Int) <- get
-           put (n+1)
-           (s1,j1,t1) <- translateM this e1
-           (s2,j2,t2) <- translateM this e2
-           let (je, typ) = case op of
-                             (Src.Arith realOp)   -> (J.BinOp j1 realOp j2, JClass "java.lang.Integer")
-                             (Src.Compare realOp) -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
-                             (Src.Logic realOp)   -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
-           return (s1 ++ s2 ++ [assignVar (localvarstr ++ show n) je typ],
-                   var (localvarstr ++ show n), typ)
+       do (s1, j1, _) <- translateM this e1
+          (s2, j2, _) <- translateM this e2
+          let (je, typ) = case op of
+                            (Src.Arith realOp)   -> (J.BinOp j1 realOp j2, JClass "java.lang.Integer")
+                            (Src.Compare realOp) -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
+                            (Src.Logic realOp)   -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
+          newVarName <- getNewVarName this
+          return (s1 ++ s2 ++ [assignVar newVarName je typ], var newVarName, typ)
 
      If e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3)
 
-     -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)
-     Tuple [e] ->
-       do  (s1,j1,t1) <- translateM this e
-           return (s1,j1,TupleType [t1])
-
-     -- otherwise: (not optimized)
      Tuple tuple ->
-       liftM reduceTTuples $ mapM (translateM this) tuple
+       case tuple of [t] -> do (s1,j1,t1) <- translateM this t
+                               return (s1,j1,TupleType [t1])
+                     _   -> do tuple' <- mapM (translateM this) tuple
+                               let (statements, exprs, types) = concatFirst $ toTupleOf3Lists tuple'
+                               newVarName <- getNewVarName this
+                               let c = getTupleClassName tuple
+                               let rhs = J.InstanceCreation [] (J.ClassType [(J.Ident c, [])]) exprs Nothing
+                               return (statements ++ [assignVar newVarName rhs (JClass c)], var newVarName, TupleType types)
 
-     Proj i e ->
-       do (s1,j1,t) <- translateM this e
-          case t of
-             -- A simple optimization for tuples of size 1 (DOES NOT NEED TO BE FORMALIZED)
-             TupleType [t] -> return (s1,j1,t)
-             -- otherwise: (not optimized)
-             TupleType ts  ->
-               let fj = J.ArrayAccess (J.ArrayIndex j1 (J.Lit (J.Int $ toInteger (i-1))))
-               in return (s1, J.Cast (javaType (ts!!(i-1))) fj, ts!!(i-1))
-             otherwise -> panic "BaseTransCFJava.trans: expected tuple type"
+     Proj index expr ->
+       do ret@(_, _, exprType) <- translateM this expr
+          case exprType of
+             TupleType [_]   -> return ret
+             TupleType tuple -> let selectedType = (\(JClass className) -> className) (tuple !! (index - 1))
+                                in translateM this (JField (Right expr) ("_" ++ show index) selectedType)
+             _               -> panic "BaseTransCFJava.trans: expected tuple type"
 
      TApp e t ->
        do  n <- get
@@ -242,11 +253,10 @@ trans self = let this = up self in T {
            return (s,je, scope2ctyp (substScope n t (f n)))
     -- TODO: CLam and CFix generation of top-level Fun closures is a bit ad-hoc transformation from the old generated code + duplicate code
      Lam se ->
-       do  (n :: Int) <- get
-           (s,je, t) <- translateScopeM this se Nothing
-           return (s,je, Forall t)
+       do (s,je, t) <- translateScopeM this se Nothing
+          return (s,je, Forall t)
 
-     Fix t s   ->
+     Fix t s ->
        do  (n :: Int) <- get
            put (n+1)
            (s, je, t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
@@ -258,7 +268,7 @@ trans self = let this = up self in T {
            put (n+2+needed)
            mfuns <- return (\defs -> forM (xs defs) (translateM this))
 
-           let vars = (liftM (map (\x -> case x of (a,b,c) -> (b,c)))) (mfuns (zip [n..] (repeat (t!!0))))
+           let vars = (liftM (map (\(_, b, c) -> (b, c)))) (mfuns (zip [n..] (repeat (t!!0))))
            let (bindings :: [Var]) = [n+2..n+1+needed]
            newvars <- ((liftM (pairUp bindings)) vars)
            let mDecls = map (\x -> J.MemberDecl (J.FieldDecl [J.Public] (closureType) [J.VarDecl (J.VarId (J.Ident (localvarstr ++ show x))) Nothing])) bindings
@@ -279,45 +289,37 @@ trans self = let this = up self in T {
      App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
 
      -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
-     JNewObj c args -> do args' <- mapM (translateM this) args
-                          let argsStatements = concat $ map (\(x, _, _) -> x) args'
-                          let argsExprs = map (\(_, x, _) -> x) args'
-                          let argTypes = map (\(_, _, x) -> x) args'
-                          (n :: Int) <- get
-                          put (n + 1)
-                          let rhs = J.InstanceCreation (map (\(JClass x) -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
-                                                       (J.ClassType [(J.Ident c, [])]) argsExprs Nothing
-                          let typ = JClass c
-                          return (argsStatements ++ [assignVar (localvarstr ++ show n) rhs typ], var (localvarstr ++ show n), typ)
+     JNewObj c args ->
+       do args' <- mapM (translateM this) args
+          let (statements, exprs, types) = concatFirst $ toTupleOf3Lists args'
+          let rhs = J.InstanceCreation (map (\(JClass x) -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]) types)
+                                       (J.ClassType [(J.Ident c, [])]) exprs Nothing
+          let typ = JClass c
+          newVarName <- getNewVarName this
+          return (statements ++ [assignVar newVarName rhs typ], var newVarName, typ)
 
      JMethod c m args r ->
        do args' <- mapM (translateM this) args
-          let argsStatements = concatMap (\(x, _, _) -> x) args'
-          let argsExprs = map (\(_, x, _) -> x) args'
-          let argTypes = map (\(_, _, x) -> x) args'
-          let refTypeArgs = (map (\(JClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) argTypes)
-          (classStatement, rhs) <- case c of 
-                                     (Right ce) -> do (classS, classE, _) <- translateM this ce
-                                                      return (classS, J.MethodInv $ J.PrimaryMethodCall classE refTypeArgs (J.Ident m) argsExprs)       
-                                     (Left cn)  -> return ([], J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypeArgs (J.Ident m) argsExprs)
+          let (statements, exprs, types) = concatFirst $ toTupleOf3Lists args'
+          let refTypes = (map (\(JClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) types)
+          (classStatement, rhs) <-
+            case c of 
+              (Right ce) -> do (classS, classE, _) <- translateM this ce
+                               return (classS, J.MethodInv $ J.PrimaryMethodCall classE refTypes (J.Ident m) exprs)       
+              (Left cn)  -> return ([], J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs)
           let typ = JClass r
           if r /= "java.lang.Void"
-            then do (n :: Int) <- get
-                    put (n + 1)
-                    return ( argsStatements ++ classStatement ++ [assignVar (localvarstr ++ show n) rhs typ]
-                           , var (localvarstr ++ show n)
-                           , typ )
-            else return ( argsStatements ++ classStatement ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ )
+            then do newVarName <- getNewVarName this
+                    return (statements ++ classStatement ++ [assignVar newVarName rhs typ], var newVarName, typ)
+            else return (statements ++ classStatement ++ [(J.BlockStmt $ J.ExpStmt rhs)], rhs, typ)
 
      JField c fName r ->
        do (classStatement, classExpr, _) <- case c of (Right ce) -> translateM this ce
                                                       (Left cn)  -> return ([], J.ExpName $ J.Name [J.Ident cn], undefined)
-          (n :: Int) <- get
-          put (n + 1)
-          let newName = localvarstr ++ show n
+          newVarName <- getNewVarName this
           let typ = JClass r
-          let rhs = J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
-          return (classStatement ++ [assignVar newName rhs typ], var newName, typ)
+          let rhs = J.Cast (javaType typ) $ J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
+          return (classStatement ++ [assignVar newVarName rhs typ], var newVarName, typ)
 
      SeqExprs es -> do es' <- mapM (translateM this) es
                        let (_, lastExp, lastType) = last es'

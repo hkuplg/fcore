@@ -16,7 +16,6 @@ module Translations
     , compileS
     , compileBN
     , compileBS
-    , compileTuple
     , compilesf2java
     ) where
 
@@ -36,7 +35,6 @@ import ApplyTransCFJava
 import StackTransCFJava
 import BenchGenCF2J
 import BenchGenStack
-import TupleTransCFJava
 
 import Inheritance
 import MonadLib
@@ -113,9 +111,6 @@ instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
 instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
   up = TS . toTBSA
 
-tupleGen :: (MonadState Int m) => TupleTranslate m
-tupleGen = new (transTuple $> trans)
-
 
 -- Stack/Apply translation
 
@@ -132,8 +127,6 @@ adaptStack mix' this super = toTS $ mix' this super
 stackApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
 stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
--- Apply + Stack + Naive
-adaptTuple mix' this super = toTT $ mix' this super
 
 stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
 stackApplyNew = new ((transApply <.> adaptStack transSA) $> trans)
@@ -349,14 +342,4 @@ compileBS :: Bool -> Compilation
 compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) False) []) Set.empty) 0
 compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) False) []) Set.empty) 0
 
-
--- Tuple
-tuplegeninst :: TupleTranslate NType
-tuplegeninst = tupleGen
-
-translateTuple :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
-translateTuple = createWrap (up tuplegeninst)
-
-compileTuple :: Compilation
-compileTuple name e = evalState (translateTuple name (fexp2cexp e)) 0
 
