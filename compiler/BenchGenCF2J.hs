@@ -36,7 +36,7 @@ paraAssign classId paraId = (J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (f
 invokeApply classId = (J.BlockStmt $ J.ExpStmt $ J.MethodInv $ (J.PrimaryMethodCall (J.ExpName $ (J.Name [J.Ident classId])) [] (J.Ident "apply") []))
 
 -- return (Integer) c2.out;
-retRes returnType classId = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (refType returnType)) (J.FieldAccess (fieldAcc classId "out")))))
+retRes returnType classId = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (classRefType returnType)) (J.FieldAccess (fieldAcc classId "out")))))
 
 testfuncArgType :: [String] -> State Int [J.FormalParam]
 testfuncArgType [] = return []

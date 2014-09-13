@@ -34,8 +34,11 @@ init = [J.InitDecl False (J.Block [])]
 closureClass :: String
 closureClass = "hk.hku.cs.f2j.Closure"
 
+classRefType :: String -> J.RefType
+classRefType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
+
 javaClassType :: String -> J.Type
-javaClassType t = J.RefType $ J.ClassRefType (J.ClassType [(J.Ident t,[])])
+javaClassType t = J.RefType $ classRefType t
 
 closureType :: J.Type
 closureType     = javaClassType closureClass
@@ -75,8 +78,6 @@ app modi b rt en args = J.MemberDecl (J.MethodDecl modi [] rt (J.Ident en) args 
 
 applyCall :: J.BlockStmt
 applyCall = J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident "apply"]) [])))
-
-refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
 
 mainArgType :: [J.FormalParam]
 mainArgType = [J.FormalParam []
@@ -212,37 +213,42 @@ javaType (TupleType _)   = objArrayType
 javaType _                = objType
 
 getS3 :: MonadState Int m => Translate m -> J.Ident -> TScope Int -> J.Exp -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
-getS3 this f t j3 cvarass =
+getS3 this func t j3 cvarass =
   do (n :: Int) <- get
      put (n+1)
      let (cast,typ) = chooseCastBox (scope2ctyp t)
-     apply <- genApply this f t (var (tempvarstr ++ show n)) typ
+     apply <- genApply this func t (var (tempvarstr ++ show n)) typ
      rest <- genRes this t [cast tempvarstr n j3]
      let r = cvarass ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))
 
-genIfBody this m2 m3 j1 s1 n = do
-            (s2,j2,t2) <- m2 {-translateM this e2-}
-            (s3,j3,t3) <- m3 {-translateM this e3-}
-            let ifvarname = (ifresultstr ++ show n)
-            let refType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-            let ifresdecl = J.LocalVars [] (javaType t2) [J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)]
-            let (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
-            return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)  -- need to check t2 == t3
+genIfBody :: Monad m => t -> m ([J.BlockStmt], J.Exp, Type t2) -> m ([J.BlockStmt], J.Exp, t1) -> J.Exp -> [J.BlockStmt] -> Int -> m ([J.BlockStmt], J.Exp, Type t2)
+genIfBody _ m2 m3 j1 s1 n = do
+             (s2,j2,t2) <- m2 {-translateM this e2-}
+             (s3,j3, _) <- m3 {-translateM this e3-}
+             let ifvarname = (ifresultstr ++ show n)
+             let ifresdecl = J.LocalVars [] (javaType t2) [J.VarDecl (J.VarId $ J.Ident ifvarname) (Nothing)]
+             let (ifstmt, ifexp) = ifBody (s2, s3) (j1, j2, j3) n  -- uses a fresh variable
+             return (s1 ++ [ifresdecl,ifstmt], ifexp, t2)  -- need to check t2 == t3
 
 --(J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "c",J.Ident localvarstr])) J.EqualA
 
-assignVar varId e t = J.LocalVars [] (javaType t) [J.VarDecl (J.VarId $ J.Ident varId) (Just (J.InitExp e))]
+assignVar :: String -> J.Exp -> Type t -> J.BlockStmt
+assignVar varId e t = J.LocalVars [] (javaType t) [varDecl varId (Just (J.InitExp e))]
 
-fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess (J.ExpName (J.Name [J.Ident $ varId])) (J.Ident fieldId)
+fieldAccess :: String -> String -> J.Exp
+fieldAccess varId fieldId = J.FieldAccess $ J.PrimaryFieldAccess
+                                              (var varId)
+                                              (J.Ident fieldId)
 
+inputFieldAccess :: String -> J.Exp
 inputFieldAccess varId = fieldAccess varId localvarstr
 
 pairUp :: [Var] -> [(J.Exp, Type Int)] -> [(Var, Type Int)]
 pairUp bindings vars = exchanged
     where
       z = bindings `zip` vars
-      exchanged = map (\x -> case x of (a,(b,c)) -> (a,c)) z
+      exchanged = map (\x -> case x of (a, (_, c)) -> (a,c)) z
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self in T {
