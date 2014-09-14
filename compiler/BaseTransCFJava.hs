@@ -240,11 +240,13 @@ trans self = let this = up self in T {
                                return (statements ++ [assignVar newVarName rhs (JClass c)], var newVarName, TupleType types)
 
      Proj index expr ->
-       do ret@(_, _, exprType) <- translateM this expr
+       do ret@(statement, javaExpr, exprType) <- translateM this expr
           case exprType of
              TupleType [_]   -> return ret
-             TupleType tuple -> let selectedType = (\(JClass className) -> className) (tuple !! (index - 1))
-                                in translateM this (JField (Right expr) ("_" ++ show index) selectedType)
+             TupleType types -> do newVarName <- getNewVarName this
+                                   let typ = (types !! (index - 1))
+                                   let rhs = J.Cast (javaType typ) $ J.FieldAccess $ J.PrimaryFieldAccess javaExpr (J.Ident ("_" ++ show index))
+                                   return (statement ++ [assignVar newVarName rhs typ], var newVarName, typ)
              _               -> panic "BaseTransCFJava.trans: expected tuple type"
 
      TApp e t ->
