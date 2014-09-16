@@ -55,7 +55,7 @@ getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.C
     where
         body = Just (J.Block (bs ++ ass))
 
-retResStack returnType id = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (refType returnType)) (J.ExpName $ J.Name [(J.Ident id)]))))
+retResStack returnType id = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (classRefType returnType)) (J.ExpName $ J.Name [(J.Ident id)]))))
 
 
 testfuncBody paraType = 
