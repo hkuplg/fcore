@@ -78,6 +78,12 @@ evenOdd
       (\ids ->
          App (Var (ids !! 1)) magicNumber)
 
+evenOdd1 :: Expr t e
+evenOdd1 = LetRec [(javaInt, javaInt), (javaInt, javaInt)]
+                  (\ids -> [ Lam javaInt (\n -> If (Var n `eq` zero) true (App (Var (ids !! 1)) (Var n `sub` one)))
+                           , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
+                  (\ids -> App (Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))) magicNumber)
+
 -- Int -> (Int -> Bool, Int -> Bool)
 evenOddEncodedTy :: Type t
 evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` javaBool]
