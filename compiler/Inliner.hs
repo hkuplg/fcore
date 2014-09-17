@@ -17,9 +17,10 @@ inliner (PrimOp e1 o e2) = PrimOp (inliner e1) o (inliner e2)
 inliner (Tuple es) = Tuple (map inliner es)
 inliner (Proj i e) = Proj i (inliner e)
 inliner e@(Fix f _ t2) = Lam t2 (\n -> joinExpr (f (joinExpr e) (Var n)))
-inliner (LetRec f es1 es2) = LetRec f
-                                    (\es -> map joinExpr (es1 (map Var es)))
-                                    (\es -> joinExpr (es2 (map joinExpr (es1 (map Var es)))))
+inliner (LetRec f es1 es2) =
+  LetRec f
+         (\es -> map joinExpr (es1 (map Var es)))
+         (\es -> joinExpr (es2 (map joinExpr (es1 (map Var es)))))
 inliner (JNewObj name es) = JNewObj name (map inliner es)
 inliner (JMethod jc m es cn) =
   JMethod (fmap inliner jc) m (map inliner es) cn
