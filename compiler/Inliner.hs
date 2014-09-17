@@ -50,3 +50,6 @@ joinExpr (JMethod jc m es cn) =
 joinExpr (JField jc fn cn) = JField (fmap joinExpr jc) fn cn
 joinExpr (Seq es) = Seq (map joinExpr es)
 joinExpr (Merge e1 e2) = Merge (joinExpr e1) (joinExpr e2)
+
+examp :: Expr t e
+examp = inliner fact
