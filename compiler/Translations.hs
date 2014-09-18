@@ -16,6 +16,7 @@ module Translations
     , compileS
     , compileBN
     , compileBS
+    , sf2java
     , compilesf2java
     ) where
 
@@ -304,7 +305,7 @@ translateBench = createWrap (up benchinst)
 
 
 --genClosure :: J.CompilationUnit
---genClosure = (J.CompilationUnit (Just (J.PackageDecl (J.Name [(J.Ident "benchmark")]))) 
+--genClosure = (J.CompilationUnit (Just (J.PackageDecl (J.Name [(J.Ident "benchmark")])))
 --                                                [] [(closureClass)])
 
 -- Bench naive+ applyopt
@@ -341,5 +342,3 @@ compileBN True = \name e -> evalState (translateBench name (fexp2cexp e)) 0--eva
 compileBS :: Bool -> Compilation
 compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) False) []) Set.empty) 0
 compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) False) []) Set.empty) 0
-
-
