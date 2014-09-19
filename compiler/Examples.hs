@@ -34,25 +34,20 @@ tailFact
            (Var tail_fact `App` (Var acc `mult` Var n) `App` (Var n `sub` one))))
     javaInt (javaInt `Fun` javaInt)
 
+
+testTail :: Expr t e
+testTail = Fix (\f n -> If (Var n `eq` zero)
+                           one
+                           (Var f `App` (Var n `sub` one)))
+               javaInt
+               (javaInt `Fun` javaInt)
+
 fact :: Expr t (Expr t e)
 fact = Fix (\f n -> If (Var n `eq` zero)
                        one
                        (Var n `mult` (Var f `App` (Var n `sub` one))))
            javaInt
            (javaInt `Fun` javaInt)
-
--- After one inline
-fact1 :: Expr t e
-fact1 = Lam (javaInt `Fun` javaInt)
-            (\n -> If (Var n `eq` zero)
-                      one
-                      (Var n `mult` (Fix (\f n -> If (Var n `eq` zero)
-                                                     one
-                                                     (Var n `mult` (Var f `App` (Var n `sub` one))))
-                                         javaInt
-                                         (javaInt `Fun` javaInt) `App` (Var n `sub` one))))
-
-
 
 tailFactLike :: Expr t e
 tailFactLike
