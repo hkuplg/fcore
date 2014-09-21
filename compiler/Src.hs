@@ -117,7 +117,7 @@ subtype (JClass c) (JClass d)         = c == d
 subtype (Fun t1 t2) (Fun t3 t4)       = t3 `subtype` t1 && t2 `subtype` t4
 subtype (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a1, TyVar a2) t1 `subtype` t2
 subtype (Product ts1) (Product ts2)   = length ts1 == length ts2 && uncurry subtype `all` zip ts1 ts2
--- subtype (ListOf t1) (ListOf t2)       = t1 `subtype` t2  -- List :: * -> * is covariant
+subtype (ListOf t1) (ListOf t2)       = t1 `subtype` t2  -- List :: * -> * is covariant
 subtype (And t1 t2) t3                = t1 `subtype` t3 || t2 `subtype` t3
 subtype t1 (And t2 t3)                = t1 `subtype` t2 && t1 `subtype` t3
 subtype t1 t2
