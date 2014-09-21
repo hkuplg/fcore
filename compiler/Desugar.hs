@@ -32,7 +32,7 @@ transType d = go
     go (Product ts) = C.Product (map go ts)
     go (Forall a t) = C.Forall (\a' -> transType (Map.insert a a' d) t)
     go (And t1 t2)  = C.And (go t1) (go t2)
-    
+
 dsTcExpr :: DsMap t e -> Expr TcId -> C.Expr t e
 dsTcExpr (d, g) = go
   where
@@ -123,10 +123,10 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
         (Right cExpr) -> C.JField (Right (go cExpr)) fName r
 
     -- Non Java Class translation
-    -- go (PrimList l)              = FPrimList (map go l) 
-    
+    -- go (PrimList l)              = FPrimList (map go l)
+
     -- Primitive List to java class
-    
+
     go (PrimList l)              = case l of     -- translate to java new obj
                                      []   -> C.JNewObj "hk.hku.cs.f2j.Nil" []
                                      x:xs -> C.JNewObj "hk.hku.cs.f2j.Cons" [go x, go (PrimList xs)]
@@ -187,16 +187,14 @@ dsLetRecToFixEncoded (d,g) = go
     go _ = panic "Desugar.dsLetRecEncode"
 
 -- Convert from: LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId)
--- To:           LetRec [(Type t, Type t)] ([e] -> [Expr t e]) ([e] -> Expr t e)
+-- To:           LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
 dsLetRecToLetRec :: DsMap t e -> Expr TcId -> C.Expr t e
 dsLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec sigs' binds' body'
   where
-    (names, sigs, defs) = unzip3 binds
-    sigs'  = map (\t -> case t of
-                          Fun t1 t2 -> (transType d t1, transType d t2)
-                          _ -> sorry "dsLetRecToLetRec: not a Fun") sigs
-    binds' = \names' -> map (dsTcExpr (d, zip names (map C.Var names') `addToVarMap` g)) defs
-    body'  = \names' -> dsTcExpr (d, zip names (map C.Var names') `addToVarMap` g) body
+    (ids, sigs, defs) = unzip3 binds
+    sigs'  = map (transType d) sigs
+    binds' = \ids' -> map (dsTcExpr (d, zip ids (map C.Var ids') `addToVarMap` g)) defs
+    body'  = \ids' -> dsTcExpr (d, zip ids (map C.Var ids') `addToVarMap` g) body
 
 dsLetRecToLetRec _ _ = panic "Desugar.dsLetRecToLetRec"
 

@@ -122,20 +122,20 @@ transExpr (Fix f t1 t) =
                   (transType i t1)
                   (transType i t))
 
--- LetRec [(Type t, Type t)] ([e] -> [Expr t e]) ([e] -> Expr t e)
+-- LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
 transExpr (LetRec sigs binds body) =
   do i <- takeFreshIndex
-     let sigs' = map (\(t1,t2) -> (transType i t1, transType i t2)) sigs
+     let sigs' = map (transType i) sigs
      js <- replicateM (length sigs) takeFreshIndex
      k <- takeFreshIndex
-     let binds' = (\names' ->
+     let binds' = \names' ->
                     map (\e -> snd (evalState (transExpr e) k))
-                      (binds (zipWith (\n (t1,t2) -> (n, Fun t1 t2)) names' sigs)))
-     let body' = (\names' ->
-                      snd (evalState (transExpr (body (zipWith (\n (t1,t2) -> (n, Fun t1 t2)) names' sigs))) k))
+                      (binds (zipWith (\n t -> (n, t)) names' sigs))
+     let body' = \names' ->
+                      snd (evalState (transExpr (body (zipWith (\n t -> (n, t)) names' sigs))) k)
 
-     let t = infer ((unsafeCoerce body') (map (\(t1,t2) -> Fun t1 t2) sigs))
-     k  <- takeFreshIndex
+     let t = infer ((unsafeCoerce body') sigs)
+     k <- takeFreshIndex
      return (t, LetRec sigs' binds' body')
 
 infer :: Expr t e -> Type t
