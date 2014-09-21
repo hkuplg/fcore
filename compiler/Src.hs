@@ -2,7 +2,7 @@
    http://www.haskell.org/onlinereport/exps.html
    http://caml.inria.fr/pub/docs/manual-ocaml/expr.html -}
 
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
 
 module Src
   ( Type(..)
@@ -29,6 +29,7 @@ import qualified Language.Java.Syntax as J (Op(..))
 -- import qualified Language.Java.Pretty as P
 import Text.PrettyPrint.Leijen
 
+import Data.Data
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -43,7 +44,10 @@ data Type
   | Product [Type]
   | ListOf Type
   | And Type Type
-  deriving (Eq, Show)
+  -- Warning: If you ever add a case to this, you MUST also define the binary
+  -- relations on your new case. Namely, add cases for your data constructor in
+  -- `alphaEqTy` and `subtype` below.
+  deriving (Eq, Show, Data, Typeable)
 
 data Lit
     = Integer Integer
@@ -100,7 +104,10 @@ alphaEqTy (Fun t1 t2)    (Fun t3 t4)    = t1 `alphaEqTy` t3 && t2 `alphaEqTy` t4
 alphaEqTy (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEqTy `all` zip ts1 ts2
 alphaEqTy (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `alphaEqTy` t1
 alphaEqTy (ListOf a) (ListOf b)         = a == b  -- ???
-alphaEqTy  _              _             = False
+alphaEqTy t1 t2
+  | toConstr t1 == toConstr t2          = panic "Src.alphaEqTy"
+                                          -- Panic if the names of the constructors are the same
+  | otherwise                           = False
 
 subtype :: Type -> Type -> Bool
 subtype (TyVar a) (TyVar b)           = a == b
@@ -110,10 +117,13 @@ subtype (JClass c) (JClass d)         = c == d
 subtype (Fun t1 t2) (Fun t3 t4)       = t3 `subtype` t1 && t2 `subtype` t4
 subtype (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a1, TyVar a2) t1 `subtype` t2
 subtype (Product ts1) (Product ts2)   = length ts1 == length ts2 && uncurry subtype `all` zip ts1 ts2
-subtype (ListOf t1) (ListOf t2)       = t1 `subtype` t2  -- List :: * -> * is covariant
+-- subtype (ListOf t1) (ListOf t2)       = t1 `subtype` t2  -- List :: * -> * is covariant
 subtype (And t1 t2) t3                = t1 `subtype` t3 || t2 `subtype` t3
 subtype t1 (And t2 t3)                = t1 `subtype` t2 && t1 `subtype` t3
-subtype _ _                           = False
+subtype t1 t2
+  | toConstr t1 == toConstr t2        = panic "Src.subtype"
+                                        -- Panic if the names of the constructors are the same
+  | otherwise                         = False
 
 substFreeTyVars :: (Name, Type) -> Type -> Type
 substFreeTyVars (x, r) = go
