@@ -99,11 +99,12 @@ type ValueContext = Map.Map Name Type
 
 alphaEqTy :: Type -> Type -> Bool
 alphaEqTy (TyVar a)      (TyVar b)      = a == b
-alphaEqTy (JClass a)     (JClass b)     = a == b
+alphaEqTy (JClass c)     (JClass d)     = c == d
 alphaEqTy (Fun t1 t2)    (Fun t3 t4)    = t1 `alphaEqTy` t3 && t2 `alphaEqTy` t4
-alphaEqTy (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEqTy `all` zip ts1 ts2
 alphaEqTy (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `alphaEqTy` t1
+alphaEqTy (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEqTy `all` zip ts1 ts2
 alphaEqTy (ListOf a) (ListOf b)         = a == b  -- ???
+alphaEqTy (And t1 t2) (And t3 t4)       = t1 `alphaEqTy` t3 && t2 `alphaEqTy` t4
 alphaEqTy t1 t2
   | toConstr t1 == toConstr t2          = panic "Src.alphaEqTy"
                                           -- Panic if the names of the constructors are the same
