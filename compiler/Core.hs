@@ -68,7 +68,7 @@ data Expr t e
       (Type t) -- t1
       (Type t) -- t
 
-  | LetRec [(Type t, Type t)]  -- Signatures
+  | LetRec [Type t]            -- Signatures
            ([e] -> [Expr t e]) -- Bindings
            ([e] -> Expr t e)   -- Body
   -- Java
@@ -210,7 +210,7 @@ pprExpr p (i,j) (LetRec sigs binds body)
     n   = length sigs
     ids = [i..(i+n-1)]
     ppr_ids   = map pprVar ids
-    ppr_sigs  = map (\(t1,t2) -> pprType p i (Fun t1 t2)) sigs
+    ppr_sigs  = map (pprType p i) sigs
     ppr_defs  = map (pprExpr p (i, j + n)) (binds ids)
     ppr_binds = zipWith3 (\ppr_id ppr_sig ppr_def ->
                   ppr_id <+> colon <+> ppr_sig <$$> indent 2 (equals <+> ppr_def))
