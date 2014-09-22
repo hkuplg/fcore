@@ -99,28 +99,31 @@ import JavaUtils
 -- Types
 
 typ :: { Type }
-    : "forall" tvar "." typ       { Forall $2 $4 }
+  : "forall" tvar "." typ  { Forall $2 $4 }
 
-    -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
-    -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
-    | atyp "->" typ     { Fun $1 $3 }
-    | atyp              { $1 }
-    | "[" atyp "]"     { ListOf $2 }
-    --| typ "&" atyp      { And $1 $3 }
+  -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
+  -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
+  | atyp "->" typ          { Fun $1 $3 }
+  | atyp                   { $1 }
+  | "[" typ "]"            { ListOf $2 }
+  --| typ "&" atyp         { And $1 $3 }
 
 atyp :: { Type }
-    : tvar                      { TyVar $1 }
-    | "(" typ ")"               { $2 }
-    | "(" comma_typs ")"        { Product $2 }
-    | JAVACLASS                 { JClass $1 }
+  : tvar                   { TyVar $1 }
+  | "(" typ ")"            { $2 }
+  | "(" comma_typs ")"     { Product $2 }
+  | JAVACLASS              { JClass $1 }
 
 comma_typs :: { [Type] }
-    : typ "," typ               { $1:[$3] }
-    | typ "," comma_typs        { $1:$3   }
+  : typ "," typ            { $1:[$3] }
+  | typ "," comma_typs     { $1:$3   }
 
-tvars_emp :: { [Name] }
-  : {- empty -}         { []    }
-  | tvar tvars_emp      { $1:$2 }
+tyvars :: { [Name] }
+  : {- empty -}            { []    }
+  | tvar tyvars            { $1:$2 }
+
+tvar :: { Name }
+  : UPPERID                { $1 }
 
 -- Expressions
 
@@ -211,7 +214,7 @@ var_with_annot :: { (Name, Type) }
   | "(" var_with_annot ")"      { $2       }
 
 bind :: { Bind Name }
-    : var tvars_emp var_annots_emp maybe_sig "=" expr
+    : var tyvars var_annots_emp maybe_sig "=" expr
         { Bind { bindId       = $1
                , bindTargs    = $2
                , bindArgs     = $3
@@ -241,9 +244,6 @@ var_annots_emp :: { [(Name, Type)] }
 
 var :: { Name }
     : LOWERID           { $1 }
-
-tvar :: { Name }
-    : UPPERID           { $1 }
 
 {
 -- The monadic parser
