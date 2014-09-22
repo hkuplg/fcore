@@ -101,30 +101,30 @@ import JavaUtils
 -- "&" have the lowest precedence and is left associative.
 -- Since we would like:  forall A. [A] -> Even  &  forall A. [A] -> Odd
 -- to be parsed as:      (forall A. [A] -> Even) & (forall A. [A] -> Odd)
-typ :: { Type }
-  : ftyp "&" typ             { And $1 $3 }
-  | ftyp                     { $1 }
+type :: { Type }
+  : ftype "&" type             { And $1 $3 }
+  | ftype                     { $1 }
 
-ftyp :: { Type }
-  : atyp "->" ftyp           { Fun $1 $3 }
-  | "forall" tyvar "." ftyp  { Forall $2 $4 }
-  | atyp                     { $1 }
+ftype :: { Type }
+  : atype "->" ftype           { Fun $1 $3 }
+  | "forall" tyvar "." ftype  { Forall $2 $4 }
+  | atype                     { $1 }
 
-atyp :: { Type }
+atype :: { Type }
   : tyvar                    { TyVar $1 }
   | JAVACLASS                { JClass $1 }
   | "(" product_body ")"     { Product $2 }
   | "{" recordty_body "}"    { RecordTy $2 }
-  | "[" typ "]"              { ListOf $2 }
-  | "(" typ ")"              { $2 }
+  | "[" type "]"              { ListOf $2 }
+  | "(" type ")"              { $2 }
 
 product_body :: { [Type] }
-  : typ "," typ              { $1:[$3] }
-  | typ "," product_body     { $1:$3   }
+  : type "," type              { $1:[$3] }
+  | type "," product_body     { $1:$3   }
 
 recordty_body :: { [(Label, Type)] }
-  : label ":" typ                    { [($1, $3)]  }
-  | label ":" typ "," recordty_body  { ($1, $3):$5 }
+  : label ":" type                    { [($1, $3)]  }
+  | label ":" type "," recordty_body  { ($1, $3):$5 }
 
 label :: { Label }
   : LOWERID                  { $1 }
@@ -164,46 +164,37 @@ expr10 :: { Expr Name }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
-    | fexp                                { $1 }
+    | fexpr                                { $1 }
 
-fexp :: { Expr Name }
-    : fexp aexp         { App  $1 $2 }
-    | fexp typ          { TApp $1 $2 }
+fexpr :: { Expr Name }
+    : fexpr aexp         { App  $1 $2 }
+    | fexpr type          { TApp $1 $2 }
     | aexp              { $1 }
 
 aexp :: { Expr Name }
-    : aexp1             { $1 }
-
-aexp1 :: { Expr Name }
     : var                       { Var $1 }
     | INTEGER                   { Lit (Integer $1) }
     | STRING                    { Lit (String $1) }
     | BOOLEAN                   { Lit (Boolean $1) }
     | CHAR                      { Lit (Char $1) }
-    | aexp "." UNDERID          { Proj $1 $3 }
     | "(" comma_exprs ")"       { Tuple $2 }
+    | aexp "." UNDERID          { Proj $1 $3 }
     | "(" expr ")"              { $2 }
     -- Java
     | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Left $1) $3 $5 undefined }
     | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Right $1) $3 $5 undefined }
-    | JAVACLASS "." id { JField (Left $1) $3 undefined }
-    | aexp "." id      { JField (Right $1) $3 undefined }
+    | JAVACLASS "." field { JField (Left $1) $3 undefined }
+    | aexp "." field      { JField (Right $1) $3 undefined }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
     | "{" semi_exprs "}"        { Seq $2 }
-    -- primitive list
-    | listexp                   { $1 }
+    | list_body                 { PrimList $1 }
 
--- listexp "." LOWERID       { JMethod (Left (PrimList $1))) $3 [] undefined}
+list_body :: { [Expr String] }
+    : "(" expr "::" list_body ")"  { $2:$4 }
+    | "[" comma_exprs_emp "]"      { $2 }
 
-listexp :: { Expr String }
-    : listexps                  { PrimList $1 }
-
-listexps :: { [Expr String] }
-    : "(" expr "::" listexps ")"  { $2:$4 }
-    | "[" comma_exprs_emp "]" { $2 }
-
-id :: { Name }
+field :: { Name }
    : LOWERID { $1 }
    | UPPERID { $1 }
 
@@ -221,7 +212,7 @@ comma_exprs_emp :: { [Expr Name] }
     | comma_exprs   { $1   }
 
 var_with_annot :: { (Name, Type) }
-  : "(" var ":" typ ")"         { ($2, $4) }
+  : "(" var ":" type ")"         { ($2, $4) }
   | "(" var_with_annot ")"      { $2       }
 
 bind :: { Bind Name }
@@ -235,7 +226,7 @@ bind :: { Bind Name }
         }
 
 maybe_sig :: { Maybe Type }
-  : ":" typ     { Just $2 }
+  : ":" type     { Just $2 }
   | {- empty -} { Nothing }
 
 and_binds :: { [Bind Name] }
@@ -247,7 +238,7 @@ recflag :: { RecFlag }
   | {- empty -} { NonRec }
 
 var_annot :: { (Name, Type) }
-    : "(" var ":" typ ")"       { ($2, $4) }
+    : "(" var ":" type ")"       { ($2, $4) }
 
 var_annots_emp :: { [(Name, Type)] }
     : {- empty -}               { []    }
