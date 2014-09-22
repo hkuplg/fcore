@@ -39,7 +39,7 @@ transExpr (Lit (S.Char c))    = return (JClass "java.lang.Character", Lit (S.Cha
 transExpr (BLam f) =
   do i <- takeFreshIndex
      (t, m) <- transExpr (f i)
-     return ( Forall (\a -> fsubstTT (i, TVar a) t)
+     return ( Forall (\a -> fsubstTT (i, TyVar a) t)
             , BLam (\a -> fsubstEE (i, Var a) m))
 
 transExpr (Lam t f) =
@@ -143,7 +143,7 @@ infer e = unsafeCoerce $ fst (evalState (transExpr e') 0)
   where e' = unsafeCoerce e
 
 transType :: Int -> Type Int -> Type Int
-transType i (TVar a)      = TVar a
+transType i (TyVar a)     = TyVar a
 transType i (a1 `Fun` a2) = transType i a1 `Fun` transType i a2
 transType i (Forall f)    = Forall (\a -> transType (i + 1) (f i)) -- bug!
 transType i (Product ts)  = Product (map (transType i) ts)
@@ -163,7 +163,7 @@ appC Id e      = e
 appC (C e1) e2 = App e1 e2
 
 coerce :: Int -> Type Int -> Type Int -> Maybe (Coercion Int Int)
-coerce i (TVar a) (TVar b)
+coerce i (TyVar a) (TyVar b)
   | a == b    = return Id
     -- TODO: requires variable identity
   | otherwise = Nothing
@@ -182,7 +182,7 @@ coerce i (Forall f) (Forall g) =
      case c of
        Id -> return Id
        _  -> return (C (Lam (transType i (Forall f))
-                         (\f -> BLam (\a -> (appC c . TApp (Var f)) (TVar a)))))
+                         (\f -> BLam (\a -> (appC c . TApp (Var f)) (TyVar a)))))
 coerce i (Product ss) (Product ts)
   | length ss /= length ts = Nothing
   | otherwise =

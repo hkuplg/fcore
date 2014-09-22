@@ -9,7 +9,7 @@ module Core
   , emptyValueContext
 
   -- "Eq"
-  , alphaEqType
+  , alphaEquiv
 
   -- "Show"
   , pprType, pprExpr
@@ -35,50 +35,49 @@ import qualified Data.Set as Set
 import Prelude hiding (id)
 
 data Type t
-  = TVar t                -- a
-  | Fun (Type t) (Type t) -- t1 -> t2
-  | Forall (t -> Type t)  -- forall a. t
-  | Product [Type t]      -- (t1, ..., tn)
-  | JClass String         -- C
-  | And (Type t) (Type t) -- t1 & t2
+  = TyVar t                -- a
+  | JClass ClassName       -- C
+  | Fun (Type t) (Type t)  -- t1 -> t2
+  | Forall (t -> Type t)   -- forall a. t
+  | Product [Type t]       -- (t1, ..., tn)
+  | And (Type t) (Type t)  -- t1 & t2
+    -- Warning: If you ever add a case to this, you MUST also define the binary
+    -- relations on your new case. Namely, add cases for your data constructor
+    -- in `alphaEquiv` below.
 
 data Expr t e
   = Var e
 
+  -- Binders we have: λ, fix, letrec, and Λ
   | Lam (Type t) (e -> Expr t e)
-  | App  (Expr t e) (Expr t e)
-
+  | Fix (e -> e -> Expr t e)
+        (Type t)  -- t1
+        (Type t)  -- t
+      -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
+      -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
+  | LetRec [Type t]             -- Signatures
+           ([e] -> [Expr t e])  -- Bindings
+           ([e] -> Expr t e)    -- Body
   | BLam (t -> Expr t e)
+
+  | App  (Expr t e) (Expr t e)
   | TApp (Expr t e) (Type t)
 
-  | Lit Src.Lit                           -- Literal introduction
-  | If (Expr t e) (Expr t e) (Expr t e) -- Literal elimination
+  | Lit Src.Lit                          -- Literal introduction
+  | If (Expr t e) (Expr t e) (Expr t e)  -- Literal eliminations
   | PrimOp (Expr t e) Src.Operator (Expr t e)
       -- SystemF extension from:
       -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
       -- (no int restriction)
 
-  | Tuple [Expr t e]    -- Tuple introduction
-  | Proj Int (Expr t e) -- Tuple elimination
+  | Tuple [Expr t e]     -- Tuple introduction
+  | Proj Int (Expr t e)  -- Tuple elimination
 
-    -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
-    -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
-  | Fix
-      (e -> e -> Expr t e)
-      (Type t) -- t1
-      (Type t) -- t
-
-  | LetRec [Type t]            -- Signatures
-           ([e] -> [Expr t e]) -- Bindings
-           ([e] -> Expr t e)   -- Body
   -- Java
   | JNewObj ClassName [Expr t e]
-  | JMethod
-      (Either ClassName (Expr t e)) MethodName [Expr t e]
-      ClassName
-  | JField
-      (Either ClassName (Expr t e)) FieldName
-      ClassName
+  | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
+  | JField  (Either ClassName (Expr t e)) FieldName ClassName
+
   | Seq [Expr t e]
 
   | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
@@ -93,21 +92,21 @@ type ValueContext t e = Map.Map e (Type t)
 emptyValueContext :: ValueContext t e
 emptyValueContext = Map.empty
 
-alphaEqType :: Type Int -> Type Int -> Bool
-alphaEqType = go 0
+alphaEquiv :: Type Int -> Type Int -> Bool
+alphaEquiv = go 0
   where
-    go i (TVar a)    (TVar b)      = a == b
-    go i (Fun s1 s2) (Fun t1 t2)   = go i s1 t1 && go i s2 t2
-    go i (Forall f)  (Forall g)    = go (succ i) (f i) (g i)
-    go i (Product ss) (Product ts) = length ss == length ts &&
-                                     uncurry (go i) `all` zip ss ts
-    go i (JClass c)  (JClass d)    = c == d
-    go i (And s1 s2) (And t1 t2)   = go i s1 t1 && go i s2 t2
-    go i  _           _            = False
+    go i (TyVar a)    (TyVar b)    = a == b
+    go i (JClass c)   (JClass d)   = c == d
+    go i (Fun s1 s2)  (Fun t1 t2)  = go i s1 t1 && go i s2 t2
+    go i (Forall f)   (Forall g)   = go (succ i) (f i) (g i)
+    go i (Product ss) (Product ts) = length ss == length ts
+                                     && uncurry (go i) `all` zip ss ts
+    go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
+    go i t1           t2           = False
 
 pprType :: Prec -> Int -> Type Int -> Doc
 
-pprType p i (TVar a)     = pprTVar a
+pprType p i (TyVar a)     = pprTVar a
 
 pprType p i (Fun t1 t2)  =
   parensIf p 2
@@ -221,9 +220,9 @@ pprExpr p (i,j) (Merge e1 e2) =
   parens $ pprExpr p (i,j) e1 <+> dcomma <+> pprExpr p (i,j) e2
 
 fsubstTT :: (Int, Type Int) -> Type Int -> Type Int
-fsubstTT (x,r) (TVar a)
+fsubstTT (x,r) (TyVar a)
   | a == x                 = r
-  | otherwise              = TVar a
+  | otherwise              = TyVar a
 fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
 fsubstTT (x,r) (JClass c)  = JClass c

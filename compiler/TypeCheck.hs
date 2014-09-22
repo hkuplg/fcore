@@ -10,7 +10,7 @@ import JavaUtils
 import JvmTypeQuery
 import Panic
 
-import Text.PrettyPrint.Leijen
+
 
 import System.IO
 import System.Process
@@ -244,7 +244,7 @@ tcExpr (Merge e1 e2) =
 tcExpr (PrimList l) =
       do (es, ts) <- mapAndUnzipM tcExpr l
          case ts of [] -> return (PrimList es, (JClass "hk.hku.cs.f2j.Nil"))
-                    _  -> if (all (`alphaEqTy` (ts !! 0)) ts)
+                    _  -> if (all (`alphaEquiv` (ts !! 0)) ts)
                             then return (PrimList es, (JClass "hk.hku.cs.f2j.Cons"))
                             else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
 
@@ -252,7 +252,7 @@ tcExpr (PrimList l) =
 tcExprAgainst :: Expr Name -> Type -> TcM (Expr TcId, Type)
 tcExprAgainst expr expected_ty
   = do (expr', actual_ty) <- tcExpr expr
-       if actual_ty `alphaEqTy` expected_ty
+       if actual_ty `alphaEquiv` expected_ty
           then return (expr', actual_ty)
           else throwError (Mismatch expected_ty actual_ty)
 
