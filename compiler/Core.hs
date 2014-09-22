@@ -43,10 +43,11 @@ data Type t
   | And (Type t) (Type t)  -- t1 & t2
     -- Warning: If you ever add a case to this, you MUST also define the binary
     -- relations on your new case. Namely, add cases for your data constructor
-    -- in `alphaEquiv` below.
+    -- in `alphaEquiv' and `coerce' below. Consult George if you're not sure.
 
 data Expr t e
   = Var e
+  | Lit Src.Lit
 
   -- Binders we have: λ, fix, letrec, and Λ
   | Lam (Type t) (e -> Expr t e)
@@ -63,8 +64,7 @@ data Expr t e
   | App  (Expr t e) (Expr t e)
   | TApp (Expr t e) (Type t)
 
-  | Lit Src.Lit                          -- Literal introduction
-  | If (Expr t e) (Expr t e) (Expr t e)  -- Literal eliminations
+  | If (Expr t e) (Expr t e) (Expr t e)
   | PrimOp (Expr t e) Src.Operator (Expr t e)
       -- SystemF extension from:
       -- https://www.cs.princeton.edu/~dpw/papers/tal-toplas.pdf
