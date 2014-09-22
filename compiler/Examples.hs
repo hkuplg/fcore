@@ -102,17 +102,19 @@ evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` 
 -----------------------
 identity :: Expr t e
 identity = Lam javaInt (\x -> Var x)
-id_1_1 = peval (App identity one) `eq` one
+id_1 = App identity one
 
 id_twice = Lam javaInt (\x -> App identity (Var x))
-id_twice_1_1 = peval (App id_twice one) `eq` one
+app_id_twice_1 = App id_twice one
+
+--id_4times = Lam javaInt (\x -> App id_twice
 
 app_lam_if = App (Lam javaInt (\x -> If ((Var x) `eq` one)
                                  ((Var x) `sub` one)
                                  (zero `sub` one)))
-          (zero `sub` one)
+             (zero `sub` one)
 app_lam_app = App (Lam javaInt (\x -> App (Lam javaInt (\y -> (Var x) `sub` (Var y))) zero))
-       one
+              one
 
 fix = Fix (\f n -> If (((one `sub` zero) `eq` zero))
                    one
@@ -125,14 +127,14 @@ app_fix = App fix (Lit (Src.Integer 10))
 minus = Lam javaInt (\x -> Lam javaInt (\y -> Var x `sub` Var y))
 minus_1 = App minus one
 minus_1_0 = App minus_1 zero
-minus_1_0_be_1 = peval minus_1_0 `eq` one
 
-app_if_lam = App (If (one `eq` one) (App minus one) (App minus zero)) one
+if_lam = If (one `eq` one) (App minus one) (App minus zero)
+app_if_lam = App if_lam one
 
-
-ttt1 :: Expr t e
-ttt1 = App (Lam javaInt (\x -> App (Lam javaInt (\y -> (Var x) `sub` (Var y))) zero))
-           one
+-- complex test
+complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
+                  zero
+                  one
 
 javaInt      = JClass "java.lang.Integer"
 javaBool     = JClass "java.lang.Boolean"
