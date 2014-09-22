@@ -65,4 +65,5 @@ calc (PrimOp e1 op e2) =
           simplified = PrimOp e1' op e2'
 calc e = e
 
+peval :: Expr t (Expr t e) -> Expr t e
 peval = calc . joinExpr . betaReduct
