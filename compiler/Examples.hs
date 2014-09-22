@@ -8,6 +8,7 @@ module Examples where
 import qualified Src
 import Core
 import Simplify
+import PartialEvaluator
 
 import PrettyUtils
 
@@ -118,14 +119,14 @@ fix = Fix (\f n -> If (((one `sub` zero) `eq` zero))
                    (Var n `mult` (Var f `App` (Var n `sub` one))))
       javaInt
       (javaInt `Fun` javaInt)
-app_fix = App fix (Lit (S.Integer 10))
+app_fix = App fix (Lit (Src.Integer 10))
 
 -- test App e1 e2, where e1 can be partially evaluated to a Lam
 minus = Lam javaInt (\x -> Lam javaInt (\y -> Var x `sub` Var y))
 minus_1 = App minus one
 minus_1_0 = App minus_1 zero
 minus_1_0_be_1 = peval minus_1_0 `eq` one
-                 
+
 app_if_lam = App (If (one `eq` one) (App minus one) (App minus zero)) one
 
 
