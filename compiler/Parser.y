@@ -11,7 +11,7 @@ import Lexer
 import JavaUtils
 }
 
-%name parser
+%name parseExpr expr
 %tokentype { Token }
 %monad     { P }
 %error     { parseError }
@@ -43,7 +43,7 @@ import JavaUtils
   "then"   { Tthen }
   "else"   { Telse }
   ","      { Tcomma }
-  
+
 
   UPPERID  { Tupperid $$ }
   LOWERID  { Tlowerid $$ }
@@ -255,7 +255,7 @@ parseError :: [Token] -> P a
 parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
 
 reader :: String -> Expr Name
-reader src = case (parser . lexer) src of
+reader src = case (parseExpr . lexer) src of
                  POk expr   -> expr
                  PError msg -> error msg
 }
