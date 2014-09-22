@@ -184,17 +184,17 @@ aexp1 :: { Expr Name }
     | "(" comma_exprs ")"       { Tuple $2 }
     | "(" expr ")"              { $2 }
     -- Java
-    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Left $1) $3 $5 "" }
-    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Right $1) $3 $5 "" }
-    | JAVACLASS "." id { JField (Left $1) $3 "" }
-    | aexp "." id      { JField (Right $1) $3 "" }
+    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Left $1) $3 $5 undefined }
+    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Right $1) $3 $5 undefined }
+    | JAVACLASS "." id { JField (Left $1) $3 undefined }
+    | aexp "." id      { JField (Right $1) $3 undefined }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
     | "{" semi_exprs "}"        { Seq $2 }
     -- primitive list
     | listexp                   { $1 }
 
--- listexp "." LOWERID       { JMethod (Left (PrimList $1))) $3 [] ""}
+-- listexp "." LOWERID       { JMethod (Left (PrimList $1))) $3 [] undefined}
 
 listexp :: { Expr String }
     : listexps                  { PrimList $1 }
