@@ -98,32 +98,43 @@ import JavaUtils
 
 -- Types
 
+-- "&" have the lowest precedence and is left associative.
+-- Since we would like:  forall A. [A] -> Even  &  forall A. [A] -> Odd
+-- to be parsed as:      (forall A. [A] -> Even) & (forall A. [A] -> Odd)
 typ :: { Type }
-  : "forall" tvar "." typ  { Forall $2 $4 }
+  : ftyp "&" typ             { And $1 $3 }
+  | ftyp                     { $1 }
 
-  -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
-  -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
-  | atyp "->" typ          { Fun $1 $3 }
-  | atyp                   { $1 }
-  | "[" typ "]"            { ListOf $2 }
-  --| typ "&" atyp         { And $1 $3 }
+ftyp :: { Type }
+  : atyp "->" ftyp           { Fun $1 $3 }
+  | "forall" tyvar "." ftyp  { Forall $2 $4 }
+  | atyp                     { $1 }
 
 atyp :: { Type }
-  : tvar                   { TyVar $1 }
-  | "(" typ ")"            { $2 }
-  | "(" comma_typs ")"     { Product $2 }
-  | JAVACLASS              { JClass $1 }
+  : tyvar                    { TyVar $1 }
+  | JAVACLASS                { JClass $1 }
+  | "(" product_body ")"     { Product $2 }
+  | "{" recordty_body "}"    { RecordTy $2 }
+  | "[" typ "]"              { ListOf $2 }
+  | "(" typ ")"              { $2 }
 
-comma_typs :: { [Type] }
-  : typ "," typ            { $1:[$3] }
-  | typ "," comma_typs     { $1:$3   }
+product_body :: { [Type] }
+  : typ "," typ              { $1:[$3] }
+  | typ "," product_body     { $1:$3   }
+
+recordty_body :: { [(Label, Type)] }
+  : label ":" typ                    { [($1, $3)]  }
+  | label ":" typ "," recordty_body  { ($1, $3):$5 }
+
+label :: { Label }
+  : LOWERID                  { $1 }
 
 tyvars :: { [Name] }
-  : {- empty -}            { []    }
-  | tvar tyvars            { $1:$2 }
+  : {- empty -}              { []    }
+  | tyvar tyvars             { $1:$2 }
 
-tvar :: { Name }
-  : UPPERID                { $1 }
+tyvar :: { Name }
+  : UPPERID                  { $1 }
 
 -- Expressions
 
@@ -148,7 +159,7 @@ infixexpr :: { Expr Name }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
 
 expr10 :: { Expr Name }
-    : "/\\" tvar "." expr                 { BLam $2 $4  }
+    : "/\\" tyvar "." expr                { BLam $2 $4  }
     | "\\" var_with_annot "." expr        { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }

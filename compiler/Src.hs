@@ -7,6 +7,7 @@
 module Src
   ( Type(..)
   , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..)
+  , Label
   , TypeContext, ValueContext
   , Name, TcId
   -- , RdrExpr
