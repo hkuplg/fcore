@@ -90,11 +90,39 @@ import JavaUtils
 
 %%
 
--- There are times when it is more convenient to parse a more general
+-- Note: There are times when it is more convenient to parse a more general
 -- language than that which is actually intended, and check it later.
 
--- Reference for rules:
+-- The parser rules of GHC may come in handy:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
+
+-- Types
+
+typ :: { Type }
+    : "forall" tvar "." typ       { Forall $2 $4 }
+
+    -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
+    -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
+    | atyp "->" typ     { Fun $1 $3 }
+    | atyp              { $1 }
+    | "[" atyp "]"     { ListOf $2 }
+    --| typ "&" atyp      { And $1 $3 }
+
+atyp :: { Type }
+    : tvar                      { TyVar $1 }
+    | "(" typ ")"               { $2 }
+    | "(" comma_typs ")"        { Product $2 }
+    | JAVACLASS                 { JClass $1 }
+
+comma_typs :: { [Type] }
+    : typ "," typ               { $1:[$3] }
+    | typ "," comma_typs        { $1:$3   }
+
+tvars_emp :: { [Name] }
+  : {- empty -}         { []    }
+  | tvar tvars_emp      { $1:$2 }
+
+-- Expressions
 
 expr :: { Expr Name }
      : infixexpr %prec EOF      { $1 }
@@ -203,31 +231,6 @@ and_binds :: { [Bind Name] }
 recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
-
-typ :: { Type }
-    : "forall" tvar "." typ       { Forall $2 $4 }
-
-    -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
-    -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
-    | atyp "->" typ     { Fun $1 $3 }
-    | atyp              { $1 }
-    | "[" atyp "]"     { ListOf $2 }
-    --| typ "&" atyp      { And $1 $3 }
-
-
-atyp :: { Type }
-    : tvar                      { TyVar $1 }
-    | "(" typ ")"               { $2 }
-    | "(" comma_typs ")"        { Product $2 }
-    | JAVACLASS                 { JClass $1 }
-
-comma_typs :: { [Type] }
-    : typ "," typ               { $1:[$3] }
-    | typ "," comma_typs        { $1:$3   }
-
-tvars_emp :: { [Name] }
-  : {- empty -}         { []    }
-  | tvar tvars_emp      { $1:$2 }
 
 var_annot :: { (Name, Type) }
     : "(" var ":" typ ")"       { ($2, $4) }
