@@ -1,33 +1,40 @@
 module PartialEvaluator where
-    
+
 import Core
 import OptiUtils
-import Examples
 import qualified Src as S
 import qualified Language.Java.Syntax as J (Op(..))
-    
-peval :: Expr t (Expr t e) -> Expr t e
-peval (Var x) = x
-peval (Lam t f) = Lam t (\x -> peval . f . Var $ x)
-peval (BLam f) = BLam (\t -> peval . f $ t)
-peval (App e1 e2) =
-    case e1 of
-      Lam t f -> peval . f . peval $ e2
-      _ -> App (peval e1) (peval e2)
-{-
-    -- type-error. f2 is of type "e -> Expr t e" while f is of type "Expr t e -> Expr t (Expr t e)"
-    case peval e1 of
-      Lam t f2 -> f2 $ peval e2
--}
-peval (TApp e t) = TApp (peval e) t
-peval (Lit s) = Lit s
-peval (If e1 e2 e3) = 
-    case e1' of 
-      Lit (S.Boolean True) -> peval e2 
-      Lit (S.Boolean False) -> peval e3
-      _ -> If e1' (peval e2) (peval e3)
-    where e1' = peval e1
-peval (PrimOp e1 op e2) = -- TODO: op excludes (LShift RShift RRShift Xor CAnd COr)
+
+betaReduct :: Expr t (Expr t e) -> Expr t (Expr t e)
+betaReduct (Lam t f) = Lam t (\x -> betaReduct . f $ x)
+betaReduct (BLam f) = BLam (\t -> betaReduct . f $ t)
+betaReduct (App e1 e2) =
+    case betaReduct e1 of
+      Lam _ f -> f . joinExpr . betaReduct $ e2
+      _ -> App (betaReduct e1) (betaReduct e2)
+betaReduct (If e1 e2 e3) = If (betaReduct e1) (betaReduct e2) (betaReduct e3)
+betaReduct (TApp e t) = TApp (betaReduct e) t
+betaReduct (PrimOp e1 op e2) = PrimOp (betaReduct e1) op (betaReduct e2)
+betaReduct (Tuple es) = Tuple $ map betaReduct es
+betaReduct (Proj i e) = Proj i (betaReduct e)
+betaReduct (Fix f t1 t) = Fix (\e1 e2 -> betaReduct $ f e1 e2) t1 t
+betaReduct (LetRec sigs binds body) =
+    LetRec sigs
+           (\es -> map betaReduct $ binds es)
+           (\es -> betaReduct $ body es)
+betaReduct (JNewObj cname es) = JNewObj cname (map betaReduct es)
+betaReduct (JMethod cnameOrE mname es cname) = JMethod (fmap betaReduct cnameOrE) mname (map betaReduct es) cname
+betaReduct (JField cnameOrE fname cname) = JField (fmap betaReduct cnameOrE) fname cname
+betaReduct (Seq es) = Seq $ map betaReduct es
+betaReduct (Merge e1 e2) = Merge (betaReduct e1) (betaReduct e2)
+betaReduct e = e
+
+calc :: Expr t e -> Expr t e
+calc (Lam t f) = Lam t (\x -> calc . f $ x)
+calc (BLam f) = BLam (\t -> calc . f $ t)
+calc (App e1 e2) = App (calc e1) (calc e2)
+calc (TApp e t) = TApp (calc e) t
+calc (PrimOp e1 op e2) =
     case (e1', e2') of
       (Lit (S.Integer a), Lit (S.Integer b)) ->
           case op of
@@ -52,18 +59,29 @@ peval (PrimOp e1 op e2) = -- TODO: op excludes (LShift RShift RRShift Xor CAnd C
             S.Logic J.Or -> Lit . S.Boolean $ a || b
             _ -> simplified
       _ -> simplified
-    where e1' = peval e1
-          e2' = peval e2
+    where e1' = calc e1
+          e2' = calc e2
           simplified = PrimOp e1' op e2'
-peval (Tuple es) = Tuple $ map peval es
-peval (Proj i e) = Proj i (peval e)
-peval (Fix f t1 t) = Fix (\e1 e2 -> peval $ f (Var e1) (Var e2)) t1 t
-peval (LetRec sigs binds body) = 
-    LetRec sigs 
-           (\es -> map peval . binds $ map Var es) 
-           (\es -> peval . body $ map Var es)
-peval (JNewObj cname es) = JNewObj cname (map peval es)
-peval (JMethod cnameOrE mname es cname) = JMethod (fmap peval cnameOrE) mname (map peval es) cname
-peval (JField cnameOrE fname cname) = JField (fmap peval cnameOrE) fname cname
-peval (Seq es) = Seq $ map peval es
-peval (Merge e1 e2) = Merge (peval e1) (peval e2)
+calc (Tuple es) = Tuple $ map calc es
+calc (Proj i e) = Proj i (calc e)
+calc (Fix f t1 t) = Fix (\e1 e2 -> calc $ f e1 e2) t1 t
+calc (LetRec sigs binds body) =
+    LetRec sigs
+           (\es -> map calc $ binds es)
+           (\es -> calc $ body es)
+calc (JNewObj cname es) = JNewObj cname (map calc es)
+calc (JMethod cnameOrE mname es cname) = JMethod (fmap calc cnameOrE) mname (map calc es) cname
+calc (JField cnameOrE fname cname) = JField (fmap calc cnameOrE) fname cname
+calc (Seq es) = Seq $ map calc es
+calc (Merge e1 e2) = Merge (calc e1) (calc e2)
+calc (If e1 e2 e3) =
+    case calc e1 of
+      Lit (S.Boolean True) -> calc e2
+      Lit (S.Boolean False) -> calc e3
+      _ -> If (calc e1) (calc e2) (calc e3)
+calc e = e
+
+--foldExpr :: Expr t e -> (Expr t e -> Expr t e) -> Expr t e
+
+peval :: Expr t (Expr t e) -> Expr t e
+peval = calc . joinExpr . betaReduct

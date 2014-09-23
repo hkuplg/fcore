@@ -26,7 +26,7 @@ type DsMap t e = (DsTyVarMap t, DsVarMap t e)
 transType :: DsTyVarMap t -> Type -> C.Type t
 transType d = go
   where
-    go (TyVar a)    = C.TVar (fromMaybe (panic "Desugar.transType: TyVar") (Map.lookup a d))
+    go (TyVar a)    = C.TyVar (fromMaybe (panic "Desugar.transType: TyVar") (Map.lookup a d))
     go (JClass c)   = C.JClass c
     go (Fun t1 t2)  = C.Fun (go t1) (go t2)
     go (Product ts) = C.Product (map go ts)

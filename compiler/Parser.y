@@ -11,7 +11,7 @@ import Lexer
 import JavaUtils
 }
 
-%name parser
+%name parseExpr expr
 %tokentype { Token }
 %monad     { P }
 %error     { parseError }
@@ -43,7 +43,7 @@ import JavaUtils
   "then"   { Tthen }
   "else"   { Telse }
   ","      { Tcomma }
-  
+
 
   UPPERID  { Tupperid $$ }
   LOWERID  { Tlowerid $$ }
@@ -90,11 +90,53 @@ import JavaUtils
 
 %%
 
--- There are times when it is more convenient to parse a more general
+-- Note: There are times when it is more convenient to parse a more general
 -- language than that which is actually intended, and check it later.
 
--- Reference for rules:
+-- The parser rules of GHC may come in handy:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
+
+-- Types
+
+-- "&" have the lowest precedence and is left associative.
+-- Since we would like:  forall A. [A] -> Even  &  forall A. [A] -> Odd
+-- to be parsed as:      (forall A. [A] -> Even) & (forall A. [A] -> Odd)
+type :: { Type }
+  : ftype "&" type             { And $1 $3 }
+  | ftype                     { $1 }
+
+ftype :: { Type }
+  : atype "->" ftype           { Fun $1 $3 }
+  | "forall" tyvar "." ftype  { Forall $2 $4 }
+  | atype                     { $1 }
+
+atype :: { Type }
+  : tyvar                    { TyVar $1 }
+  | JAVACLASS                { JClass $1 }
+  | "(" product_body ")"     { Product $2 }
+  | "{" recordty_body "}"    { RecordTy $2 }
+  | "[" type "]"              { ListOf $2 }
+  | "(" type ")"              { $2 }
+
+product_body :: { [Type] }
+  : type "," type              { $1:[$3] }
+  | type "," product_body     { $1:$3   }
+
+recordty_body :: { [(Label, Type)] }
+  : label ":" type                    { [($1, $3)]  }
+  | label ":" type "," recordty_body  { ($1, $3):$5 }
+
+label :: { Label }
+  : LOWERID                  { $1 }
+
+tyvars :: { [Name] }
+  : {- empty -}              { []    }
+  | tyvar tyvars             { $1:$2 }
+
+tyvar :: { Name }
+  : UPPERID                  { $1 }
+
+-- Expressions
 
 expr :: { Expr Name }
      : infixexpr %prec EOF      { $1 }
@@ -117,51 +159,42 @@ infixexpr :: { Expr Name }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
 
 expr10 :: { Expr Name }
-    : "/\\" tvar "." expr                 { BLam $2 $4  }
+    : "/\\" tyvar "." expr                { BLam $2 $4  }
     | "\\" var_with_annot "." expr        { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
-    | fexp                                { $1 }
+    | fexpr                                { $1 }
 
-fexp :: { Expr Name }
-    : fexp aexp         { App  $1 $2 }
-    | fexp typ          { TApp $1 $2 }
+fexpr :: { Expr Name }
+    : fexpr aexp         { App  $1 $2 }
+    | fexpr type          { TApp $1 $2 }
     | aexp              { $1 }
 
 aexp :: { Expr Name }
-    : aexp1             { $1 }
-
-aexp1 :: { Expr Name }
     : var                       { Var $1 }
     | INTEGER                   { Lit (Integer $1) }
     | STRING                    { Lit (String $1) }
     | BOOLEAN                   { Lit (Boolean $1) }
     | CHAR                      { Lit (Char $1) }
-    | aexp "." UNDERID          { Proj $1 $3 }
     | "(" comma_exprs ")"       { Tuple $2 }
+    | aexp "." UNDERID          { Proj $1 $3 }
     | "(" expr ")"              { $2 }
     -- Java
-    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Left $1) $3 $5 "" }
-    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Right $1) $3 $5 "" }
-    | JAVACLASS "." id { JField (Left $1) $3 "" }
-    | aexp "." id      { JField (Right $1) $3 "" }
+    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Left $1) $3 $5 undefined }
+    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Right $1) $3 $5 undefined }
+    | JAVACLASS "." field { JField (Left $1) $3 undefined }
+    | aexp "." field      { JField (Right $1) $3 undefined }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
     | "{" semi_exprs "}"        { Seq $2 }
-    -- primitive list
-    | listexp                   { $1 }
+    | list_body                 { PrimList $1 }
 
--- listexp "." LOWERID       { JMethod (Left (PrimList $1))) $3 [] ""}
+list_body :: { [Expr String] }
+    : "(" expr "::" list_body ")"  { $2:$4 }
+    | "[" comma_exprs_emp "]"      { $2 }
 
-listexp :: { Expr String }
-    : listexps                  { PrimList $1 }
-
-listexps :: { [Expr String] }
-    : "(" expr "::" listexps ")"  { $2:$4 }
-    | "[" comma_exprs_emp "]" { $2 }
-
-id :: { Name }
+field :: { Name }
    : LOWERID { $1 }
    | UPPERID { $1 }
 
@@ -179,11 +212,11 @@ comma_exprs_emp :: { [Expr Name] }
     | comma_exprs   { $1   }
 
 var_with_annot :: { (Name, Type) }
-  : "(" var ":" typ ")"         { ($2, $4) }
+  : "(" var ":" type ")"         { ($2, $4) }
   | "(" var_with_annot ")"      { $2       }
 
 bind :: { Bind Name }
-    : var tvars_emp var_annots_emp maybe_sig "=" expr
+    : var tyvars var_annots_emp maybe_sig "=" expr
         { Bind { bindId       = $1
                , bindTargs    = $2
                , bindArgs     = $3
@@ -193,7 +226,7 @@ bind :: { Bind Name }
         }
 
 maybe_sig :: { Maybe Type }
-  : ":" typ     { Just $2 }
+  : ":" type     { Just $2 }
   | {- empty -} { Nothing }
 
 and_binds :: { [Bind Name] }
@@ -204,33 +237,8 @@ recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
 
-typ :: { Type }
-    : "forall" tvar "." typ       { Forall $2 $4 }
-
-    -- Require an atyp on the LHS so that `for A. A -> A` cannot be parsed
-    -- as `(for A. A) -> A`, since `for A. A` is not a valid atyp.
-    | atyp "->" typ     { Fun $1 $3 }
-    | atyp              { $1 }
-    | "[" atyp "]"     { ListOf $2 }
-    --| typ "&" atyp      { And $1 $3 }
-
-
-atyp :: { Type }
-    : tvar                      { TyVar $1 }
-    | "(" typ ")"               { $2 }
-    | "(" comma_typs ")"        { Product $2 }
-    | JAVACLASS                 { JClass $1 }
-
-comma_typs :: { [Type] }
-    : typ "," typ               { $1:[$3] }
-    | typ "," comma_typs        { $1:$3   }
-
-tvars_emp :: { [Name] }
-  : {- empty -}         { []    }
-  | tvar tvars_emp      { $1:$2 }
-
 var_annot :: { (Name, Type) }
-    : "(" var ":" typ ")"       { ($2, $4) }
+    : "(" var ":" type ")"       { ($2, $4) }
 
 var_annots_emp :: { [(Name, Type)] }
     : {- empty -}               { []    }
@@ -238,9 +246,6 @@ var_annots_emp :: { [(Name, Type)] }
 
 var :: { Name }
     : LOWERID           { $1 }
-
-tvar :: { Name }
-    : UPPERID           { $1 }
 
 {
 -- The monadic parser
@@ -255,7 +260,7 @@ parseError :: [Token] -> P a
 parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
 
 reader :: String -> Expr Name
-reader src = case (parser . lexer) src of
+reader src = case (parseExpr . lexer) src of
                  POk expr   -> expr
                  PError msg -> error msg
 }
