@@ -6,28 +6,13 @@ import qualified Src as S
 import qualified Language.Java.Syntax as J (Op(..))
 
 betaReduct :: Expr t (Expr t e) -> Expr t (Expr t e)
-betaReduct (Lam t f) = Lam t (\x -> betaReduct . f $ x)
-betaReduct (BLam f) = BLam (\t -> betaReduct . f $ t)
 betaReduct (App e1 e2) =
-    case betaReduct e1 of
-      Lam _ f -> f . joinExpr . betaReduct $ e2
-      _ -> App (betaReduct e1) (betaReduct e2)
-betaReduct (If e1 e2 e3) = If (betaReduct e1) (betaReduct e2) (betaReduct e3)
-betaReduct (TApp e t) = TApp (betaReduct e) t
-betaReduct (PrimOp e1 op e2) = PrimOp (betaReduct e1) op (betaReduct e2)
-betaReduct (Tuple es) = Tuple $ map betaReduct es
-betaReduct (Proj i e) = Proj i (betaReduct e)
-betaReduct (Fix f t1 t) = Fix (\e1 e2 -> betaReduct $ f e1 e2) t1 t
-betaReduct (LetRec sigs binds body) =
-    LetRec sigs
-           (\es -> map betaReduct $ binds es)
-           (\es -> betaReduct $ body es)
-betaReduct (JNewObj cname es) = JNewObj cname (map betaReduct es)
-betaReduct (JMethod cnameOrE mname es cname) = JMethod (fmap betaReduct cnameOrE) mname (map betaReduct es) cname
-betaReduct (JField cnameOrE fname cname) = JField (fmap betaReduct cnameOrE) fname cname
-betaReduct (Seq es) = Seq $ map betaReduct es
-betaReduct (Merge e1 e2) = Merge (betaReduct e1) (betaReduct e2)
-betaReduct e = e
+    case e1' of
+      Lam _ f -> f $ joinExpr e2'
+      _ -> App e1' e2'
+    where e1' = betaReduct e1
+          e2' = betaReduct e2
+betaReduct e = mapExpr betaReduct e
 
 calc :: Expr t e -> Expr t e
 calc (Lam t f) = Lam t (\x -> calc . f $ x)
@@ -84,24 +69,26 @@ calc e = e
 mapExpr :: (Expr t e -> Expr t e) -> Expr t e -> Expr t e
 mapExpr f e =
     case e of
+      Var x -> e
+      Lit l -> e
       Lam t g -> Lam t (\x -> f . g $ x)
-      BLam g -> BLam (\x -> f . g $ x)
-      App e1 e2 -> App (f e1) (f e2)
-      TApp e t -> TApp (f e) t
-      PrimOp e1 op e2 -> PrimOp (f e1) op (f e2)
-      Tuple es -> Tuple $ map f es
-      Proj i e -> Proj i (f e)
       Fix g t1 t -> Fix (\e1 e2 -> f $ g e1 e2) t1 t
       LetRec sigs binds body ->
           LetRec sigs
                  (\es -> map f $ binds es)
                  (\es -> f $ body es)
+      BLam g -> BLam (\x -> f . g $ x)
+      App e1 e2 -> App (f e1) (f e2)
+      TApp e t -> TApp (f e) t
+      If e1 e2 e3 -> If (f e1) (f e2) (f e3)
+      PrimOp e1 op e2 -> PrimOp (f e1) op (f e2)
+      Tuple es -> Tuple $ map f es
+      Proj i e -> Proj i (f e)
       JNewObj cname es -> JNewObj cname (map f es)
       JMethod cnameOrE mname es cname -> JMethod (fmap f cnameOrE) mname (map f es) cname
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Seq es -> Seq $ map f es
       Merge e1 e2 -> Merge (f e1) (f e2)
-      _ -> e
 
 peval :: Expr t (Expr t e) -> Expr t e
 peval = calc . joinExpr . betaReduct
