@@ -1,0 +1,33 @@
+<project name="F2JRuntime" default="dist" basedir=".">
+  <property name="src" location="src"/>
+  <property name="build" location="build"/>
+  <property name="dist"  location="dist"/>
+
+  <target name="init">
+    <tstamp/>
+    <mkdir dir="${build}"/>
+  </target>
+
+  <target name="compile" depends="init"
+        description="compile the source " >
+    <javac srcdir="${src}" destdir="${build}" includeAntRuntime="false"/>
+  </target>
+
+  <target name="dist" depends="compile"
+        description="generate the distribution" >
+    <mkdir dir="${dist}/"/>
+    <manifest file="build/MANIFEST.MF">
+  	<attribute name="Main-Class"
+             value="hk.hku.cs.f2j.TypeServer" />
+    </manifest>
+    <jar jarfile="${dist}/runtime-${DSTAMP}.jar" manifest="build/MANIFEST.MF" basedir="${build}"/>
+    <copy file="${dist}/runtime-${DSTAMP}.jar" tofile="runtime.jar"/>
+  </target>
+
+  <target name="clean"
+        description="clean up" >
+    <delete dir="${build}"/>
+    <delete dir="${dist}"/>
+    <delete file="runtime.jar"/>
+  </target>
+</project>

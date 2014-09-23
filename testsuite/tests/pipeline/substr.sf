@@ -1,0 +1,6 @@
+--> bc
+
+let getsubstr(s : java.lang.String) (from : Int) (to : Int) : java.lang.String =
+    s.substring(from, to)
+in
+getsubstr("abcde")(1)(3)

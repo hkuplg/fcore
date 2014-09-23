@@ -1,8 +1,47 @@
 syntax: glob
+
+# Run ./select-cabal.sh to get the Cabal file that matches your GHC version.
+*.cabal
+
 systemf/.cache
 systemf/.classpath
 systemf/.project
-compiler/SystemFLexer.hs
-compiler/SystemFParser.hs
-*.info
-*.swp
+
+*Lexer.hs
+*Parser.hs
+*Parser.info
+
+runtime/
+runtime.jar
+
+### Haskell ###
+dist
+cabal-dev
+*.o
+*.hi
+*.chi
+*.chs.h
+.virtualenv
+.hsenv
+.cabal-sandbox/
+cabal.sandbox.config
+cabal.config
+
+### Java ###
+testsuite/*.java
+*.class
+
+### vim ###
+[._]*.s[a-w][a-z]
+[._]s[a-w][a-z]
+*.un~
+Session.vim
+.netrwhist
+*~
+
+.hdevtools.sock
+
+*.log
+formalization/*.pdf
+*.dvi
+*.aux

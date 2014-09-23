@@ -1,92 +1,89 @@
-module Main where
+{-# LANGUAGE DeriveDataTypeable
+           , FlexibleContexts
+           , FlexibleInstances
+           , MultiParamTypeClasses
+           , OverlappingInstances
+           , RankNTypes
+           , TypeOperators
+           , RecordWildCards
+           , TemplateHaskell
+           #-}
 
-import SystemFParser    (readSF)
-import SystemFJava
-import Test.HUnit
-import Language.Java.Pretty
-import Control.Monad    ((>=>))
+module Main (main, TransMethod) where
 
-import Prelude hiding (const)
+import JavaUtils
+import MonadLib
+import Translations
 
--- Some test terms
+import System.Console.CmdArgs -- Neil Mitchell's CmdArgs library
+import System.Directory          (doesFileExist)
+import System.Environment        (getArgs, withArgs)
+import System.FilePath           (takeBaseName)
+import System.IO
 
--- /\A. \(x:A) . x
+import Data.FileEmbed            (embedFile)
+import qualified Data.ByteString (ByteString, writeFile)
 
-idF1Str = "/\\A. \\(x:A) . x"
-idF = FBLam (\a -> FLam (FTVar a) (\x -> FVar x))
+data Options = Options
+    { optCompile       :: Bool
+    , optCompileAndRun :: Bool
+    , optSourceFiles   :: [String]
+    , optDump          :: Bool
+    , optTransMethod   :: TransMethod
+    } deriving (Eq, Show, Data, Typeable)
 
--- /\A . (\(f : A -> A) . \(x : A) . f x) (idF A)
+data TransMethod = Naive | ApplyOpt | Stack | BenchN | BenchS | BenchNA | BenchSA deriving (Eq, Show, Data, Typeable)
 
-idF2Str = "/\\A . (\\(f : A -> A) . \\(x : A) . f x) (idF A)"
-idF2 = FBLam (\a -> FApp (FLam (FFun (FTVar a) (FTVar a)) (\f -> FLam (FTVar a) (\x -> FApp (FVar f) (FVar x)))) (FTApp idF (FTVar a)))
+optionsSpec :: Options
+optionsSpec = Options
+  { optCompile = False &= explicit &= name "c" &= name "compile" &= help "Compile Java source"
+  , optCompileAndRun = False &= explicit &= name "r" &= name "run" &= help "Compile & run Java source"
+  , optDump = False &= explicit &= name "d" &= name "dump" &= help "Dump intermediate representations"
+  , optSourceFiles = [] &= args &= typ "SOURCE FILES"
+  , optTransMethod = ApplyOpt &= explicit &= name "m" &= name "method" &= typ "METHOD"
+                  &= help ("Translations method." ++
+                           "Can be either 'naive', 'applyopt', or 'stack'" ++
+                           "(use without quotes)." ++
+                           "The default is 'applyopt'.")
+  }
+  &= helpArg [explicit, name "help", name "h"]
+  &= program "f2j"
+  &= summary "SystemF to Java compiler"
 
--- /\A . \(x:A) . (idF A) x
+getOpts :: IO Options
+getOpts = cmdArgs optionsSpec -- cmdArgs :: Data a => a -> IO a
 
-idF3Str = "/\\A . \\(x:A) . (idF A) x"
-idF3 = FBLam (\a -> FLam (FTVar a) (\x -> FApp (FTApp idF (FTVar a)) (FVar x) ))
+runtimeBytes :: Data.ByteString.ByteString
+runtimeBytes = $(embedFile "runtime/runtime.jar")
 
--- /\A . \(f : A -> A -> A) . \(g : A -> A) . \(x : A) . f x (g x)
-notail =
-  FBLam (\a ->
-    FLam (FFun (FTVar a) (FFun (FTVar a) (FTVar a))) (\f ->
-      FLam (FFun (FTVar a) (FTVar a)) (\g ->
-        FLam (FTVar a) (\x ->
-          FApp (FApp (FVar f) (FVar x)) (FApp (FVar g) (FVar x)) ))))
+main :: IO ()
+main = do
+  rawArgs <- getArgs
+  -- If the user did not specify any arguments, pretend as "--help" was given
+  Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
 
--- /\A . \(x : A) . \(y : A) . x
-const =
-  FBLam (\a ->
-    FLam (FTVar a) (\x ->
-       FLam (FTVar a) (\y ->
-          FVar x
-       )
-    )
-  )
+  -- Write the bytes of runtime.jar to file
+  exists <- doesFileExist =<< getRuntimeJarPath
+  existsCur <- doesFileExist "./runtime.jar"
+  unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
+  forM_ optSourceFiles (\source_path ->
+    do let output_path      = inferOutputPath source_path
+           translate_method = optTransMethod
+       putStrLn (takeBaseName source_path ++ " using " ++ show translate_method)
+       putStrLn ("  Compiling to Java source code ( " ++ output_path ++ " )")
+       compilesf2java optDump
+         (case translate_method of Naive    -> compileN
+                                   ApplyOpt -> compileAO
+                                   Stack    -> compileS
+                                   BenchN    -> compileBN False
+                                   BenchS    -> compileBS False
+                                   BenchNA   -> compileBN True
+                                   BenchSA   -> compileBS True)
+         source_path output_path
 
--- /\A . \(x : A) . notail A (const A) (idF A) x
-program1 =
-  FBLam (\a ->
-    FLam (FTVar a) (\x ->
-       FApp (FApp (FApp (FTApp notail (FTVar a)) (FTApp const (FTVar a))) (FTApp idF (FTVar a))) (FVar x)
-    )
-  )
-
--- should infer (forall (x0 : int) . int)
-intapp = FTApp idF PFInt
-
-
-
-compiled1 = "abstract class Closure\n{\n  Object x;\n  Object out;\n  abstract void apply ()\n  ;\n}\nclass MyClosure extends Closure\n{\n  void apply ()\n  {\n    Closure x1 = new Closure()\n                 {\n                   Closure x2 = this;\n                   void apply ()\n                   {\n                     out = x2.x;\n                   }\n                 };\n    out = x1;\n  }\n}"
-compiled2 = "abstract class Closure\n{\n  Object x;\n  Object out;\n  abstract void apply ()\n  ;\n}\nclass MyClosure extends Closure\n{\n  void apply ()\n  {\n    Closure x2 = new Closure()\n                 {\n                   Closure x3 = this;\n                   {\n                     out = new Closure()\n                           {\n                             Closure x5 = this;\n                             void apply ()\n                             {\n                               Closure x6 = (Closure) x3.x;\n                               x6.x = x5.x;\n                               x6.apply();\n                               out = x6.out;\n                             }\n                           };\n                   }\n                   void apply ()\n                   {\n                   }\n                 };\n    Closure x8 = new Closure()\n                 {\n                   Closure x9 = this;\n                   void apply ()\n                   {\n                     out = x9.x;\n                   }\n                 };\n    Closure x1 = (Closure) x2;\n    x1.x = x8;\n    out = x1.out;\n  }\n}"
-compiled3 = "abstract class Closure\n{\n  Object x;\n  Object out;\n  abstract void apply ()\n  ;\n}\nclass MyClosure extends Closure\n{\n  void apply ()\n  {\n    Closure x1 = new Closure()\n                 {\n                   Closure x2 = this;\n                   void apply ()\n                   {\n                     Closure x5 = new Closure()\n                                  {\n                                    Closure x6 = this;\n                                    void apply ()\n                                    {\n                                      out = x6.x;\n                                    }\n                                  };\n                     Closure x3 = (Closure) x5;\n                     x3.x = x2.x;\n                     x3.apply();\n                     out = x3.out;\n                   }\n                 };\n    out = x1;\n  }\n}"
-
-test1 = TestCase $ assertEqual
-  "Should compile idF" compiled1 ( let (cu,t) = createCU $ compile idF in (prettyPrint cu) )
-
-test2 = TestCase $ assertEqual
-  "Should compile idF2" compiled2 ( let (cu,t) = createCU $ compile idF2 in (prettyPrint cu) )
-
-test3 = TestCase $ assertEqual
-  "Should compile idF3" compiled3 ( let (cu,t) = createCU $ compile idF3 in (prettyPrint cu) )
-
-test4 = TestCase $ assertEqual
-  "Should infeer type of intapp" "(forall (_ : Int) . Int)" ( let (cu, t) = createCU $ compile intapp in (show t) )
-
--- SystemF to Java
-sf2java :: String -> String
-sf2java src = let (cu, _) = createCU $ compile (readSF src) in prettyPrint cu
-
--- SystemF file path to Java
--- Example:
---      loadsf2java "id.sf"
-loadsf2java :: FilePath -> IO String
-loadsf2java = readFile >=> (return . sf2java)
-
--- `compilesf2java srcPath outputPath` loads a SystemF file at `srcPath`,
--- and writes the compiled Java code to `outputPath`.
--- Example:
---      compilesf2java "id.sf" "id.java"
-compilesf2java :: FilePath -> FilePath -> IO ()
-compilesf2java srcPath outputPath = loadsf2java srcPath >>= writeFile outputPath
-
-main = runTestTT $ TestList [test1, test2, test3, test4]
+       when (optCompile || optCompileAndRun) $
+         do putStrLn "  Compiling to Java bytecode"
+            compileJava output_path
+       when optCompileAndRun $
+         do putStr "  Running Java\n  Output: "; hFlush stdout
+            runJava output_path)

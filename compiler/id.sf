@@ -1,3 +1,0 @@
-let id = /\A. \(x:A) . x : forall A . A -> A in
-let const = /\A . \(x : A) . \(y : A) . x : forall A . A -> A -> A in
-const
