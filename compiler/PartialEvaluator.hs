@@ -81,7 +81,27 @@ calc (If e1 e2 e3) =
       _ -> If (calc e1) (calc e2) (calc e3)
 calc e = e
 
---foldExpr :: Expr t e -> (Expr t e -> Expr t e) -> Expr t e
+mapExpr :: (Expr t e -> Expr t e) -> Expr t e -> Expr t e
+mapExpr f e =
+    case e of
+      Lam t g -> Lam t (\x -> f . g $ x)
+      BLam g -> BLam (\x -> f . g $ x)
+      App e1 e2 -> App (f e1) (f e2)
+      TApp e t -> TApp (f e) t
+      PrimOp e1 op e2 -> PrimOp (f e1) op (f e2)
+      Tuple es -> Tuple $ map f es
+      Proj i e -> Proj i (f e)
+      Fix g t1 t -> Fix (\e1 e2 -> f $ g e1 e2) t1 t
+      LetRec sigs binds body ->
+          LetRec sigs
+                 (\es -> map f $ binds es)
+                 (\es -> f $ body es)
+      JNewObj cname es -> JNewObj cname (map f es)
+      JMethod cnameOrE mname es cname -> JMethod (fmap f cnameOrE) mname (map f es) cname
+      JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
+      Seq es -> Seq $ map f es
+      Merge e1 e2 -> Merge (f e1) (f e2)
+      _ -> e
 
 peval :: Expr t (Expr t e) -> Expr t e
 peval = calc . joinExpr . betaReduct
