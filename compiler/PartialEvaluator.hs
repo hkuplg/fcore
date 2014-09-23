@@ -1,4 +1,4 @@
-module PartialEvaluator (peval) where
+module PartialEvaluator where
 
 import Core
 import OptiUtils
@@ -30,11 +30,10 @@ betaReduct (Merge e1 e2) = Merge (betaReduct e1) (betaReduct e2)
 betaReduct e = e
 
 calc :: Expr t e -> Expr t e
-calc (If e1 e2 e3) =
-    case calc e1 of
-      Lit (S.Boolean True) -> calc e2
-      Lit (S.Boolean False) -> calc e3
-      _ -> If (calc e1) (calc e2) (calc e3)
+calc (Lam t f) = Lam t (\x -> calc . f $ x)
+calc (BLam f) = BLam (\t -> calc . f $ t)
+calc (App e1 e2) = App (calc e1) (calc e2)
+calc (TApp e t) = TApp (calc e) t
 calc (PrimOp e1 op e2) =
     case (e1', e2') of
       (Lit (S.Integer a), Lit (S.Integer b)) ->
@@ -63,7 +62,26 @@ calc (PrimOp e1 op e2) =
     where e1' = calc e1
           e2' = calc e2
           simplified = PrimOp e1' op e2'
+calc (Tuple es) = Tuple $ map calc es
+calc (Proj i e) = Proj i (calc e)
+calc (Fix f t1 t) = Fix (\e1 e2 -> calc $ f e1 e2) t1 t
+calc (LetRec sigs binds body) =
+    LetRec sigs
+           (\es -> map calc $ binds es)
+           (\es -> calc $ body es)
+calc (JNewObj cname es) = JNewObj cname (map calc es)
+calc (JMethod cnameOrE mname es cname) = JMethod (fmap calc cnameOrE) mname (map calc es) cname
+calc (JField cnameOrE fname cname) = JField (fmap calc cnameOrE) fname cname
+calc (Seq es) = Seq $ map calc es
+calc (Merge e1 e2) = Merge (calc e1) (calc e2)
+calc (If e1 e2 e3) =
+    case calc e1 of
+      Lit (S.Boolean True) -> calc e2
+      Lit (S.Boolean False) -> calc e3
+      _ -> If (calc e1) (calc e2) (calc e3)
 calc e = e
+
+--foldExpr :: Expr t e -> (Expr t e -> Expr t e) -> Expr t e
 
 peval :: Expr t (Expr t e) -> Expr t e
 peval = calc . joinExpr . betaReduct
