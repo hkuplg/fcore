@@ -16,6 +16,7 @@ module Translations
     , compileS
     , compileBN
     , compileBS
+    , compileUnbox
     , sf2java
     , compilesf2java
     ) where
@@ -36,6 +37,7 @@ import ApplyTransCFJava
 import StackTransCFJava
 import BenchGenCF2J
 import BenchGenStack
+import UnboxTransCFJava
 
 import Inheritance
 import MonadLib
@@ -289,6 +291,22 @@ translateS = createWrap (up stackinst)
 
 compileS :: Compilation
 compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) False) []) Set.empty) 0
+
+
+-- Unbox Naive
+
+unboxopt :: MonadState Int m => UnboxTranslate m
+unboxopt = new (transUnbox $> trans)
+
+
+unboxinst :: UnboxTranslate NType  -- instantiation; all coinstraints resolved
+unboxinst = unboxopt
+
+translateUnbox :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
+translateUnbox = createWrap (up unboxinst)
+
+compileUnbox :: Compilation
+compileUnbox name e = evalState (translateUnbox name (fexp2cexp e)) 0
 
 -- Bench Naive
 benchinst :: BenchGenTranslate NType  -- instantiation; all coinstraints resolved

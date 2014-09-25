@@ -32,7 +32,7 @@ data Options = Options
     , optTransMethod   :: TransMethod
     } deriving (Eq, Show, Data, Typeable)
 
-data TransMethod = Naive | ApplyOpt | Stack | BenchN | BenchS | BenchNA | BenchSA deriving (Eq, Show, Data, Typeable)
+data TransMethod = Naive | ApplyOpt | Stack | Unbox | BenchN | BenchS | BenchNA | BenchSA deriving (Eq, Show, Data, Typeable)
 
 optionsSpec :: Options
 optionsSpec = Options
@@ -75,6 +75,7 @@ main = do
          (case translate_method of Naive    -> compileN
                                    ApplyOpt -> compileAO
                                    Stack    -> compileS
+                                   Unbox    -> compileUnbox
                                    BenchN    -> compileBN False
                                    BenchS    -> compileBS False
                                    BenchNA   -> compileBN True

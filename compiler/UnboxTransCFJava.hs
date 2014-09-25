@@ -13,16 +13,16 @@ import BaseTransCFJava
 import StringPrefixes
 import MonadLib
 
-data UnboxTransCFJava m = NT {toT :: Translate m}
+data UnboxTranslate m = UT {toUT :: Translate m}
 
-instance (:<) (UnboxTransCFJava m) (Translate m) where
-   up              = up . toT
+instance (:<) (UnboxTranslate m) (Translate m) where
+   up              = up . toUT
 
-instance (:<) (UnboxTransCFJava m) (UnboxTransCFJava m) where
+instance (:<) (UnboxTranslate m) (UnboxTranslate m) where
    up              = id
 
-transUnbox :: (MonadState Int m, selfType :< UnboxTransCFJava m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTransCFJava m)
-transUnbox this super = NT {toT = super {
+transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
+transUnbox this super = UT {toUT = super {
   translateM = undefined,
   translateScopeTyp = undefined
 
