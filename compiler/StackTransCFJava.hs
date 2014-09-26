@@ -18,6 +18,7 @@ import Inheritance
 import BaseTransCFJava
 import ApplyTransCFJava (last)
 import MonadLib
+import StringPrefixes
 import Panic
 
 data TranslateStack m = TS {

@@ -31,9 +31,6 @@ jbody = Just (J.Block [])
 init :: [J.Decl]
 init = [J.InitDecl False (J.Block [])]
 
-closureClass :: String
-closureClass = "hk.hku.cs.f2j.Closure"
-
 classRefType :: String -> J.RefType
 classRefType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
 
@@ -140,13 +137,13 @@ jexp init' body idCF generateClone =
        J.ClassBody $ init'
                   ++ [J.MemberDecl $ methodDecl "apply" Nothing body]
                   ++ if generateClone
-                       then [J.MemberDecl $ methodDecl "clone" (Just closureType) cloneBody] 
+                       then [J.MemberDecl $ methodDecl "clone" (Just closureType) cloneBody]
                        else []
         where
             methodDecl name typ by = J.MethodDecl [J.Public] [] typ (J.Ident name) [] [] (J.MethodBody by)
             cloneBody = Just (J.Block [J.LocalVars [] closureType [varDecl "c"
                                                                            (Just $ J.InitExp $ instCreat idCF)]
-                                    , J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs $ names ["c", localvarstr]) 
+                                    , J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs $ names ["c", localvarstr])
                                                                        J.EqualA
                                                                        (J.ExpName $ names ["this", localvarstr])))
                                     , J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall (var "c") [] (J.Ident "apply") [])))
@@ -154,11 +151,11 @@ jexp init' body idCF generateClone =
 
 currentInitialDeclaration :: J.Ident -> J.Decl
 currentInitialDeclaration idCurrentName = J.MemberDecl $ J.FieldDecl []
-                                                                     closureType 
+                                                                     closureType
                                                                      [J.VarDecl (J.VarId idCurrentName) (Just (J.InitExp J.This))]
 
 outputAssignment :: J.Exp -> J.BlockStmt
-outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (names ["out"])) 
+outputAssignment javaExpression = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (names ["out"]))
                                                                    J.EqualA
                                                                    javaExpression))
 
@@ -365,9 +362,9 @@ trans self = let this = up self in T {
           let (statements, exprs, types) = concatFirst $ toTupleOf3Lists args'
           let refTypes = (map (\(JClass x) -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]) types)
           (classStatement, rhs) <-
-            case c of 
+            case c of
               (Right ce) -> do (classS, classE, _) <- translateM this ce
-                               return (classS, J.MethodInv $ J.PrimaryMethodCall classE refTypes (J.Ident m) exprs)       
+                               return (classS, J.MethodInv $ J.PrimaryMethodCall classE refTypes (J.Ident m) exprs)
               (Left cn)  -> return ([], J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs)
           let typ = JClass r
           if r /= "java.lang.Void"
