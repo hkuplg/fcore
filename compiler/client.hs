@@ -2,9 +2,11 @@ module Main where
 
 import System.Console.Haskeline
 import System.IO
-import System.Process
+import System.Process hiding (runCommand)
 import Control.Monad.Error
 import Data.Char
+import Data.List.Split
+import Data.List
 import Translations
 
 -- proc :: FileName -> [String] -> CreateProcess
@@ -18,37 +20,55 @@ main =
      hSetBuffering inP LineBuffering
      hSetBuffering outP LineBuffering
      runInputT defaultSettings (loop inP outP)
-     where
-     	loop :: Handle -> Handle -> InputT IO ()
-  	loop inP outP = do
-		msg <- getInputLine "% "
-		case msg of
-		  Nothing -> return ()
-  		  Just "quit" -> return ()
-		  Just "send" -> do liftIO (wrap inP outP)
-		  		    loop inP outP
-		  Just input -> do outputStrLn $ "Command not regonized: " ++ input
-		  		   loop inP outP
+     
+loop :: Handle -> Handle -> InputT IO ()
+loop inP outP = do
+	msg <- getInputLine "% "
+	case msg of
+	  Nothing -> return ()
+	  Just input -> do let command = getCommand input
+			   runCommand inP outP command input
+	
 --liftIO :: IO () -> InputT IO ()
 {-`InputT` is an extra layer to work through and so need to *lift* your `IO ()` value
 into the `InputT IO` layer-}
 
-wrap :: Handle -> Handle -> IO String
-wrap inP outP = do
-	send inP
+getCommand :: String -> String
+getCommand msg = let (x : xs) = splitOn " " msg  in x
+
+runCommand :: Handle -> Handle -> String -> String -> InputT IO ()
+runCommand inP outP command msg = do
+	case (stripPrefix ":" command) of
+	  Just "quit" -> return ()
+	  Just "send" -> do let name = getFileName msg
+	  		    case name of
+			      "" ->  outputStrLn "Illegal input!"
+			      fileName -> liftIO (wrap inP outP fileName)
+	  		    loop inP outP
+	  Just input -> do outputStrLn $ "Command not recognized: " ++ input
+	  	           loop inP outP
+	  Nothing -> do liftIO (writeFile "main.sf" msg)
+	  		liftIO (wrap inP outP "main.sf")
+	  	        loop inP outP
+
+getFileName :: String -> String
+getFileName msg = case length (splitOn " " msg) of
+		    2 -> let [x, y] = splitOn " " msg in y
+		    n -> "" 
+
+wrap :: Handle -> Handle -> String -> IO ()
+wrap inP outP name = do
+	send inP name 
 	receiveMsg outP
 
-send :: Handle -> IO () 
-send h = do 
-	putStr "File name: "
-	msg <- getLine
-	let className = getClassName msg
+send :: Handle -> String -> IO () 
+send h name = do 
+	let className = getClassName name
 	sendMsg h (className ++ ".java")
-	sfToJava h msg
+	sfToJava h name
 
 getClassName :: String -> String
 getClassName (x : xs) = (toUpper x) : (takeWhile (/= '.') xs)
---if (x == '.') then "" else [x] ++ getClassName xs
 
 sfToJava :: Handle -> FilePath -> IO ()
 sfToJava h f = do 
@@ -61,14 +81,14 @@ sfToJava h f = do
 	sendFile h file
 	putStrLn "sent!"
 
-receiveMsg :: Handle -> IO String 
+receiveMsg :: Handle -> IO () 
 receiveMsg h = do
 	msg <- hGetLine h
 	if msg == "exit" 
-	then return "" 
+	then return () 
 	else do putStrLn msg
        		s <- receiveMsg h
-		return $ msg ++ s
+		return ()
 
 sendMsg :: Handle -> String -> IO ()
 sendMsg h msg = do 
