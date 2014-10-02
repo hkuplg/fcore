@@ -32,7 +32,6 @@ public class FileServer {
             compiler.getTask(null, fileManager, diagnostics, compilationOptions, 
                     null, compilationUnits);
         task.call();
-        //compiler.run(null, null, null, sourceFile.getPath());
 
         String className = "";
         int i = 0;
