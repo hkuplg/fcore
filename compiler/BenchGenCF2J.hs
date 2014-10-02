@@ -13,6 +13,7 @@ import BaseTransCFJava
 import StringPrefixes
 import MonadLib
 import Control.Monad
+import JavaEDSL
 
 
 
@@ -36,7 +37,7 @@ paraAssign classId paraId = (J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (f
 invokeApply classId = (J.BlockStmt $ J.ExpStmt $ J.MethodInv $ (J.PrimaryMethodCall (J.ExpName $ (J.Name [J.Ident classId])) [] (J.Ident "apply") []))
 
 -- return (Integer) c2.out;
-retRes returnType classId = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (classRefType returnType)) (J.FieldAccess (fieldAcc classId "out")))))
+retRes returnType classId = (J.BlockStmt (J.Return $ Just (J.Cast (classTy returnType) (J.FieldAccess (fieldAcc classId "out")))))
 
 testfuncArgType :: [String] -> State Int [J.FormalParam]
 testfuncArgType [] = return []
@@ -76,15 +77,15 @@ testfuncBody paraType =
 		_ -> []
 
 
-
-methodDecl paraType = do
+-- TODO: fix name confict
+methodDeclTemp paraType = do
 	let (lst, n) = runState (testfuncArgType paraType) 0 in
 		lst
 
 getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
-	(J.ClassBody [app [J.Static] body returnType "apply" [],
-	  app [J.Public, J.Static] (Just (J.Block (testfuncBody paraType))) returnType "test" (methodDecl paraType),
-      app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
+	(J.ClassBody [J.MemberDecl $ methodDecl [J.Static] returnType "apply" [] body,
+	  J.MemberDecl $ methodDecl [J.Public, J.Static] returnType "test" (methodDeclTemp paraType) (Just (J.Block (testfuncBody paraType))),
+      J.MemberDecl $ methodDecl [J.Public, J.Static] Nothing "main" mainArgType mainbodyDef]))
     where
         body = Just (J.Block (bs ++ ass))
 

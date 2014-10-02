@@ -14,6 +14,7 @@ import StackTransCFJava
 import BenchGenCF2J
 import StringPrefixes
 import MonadLib
+import JavaEDSL
 
 
 --apply();
@@ -48,14 +49,15 @@ passClousre from to param = [
 	(J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (fieldAcc "hk.hku.cs.f2j.Next" "next")) (J.EqualA) (J.ExpName $ J.Name [(J.Ident to)]))
 	]
 
+-- TODO: fix name confilc
 getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
-	(J.ClassBody [app [J.Static] body Nothing "apply" [],
-	  app [J.Public, J.Static] (Just (J.Block (testfuncBody paraType))) returnType "test" (methodDecl paraType),
-      app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
+	(J.ClassBody [J.MemberDecl $ methodDecl [J.Static] Nothing "apply" [] body,
+	  J.MemberDecl $ methodDecl [J.Public, J.Static] returnType "test" (methodDeclTemp paraType) (Just (J.Block (testfuncBody paraType))) ,
+      J.MemberDecl $ methodDecl [J.Public, J.Static] Nothing "main" mainArgType mainbodyDef]))
     where
         body = Just (J.Block (bs ++ ass))
 
-retResStack returnType id = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (classRefType returnType)) (J.ExpName $ J.Name [(J.Ident id)]))))
+retResStack returnType id = (J.BlockStmt (J.Return $ Just (J.Cast (classTy returnType) (J.ExpName $ J.Name [(J.Ident id)]))))
 
 
 testfuncBody paraType = 

@@ -5,6 +5,7 @@ module BaseTransCFJava where
 
 import           ClosureF
 import           Inheritance
+import           JavaEDSL
 import qualified Language.Java.Syntax as J
 import           MonadLib
 import           Panic
@@ -19,12 +20,6 @@ type InitVars = [J.BlockStmt]
 
 -- Closure F to Java
 
-names :: [String] -> J.Name
-names xs = J.Name $ map J.Ident xs
-
-var :: String -> J.Exp
-var x = J.ExpName $ names [x]
-
 jbody :: Maybe J.Block
 jbody = Just (J.Block [])
 
@@ -34,76 +29,48 @@ init = [J.InitDecl False (J.Block [])]
 closureClass :: String
 closureClass = "hk.hku.cs.f2j.Closure"
 
-classRefType :: String -> J.RefType
-classRefType t = J.ClassRefType (J.ClassType [(J.Ident t,[])])
-
-javaClassType :: String -> J.Type
-javaClassType t = J.RefType $ classRefType t
-
 closureType :: J.Type
-closureType     = javaClassType closureClass
+closureType     = classTy closureClass
 
 objType :: J.Type
-objType         = javaClassType "Object"
-
-arrayType :: J.Type -> J.Type
-arrayType ty  = J.RefType (J.ArrayType ty)
+objType         = classTy "Object"
 
 objArrayType :: J.Type
-objArrayType = arrayType objType
-
-varDecl :: String -> Maybe J.VarInit -> J.VarDecl
-varDecl name e = J.VarDecl (J.VarId $ J.Ident name) e
+objArrayType = arrayTy objType
 
 ifBody :: ([J.BlockStmt], [J.BlockStmt]) -> (J.Exp, J.Exp, J.Exp) -> Int -> (J.BlockStmt, J.Exp)
-ifBody (s2, s3) (j1, j2, j3) n = (J.BlockStmt $ J.IfThenElse j1
-                                                             (J.StmtBlock $ J.Block (s2 ++ j2Stmt))
-                                                             (J.StmtBlock $ J.Block (s3 ++ j3Stmt))
-                                 , newvar)
+ifBody (s2, s3) (j1, j2, j3) n =
+  (bStmt $ J.IfThenElse j1
+                        (J.StmtBlock $ block (s2 ++ j2Stmt))
+                        (J.StmtBlock $ block (s3 ++ j3Stmt))
+  , newvar)
     where j2Stmt = [localVarDecl j2]
           j3Stmt = [localVarDecl j3]
           localVarDecl e = J.LocalVars []
-                                       (javaClassType "")
+                                       (classTy "")
                                        [varDecl ifvarname (Just (J.InitExp e))]
           ifvarname = (ifresultstr ++ show n)
           newvar = var ifvarname
 
-field :: String -> J.Decl
-field name = J.MemberDecl $ J.FieldDecl []
-                                        objType
-                                        [varDecl name Nothing]
-
-app :: [J.Modifier] -> Maybe J.Block -> Maybe J.Type -> String -> [J.FormalParam] -> J.Decl
-app modi b rt en args = J.MemberDecl (J.MethodDecl modi [] rt (J.Ident en) args [] (J.MethodBody b))
-
-applyCall :: J.BlockStmt
-applyCall = J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident "apply"]) [])))
+-- field :: String -> J.Decl
+-- field name = memberDecl $ fieldDecl [] objType [varDecl name Nothing]
 
 mainArgType :: [J.FormalParam]
-mainArgType = [J.FormalParam []
-                             (arrayType $ javaClassType "String")
-                             False
-                             (J.VarId (J.Ident "args"))]
+mainArgType = [paramDecl (arrayTy $ classTy "String") "args"]
 
 mainbody :: Maybe J.Block
-mainbody = Just (J.Block [J.BlockStmt $ J.ExpStmt $
-                                          J.MethodInv $
-                                             J.PrimaryMethodCall
-                                                (var "System.out")
-                                                []
-                                                (J.Ident "println")
-                                                [var "apply()"]])
+mainbody = Just (block [bStmt $ classMethodCall (var "System.out") "println" [var "apply()"]])
 
 createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
 createCUB _ compDef = cu
   where cu = J.CompilationUnit Nothing [] compDef
 
 getClassDecl :: String -> [J.BlockStmt] -> [J.BlockStmt] -> Maybe J.Type -> Maybe J.Block -> J.TypeDecl
-getClassDecl className bs ass returnType mainbodyDef =
-  J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] Nothing []
-                               (J.ClassBody [app [J.Static] body returnType "apply" []
-                                            ,app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
-    where body = Just (J.Block (bs ++ ass))
+getClassDecl className bstmts ass returnType mainbodyDef =
+  J.ClassTypeDecl $ classDecl [J.Public] className
+                                         (classBody [memberDecl $ methodDecl [J.Static] returnType "apply" [] body
+                                                    ,memberDecl $ methodDecl [J.Public, J.Static] Nothing "main" mainArgType mainbodyDef])
+    where body = Just (J.Block (bstmts ++ ass))
 
 
 --consPrimList :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
@@ -117,7 +84,7 @@ initStuff tempVarStr n j t = J.LocalVars [J.Final] t [varDecl (tempVarStr ++ sho
 
 
 initClassCast :: Show a => String -> String -> a -> J.Exp -> J.BlockStmt
-initClassCast c tempVarStr n j = initStuff tempVarStr n j (javaClassType c)
+initClassCast c tempVarStr n j = initStuff tempVarStr n j (classTy c)
 
 initObj :: Show a => String -> a -> J.Exp -> J.BlockStmt
 initObj tempVarStr n j = initStuff tempVarStr n j objType
@@ -200,18 +167,18 @@ getTupleClassName tuple =
   where
     lengthOfTuple = length tuple
 
-chooseCastBox (JClass c)        = (initClassCast c, javaClassType c)
+chooseCastBox (JClass c)        = (initClassCast c, classTy c)
 chooseCastBox (Forall _)        = (initClosure,closureType)
 chooseCastBox (TupleType tuple) =
   case tuple of [t] -> chooseCastBox t
-                _   -> (initClassCast tupleClassName, javaClassType tupleClassName)
+                _   -> (initClassCast tupleClassName, classTy tupleClassName)
                        where tupleClassName = getTupleClassName tuple
 chooseCastBox _                 = (initObj,objType)
 
-javaType (JClass c)        = javaClassType c
+javaType (JClass c)        = classTy c
 javaType (Forall _)        = closureType
 javaType (TupleType tuple) = case tuple of [t] -> javaType t
-                                           _   -> javaClassType $ getTupleClassName tuple
+                                           _   -> classTy $ getTupleClassName tuple
 javaType _                 = objType
 
 getS3 :: MonadState Int m => Translate m -> J.Ident -> TScope Int -> J.Exp -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
@@ -452,8 +419,8 @@ trans self = let this = up self in T {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM this exp
            let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
-                                      _ -> Just $ objType
-           let classDecl = getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) returnType mainbody
-           return (createCUB this [classDecl], t)
+                                      _ -> Just objType
+           let clsDecl = getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) returnType mainbody
+           return (createCUB this [clsDecl], t)
 
     }
