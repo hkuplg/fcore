@@ -3,15 +3,12 @@ module Main where
 import System.Console.Haskeline
 import System.IO
 import System.Process hiding (runCommand)
+import System.TimeIt
 import Control.Monad.Error
 import Data.Char
 import Data.List.Split
 import Data.List
 import Translations
-
--- proc :: FileName -> [String] -> CreateProcess
--- FileName is the command you want to execute, [String] are all the arguments followed
-
 
 main = 
   do let p = (proc "java" ["-cp", "runtime.jar:.", "FileServer"])
@@ -19,42 +16,51 @@ main =
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP LineBuffering
      hSetBuffering outP LineBuffering
-     runInputT defaultSettings (loop inP outP)
+     runInputT defaultSettings (loop inP outP False)
      
-loop :: Handle -> Handle -> InputT IO ()
-loop inP outP = do
+loop :: Handle -> Handle -> Bool -> InputT IO ()
+loop inP outP flag = do
 	msg <- getInputLine "% "
 	case msg of
 	  Nothing -> return ()
 	  Just input -> do let command = getCommand input
-			   runCommand inP outP command input
+			   runCommand inP outP flag command input
 	
---liftIO :: IO () -> InputT IO ()
-{-`InputT` is an extra layer to work through and so need to *lift* your `IO ()` value
-into the `InputT IO` layer-}
-
 getCommand :: String -> String
 getCommand msg = let (x : xs) = splitOn " " msg  in x
 
-runCommand :: Handle -> Handle -> String -> String -> InputT IO ()
-runCommand inP outP command msg = do
+runCommand :: Handle -> Handle -> Bool -> String -> String -> InputT IO ()
+runCommand inP outP flag command msg = do
 	case (stripPrefix ":" command) of
 	  Just "quit" -> return ()
-	  Just "send" -> do let name = getFileName msg
-	  		    case name of
-			      "" ->  outputStrLn "Illegal input!"
-			      fileName -> liftIO (wrap inP outP fileName)
-	  		    loop inP outP
+	  Just "send" -> do 
+	    let name = getCMD msg
+	    case name of
+	      "" ->  outputStrLn "Illegal input!"
+	      fileName -> do 
+	      		case flag of
+			  True	-> liftIO (timeIt (wrap inP outP fileName))
+	  		  False -> liftIO (wrap inP outP fileName)
+			loop inP outP flag
+	  Just "time" -> do 
+	    let cmd = getCMD msg
+	    case cmd of
+	     ""	   -> outputStrLn "Illegal input!"
+	     "on"  -> loop inP outP True
+	     "off" -> loop inP outP False
 	  Just input -> do outputStrLn $ "Command not recognized: " ++ input
-	  	           loop inP outP
-	  Nothing -> do liftIO (writeFile "main.sf" msg)
-	  		liftIO (wrap inP outP "main.sf")
-	  	        loop inP outP
+	  	           loop inP outP flag
+	  Nothing -> do 
+	  	liftIO (writeFile "main.sf" msg)
+	  	case flag of 
+		  True 	-> liftIO (timeIt (wrap inP outP "main.sf"))
+		  False -> liftIO (wrap inP outP "main.sf")
+		loop inP outP flag
 
-getFileName :: String -> String
-getFileName msg = case length (splitOn " " msg) of
-		    2 -> let [x, y] = splitOn " " msg in y
-		    n -> "" 
+getCMD :: String -> String
+getCMD msg = case length (splitOn " " msg) of
+	       2 -> let [x, y] = splitOn " " msg in y
+	       n -> "" 
 
 wrap :: Handle -> Handle -> String -> IO ()
 wrap inP outP name = do
@@ -98,7 +104,6 @@ sendFile :: Handle -> String -> IO ()
 sendFile h f = do
 	hPutStrLn h f
 
---printFile :: FilePath -> IO()
 printFile = do 
 	f <- getLine
 	contents <- readFile f

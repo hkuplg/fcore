@@ -71,7 +71,7 @@ public class FileServer {
 	        String line = scanner.nextLine();
 		if(line.equals("//end of file")) break;
                 output.write(line);
-		System.out.println(line);
+		//System.out.println(line);
             }
             output.close();
           } catch (Exception e) {
