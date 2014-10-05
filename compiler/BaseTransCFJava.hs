@@ -190,7 +190,7 @@ chooseCastBox (TupleType tuple) =
     _ ->
       (initClass tupleClassName,classTy tupleClassName)
       where tupleClassName = getTupleClassName tuple
-chooseCastBox _ = (initClass "object",objClassTy)
+chooseCastBox _ = (initClass "Object",objClassTy)
 
 javaType (JClass c)        = classTy c
 javaType (Forall _)        = closureType
