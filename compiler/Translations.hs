@@ -46,14 +46,14 @@ import MonadLib
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 
-import Text.PrettyPrint.Leijen
+-- import Text.PrettyPrint.Leijen
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Prelude hiding (exp)
 
-import Control.Monad.Trans.Error (runErrorT)
+-- import Control.Monad.Trans.Error (runErrorT)
 
 -- import Debug.Trace      (trace)
 

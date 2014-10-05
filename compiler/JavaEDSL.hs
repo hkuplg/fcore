@@ -27,6 +27,9 @@ block = Block
 bStmt :: Stmt -> BlockStmt
 bStmt = BlockStmt
 
+localVars :: [Modifier] -> Type -> [VarDecl] -> BlockStmt
+localVars = LocalVars
+
 methodCall :: String -> [Argument] -> Stmt
 methodCall ident argu = ExpStmt (MethodInv (MethodCall (Name [Ident ident]) argu))
 
@@ -54,3 +57,14 @@ classDecl modi ident body =
 
 classBody :: [Decl] -> ClassBody
 classBody = ClassBody
+
+cast :: Type -> Exp -> Exp
+cast = Cast
+
+instCreat :: ClassType -> [Argument] -> Exp
+instCreat cls args = InstanceCreation [] cls args Nothing
+
+assign :: Name -> AssignOp -> Exp -> Exp
+assign name op expr = Assign (NameLhs name)
+                             op
+                             expr

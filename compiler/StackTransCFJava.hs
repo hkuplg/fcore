@@ -74,7 +74,7 @@ applyCall = bStmt $ methodCall "apply" []
 
 stackbody t =
         applyCall : whileApplyLoop "c" (J.Ident "result") (case t of JClass "java.lang.Integer" -> classTy "java.lang.Integer"
-                                                                     _ -> objType) ++ [
+                                                                     _ -> objClassTy) ++ [
                J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident "result"]])))]
 
@@ -102,7 +102,7 @@ transS this super = TS {toTS = super {
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
-           let stackDecl = getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) Nothing (Just $ J.Block $ stackbody t)
+           let stackDecl = mainClass name (bs ++ (if (containsNext bs) then [] else [empyClosure e])) Nothing (Just $ J.Block $ stackbody t)
            return (createCUB  (up this :: Translate m) [stackDecl], t)
 
   }}
