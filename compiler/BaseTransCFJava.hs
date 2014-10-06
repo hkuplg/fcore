@@ -551,9 +551,17 @@ trans self =
                    let (statements,exprs,types) = concatFirst $
                                                   toTupleOf3Lists args'
                    let refTypes =
-                         (map (\(JClass x) ->
-                                 J.ClassRefType $
-                                 J.ClassType [(J.Ident x,[])])
+                         (map (\y ->
+                           case y of JClass x ->
+                                       J.ClassRefType $
+                                       J.ClassType [(J.Ident x,[])]
+                                     CFInt ->
+                                       J.ClassRefType $
+                                       J.ClassType [(J.Ident "java.lang.Integer",[])]
+                                     CFInteger ->
+                                       J.ClassRefType $
+                                       J.ClassType [(J.Ident "java.lang.Integer",[])]
+                                 )
                               types)
                    (classStatement,rhs) <- case c of
                                              (Right ce) ->
