@@ -20,6 +20,7 @@ import ApplyTransCFJava (last)
 import MonadLib
 import StringPrefixes
 import Panic
+import JavaEDSL
 
 data TranslateStack m = TS {
   toTS :: Translate m -- supertype is a subtype of Translate (later on at least)
@@ -69,9 +70,12 @@ whileApply cl ctemp tempOut outType = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLh
 nextApply cl tempOut outType = [J.BlockStmt $ J.ExpStmt $ J.Assign (J.NameLhs (J.Name [J.Ident nextClass,J.Ident "next"])) J.EqualA (cl),
                 J.LocalVars [] outType [J.VarDecl (J.VarId tempOut) (Just (J.InitExp (J.Lit J.Null)))]]
 
+applyCall :: J.BlockStmt
+applyCall = bStmt $ methodCall "apply" []
+
 stackbody t =
-        applyCall : whileApplyLoop "c" (J.Ident "result") (case t of JClass "java.lang.Integer" -> javaClassType "java.lang.Integer"
-                                                                     _ -> objType) ++ [
+        applyCall : whileApplyLoop "c" (J.Ident "result") (case t of JClass "java.lang.Integer" -> classTy "java.lang.Integer"
+                                                                     _ -> objClassTy) ++ [
                J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
     (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident "result"]])))]
 
@@ -99,7 +103,7 @@ transS this super = TS {toTS = super {
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
-           let stackDecl = getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) Nothing (Just $ J.Block $ stackbody t)
+           let stackDecl = mainClass name (bs ++ (if (containsNext bs) then [] else [empyClosure e])) Nothing (Just $ J.Block $ stackbody t)
            return (createCUB  (up this :: Translate m) [stackDecl], t)
 
   }}

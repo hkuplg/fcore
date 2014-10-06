@@ -39,20 +39,23 @@ import BenchGenCF2J
 import BenchGenStack
 import UnboxTransCFJava
 
+import Inliner
+import PartialEvaluator
+
 import Inheritance
 import MonadLib
 
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 
-import Text.PrettyPrint.Leijen
+-- import Text.PrettyPrint.Leijen
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import Prelude hiding (exp)
 
-import Control.Monad.Trans.Error (runErrorT)
+-- import Control.Monad.Trans.Error (runErrorT)
 
 -- import Debug.Trace      (trace)
 
@@ -223,8 +226,9 @@ prettyJ = putStrLn . prettyPrint
 -- compileCU className e Nothing = let (cu,t) = createCU className (compile e) Nothing in (prettyJ cu >> print t)
 
 -- SystemF to Java
-sf2java :: Bool -> Compilation -> ClassName -> String -> IO String
-sf2java optDump compilation className src =
+-- TODO: ugly hack to integrate number of inlings
+sf2java :: Int -> Bool -> Compilation -> ClassName -> String -> IO String
+sf2java num optDump compilation className src =
   do let readSrc = Parser.reader src
      result <- typeCheck readSrc
      case result of
@@ -232,15 +236,19 @@ sf2java optDump compilation className src =
        Right (tcheckedSrc, _t)   ->
          do let core = desugar tcheckedSrc
             when optDump $ do { putStrLn "Core"; print $ Core.pprExpr basePrec (0,0) core }
-            let simpleCore = simplify core
+            let simpleCore = case num of
+                               1 -> peval . inliner . simplify $ core
+                               2 -> peval . inliner. inliner . simplify $ core
+                               _ -> simplify core
+            -- let simpleCore = simplify core
             when optDump $ do { putStrLn "Simplified Core"; print $ Core.pprExpr basePrec (0,0) simpleCore }
             let (cu, _) = compilation className simpleCore
             return $ prettyPrint cu
 
-compilesf2java :: Bool -> Compilation -> FilePath -> FilePath -> IO ()
-compilesf2java optDump compilation srcPath outputPath = do
+compilesf2java :: Int -> Bool -> Compilation -> FilePath -> FilePath -> IO ()
+compilesf2java num optDump compilation srcPath outputPath = do
     src <- readFile srcPath
-    output <- sf2java optDump compilation (inferClassName outputPath) src
+    output <- sf2java num optDump compilation (inferClassName outputPath) src
     writeFile outputPath output
     --let closureClassDef = closureClass compilation
     --writeFile "Closure.java" (prettyPrint closureClassDef)

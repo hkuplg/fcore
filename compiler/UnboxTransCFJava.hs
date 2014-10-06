@@ -13,6 +13,7 @@ import BaseTransCFJava
 import StringPrefixes
 import MonadLib
 import JavaUtils
+import JavaEDSL
 import qualified Src
 
 data UnboxTranslate m = UT {toUT :: Translate m}
@@ -88,7 +89,7 @@ translateScopeTyp this v n [js] nextInClosure (translateScopeM this nextInClosur
             let cvar = [J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
                  (Just $ J.ClassRefType (J.ClassType [(J.Ident cName,[])])) [] (jexp [currentInitialDeclaration
                  (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId b)),
-                 J.LocalVars [] (javaClassType cName) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
+                 J.LocalVars [] (classTy cName) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (funInstCreate nextId)))])]
             return (cvar,J.ExpName (J.Name [f]), Type t (\_ -> t1) )
 
       otherwise   -> translateScopeM super e m,
