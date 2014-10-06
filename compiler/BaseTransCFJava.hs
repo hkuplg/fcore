@@ -179,6 +179,10 @@ getTupleClassName tuple =
 chooseCastBox :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
 chooseCastBox (JClass c) =
   (initClass c,classTy c)
+chooseCastBox (CFInt) =
+  (initClass "java.lang.Integer",classTy "java.lang.Integer")
+chooseCastBox (CFInteger) =
+  (initClass "java.lang.Integer",classTy "java.lang.Integer")
 chooseCastBox (Forall _) =
   (initClass closureClass,closureType)
 chooseCastBox (TupleType tuple) =
@@ -193,6 +197,8 @@ javaType (JClass c)        = classTy c
 javaType (Forall _)        = closureType
 javaType (TupleType tuple) = case tuple of [t] -> javaType t
                                            _   -> classTy $ getTupleClassName tuple
+javaType CFInt             = classTy "java.lang.Integer"
+javaType CFInteger         = classTy "java.lang.Integer"
 javaType _                 = objClassTy
 
 getS3 :: MonadState Int m => Translate m -> J.Ident -> TScope Int -> J.Exp -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
