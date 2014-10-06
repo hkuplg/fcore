@@ -40,6 +40,35 @@ javaType2 x                 = javaType x
 assignVar2 :: String -> J.Exp -> Type t -> J.BlockStmt
 assignVar2 varId e t = J.LocalVars [] (javaType2 t) [varDecl varId (Just (J.InitExp e))]
 
+
+genIfBody2 :: Monad m
+          => t
+          -> m ([J.BlockStmt],J.Exp,Type t2)
+          -> m ([J.BlockStmt],J.Exp,t1)
+          -> J.Exp
+          -> [J.BlockStmt]
+          -> Int
+          -> m ([J.BlockStmt],J.Exp,Type t2)
+genIfBody2 _ m2 m3 j1 s1 n =
+  do (s2,j2,t2) <- m2 {-translateM this e2-}
+     (s3,j3,_) <- m3 {-translateM this e3-}
+     let ifvarname = (ifresultstr ++ show n)
+     let ifresdecl =
+           J.LocalVars
+             []
+             (javaType2 t2)
+             [J.VarDecl (J.VarId $
+                         J.Ident ifvarname)
+                        (Nothing)]
+     let (ifstmt,ifexp) =
+           ifBody (s2,s3)
+                  (j1,j2,j3)
+                  n -- uses a fresh variable
+     return (s1 ++
+             [ifresdecl,ifstmt]
+            ,ifexp
+            ,t2) -- need to check t2 == t3
+
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
 transUnbox this super = UT {toUT = super {
   translateM = \e -> case e of
@@ -113,34 +142,13 @@ translateScopeTyp this v n [js] nextInClosure (translateScopeM this nextInClosur
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
            (s3, nje3) <- getS3 (up this) f t j3 cvarass
            return (s1 ++ s2 ++ wrapS ++ s3, nje3, scope2ctyp t),
-
-  translateScopeTyp =
-          \currentId nextId initVars nextInClosure m ->
-            do b <- genClone (up this)
-               (statementsBeforeOA,javaExpression,t1) <- m
-               return ([J.LocalClass
-                          (J.ClassDecl
-                             []
-                             (J.Ident ("Fun" ++ show nextId))
-                             []
-                             (Just $
-                              J.ClassRefType
-                                (J.ClassType [(J.Ident closureClass,[])]))
-                             []
-                             (jexp [currentInitialDeclaration
-                                      (J.Ident (localvarstr ++ show currentId))]
-                                   (Just (J.Block (initVars ++
-                                                   statementsBeforeOA ++
-                                                   [outputAssignment javaExpression])))
-                                   nextId
-                                   b))
-                       ,J.LocalVars
-                          []
-                          (closureType)
-                          ([J.VarDecl (J.VarId $
-                                       J.Ident (localvarstr ++ show nextId))
-                                      (Just (J.InitExp (funInstCreate nextId)))])]
-                      ,t1)
-
+   translateIf =
+          \m1 m2 m3 ->
+            do n <- get
+               put (n + 1)
+               (s1,j1,t1) <- m1 {- translateM this e1 -}
+               -- let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
+               -- genIfBody this m2 m3 j1' s1 n,
+               genIfBody2 this m2 m3 j1 s1 n
 
 }}
