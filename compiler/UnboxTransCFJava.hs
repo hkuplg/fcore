@@ -35,10 +35,22 @@ wrap :: J.Exp -> Type t -> Type t -> ([J.BlockStmt], J.Exp)
 wrap e t1 t2 = ([], e)
 
 javaType2 CFInt             = J.PrimType J.IntT --classTy "java.lang.Integer"
+javaType2 (Forall (Type t1 f))  = case (f ()) of (Body t2) -> classTy (getClassType t1 t2)
+                                                 _ -> classTy (getClassType t1 CFInteger)
 javaType2 x                 = javaType x
 
 assignVar2 :: String -> J.Exp -> Type t -> J.BlockStmt
 assignVar2 varId e t = J.LocalVars [] (javaType2 t) [varDecl varId (Just (J.InitExp e))]
+
+
+currentInitialDeclaration2 :: J.Ident -> ClassName -> J.Decl
+currentInitialDeclaration2 idCurrentName cName =
+  J.MemberDecl $
+  J.FieldDecl
+    []
+    (classTy cName)
+    [J.VarDecl (J.VarId idCurrentName)
+               (Just (J.InitExp J.This))]
 
 
 genIfBody2 :: Monad m
@@ -68,6 +80,25 @@ genIfBody2 _ m2 m3 j1 s1 n =
              [ifresdecl,ifstmt]
             ,ifexp
             ,t2) -- need to check t2 == t3
+
+chooseCastBox2 :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
+chooseCastBox2 (CFInt) =
+  (initClass "int",J.PrimType J.IntT)
+chooseCastBox2 (CFInteger) =
+  (initClass "java.lang.Integer",classTy "java.lang.Integer")
+chooseCastBox2 (Forall (Type t1 f))  = case (f ()) of (Body t2) -> (initClass (getClassType t1 t2), classTy (getClassType t1 t2))
+                                                      _ -> (initClass (getClassType t1 CFInteger), classTy (getClassType t1 CFInteger))
+chooseCastBox2 t = chooseCastBox t
+
+getS3_2 :: MonadState Int m => Translate m -> J.Ident -> TScope Int -> J.Exp -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
+getS3_2 this func t j3 cvarass =
+  do (n :: Int) <- get
+     put (n+1)
+     let (cast,typ) = chooseCastBox2 (scope2ctyp t)
+     apply <- genApply this func t (var (tempvarstr ++ show n)) typ
+     rest <- genRes this t [cast tempvarstr n j3]
+     let r = cvarass ++ apply ++ rest
+     return (r, var (tempvarstr ++ show n))
 
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
 transUnbox this super = UT {toUT = super {
@@ -111,19 +142,17 @@ translateScopeTyp this v n [js] nextInClosure (translateScopeM this nextInClosur
             let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
             put (n' + 1)
             let nextInClosure = g (n',t)
-            let aType = case t of CFInt -> J.PrimType J.IntT
-                                  CFInteger -> javaType (JClass "java.lang.Integer")
-                                  _ -> javaType t
+            let aType = javaType2 t
             let js = (initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) aType)
             (statementsBeforeOA,javaExpression,t1) <- translateScopeM (up this) nextInClosure Nothing
             b <- genClone (up this)
-            let cName = getClassType (scope2ctyp t1) t
+            let cName = getClassType t (scope2ctyp t1)
             let currentId = v
             let nextId = n
             let initVars = [js]
             let cvar = [J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
-                 (Just $ J.ClassRefType (J.ClassType [(J.Ident cName,[])])) [] (jexp [currentInitialDeclaration
-                 (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId b)),
+                 (Just $ J.ClassRefType (J.ClassType [(J.Ident cName,[])])) [] (jexp [currentInitialDeclaration2
+                 (J.Ident (localvarstr ++ show currentId)) cName] (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId b)),
                  J.LocalVars [] (classTy cName) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (funInstCreate nextId)))])]
             return (cvar,J.ExpName (J.Name [f]), Type t (\_ -> t1) )
 
@@ -138,9 +167,20 @@ translateScopeTyp this v n [js] nextInClosure (translateScopeM this nextInClosur
            let cName = getClassType t1 (scope2ctyp t)
            let (wrapS, jS) = wrap j2 t1 t2
            let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-           cvarass <- getCvarAss (up this) t f j1 jS
+           let cvarass = [J.LocalVars
+                      []
+                      (classTy cName)
+                      ([J.VarDecl (J.VarId f)
+                                  (Just (J.InitExp j1))])
+                   ,J.BlockStmt
+                      (J.ExpStmt (J.Assign (J.FieldLhs
+                                              (J.PrimaryFieldAccess (J.ExpName (J.Name [f]))
+                                                                    (J.Ident localvarstr)))
+                                           J.EqualA
+                                           jS))]
+
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-           (s3, nje3) <- getS3 (up this) f t j3 cvarass
+           (s3, nje3) <- getS3_2 (up this) f t j3 cvarass
            return (s1 ++ s2 ++ wrapS ++ s3, nje3, scope2ctyp t),
    translateIf =
           \m1 m2 m3 ->
