@@ -34,6 +34,12 @@ getClassType _ _ = closureClass ++ "BoxBox"
 wrap :: J.Exp -> Type t -> Type t -> ([J.BlockStmt], J.Exp)
 wrap e t1 t2 = ([], e)
 
+javaType2 CFInt             = J.PrimType J.IntT --classTy "java.lang.Integer"
+javaType2 x                 = javaType x
+
+assignVar2 :: String -> J.Exp -> Type t -> J.BlockStmt
+assignVar2 varId e t = J.LocalVars [] (javaType2 t) [varDecl varId (Just (J.InitExp e))]
+
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
 transUnbox this super = UT {toUT = super {
   translateM = \e -> case e of
@@ -56,7 +62,7 @@ transUnbox this super = UT {toUT = super {
                               (Src.Compare realOp) -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
                               (Src.Logic realOp)   -> (J.BinOp j1 realOp j2, JClass "java.lang.Boolean")
             newVarName <- getNewVarName this
-            return (s1 ++ s2 ++ [assignVar newVarName je typ], var newVarName, typ)
+            return (s1 ++ s2 ++ [assignVar2 newVarName je typ], var newVarName, typ)
 
        otherwise   -> translateM super e,
 
@@ -106,7 +112,35 @@ translateScopeTyp this v n [js] nextInClosure (translateScopeM this nextInClosur
            cvarass <- getCvarAss (up this) t f j1 jS
            let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
            (s3, nje3) <- getS3 (up this) f t j3 cvarass
-           return (s1 ++ s2 ++ wrapS ++ s3, nje3, scope2ctyp t)
+           return (s1 ++ s2 ++ wrapS ++ s3, nje3, scope2ctyp t),
+
+  translateScopeTyp =
+          \currentId nextId initVars nextInClosure m ->
+            do b <- genClone (up this)
+               (statementsBeforeOA,javaExpression,t1) <- m
+               return ([J.LocalClass
+                          (J.ClassDecl
+                             []
+                             (J.Ident ("Fun" ++ show nextId))
+                             []
+                             (Just $
+                              J.ClassRefType
+                                (J.ClassType [(J.Ident closureClass,[])]))
+                             []
+                             (jexp [currentInitialDeclaration
+                                      (J.Ident (localvarstr ++ show currentId))]
+                                   (Just (J.Block (initVars ++
+                                                   statementsBeforeOA ++
+                                                   [outputAssignment javaExpression])))
+                                   nextId
+                                   b))
+                       ,J.LocalVars
+                          []
+                          (closureType)
+                          ([J.VarDecl (J.VarId $
+                                       J.Ident (localvarstr ++ show nextId))
+                                      (Just (J.InitExp (funInstCreate nextId)))])]
+                      ,t1)
 
 
 }}
