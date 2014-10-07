@@ -137,8 +137,8 @@ complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
                   one
 
 -- let test
-let1 = Let one (\x -> Var x)
-letfix = Let app_fix (\x -> Var x `sub` one)
+let1 = Let javaInt one (\x -> Var x)
+letfix = Let javaInt app_fix (\x -> Var x `sub` one)
 
 
 javaInt      = JClass "java.lang.Integer"
