@@ -56,6 +56,7 @@ data Expr t e
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
+  | Let (Expr t e) (e -> Expr t e)
   | LetRec [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
@@ -200,6 +201,12 @@ pprExpr p (i,j) (Fix f t1 t) =
      pprType p i t <> dot <$$>
      indent 2 (pprExpr p (i, j + 2) (f j (j + 1))))
 
+pprExpr p (i,j) (Let bind body)
+  = text "let" <$$>
+    indent 2 (pprVar j) <+> equals <+> pprExpr p (i,succ j) bind <$$>
+    text "in" <$$>
+    indent 2 (pprExpr p (i, succ j) (body j))
+
 pprExpr p (i,j) (LetRec sigs binds body)
   = text "let" <+> text "rec" <$$>
     vcat (intersperse (text "and") (map (indent 2) ppr_binds)) <$$>
@@ -261,6 +268,7 @@ fsubstEE (x,r)
     go (JField (Left c) f ret)        = JField (Left c)     f ret
     go (Seq es)                       = Seq (map go es)
     go (Merge e1 e2)                  = Merge (go e1) (go e2)
+    go (Let bind body)                = Let (go bind) (\e -> go (body e))
     go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))
 
 isSystemfType :: Type t -> Bool

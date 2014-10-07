@@ -136,6 +136,9 @@ complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
                   zero
                   one
 
+-- let test
+let1 = Let one (\x -> Var x)
+
 javaInt      = JClass "java.lang.Integer"
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (Src.Integer 0)
