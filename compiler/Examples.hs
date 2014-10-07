@@ -9,6 +9,8 @@ import qualified Src
 import Core
 import Simplify
 import PartialEvaluator
+import Inliner
+import OptiUtils
 
 import PrettyUtils
 
@@ -64,11 +66,10 @@ tailFactLike
 --   odd  : Int -> Int = \(n : Int). if n == 0 then False else even (n - 1)
 -- in
 -- even 42
-{-
 evenOdd :: Expr t e
 evenOdd
   = LetRec
-      [(javaInt, javaInt), (javaInt, javaInt)]
+      [Fun javaInt javaBool, Fun javaInt javaBool]
       (\ids ->
          [ Lam javaInt (\n -> If (Var n `eq` zero) true  (App (Var (ids !! 1)) (Var n `sub` one)))
          , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
@@ -76,7 +77,7 @@ evenOdd
          App (Var (ids !! 1)) magicNumber)
 
 evenOdd1 :: Expr t e
-evenOdd1 = LetRec [(javaInt, javaInt), (javaInt, javaInt)]
+evenOdd1 = LetRec [Fun javaInt javaBool, Fun javaInt javaBool]
                   (\ids -> [ Lam javaInt (\n -> If (Var n `eq` zero) true (App (Var (ids !! 1)) (Var n `sub` one)))
                            , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
                   (\ids -> App (Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))) magicNumber)
@@ -85,7 +86,7 @@ evenOdd1 = LetRec [(javaInt, javaInt), (javaInt, javaInt)]
 evenOdd2 :: Expr t e
 evenOdd2
   = LetRec
-      [(javaInt, javaInt), (javaInt, javaInt)]
+      [Fun javaInt javaBool, Fun javaInt javaBool]
       (\ids ->
          [ Lam javaInt (\n -> If (Var n `eq` zero) true  (App (Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))) (Var n `sub` one)))
          , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
@@ -95,7 +96,6 @@ evenOdd2
 -- Int -> (Int -> Bool, Int -> Bool)
 evenOddEncodedTy :: Type t
 evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` javaBool]
--}
 
 -----------------------
 -- peval tests
@@ -138,6 +138,8 @@ complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
 
 -- let test
 let1 = Let one (\x -> Var x)
+letfix = Let app_fix (\x -> Var x `sub` one)
+
 
 javaInt      = JClass "java.lang.Integer"
 javaBool     = JClass "java.lang.Boolean"

@@ -203,7 +203,7 @@ pprExpr p (i,j) (Fix f t1 t) =
 
 pprExpr p (i,j) (Let bind body)
   = text "let" <$$>
-    indent 2 (pprVar j) <+> equals <+> pprExpr p (i,succ j) bind <$$>
+    indent 2 (pprVar j <+> equals <+> pprExpr p (i,succ j) bind) <$$>
     text "in" <$$>
     indent 2 (pprExpr p (i, succ j) (body j))
 

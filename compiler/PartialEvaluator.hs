@@ -5,16 +5,27 @@ import OptiUtils
 import qualified Src as S
 import qualified Language.Java.Syntax as J (Op(..))
 
-betaReduct :: Expr t (Expr t e) -> Expr t (Expr t e)
-betaReduct (App e1 e2) =
+app2let :: Expr t (Expr t e) -> Expr t (Expr t e)
+app2let (App e1 e2) =
     case e1' of
-      Lam _ f -> f $ joinExpr e2'
+      Lam _ f -> Let e2' f
       _ -> App e1' e2'
-    where e1' = betaReduct e1
-          e2' = betaReduct e2
-betaReduct e = mapExpr betaReduct e
+    where e1' = app2let e1
+          e2' = app2let e2
+app2let e = mapExpr app2let e
 
-calc :: Expr t e -> Expr t e
+calc :: Expr t (Expr t e) -> Expr t (Expr t e)
+calc (App e1 e2) =
+    case (e1', e2') of
+      (Lam _ f, Lit _) -> calc . f . joinExpr $ e2'
+      _ -> App e1' e2'
+    where e1' = calc e1
+          e2' = calc e2
+calc (Let bind body) =
+    case bind' of
+      Lit _ -> calc . body . joinExpr $ bind'
+      _ -> Let bind' (\x -> calc . body $ x)
+     where bind' = calc bind
 calc (PrimOp e1 op e2) =
     case (e1', e2') of
       (Lit (S.Integer a), Lit (S.Integer b)) ->
@@ -52,4 +63,4 @@ calc (If e1 e2 e3) =
 calc e = mapExpr calc e
 
 peval :: Expr t (Expr t e) -> Expr t e
-peval = calc . joinExpr . betaReduct
+peval = joinExpr . app2let

@@ -3,6 +3,11 @@
 module OptiUtils where
 
 import Core
+import System.Directory
+import Parser (reader)
+import TypeCheck (typeCheck)
+import Desugar (desugar)
+import Simplify (simplify)
 
 joinExpr :: Expr t (Expr t e) -> Expr t e
 joinExpr (Var x) = x
@@ -52,3 +57,15 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Seq es -> Seq $ map f es
       Merge e1 e2 -> Merge (f e1) (f e2)
+
+sf2core :: String -> IO (Expr t e)
+sf2core fname = do
+     path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
+     string <- readFile (path ++ "/" ++ fname)
+     result <- typeCheck . reader $ string
+     case result of
+       Left typeError -> error $ show typeError
+       Right (tcheckedSrc, _) ->
+             return . simplify . desugar $ tcheckedSrc
+
+fCore f str = sf2core str >>= (\e -> return $ f e)
