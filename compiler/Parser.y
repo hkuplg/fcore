@@ -34,6 +34,7 @@ import JavaUtils
   "."      { Tdot }
   "&"      { Tandtype }
   ",,"     { Tmerge }
+  "with"   { Twith }
   "let"    { Tlet }
   "rec"    { Trec }
   "="      { Teq }
@@ -115,8 +116,8 @@ atype :: { Type }
   | JAVACLASS                { JClass $1 }
   | "(" product_body ")"     { Product $2 }
   | "{" recordty_body "}"    { RecordTy $2 }
-  | "[" type "]"              { ListOf $2 }
-  | "(" type ")"              { $2 }
+  | "[" type "]"             { ListOf $2 }
+  | "(" type ")"             { $2 }
 
 product_body :: { [Type] }
   : type "," type              { $1:[$3] }
@@ -187,10 +188,16 @@ aexp :: { Expr Name }
     | aexp "." field      { JField (Right $1) $3 undefined }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
-    | "{" semi_exprs "}"        { Seq $2 }
+    -- | "{" semi_exprs "}"        { Seq $2 }
+    | "{" record_body "}"       { Record $2 }
+    | aexp "with" "{" record_body "}" { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }
 
-list_body :: { [Expr String] }
+record_body :: { [(Label, Expr Name)] }
+  : label "=" expr                  { [($1, $3)]  }
+  | label "=" expr "," record_body  { ($1, $3):$5 }
+
+list_body :: { [Expr Name] }
     : "(" expr "::" list_body ")"  { $2:$4 }
     | "[" comma_exprs_emp "]"      { $2 }
 

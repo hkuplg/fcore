@@ -17,6 +17,7 @@ import System.Process
 
 import Control.Monad.Error
 
+import Data.Maybe (fromJust)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
 
@@ -229,9 +230,13 @@ tcExpr (JField object f _)
         do ret_c <- checkStaticFieldAccess c f
            return (JField (Left c) f ret_c, JClass ret_c)
       Right e ->
-        do (e', c) <- tcExprAgainstAnyJClass e
-           ret_c   <- checkFieldAccess c f
-           return (JField (Right e') f ret_c, JClass ret_c)
+        do (e', t) <- tcExpr e
+           case t of
+             RecordTy _ -> tcExpr (RecordAccess e f) -- Then the typechecker realized!
+             JClass c   ->
+               do ret_c   <- checkFieldAccess c f
+                  return (JField (Right e') f ret_c, JClass ret_c)
+             _          -> throwError $ General "The thing before dot is neither a record nor a JVM object"
 
 tcExpr (Seq es) = do (es', ts) <- mapAndUnzipM tcExpr es
                      return (Seq es', last ts)
@@ -248,6 +253,18 @@ tcExpr (PrimList l) =
                             then return (PrimList es, (JClass "hk.hku.cs.f2j.Cons"))
                             else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
 
+tcExpr (Record fs) =
+  do (es', ts) <- mapAndUnzipM tcExpr (map snd fs)
+     return (Record (zip (map fst fs) es'), RecordTy (zip (map fst fs) ts))
+
+tcExpr (RecordAccess e l) =
+  do (e', t) <- tcExpr e
+     return (RecordAccess e' l, fromJust (lookup (Just l) (fields t)))
+
+tcExpr (RecordUpdate e fs) =
+  do (es', ts) <- mapAndUnzipM tcExpr (map snd fs)
+     (e', t) <- tcExpr e
+     return (RecordUpdate e' (zip (map fst fs) es'), t)
 
 tcExprAgainst :: Expr Name -> Type -> TcM (Expr TcId, Type)
 tcExprAgainst expr expected_ty

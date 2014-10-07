@@ -7,9 +7,12 @@ module Core
   , TypeContext
   , ValueContext
   , emptyValueContext
+  , fields, fieldLookup
 
   -- "Eq"
   , alphaEquiv
+
+  , eval
 
   -- "Show"
   , pprType, pprExpr
@@ -28,7 +31,8 @@ import Panic
 import Text.PrettyPrint.Leijen
 import qualified Language.Java.Pretty (prettyPrint)
 
-import Data.List (intersperse)
+import Data.List  (intersperse, elemIndex)
+import Data.Maybe (fromJust)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -41,6 +45,7 @@ data Type t
   | Forall (t -> Type t)   -- forall a. t
   | Product [Type t]       -- (t1, ..., tn)
   | And (Type t) (Type t)  -- t1 & t2
+  | RecordTy (Src.Label, Type t)
     -- Warning: If you ever add a case to this, you MUST also define the binary
     -- relations on your new case. Namely, add cases for your data constructor
     -- in `alphaEquiv' and `coerce' below. Consult George if you're not sure.
@@ -81,6 +86,9 @@ data Expr t e
   | Seq [Expr t e]
 
   | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
+  | Record (Src.Label, Expr t e)
+  | RecordAccess (Expr t e) Src.Label
+  | RecordUpdate (Expr t e) (Src.Label, Expr t e)
 
 -- newtype Typ = HideTyp { revealTyp :: forall t. Type t } -- type of closed types
 
@@ -91,6 +99,18 @@ type ValueContext t e = Map.Map e (Type t)
 
 emptyValueContext :: ValueContext t e
 emptyValueContext = Map.empty
+
+-- Fields
+fields :: Type t -> [(Maybe Src.Label, Type t)]
+fields (And t1 t2)      = fields t1 ++ fields t2
+fields (RecordTy (l,t)) = [(Just l,t)]
+fields t                = [(Nothing, t)]
+
+fieldLookup :: Src.Label -> [(Maybe Src.Label, Type t)] -> Maybe (Type t, Int)
+fieldLookup l f
+  = case lookup (Just l) (reverse f) of
+      Nothing -> Nothing
+      Just t  -> Just (t, length f - fromJust (elemIndex (Just l) (map fst (reverse f))))
 
 alphaEquiv :: Type Int -> Type Int -> Bool
 alphaEquiv = go 0
@@ -103,6 +123,10 @@ alphaEquiv = go 0
                                      && uncurry (go i) `all` zip ss ts
     go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
     go i t1           t2           = False
+
+-- Evaluation with call-by-value strategy
+eval :: Expr t e -> Expr t e
+eval (Proj i e) = case eval e of { Tuple es -> es !! (i - 1) }
 
 pprType :: Prec -> Int -> Type Int -> Doc
 
@@ -117,7 +141,7 @@ pprType p i (Forall f)   =
     (forall <+> pprTVar i <> dot <+>
      pprType (1,PrecMinus) (succ i) (f i))
 
-pprType p i (Product ts) = tupled (map (pprType basePrec i) ts)
+pprType p i (Product ts) = parens $ hcat (intersperse comma (map (pprType basePrec i) ts))
 
 
 pprType p i (JClass "java.lang.Integer")   = text "Int"
@@ -144,7 +168,7 @@ pprExpr p (i,j) (Var x) = pprVar x
 
 pprExpr p (i,j) (Lam t f) =
   parensIf p 2
-    (hang 3 (lambda <> parens (pprVar j <+> colon <+> pprType basePrec i t) <> dot <$$>
+    (hang 3 (lambda <> parens (pprVar j <+> colon <+> pprType basePrec i t) <> dot <+>
              pprExpr (2,PrecMinus) (i, succ j) (f j)))
 
 pprExpr p (i,j) (App e1 e2) =
@@ -161,14 +185,14 @@ pprExpr p (i,j) (TApp e t) =
     (pprExpr (4,PrecMinus) (i,j) e <+> pprType (4,PrecPlus) i t)
 
 pprExpr p (i,j) (Lit (Src.Integer n)) = integer n
-pprExpr p (i,j) (Lit (Src.String s))  = string s
+pprExpr p (i,j) (Lit (Src.String s))  = dquotes (string s)
 pprExpr p (i,j) (Lit (Src.Boolean b)) = bool b
 pprExpr p (i,j) (Lit (Src.Char c))    = char c
 
 pprExpr p (i,j) (If e1 e2 e3)
   = parensIf p prec
-      (hang 3 (text "if"   <+> pprExpr (prec,PrecMinus) (i,j) e1 <$$>
-               text "then" <+> pprExpr (prec,PrecMinus) (i,j) e2 <$$>
+      (hang 3 (text "if"   <+> pprExpr (prec,PrecMinus) (i,j) e1 <+>
+               text "then" <+> pprExpr (prec,PrecMinus) (i,j) e2 <+>
                text "else" <+> pprExpr (prec,PrecMinus) (i,j) e3))
   where prec = 3
 
@@ -177,7 +201,7 @@ pprExpr p (i,j) (PrimOp e1 op e2)
   where
     ppr_op = text (Language.Java.Pretty.prettyPrint (Src.unwrapOp op))
 
-pprExpr p (i,j) (Tuple es) = tupled (map (pprExpr basePrec (i,j)) es)
+pprExpr p (i,j) (Tuple es) = parens $ hcat (intersperse comma (map (pprExpr basePrec (i,j)) es))
 
 pprExpr p i (Proj n e) =
   parensIf p 5

@@ -30,12 +30,13 @@ infer e = unsafeCoerce $ fst (evalState (transExpr e') 0)
 -- Type translation
 
 transType :: Int -> Type Int -> Type Int
-transType i (TyVar a)    = TyVar a
-transType i (JClass c)   = JClass c
-transType i (Fun a1 a2)  = Fun (transType i a1) (transType i a2)
-transType i (Forall f)   = Forall (\a -> transType (i + 1) (f i)) -- bug!
-transType i (Product ts) = Product (map (transType i) ts)
-transType i (And a1 a2)  = Product [transType i a1, transType i a2]
+transType i (TyVar a)        = TyVar a
+transType i (JClass c)       = JClass c
+transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
+transType i (Forall f)       = Forall (\a -> transType (i + 1) (f i)) -- bug!
+transType i (Product ts)     = Product (map (transType i) ts)
+transType i (And a1 a2)      = Product [transType i a1, transType i a2]
+transType i (RecordTy (l,t)) = transType i t
 
 -- Subtyping
 
@@ -97,6 +98,7 @@ coerce i (And t1 t2) t3 =
         Nothing -> Nothing
         Just c  -> return (C (Lam (transType i (And t1 t2))
                                (\x -> c `appC` Proj 2 (Var x))))
+coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) = coerce i t1 t2
 coerce  i _ _ = Nothing
 
 -- Typing
@@ -206,6 +208,34 @@ transExpr (Merge e1 e2) =
   do (t1, e1') <- transExpr e1
      (t2, e2') <- transExpr e2
      return (And t1 t2, Tuple [e1', e2'])
+
+transExpr (Record (l,e)) =
+  do (t, e') <- transExpr e
+     return (RecordTy (l,t), e')
+
+transExpr (RecordAccess e l) =
+  do (t, e') <- transExpr e
+     let f = fields t
+     case fieldLookup l f of
+       Nothing          -> panic "Simplify.transExpr:RecordAccess"
+       Just (t_of_l, i) ->
+         case t of
+           RecordTy _ -> return (t, e')
+           _          -> return (t_of_l, Proj i e')
+
+transExpr (RecordUpdate e (l1,e1)) =
+  do (t,  e')  <- transExpr e
+     (t1, e1') <- transExpr e1
+     let f = fields t
+     case fieldLookup l1 f of
+       Nothing -> panic "Simplify.transExpr:RecordUpdate#1"
+       Just (t_l1, i_l1) -> do
+         i <- get
+         case coerce i t1 t_l1 of
+           Nothing -> panic $ "Simplify.transExpr:RecordUpdate#2\n"
+                              ++ "\t" ++ show (p t1) ++ "\n\t" ++ show (p t_l1)
+                        where p = Core.pprType basePrec 0
+           Just _  -> return (t, Tuple (map (\i1 -> if i1 == i_l1 then e1' else Proj i1 e') [1..length f]))
 
 takeFreshIndex :: State Int Int
 takeFreshIndex =
