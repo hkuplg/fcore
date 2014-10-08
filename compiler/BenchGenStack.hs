@@ -12,8 +12,9 @@ import ClosureF
 import BaseTransCFJava
 import StackTransCFJava
 import BenchGenCF2J
-import StringPrefixes
+-- import StringPrefixes
 import MonadLib
+import JavaEDSL
 
 
 --apply();
@@ -25,7 +26,7 @@ localVarDef id = (J.LocalVars [] closureType
 				Nothing])
 
 --Object result = null;
-resultDef = (J.LocalVars [] objType
+resultDef = (J.LocalVars [] objClassTy
 			[J.VarDecl (J.VarId (J.Ident "result"))
 			(Just $ J.InitExp $ J.Lit J.Null)])
 
@@ -48,14 +49,15 @@ passClousre from to param = [
 	(J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (fieldAcc "hk.hku.cs.f2j.Next" "next")) (J.EqualA) (J.ExpName $ J.Name [(J.Ident to)]))
 	]
 
+-- TODO: fix name confilc
 getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
-	(J.ClassBody [app [J.Static] body Nothing "apply" [],
-	  app [J.Public, J.Static] (Just (J.Block (testfuncBody paraType))) returnType "test" (methodDecl paraType),
-      app [J.Public, J.Static] mainbodyDef Nothing "main" mainArgType]))
+	(J.ClassBody [J.MemberDecl $ methodDecl [J.Static] Nothing "apply" [] body,
+	  J.MemberDecl $ methodDecl [J.Public, J.Static] returnType "test" (methodDeclTemp paraType) (Just (J.Block (testfuncBody paraType))) ,
+      J.MemberDecl $ methodDecl [J.Public, J.Static] Nothing "main" mainArgType mainbodyDef]))
     where
         body = Just (J.Block (bs ++ ass))
 
-retResStack returnType id = (J.BlockStmt (J.Return $ Just (J.Cast (J.RefType $ (classRefType returnType)) (J.ExpName $ J.Name [(J.Ident id)]))))
+retResStack returnType id = (J.BlockStmt (J.Return $ Just (J.Cast (classTy returnType) (J.ExpName $ J.Name [(J.Ident id)]))))
 
 
 testfuncBody paraType = 
@@ -64,20 +66,20 @@ testfuncBody paraType =
 		x : [] -> [ methodInvoke "apply" [], 
 					localVarDef "c",
 					resultDef] 
-					++ whileApplyLoopB "c" (J.Ident "result") objType
+					++ whileApplyLoopB "c" (J.Ident "result") objClassTy
 					++ passClousre "result" "c" "x0"
-					++ whileApplyLoopB "c" (J.Ident "result") objType
+					++ whileApplyLoopB "c" (J.Ident "result") objClassTy
 					++ [retResStack "Integer" "result"] 
 					
 		x : y : [] ->
 				[ methodInvoke "apply" [], 
 				localVarDef "c",
 				resultDef]
-				++ whileApplyLoopB "c" (J.Ident "result") objType
+				++ whileApplyLoopB "c" (J.Ident "result") objClassTy
 				++ passClousre "result" "c" "x0"
-				++ whileApplyLoopB "c" (J.Ident "result") objType
+				++ whileApplyLoopB "c" (J.Ident "result") objClassTy
 				++ passClousre "result" "c" "x1"
-				++ whileApplyLoopB "c" (J.Ident "result") objType
+				++ whileApplyLoopB "c" (J.Ident "result") objClassTy
 				++ [retResStack "Integer" "result"]
 
 		_ -> []
@@ -107,7 +109,7 @@ transBenchStack this super = TBS {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
            let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
-                                      _ -> Just $ objType
+                                      _ -> Just objClassTy
            let paraType = getParaType t
            --let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType BenchGenStack.testfuncBody returnType mainbody
            let stackDecl = BenchGenStack.getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) paraType BenchGenStack.testfuncBody returnType (Just $ J.Block $ stackbody t)
@@ -134,7 +136,7 @@ transBenchStackOpt this super = TBSA {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
            let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
-                                      _ -> Just $ objType
+                                      _ -> Just objClassTy
            let paraType = getParaType t
            let stackDecl = BenchGenStack.getClassDecl name bs (if (containsNext bs) then [] else [empyClosure e]) paraType BenchGenStack.testfuncBody returnType (Just $ J.Block $ stackbody t)
            return (BenchGenStack.createCUB super [stackDecl], t)

@@ -1,7 +1,4 @@
-{-# OPTIONS_GHC
-    -fno-warn-missing-signatures
-    -fno-warn-orphans
-    -fno-warn-unused-imports #-}
+one ssh://hg@bitbucket.org/brunosoliveira/systemfcompiler
 
 module Examples where
 
