@@ -1,5 +1,3 @@
-one ssh://hg@bitbucket.org/brunosoliveira/systemfcompiler
-
 module Examples where
 
 import qualified Src
@@ -132,11 +130,6 @@ app_if_lam = App if_lam one
 complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
                   zero
                   one
-
--- let test
-let1 = Let javaInt one (\x -> Var x)
-letfix = Let javaInt app_fix (\x -> Var x `sub` one)
-
 
 javaInt      = JClass "java.lang.Integer"
 javaBool     = JClass "java.lang.Boolean"
