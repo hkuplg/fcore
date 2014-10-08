@@ -431,7 +431,7 @@ trans self =
                    let needed =
                          length $
                          (xs (zip [n ..]
-                                  (repeat (t !! 0))))
+                                  t))
                    put (n + 2 + needed)
                    mfuns <- return (\defs ->
                                       forM (xs defs)
@@ -440,7 +440,7 @@ trans self =
                          (liftM (map (\(_,b,c) ->
                                         (b,c))))
                            (mfuns (zip [n ..]
-                                       (repeat (t !! 0))))
+                                       t))
                    let (bindings :: [Var]) =
                          [n + 2 .. n + 1 + needed]
                    newvars <- ((liftM (pairUp bindings)) vars)
