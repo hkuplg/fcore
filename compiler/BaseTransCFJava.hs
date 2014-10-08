@@ -287,9 +287,11 @@ toTupleOf3Lists list = (first, second, third)
 concatFirst :: ([[a]], [b], [c]) -> ([a], [b], [c])
 concatFirst (xs, y, z) = (concat xs, y, z)
 
-getNewVarName this = do (n :: Int) <- get
-                        put (n + 1)
-                        return $ localvarstr ++ show n
+getNewVarName :: MonadState Int m => t -> m String
+getNewVarName _ =
+  do (n :: Int) <- get
+     put (n + 1)
+     return $ localvarstr ++ show n
 
 mainClass :: String
           -> [J.BlockStmt]

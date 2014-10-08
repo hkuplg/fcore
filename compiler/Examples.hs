@@ -69,29 +69,13 @@ tailFactLike
 evenOdd :: Expr t e
 evenOdd
   = LetRec
-      [(Fun javaInt javaInt), (Fun javaInt javaInt)]
+      [(Fun javaInt javaBool), (Fun javaInt javaBool)]
       (\ids ->
          [ Lam javaInt (\n -> If (Var n `eq` zero) true  (App (Var (ids !! 1)) (Var n `sub` one)))
          , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
       (\ids ->
          App (Var (ids !! 1)) magicNumber)
 
-evenOdd1 :: Expr t e
-evenOdd1 = LetRec [(Fun javaInt javaInt), (Fun javaInt javaInt)]
-                  (\ids -> [ Lam javaInt (\n -> If (Var n `eq` zero) true (App (Var (ids !! 1)) (Var n `sub` one)))
-                           , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
-                  (\ids -> App (Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))) magicNumber)
-
-
-evenOdd2 :: Expr t e
-evenOdd2
-  = LetRec
-      [(Fun javaInt javaInt), (Fun javaInt javaInt)]
-      (\ids ->
-         [ Lam javaInt (\n -> If (Var n `eq` zero) true  (App (Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))) (Var n `sub` one)))
-         , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
-      (\ids ->
-         App (Var (ids !! 1)) magicNumber)
 
 -- Int -> (Int -> Bool, Int -> Bool)
 evenOddEncodedTy :: Type t
