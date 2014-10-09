@@ -35,6 +35,12 @@ closureType = classTy closureClass
 objClassTy :: J.Type
 objClassTy = classTy "Object"
 
+newIdent :: Int -> J.Ident
+newIdent n = J.Ident $ localvarstr ++ show n
+
+identDecl :: J.Ident -> Type Int -> J.Exp -> [J.BlockStmt]
+identDecl id t j = [J.LocalVars [] (javaType t) [J.VarDecl (J.VarId id) (Just $ J.InitExp j)]]
+
 -- objArrayType :: J.Type
 -- objArrayType = arrayTy objType
 
@@ -433,10 +439,12 @@ trans self =
                    (s1, j1, t1) <- translateM this e
                    (s2, j2, t2) <- translateM this (body (n,t1))
 
-                   let x = J.Ident (localvarstr ++ show n)
-                   let xf = J.Ident (localvarstr ++ show (n+1))
-                   let xfDecl = [J.LocalVars [] (javaType t2) [J.VarDecl (J.VarId xf) (Just $ J.InitExp j2)]]
-                   let xDecl = [J.LocalVars [] (javaType t1) [J.VarDecl (J.VarId x) (Just $ J.InitExp j1)]]
+                   let x = newIdent n
+                   let xf = newIdent (n + 1)
+
+                   let xDecl = identDecl x t1 j1
+                   let xfDecl = identDecl x t2 j2
+
                    return (s1 ++ xDecl ++ s2 ++ xfDecl, J.ExpName (J.Name [xf]), t2)
 
               LetRec t xs body ->
