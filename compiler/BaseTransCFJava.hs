@@ -443,7 +443,7 @@ trans self =
                    let xf = newIdent (n + 1)
 
                    let xDecl = identDecl x t1 j1
-                   let xfDecl = identDecl x t2 j2
+                   let xfDecl = identDecl xf t2 j2
 
                    return (s1 ++ xDecl ++ s2 ++ xfDecl, J.ExpName (J.Name [xf]), t2)
 
