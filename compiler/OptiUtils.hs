@@ -3,6 +3,11 @@
 module OptiUtils where
 
 import Core
+import System.Directory
+import Parser (reader)
+import TypeCheck (typeCheck)
+import Desugar (desugar)
+import Simplify (simplify)
 
 joinExpr :: Expr t (Expr t e) -> Expr t e
 joinExpr (Var x) = x
@@ -16,6 +21,7 @@ joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (Proj i e) = Proj i (joinExpr e)
 joinExpr (Fix f t1 t2) = Fix (\e1 e2 -> joinExpr (f (Var e1) (Var e2))) t1 t2
+joinExpr (Let bind body) = Let (joinExpr bind) (\e -> joinExpr (body (Var e)))
 joinExpr (LetRec s b1 b2) =
   LetRec s
           (\es -> map joinExpr (b1 (map Var es)))
@@ -34,6 +40,7 @@ mapExpr f e =
       Lit l -> e
       Lam t g -> Lam t (\x -> f . g $ x)
       Fix g t1 t -> Fix (\e1 e2 -> f $ g e1 e2) t1 t
+      Let bind body -> Let (f bind) (\x -> f . body $ x)
       LetRec sigs binds body ->
           LetRec sigs
                  (\es -> map f $ binds es)
@@ -50,3 +57,15 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Seq es -> Seq $ map f es
       Merge e1 e2 -> Merge (f e1) (f e2)
+
+sf2core :: String -> IO (Expr t e)
+sf2core fname = do
+     path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
+     string <- readFile (path ++ "/" ++ fname)
+     result <- typeCheck . reader $ string
+     case result of
+       Left typeError -> error $ show typeError
+       Right (tcheckedSrc, _) ->
+             return . simplify . desugar $ tcheckedSrc
+
+fCore f str = sf2core str >>= (\e -> return $ f e)

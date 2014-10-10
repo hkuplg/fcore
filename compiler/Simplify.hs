@@ -122,6 +122,12 @@ transExpr (Fix f t1 t) =
                   (transType i t1)
                   (transType i t))
 
+transExpr (Let e body) =
+  do (t1, m1) <- transExpr e
+     i <- takeFreshIndex
+     (t2, m2) <- transExpr (body (i, t1))
+     return (t2, Let m1 (\x -> fsubstEE (i, Var x) m2))
+
 -- LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
 transExpr (LetRec sigs binds body) =
   do i <- takeFreshIndex

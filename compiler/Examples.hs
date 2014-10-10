@@ -1,8 +1,3 @@
-{-# OPTIONS_GHC
-    -fno-warn-missing-signatures
-    -fno-warn-orphans
-    -fno-warn-unused-imports #-}
-
 module Examples where
 
 import qualified Src
@@ -10,6 +5,7 @@ import Core
 import Simplify
 import PartialEvaluator
 import Inliner
+import OptiUtils
 
 import PrettyUtils
 
@@ -65,11 +61,10 @@ tailFactLike
 --   odd  : Int -> Int = \(n : Int). if n == 0 then False else even (n - 1)
 -- in
 -- even 42
-
 evenOdd :: Expr t e
 evenOdd
   = LetRec
-      [(Fun javaInt javaInt), (Fun javaInt javaInt)]
+      [Fun javaInt javaBool, Fun javaInt javaBool]
       (\ids ->
          [ Lam javaInt (\n -> If (Var n `eq` zero) true  (App (Var (ids !! 1)) (Var n `sub` one)))
          , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
@@ -77,7 +72,7 @@ evenOdd
          App (Var (ids !! 1)) magicNumber)
 
 evenOdd1 :: Expr t e
-evenOdd1 = LetRec [(Fun javaInt javaInt), (Fun javaInt javaInt)]
+evenOdd1 = LetRec [Fun javaInt javaBool, Fun javaInt javaBool]
                   (\ids -> [ Lam javaInt (\n -> If (Var n `eq` zero) true (App (Var (ids !! 1)) (Var n `sub` one)))
                            , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
                   (\ids -> App (Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))) magicNumber)
@@ -86,7 +81,7 @@ evenOdd1 = LetRec [(Fun javaInt javaInt), (Fun javaInt javaInt)]
 evenOdd2 :: Expr t e
 evenOdd2
   = LetRec
-      [(Fun javaInt javaInt), (Fun javaInt javaInt)]
+      [Fun javaInt javaBool, Fun javaInt javaBool]
       (\ids ->
          [ Lam javaInt (\n -> If (Var n `eq` zero) true  (App (Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))) (Var n `sub` one)))
          , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
