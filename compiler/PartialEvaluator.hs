@@ -63,4 +63,4 @@ calc (If e1 e2 e3) =
 calc e = mapExpr calc e
 
 peval :: Expr t (Expr t e) -> Expr t e
-peval = joinExpr . app2let
+peval = joinExpr . app2let . calc
