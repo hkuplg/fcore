@@ -9,9 +9,9 @@ public class FileServer {
 
     public final static int FILE_SIZE = 1022386;
 
-    public static void compileLoad (String fileName)
+    public static void compile(String fileName)
     {
-        // Save source in .java file.
+	// Save source in .java file.
         File sourceFile = new File(fileName);
 
         // Compile source file.
@@ -33,6 +33,12 @@ public class FileServer {
                     null, compilationUnits);
         task.call();
 
+    }
+
+    public static void compileLoad (String fileName)
+    {
+	compile(fileName);
+
         String className = "";
         int i = 0;
         while(fileName.charAt(i) != '.') {
@@ -40,9 +46,11 @@ public class FileServer {
             i++;
         }
 
+	ClassLoader classLoader = FileServer.class.getClassLoader();
         // Dynamically load class and invoke its main method.
         try {
-            Class<?> cls = Class.forName(className);
+            //Class<?> cls = Class.forName(className);
+	    Class<?> cls = classLoader.loadClass(className);
             Method meth = cls.getMethod("main", String[].class);
             String[] params = null;
             meth.invoke(null, (Object) params);

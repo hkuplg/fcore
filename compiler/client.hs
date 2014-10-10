@@ -1,4 +1,4 @@
-module Main where
+module Client where
 
 import System.Console.Haskeline
 import System.IO
@@ -17,31 +17,32 @@ main =
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP LineBuffering
      hSetBuffering outP LineBuffering
-     runInputT defaultSettings (loop inP outP False)
+     runInputT defaultSettings (loop inP outP False 0)
      
-loop :: Handle -> Handle -> Bool -> InputT IO ()
-loop inP outP flag = do
+loop :: Handle -> Handle -> Bool -> Int -> InputT IO ()
+loop inP outP flag num = do
 	msg <- getInputLine "% "
 	case msg of
 	  Nothing -> return ()
-	  Just input -> runCommand inP outP flag input
+	  Just input -> runCommand inP outP flag num input
 	
-runCommand :: Handle -> Handle -> Bool -> String -> InputT IO ()
-runCommand inP outP flag msg = do
+runCommand :: Handle -> Handle -> Bool -> Int -> String -> InputT IO ()
+runCommand inP outP flag num msg = do
 	case (stripPrefix ":" msg) of
 	  Just input -> 
 		case parseMsg msg of
 		  Left err ->  outputStrLn "Parse error"
-		  Right line -> processCMD inP outP flag line
+		  Right line -> processCMD inP outP flag num line
 	  Nothing -> do 
-	  	liftIO (writeFile "main.sf" msg)
+	  	let fileName = "main_" ++ (show num) ++ ".sf"
+	  	liftIO (writeFile fileName msg)
 	  	case flag of 
-		  True 	-> liftIO (timeIt (wrap inP outP "main.sf"))
-		  False -> liftIO (wrap inP outP "main.sf")
-		loop inP outP flag
+		  True 	-> liftIO (timeIt (wrap inP outP fileName))
+		  False -> liftIO (wrap inP outP fileName)
+		loop inP outP flag (num+1)
 
-processCMD :: Handle -> Handle -> Bool -> [String] -> InputT IO ()
-processCMD inP outP flag (x : xs) = do
+processCMD :: Handle -> Handle -> Bool -> Int -> [String] -> InputT IO ()
+processCMD inP outP flag num (x : xs) = do
 	case x of 
 	  ":send" -> do
 		case getCMD xs of
@@ -50,15 +51,15 @@ processCMD inP outP flag (x : xs) = do
 			  True	-> liftIO (timeIt (wrap inP outP filename))
 	  		  False -> liftIO (wrap inP outP filename)
 		  Nothing       ->  outputStrLn "Error input"
-		loop inP outP flag 
+		loop inP outP flag num
 	  ":time" -> case getCMD xs of 
-		Just "on"  -> loop inP outP True
-		Just "off" -> loop inP outP False
+		Just "on"  -> loop inP outP True num
+		Just "off" -> loop inP outP False num
 		_          -> do outputStrLn "Error input"
-			         loop inP outP flag
+			         loop inP outP flag num
 	  ":quit" -> return ()
 	  input	  -> do outputStrLn $ "Command not recognized: " ++ input
-	  	        loop inP outP flag
+	  	        loop inP outP flag num
 
 getCMD :: [String] -> Maybe String
 getCMD xs = case xs of
@@ -82,22 +83,22 @@ getClassName (x : xs) = (toUpper x) : (takeWhile (/= '.') xs)
 sfToJava :: Handle -> FilePath -> IO ()
 sfToJava h f = do 
 	contents <- readFile f
-	--putStrLn contents
+	putStrLn contents
 	let className = getClassName f
-	javaFile <- sf2java False compileAO className contents
+	javaFile <- sf2java 0 False compileAO className contents
 	let file = javaFile ++ "\n" ++  "//end of file"
-	--putStrLn file
+	putStrLn file
 	sendFile h file
-	--putStrLn "sent!"
+	putStrLn "sent!"
 
 receiveMsg :: Handle -> IO () 
 receiveMsg h = do
 	msg <- hGetLine h
 	if msg == "exit" 
-	then return () 
-	else do putStrLn msg
-       		s <- receiveMsg h
-		return ()
+	  then return () 
+	  else do putStrLn msg
+       		  s <- receiveMsg h
+		  return ()
 
 sendMsg :: Handle -> String -> IO ()
 sendMsg h msg = do 
