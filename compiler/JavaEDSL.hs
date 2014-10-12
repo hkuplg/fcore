@@ -10,16 +10,19 @@ arrayTy :: Type -> Type
 arrayTy ty  = RefType (ArrayType ty)
 
 classTy :: String -> Type
-classTy t = RefType $ ClassRefType (ClassType [(Ident t,[])])
+classTy t = RefType $ ClassRefType $ classTyp t
+
+classTyp :: String -> ClassType
+classTyp t = ClassType [(Ident t, [])]
 
 -- javaClassType :: String -> Type
 -- javaClassType t = RefType $ classTy t
 
-names :: [String] -> Name
-names xs = Name $ map Ident xs
+name :: [String] -> Name
+name xs = Name $ map Ident xs
 
 var :: String -> Exp
-var x = ExpName $ names [x]
+var x = ExpName $ name [x]
 
 block :: [BlockStmt] -> Block
 block = Block
@@ -27,8 +30,8 @@ block = Block
 bStmt :: Stmt -> BlockStmt
 bStmt = BlockStmt
 
-localVars :: [Modifier] -> Type -> [VarDecl] -> BlockStmt
-localVars = LocalVars
+localVars :: [Modifier] -> Type -> VarDecl -> BlockStmt
+localVars modi typ vard = LocalVars modi typ [vard]
 
 methodCall :: String -> [Argument] -> Stmt
 methodCall ident argu = ExpStmt (MethodInv (MethodCall (Name [Ident ident]) argu))
@@ -40,10 +43,10 @@ paramDecl :: Type -> String -> FormalParam
 paramDecl t n = FormalParam [] t False (VarId (Ident n))
 
 varDecl :: String -> Maybe VarInit -> VarDecl
-varDecl name e = VarDecl (VarId $ Ident name) e
+varDecl nam e = VarDecl (VarId $ Ident nam) e
 
 methodDecl :: [Modifier] -> Maybe Type -> String -> [FormalParam] -> Maybe Block -> MemberDecl
-methodDecl modi ty name params body = MethodDecl modi [] ty (Ident name) params [] (MethodBody body)
+methodDecl modi ty nam params body = MethodDecl modi [] ty (Ident nam) params [] (MethodBody body)
 
 fieldDecl :: [Modifier] -> Type -> [VarDecl] -> MemberDecl
 fieldDecl = FieldDecl
@@ -65,6 +68,7 @@ instCreat :: ClassType -> [Argument] -> Exp
 instCreat cls args = InstanceCreation [] cls args Nothing
 
 assign :: Name -> AssignOp -> Exp -> Exp
-assign name op expr = Assign (NameLhs name)
-                             op
-                             expr
+assign nam op expr = Assign (NameLhs nam) op expr
+
+fieldAccess :: Exp -> String -> Exp
+fieldAccess expr str = FieldAccess $ PrimaryFieldAccess expr (Ident str)

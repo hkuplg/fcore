@@ -45,3 +45,5 @@ Session.vim
 formalization/*.pdf
 *.dvi
 *.aux
+
+TAGS
