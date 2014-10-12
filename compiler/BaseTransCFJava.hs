@@ -294,6 +294,7 @@ concatFirst :: ([[a]], [b], [c]) -> ([a], [b], [c])
 concatFirst (xs, y, z) = (concat xs, y, z)
 
 -- Needed
+getNewVarName :: MonadState Int m => t -> m String
 getNewVarName this = do (n :: Int) <- get
                         put (n + 1)
                         return $ localvarstr ++ show n
