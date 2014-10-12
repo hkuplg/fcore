@@ -124,7 +124,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
      (/\A1...An. fix y (x1 : t1) : t2. peeled_e)
 -}
     go (LetOut Rec [(f,t@(Fun _ _),e)] body) = dsLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
-    go (LetOut Rec [(f,t,e)] body)           = dsLetRecToFixEncoded (d,g) (LetOut Rec [(f,t,e)] body)
+    go (LetOut Rec [(f,t,e)] body)           = dsLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = dsLetRecToLetRec (d,g) (LetOut Rec bs body)
     go (JNewObj cName args)    = C.JNewObj cName (map go args)
     go (JMethod c mName args r) =
