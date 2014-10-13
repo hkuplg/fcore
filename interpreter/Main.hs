@@ -1,4 +1,4 @@
-module Client where
+module Main where
 
 import System.Console.Haskeline
 import System.IO

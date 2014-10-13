@@ -18,7 +18,7 @@ import Unsafe.Coerce
 import Control.Monad.Identity
 import Control.Monad.State
 
-import Prelude hiding (pred)
+import Prelude hiding (pred, id, const)
 
 simplify :: Expr t e -> Expr t e
 simplify e = unsafeCoerce $ snd (evalState (transExpr (unsafeCoerce e)) 0)
@@ -30,12 +30,13 @@ infer e = unsafeCoerce $ fst (evalState (transExpr e') 0)
 -- Type translation
 
 transType :: Int -> Type Int -> Type Int
-transType i (TyVar a)    = TyVar a
-transType i (JClass c)   = JClass c
-transType i (Fun a1 a2)  = Fun (transType i a1) (transType i a2)
-transType i (Forall f)   = Forall (\a -> transType (i + 1) (f i)) -- bug!
-transType i (Product ts) = Product (map (transType i) ts)
-transType i (And a1 a2)  = Product [transType i a1, transType i a2]
+transType i (TyVar a)        = TyVar a
+transType i (JClass c)       = JClass c
+transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
+transType i (Forall f)       = Forall (\a -> transType (i + 1) (f i)) -- bug!
+transType i (Product ts)     = Product (map (transType i) ts)
+transType i (And a1 a2)      = Product [transType i a1, transType i a2]
+transType i (RecordTy (l,t)) = transType i t
 
 -- Subtyping
 
@@ -97,6 +98,7 @@ coerce i (And t1 t2) t3 =
         Nothing -> Nothing
         Just c  -> return (C (Lam (transType i (And t1 t2))
                                (\x -> c `appC` Proj 2 (Var x))))
+coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) = coerce i t1 t2
 coerce  i _ _ = Nothing
 
 -- Typing
@@ -212,6 +214,70 @@ transExpr (Merge e1 e2) =
   do (t1, e1') <- transExpr e1
      (t2, e2') <- transExpr e2
      return (And t1 t2, Tuple [e1', e2'])
+
+transExpr (Record (l,e)) =
+  do (t, e') <- transExpr e
+     return (RecordTy (l,t), e')
+
+transExpr (RecordAccess e l) =
+  do (t, e') <- transExpr e
+     i <- get
+     case getter i t l of
+       Nothing     -> panic "Simplify.transExpr:RecordAccess"
+       Just (c,t1) -> return (t1, App c e')
+
+transExpr (RecordUpdate e (l1,e1)) =
+  do (t,  e')  <- transExpr e
+     (t1, e1') <- transExpr e1
+     i <- get
+     case putter i t l1 e1' of
+       Nothing -> panic "Simplify.transExpr:RecordUpdate"
+       Just (c,t2) ->
+         -- Since the simplifier assumes everything passed in typechecks,
+         -- the subtyping condition t1 <: t2 is not checked here.
+         return (t, App c e')
+
+getter :: Int -> Type Int -> S.Label -> Maybe (Expr Int Int, Type Int)
+getter i (RecordTy (l,t)) l1
+  | l1 == l   = Just (id (transType i $ RecordTy (l,t)), t)
+  | otherwise = Nothing
+getter i (And t1 t2) l
+  = case getter i t2 l of
+      Just (c,t) ->
+        Just (Lam (transType i (And t1 t2)) (\x -> App c (Proj 2 (Var x)))
+             ,t)
+      Nothing    ->
+        case getter i t1 l of
+          Nothing    -> Nothing
+          Just (c,t) ->
+            Just (Lam (transType i (And t1 t2)) (\x -> App c (Proj 1 (Var x)))
+                 ,t)
+
+putter :: Int -> Type Int -> S.Label -> Expr Int Int -> Maybe (Expr Int Int, Type Int)
+putter i (RecordTy (l,t)) l1 e
+  | l1 == l   = Just (const (transType i $ RecordTy (l,t)) e, t)
+  | otherwise = Nothing
+putter i (And t1 t2) l e
+  = case putter i t2 l e of
+      Just (c,t) ->
+        Just (Lam (transType i (And t1 t2))
+               (\x -> Tuple [Proj 1 (Var x), App c (Proj 2 (Var x))])
+             ,t)
+      Nothing    ->
+        case putter i t1 l e of
+          Nothing    -> Nothing
+          Just (c,t) ->
+            Just (Lam (transType i (And t1 t2))
+                   (\x -> Tuple [App c (Proj 1 (Var x)), Proj 2 (Var x)])
+                 ,t)
+
+-- id_t: the identity function in the Core world, specialised to type t.
+id :: Type Int -> Expr Int Int
+id t = Lam t (\x -> Var x)
+
+-- const_t: the const function in the Core world, specialised to type t.
+const :: Type Int -> Expr Int Int -> Expr Int Int
+const t e = Lam t (\_ -> e)
 
 takeFreshIndex :: State Int Int
 takeFreshIndex =
