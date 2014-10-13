@@ -156,6 +156,8 @@ pprType p i (And t1 t2) =
      ampersand  <+>
      pprType (2,PrecPlus) i t2)
 
+pprType p i (RecordTy (l,t)) = lbrace <> text l <> colon <> pprType basePrec i t <> rbrace
+
 -- instance Show (Expr Int Int) where
 --   show = show . pretty
 
@@ -242,6 +244,10 @@ pprExpr p (i,j) (LetRec sigs binds body)
 
 pprExpr p (i,j) (Merge e1 e2) =
   parens $ pprExpr p (i,j) e1 <+> dcomma <+> pprExpr p (i,j) e2
+
+pprExpr p (i,j) (Record (l,e))          = lbrace <> text l <> equals <> pprExpr basePrec (i,j) e <> rbrace
+pprExpr p (i,j) (RecordAccess e l)      = pprExpr p (i,j) e <> dot <> text l
+pprExpr p (i,j) (RecordUpdate e (l,e1)) = pprExpr p (i,j) e <+> text "with" <+> pprExpr p (i,j) (Record (l,e1))
 
 fsubstTT :: (Int, Type Int) -> Type Int -> Type Int
 fsubstTT (x,r) (TyVar a)
