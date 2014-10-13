@@ -9,3 +9,4 @@ localvarstr = "x"
 ifresultstr = "ifres"
 -- temporary vars
 tempvarstr = "temp"
+closureInput = "x"

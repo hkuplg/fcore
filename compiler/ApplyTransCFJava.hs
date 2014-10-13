@@ -13,6 +13,8 @@ import BaseTransCFJava
 import StringPrefixes
 import MonadLib
 
+import JavaEDSL
+
 data ApplyOptTranslate m = NT {toT :: Translate m}
 
 instance (:<) (ApplyOptTranslate m) (Translate m) where
@@ -54,8 +56,36 @@ transApply this super = NT {toT = super {
 }}
 
 refactoredScopeTranslationBit javaExpression statementsBeforeOA currentId nextId = completeClosure
-    where
-        currentInitialDeclaration = J.MemberDecl $ J.FieldDecl [] closureType [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show currentId) (Just (J.InitExp J.This))]
-        completeClosure = [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
-                                 (Just $ J.ClassRefType (J.ClassType [(J.Ident closureClass,[])])) [] (jexp [currentInitialDeclaration, J.InitDecl False (J.Block $ (statementsBeforeOA ++ [outputAssignment javaExpression]))] (Just $ J.Block [])  nextId True))),
-                                        J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (funInstCreate nextId)))])]
+  where currentInitialDeclaration =
+          J.MemberDecl $
+          J.FieldDecl
+            []
+            closureType
+            [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show currentId)
+                       (Just (J.InitExp J.This))]
+        completeClosure =
+          [(J.LocalClass
+              (J.ClassDecl
+                 []
+                 (J.Ident ("Fun" ++ show nextId))
+                 []
+                 (Just $
+                  J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))
+                 []
+                 (closureBodyGen
+                    [currentInitialDeclaration
+                    ,J.InitDecl
+                       False
+                       (J.Block $
+                        (statementsBeforeOA ++
+                         [outputAssignment javaExpression]))]
+                    (Just $
+                     J.Block [])
+                    nextId
+                    True)))
+          ,J.LocalVars
+             []
+             (closureType)
+             ([J.VarDecl (J.VarId $
+                          J.Ident (localvarstr ++ show nextId))
+                         (Just (J.InitExp (funInstCreate nextId)))])]
