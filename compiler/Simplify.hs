@@ -218,7 +218,7 @@ transExpr (RecordAccess e l) =
      i <- get
      case getter i t l of
        Nothing     -> panic "Simplify.transExpr:RecordAccess"
-       Just (c,t1) -> return (t1, App c e')
+       Just (c,t1) -> return (t1, appC c e')
 
 transExpr (RecordUpdate e (l1,e1)) =
   do (t,  e')  <- transExpr e
@@ -229,40 +229,40 @@ transExpr (RecordUpdate e (l1,e1)) =
        Just (c,t2) ->
          -- Since the simplifier assumes everything passed in typechecks,
          -- the subtyping condition t1 <: t2 is not checked here.
-         return (t, App c e')
+         return (t, appC c e')
 
-getter :: Int -> Type Int -> S.Label -> Maybe (Expr Int Int, Type Int)
+getter :: Int -> Type Int -> S.Label -> Maybe (Coercion Int Int, Type Int)
 getter i (RecordTy (l,t)) l1
-  | l1 == l   = Just (id (transType i $ RecordTy (l,t)), t)
+  | l1 == l   = Just (C $ id (transType i $ RecordTy (l,t)), t)
   | otherwise = Nothing
 getter i (And t1 t2) l
   = case getter i t2 l of
       Just (c,t) ->
-        Just (Lam (transType i (And t1 t2)) (\x -> App c (Proj 2 (Var x)))
+        Just (C $ Lam (transType i (And t1 t2)) (\x -> appC c (Proj 2 (Var x)))
              ,t)
       Nothing    ->
         case getter i t1 l of
           Nothing    -> Nothing
           Just (c,t) ->
-            Just (Lam (transType i (And t1 t2)) (\x -> App c (Proj 1 (Var x)))
+            Just (C $ Lam (transType i (And t1 t2)) (\x -> appC c (Proj 1 (Var x)))
                  ,t)
 
-putter :: Int -> Type Int -> S.Label -> Expr Int Int -> Maybe (Expr Int Int, Type Int)
+putter :: Int -> Type Int -> S.Label -> Expr Int Int -> Maybe (Coercion Int Int, Type Int)
 putter i (RecordTy (l,t)) l1 e
-  | l1 == l   = Just (const (transType i $ RecordTy (l,t)) e, t)
+  | l1 == l   = Just (C $ const (transType i $ RecordTy (l,t)) e, t)
   | otherwise = Nothing
 putter i (And t1 t2) l e
   = case putter i t2 l e of
       Just (c,t) ->
-        Just (Lam (transType i (And t1 t2))
-               (\x -> Tuple [Proj 1 (Var x), App c (Proj 2 (Var x))])
+        Just (C $ Lam (transType i (And t1 t2))
+               (\x -> Tuple [Proj 1 (Var x), appC c (Proj 2 (Var x))])
              ,t)
       Nothing    ->
         case putter i t1 l e of
           Nothing    -> Nothing
           Just (c,t) ->
-            Just (Lam (transType i (And t1 t2))
-                   (\x -> Tuple [App c (Proj 1 (Var x)), Proj 2 (Var x)])
+            Just (C $ Lam (transType i (And t1 t2))
+                   (\x -> Tuple [appC c (Proj 1 (Var x)), Proj 2 (Var x)])
                  ,t)
 
 -- id_t: the identity function in the Core world, specialised to type t.
