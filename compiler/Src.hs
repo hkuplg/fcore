@@ -80,8 +80,11 @@ data Expr id
   | JMethod (Either ClassName (Expr id)) MethodName [Expr id] ClassName
   | JField  (Either ClassName (Expr id)) FieldName            ClassName
   | Seq [Expr id]
-  | Merge (Expr id) (Expr id)
   | PrimList [Expr id]           -- New List
+  | Merge (Expr id) (Expr id)
+  | Record [(Label, Expr id)]
+  | RecordAccess (Expr id) Label
+  | RecordUpdate (Expr id) [(Label, Expr id)]
   deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name

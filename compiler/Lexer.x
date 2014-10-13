@@ -40,6 +40,7 @@ tokens :-
     \.          { \_ _ -> Tdot }
     \&          { \_ _ -> Tandtype }
     \,\,        { \_ _ -> Tmerge }
+    with        { \_ _ -> Twith }
     let         { \_ _ -> Tlet }
     rec         { \_ _ -> Trec }
     \=          { \_ _ -> Teq }
@@ -55,7 +56,7 @@ tokens :-
     else        { \_ _ -> Telse }
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
-    
+
     -- Literal
     $digit+                { \_ s -> Tinteger (read s) }
     \"($printable # \")*\"  { \_ s -> Tstring (init $ tail s) }
@@ -88,7 +89,7 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith
            | Tlet | Trec | Teq | Tand | Tin
            | Tjavaclass String
            | Tnew
