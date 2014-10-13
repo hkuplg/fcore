@@ -233,7 +233,7 @@ transExpr (RecordUpdate e (l1,e1)) =
 
 getter :: Int -> Type Int -> S.Label -> Maybe (Coercion Int Int, Type Int)
 getter i (RecordTy (l,t)) l1
-  | l1 == l   = Just (C $ id (transType i $ RecordTy (l,t)), t)
+  | l1 == l   = Just (Id, t)
   | otherwise = Nothing
 getter i (And t1 t2) l
   = case getter i t2 l of
@@ -254,16 +254,20 @@ putter i (RecordTy (l,t)) l1 e
 putter i (And t1 t2) l e
   = case putter i t2 l e of
       Just (c,t) ->
-        Just (C $ Lam (transType i (And t1 t2))
-               (\x -> Tuple [Proj 1 (Var x), appC c (Proj 2 (Var x))])
-             ,t)
+        case c of
+          Id   -> Just (Id,t)
+          C _  -> Just (C $ Lam (transType i (And t1 t2))
+                              (\x -> Tuple [Proj 1 (Var x), appC c (Proj 2 (Var x))])
+                       ,t)
       Nothing    ->
         case putter i t1 l e of
           Nothing    -> Nothing
           Just (c,t) ->
-            Just (C $ Lam (transType i (And t1 t2))
-                   (\x -> Tuple [appC c (Proj 1 (Var x)), Proj 2 (Var x)])
-                 ,t)
+            case c of
+              Id   -> Just (Id, t)
+              C _  -> Just (C $ Lam (transType i (And t1 t2))
+                                  (\x -> Tuple [appC c (Proj 1 (Var x)), Proj 2 (Var x)])
+                           ,t)
 
 -- id_t: the identity function in the Core world, specialised to type t.
 id :: Type Int -> Expr Int Int
