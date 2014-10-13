@@ -53,7 +53,10 @@ dsTcExpr (d, g) = go
     go (Merge e1 e2)     = C.Merge (go e1) (go e2)
 
     go (LetOut NonRec [(f1, t1, e1)] e) =
-      C.Let (go e1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e)
+      C.App
+        (C.Lam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e))
+        (go e1)
+      -- C.Let (go e1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e)
 
 {-
 Note that rewriting simultaneous let expressions by nesting is wrong unless we do
