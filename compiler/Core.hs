@@ -170,7 +170,7 @@ pprExpr p (i,j) (Var x) = pprVar x
 
 pprExpr p (i,j) (Lam t f) =
   parensIf p 2
-    (hang 3 (lambda <> parens (pprVar j <+> colon <+> pprType basePrec i t) <> dot <+>
+    (hang 3 (lambda <+> parens (pprVar j <+> colon <+> pprType basePrec i t) <> dot <+>
              pprExpr (2,PrecMinus) (i, succ j) (f j)))
 
 pprExpr p (i,j) (App e1 e2) =
@@ -179,7 +179,7 @@ pprExpr p (i,j) (App e1 e2) =
 
 pprExpr p (i,j) (BLam f) =
   parensIf p 2
-    (biglambda <> pprTVar i <> dot <+>
+    (biglambda <+> pprTVar i <> dot <+>
      pprExpr (2,PrecMinus) (succ i, j) (f i))
 
 pprExpr p (i,j) (TApp e t) =
