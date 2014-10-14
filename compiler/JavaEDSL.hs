@@ -101,17 +101,21 @@ funInstCreate :: Int -> Exp
 funInstCreate i = instCreat fun []
   where fun = (ClassType [(Ident ("Fun" ++ show i),[])])
 
-closureBodyGen :: [Decl] -> Maybe Block -> Int -> Bool -> ClassBody
+closureBodyGen :: [Decl] -> [BlockStmt] -> Int -> Bool -> ClassBody
 closureBodyGen initDecls body idCF generateClone =
   classBody $ initDecls ++ [applyMethod] ++ if generateClone
                                                then [cloneMethod]
                                                else []
-  where applyMethod = MemberDecl $ methodDecl [Public] Nothing "apply" [] body
-        cloneMethod = MemberDecl $ methodDecl [Public] (Just closureType) "clone" [] cloneBody
-        cloneBody =
-          Just (block [localVar closureType (varDecl "c" (funInstCreate idCF))
-                      ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
-                      ,bStmt (classMethodCall (var "c")
-                                              "apply"
-                                              [])
-                      ,bStmt (Return (Just (cast closureType (var "c"))))])
+  where applyMethod = MemberDecl $ methodDecl [Public] Nothing "apply" [] (Just (Block body))
+        cloneMethod = MemberDecl $ methodDecl [Public] (Just closureType) "clone" [] (Just cloneBody)
+        cloneBody = (block [localVar closureType (varDecl "c" (funInstCreate idCF))
+                    ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
+                    ,bStmt (classMethodCall (var "c")
+                                            "apply"
+                                            [])
+                    ,bStmt (Return (Just (cast closureType (var "c"))))])
+
+-- outputAssignment :: Exp -> BlockStmt
+-- outputAssignment javaExpression =
+--   BlockStmt (ExpStmt (Assign (NameLhs (name ["out"])) EqualA javaExpression))
+

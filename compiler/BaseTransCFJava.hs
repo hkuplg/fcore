@@ -60,19 +60,6 @@ initClass className tempVarStr n expr =
 
 type Var = Int -- Either Int Int left -> standard variable; right -> recursive variable
 
-currentInitialDeclaration :: J.Ident -> J.Decl
-currentInitialDeclaration idCurrentName =
-  J.MemberDecl $
-  J.FieldDecl
-    []
-    closureType
-    [J.VarDecl (J.VarId idCurrentName)
-               (Just (J.InitExp J.This))]
-
-outputAssignment :: J.Exp -> J.BlockStmt
-outputAssignment javaExpression =
-  J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (name ["out"])) J.EqualA javaExpression))
-
 {-
 translateScopeTyp javaExpression statementsBeforeOA currentId nextId initVars generateClone =
      [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
@@ -488,13 +475,13 @@ trans self =
                    put (n' + 1)
                    let nextInClosure = g (n',t)
 
-                   let jtyp = javaType t
-                   let flag = jtyp == objClassTy
+                   let typT1 = javaType t
+                   let flag = typT1 == objClassTy
                    let accessField = fieldAccess (var (localvarstr ++ show v)) closureInput
-                   let xf = localFinalVar jtyp (varDecl (localvarstr ++ show n')
-                                                        (if flag
-                                                            then accessField
-                                                            else cast jtyp accessField))
+                   let xf = localFinalVar typT1 (varDecl (localvarstr ++ show n')
+                                                         (if flag
+                                                             then accessField
+                                                             else cast typT1 accessField))
                    (cvar,t1) <- translateScopeTyp this
                                                   v -- n + 1
                                                   n
@@ -525,31 +512,17 @@ trans self =
                (s1,j1,t1) <- m1 {- translateM this e1 -}
                genIfBody m2 m3 (s1, j1) n
        ,translateScopeTyp =
-          \currentId nextId initVars nextInClosure otherStmts ->
+          \currentId oldId initVars _ otherStmts ->
             do b <- genClone this
-               (statementsBeforeOA,javaExpression,t1) <- otherStmts
-               return ([J.LocalClass
-                          (J.ClassDecl
-                             []
-                             (J.Ident ("Fun" ++ show nextId))
-                             []
-                             (Just $
-                              J.ClassRefType
-                                (J.ClassType [(J.Ident closureClass,[])]))
-                             []
-                             (closureBodyGen [currentInitialDeclaration
-                                                (J.Ident (localvarstr ++ show currentId))]
-                                             (Just (J.Block (initVars ++
-                                                             statementsBeforeOA ++
-                                                             [outputAssignment javaExpression])))
-                                             nextId
-                                             b))
-                       ,J.LocalVars
-                          []
-                          (closureType)
-                          ([J.VarDecl (J.VarId $
-                                       J.Ident (localvarstr ++ show nextId))
-                                      (Just (J.InitExp (funInstCreate nextId)))])]
+               (ostmts,oexpr,t1) <- otherStmts
+               return ([localClassDecl ("Fun" ++ show oldId)
+                                       closureClass
+                                       (closureBodyGen [memberDecl $ fieldDecl closureType
+                                                                               (varDecl (localvarstr ++ show currentId) J.This)]
+                                                       (initVars ++ ostmts ++ [assign (name ["out"]) oexpr])
+                                                       oldId
+                                                       b)
+                       ,localVar closureType (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                       ,t1)
        ,genApply =
           \f t x y ->

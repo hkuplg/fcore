@@ -78,9 +78,8 @@ refactoredScopeTranslationBit javaExpression statementsBeforeOA currentId nextId
                        False
                        (J.Block $
                         (statementsBeforeOA ++
-                         [outputAssignment javaExpression]))]
-                    (Just $
-                     J.Block [])
+                         [assign (name ["out"]) javaExpression]))]
+                    []
                     nextId
                     True)))
           ,J.LocalVars
