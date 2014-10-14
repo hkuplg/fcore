@@ -25,7 +25,7 @@ getRuntimeJarPath
 
 getClassPath :: IO FilePath
 getClassPath = do r <- getRuntimeJarPath
-                  return $ r ++ ":./runtime.jar:. "
+                  return $ r ++ ":./runtime.jar:."
 
 -- Given the path to the source file,
 -- infer the output path for the corresponding Java source.
@@ -40,7 +40,7 @@ inferClassName outputPath = capitalize $ takeBaseName outputPath
 compileJava :: FilePath -> IO ()
 compileJava srcPath
   = do cp <- getClassPath
-       system ("javac -cp " ++ cp ++ srcPath)
+       system ("javac -cp " ++ cp ++ " " ++ srcPath)
        return ()
 
 runJava :: FilePath -> IO ()
@@ -49,6 +49,6 @@ runJava srcPath = do
     let workDir = takeDirectory srcPath
     setCurrentDirectory workDir
     cp <- getClassPath
-    system $ "java -cp " ++ currDir ++ "/runtime.jar:" ++ cp ++ takeBaseName srcPath
+    system $ "java -cp " ++ currDir ++ "/runtime.jar:" ++ cp ++ " " ++ takeBaseName srcPath
     system "rm *.class"
     setCurrentDirectory currDir
