@@ -40,7 +40,7 @@ javaType2 (Forall (Type t1 f))  = case (f ()) of (Body t2) -> classTy (getClassT
 javaType2 x                 = javaType x
 
 assignVar2 :: String -> J.Exp -> Type t -> J.BlockStmt
-assignVar2 varId e t = J.LocalVars [] (javaType2 t) [varDecl varId (Just (J.InitExp e))]
+assignVar2 varId e t = J.LocalVars [] (javaType2 t) [varDecl varId e]
 
 
 currentInitialDeclaration2 :: J.Ident -> ClassName -> J.Decl
@@ -52,6 +52,12 @@ currentInitialDeclaration2 idCurrentName cName =
     [J.VarDecl (J.VarId idCurrentName)
                (Just (J.InitExp J.This))]
 
+-- inputFieldAccess :: String -> J.Exp
+-- inputFieldAccess varId = fieldAccess varId localvarstr
+
+outputAssignment :: J.Exp -> J.BlockStmt
+outputAssignment javaExpression =
+  J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (name ["out"])) J.EqualA javaExpression))
 
 genIfBody2 :: Monad m
           => t
@@ -63,23 +69,13 @@ genIfBody2 :: Monad m
           -> m ([J.BlockStmt],J.Exp,Type t2)
 genIfBody2 _ m2 m3 j1 s1 n =
   do (s2,j2,t2) <- m2 {-translateM this e2-}
-     (s3,j3,_) <- m3 {-translateM this e3-}
+     (s3,j3,t3) <- m3 {-translateM this e3-}
      let ifvarname = (ifresultstr ++ show n)
-     let ifresdecl =
-           J.LocalVars
-             []
-             (javaType2 t2)
-             [J.VarDecl (J.VarId $
-                         J.Ident ifvarname)
-                        (Nothing)]
-     let (ifstmt,ifexp) =
-           ifBody (s2,s3)
-                  (j1,j2,j3)
-                  n -- uses a fresh variable
-     return (s1 ++
-             [ifresdecl,ifstmt]
-            ,ifexp
-            ,t2) -- need to check t2 == t3
+     let ifresdecl = localVar (javaType t2) (varDeclNoInit ifvarname)
+     let thenPart = (J.StmtBlock $ block (s2 ++ [assign (name [ifvarname]) j2]))
+     let elsePart = (J.StmtBlock $ block (s3 ++ [assign (name [ifvarname]) j3]))
+     let ifstmt  = bStmt $ J.IfThenElse j1 thenPart elsePart
+     return (s1 ++ [ifresdecl,ifstmt],var ifvarname ,t2) -- need to check t2 == t3
 
 chooseCastBox2 :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
 chooseCastBox2 (CFInt) =
@@ -99,6 +95,38 @@ getS3_2 this func t j3 cvarass =
      rest <- genRes this t [cast tempvarstr n j3]
      let r = cvarass ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))
+
+jexp :: [J.Decl] -> Maybe J.Block -> Int -> Bool -> J.ClassBody
+jexp initDecls body idCF generateClone =
+  classBody $ initDecls ++
+  [applyMethod] ++
+  if generateClone
+     then [cloneMethod]
+     else []
+  where applyMethod =
+          J.MemberDecl $
+          methodDecl [J.Public]
+                     Nothing
+                     "apply"
+                     []
+                     body
+        cloneMethod =
+          J.MemberDecl $
+          methodDecl [J.Public]
+                     (Just closureType)
+                     "clone"
+                     []
+                     cloneBody
+        cloneBody =
+          Just (block [localVar closureType
+                                (varDecl "c"
+                                         (funInstCreate idCF))
+                      ,assign (name ["c",closureInput])
+                              (J.ExpName $ name ["this",closureInput])
+                      ,bStmt (classMethodCall (var "c")
+                                              "apply"
+                                              [])
+                      ,bStmt (J.Return (Just (cast closureType (var "c"))))])
 
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
 transUnbox this super = UT {toUT = super {
@@ -143,17 +171,24 @@ translateScopeTyp this v n [js] nextInClosure (translateScopeM this nextInClosur
             put (n' + 1)
             let nextInClosure = g (n',t)
             let aType = javaType2 t
-            let js = (initStuff localvarstr n' (inputFieldAccess (localvarstr ++ show v)) aType)
+            let js = (initStuff localvarstr n' (fieldAccess (var (localvarstr ++ show v)) closureInput) aType)
             (statementsBeforeOA,javaExpression,t1) <- translateScopeM (up this) nextInClosure Nothing
             b <- genClone (up this)
             let cName = getClassType t (scope2ctyp t1)
             let currentId = v
             let nextId = n
             let initVars = [js]
-            let cvar = [J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
-                 (Just $ J.ClassRefType (J.ClassType [(J.Ident cName,[])])) [] (jexp [currentInitialDeclaration2
-                 (J.Ident (localvarstr ++ show currentId)) cName] (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId b)),
-                 J.LocalVars [] (classTy cName) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (funInstCreate nextId)))])]
+
+            let cvar = [J.LocalClass (J.ClassDecl []
+                                                  (J.Ident ("Fun" ++ show nextId))
+                                                  []
+                                                  (Just $ J.ClassRefType (J.ClassType [(J.Ident cName,[])]))
+                                                  []
+                                                  (jexp [currentInitialDeclaration2 (J.Ident (localvarstr ++ show currentId)) cName]
+                                                        (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression])))                                                         nextId b))
+                       ,J.LocalVars []
+                                    (classTy cName)
+                                    ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (funInstCreate nextId)))])]
             return (cvar,J.ExpName (J.Name [f]), Type t (\_ -> t1) )
 
       otherwise   -> translateScopeM super e m,

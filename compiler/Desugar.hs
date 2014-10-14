@@ -32,6 +32,10 @@ transType d = go
     go (Product ts) = C.Product (map go ts)
     go (Forall a t) = C.Forall (\a' -> transType (Map.insert a a' d) t)
     go (And t1 t2)  = C.And (go t1) (go t2)
+    go (RecordTy fs) =
+      case fs  of
+        [(l,t)]  -> C.RecordTy (l, go t)
+        _        -> go (RecordTy (take (length fs - 1) fs)) `C.And` (C.RecordTy (let (l,t) = last fs in (l,go t)))
 
 dsTcExpr :: DsMap t e -> Expr TcId -> C.Expr t e
 dsTcExpr (d, g) = go
@@ -51,15 +55,22 @@ dsTcExpr (d, g) = go
     go Let{..}           = panic "Desugar.dsTcExpr: Let"
     go (LetOut _ [] e)   = go e
     go (Merge e1 e2)     = C.Merge (go e1) (go e2)
+    go (Record fs)       =
+      case fs of
+        []       -> panic "Desugar.dsTcExpr: Record"
+        [(l,e)]  -> C.Record (l, go e)
+        _        -> go (Record (take (length fs - 1) fs)) `C.Merge` (C.Record (let (l,e) = last fs in (l,go e)))
+    go (RecordAccess e l) = C.RecordAccess (go e) l
+    go (RecordUpdate e fs) =
+      case fs of
+        [] -> go e
+        _  -> C.RecordUpdate (go (RecordUpdate e (take (length fs - 1) fs))) (let (l1,e1) = last fs in (l1, go e1))
 
-{-
-   let f1 : t1 = e1 in e
-~> (\(f1 : t1. e)) e1
--}
     go (LetOut NonRec [(f1, t1, e1)] e) =
       C.App
         (C.Lam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e))
         (go e1)
+      -- C.Let (go e1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e)
 
 {-
 Note that rewriting simultaneous let expressions by nesting is wrong unless we do
@@ -73,19 +84,15 @@ variable renaming. An example:
 
    let f1 = e1, ..., fn = en in e
 ~> let y = (t1, ..., tn). (e1, ..., en) in e[*]
-~> (\(y : (t1, ..., tn)). e[*]) (e1, ..., en)
 -}
     go (LetOut NonRec bs@(_:_) e) =
-      C.App
-        (C.Lam
-          (transType d tupled_ts)
-          (\y -> dsTcExpr (d, g' y `Map.union` g) e))
+      C.Let
         (go tupled_es)
+        (\y -> dsTcExpr (d, g' y `Map.union` g) e)
         where
-          (fs, ts, es)  = unzip3 bs
+          (fs, _, es)  = unzip3 bs
 
           tupled_es = Tuple es
-          tupled_ts = Product ts
 
           -- Substitution: fi -> y._(i-1)
           g' y = Map.fromList $
@@ -110,7 +117,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
      (/\A1...An. fix y (x1 : t1) : t2. peeled_e)
 -}
     go (LetOut Rec [(f,t@(Fun _ _),e)] body) = dsLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
-    go (LetOut Rec [(f,t,e)] body)           = dsLetRecToFixEncoded (d,g) (LetOut Rec [(f,t,e)] body)
+    go (LetOut Rec [(f,t,e)] body)           = dsLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = dsLetRecToLetRec (d,g) (LetOut Rec bs body)
     go (JNewObj cName args)    = C.JNewObj cName (map go args)
     go (JMethod c mName args r) =
