@@ -103,7 +103,7 @@ transS this super = TS {toTS = super {
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
-           let stackDecl = wraperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure e])) Nothing (Just $ J.Block $ stackbody t)
+           let stackDecl = wrapperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure e])) Nothing (Just $ J.Block $ stackbody t)
            return (createCUB  (up this :: Translate m) [stackDecl], t)
 
   }}

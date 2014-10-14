@@ -132,8 +132,8 @@ mainBody = Just (block [bStmt $ classMethodCall (var "System.out")
                                                 "println"
                                                 [var "apply()"]])
 
-wraperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
-wraperClass className stmts returnType mainbodyDef =
+wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
+wrapperClass className stmts returnType mainbodyDef =
   ClassTypeDecl
     (classDecl [Public]
                className
