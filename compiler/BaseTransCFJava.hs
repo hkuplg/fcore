@@ -143,6 +143,7 @@ genIfBody m2 m3 (s1,j1) n =
      let thenPart = (J.StmtBlock $ block (s2 ++ [assign (name [ifvarname]) j2]))
      let elsePart = (J.StmtBlock $ block (s3 ++ [assign (name [ifvarname]) j3]))
      let ifstmt  = bStmt $ J.IfThenElse j1 thenPart elsePart
+
      return (s1 ++ [ifresdecl,ifstmt],var ifvarname ,t2) -- need to check t2 == t3
 
 -- needed
