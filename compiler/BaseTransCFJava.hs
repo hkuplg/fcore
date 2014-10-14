@@ -93,6 +93,8 @@ getTupleClassName tuple = if lengthOfTuple > 50
 chooseCastBox :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
 chooseCastBox (JClass c) =
   (initClass c,classTy c)
+chooseCastBox (CFInt) = (initClass "java.lang.Integer", classTy "java.lang.Integer")
+chooseCastBox (CFInteger) = (initClass "java.lang.Integer", classTy "java.lang.Integer")
 chooseCastBox (Forall _) =
   (initClass closureClass,closureType)
 chooseCastBox (TupleType tuple) =
@@ -111,6 +113,8 @@ javaType (TupleType tuple) =
   case tuple of
     [t] -> javaType t
     _ -> classTy $ getTupleClassName tuple
+javaType CFInt = classTy "java.lang.Integer"
+javaType CFInteger = classTy "java.lang.Integer"
 javaType _ = objClassTy
 
 getS3 :: MonadState Int m
@@ -339,9 +343,10 @@ trans self =
                    let (statements,exprs,types) = concatFirst $
                                                   toTupleOf3Lists args'
                    let refTypes =
-                         (map (\(JClass x) ->
-                                 J.ClassRefType $
-                                 J.ClassType [(J.Ident x,[])])
+                         (map (\y -> case y of
+                                       JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                                       CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                       CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])] )
                               types)
                    (classStatement,rhs) <- case c of
                                              (Right ce) ->
