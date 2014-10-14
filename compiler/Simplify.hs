@@ -133,7 +133,7 @@ transExpr (LetRec sigs binds body) =
      k <- takeFreshIndex
      let binds' ids' = map (\e -> snd (evalState (transExpr e) k)) (binds (zipWith (\n t -> (n, t)) ids' sigs))
      let body' ids' = snd (evalState (transExpr (body (zipWith (\n t -> (n, t)) ids' sigs))) k)
-     let t = infer (unsafeCoerce body' sigs)
+     let t = infer (body' js)
      k <- takeFreshIndex
      return (t, LetRec sigs' binds' body')
 
