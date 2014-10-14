@@ -278,10 +278,7 @@ trans self =
                          ,localVar typ (varDecl (localvarstr ++ show (n + 1))
                                                 (cast typ (J.ExpName (name [(localvarstr ++ show n), "out"]))))]
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
-              App e1 e2 ->
-                translateApply this
-                               (translateM this e1)
-                               (translateM this e2)
+              App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
               JNewObj c args ->
                 do args' <- mapM (translateM this) args
