@@ -277,93 +277,38 @@ trans self =
 
               LetRec t xs body ->
                 do (n :: Int) <- get
-                   let needed =
-                         length $
-                         (xs (zip [n ..]
-                                  t))
+                   let needed = length (xs (zip [n ..] t))
                    put (n + 2 + needed)
-                   mfuns <- return (\defs ->
-                                      forM (xs defs)
-                                           (translateM this))
-                   let vars =
-                         (liftM (map (\(_,b,c) ->
-                                        (b,c))))
-                           (mfuns (zip [n ..]
-                                       t))
-                   let (bindings :: [Var]) =
-                         [n + 2 .. n + 1 + needed]
+                   mfuns <- return (\defs -> forM (xs defs) (translateM this))
+                   let vars = (liftM (map (\(_,b,c) -> (b,c)))) (mfuns (zip [n ..] t))
+                   let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
                    newvars <- ((liftM (pairUp bindings)) vars)
-                   let mDecls =
-                         map (\x ->
-                                J.MemberDecl
-                                  (J.FieldDecl
-                                     [J.Public]
-                                     (closureType)
-                                     [J.VarDecl (J.VarId (J.Ident (localvarstr ++
-                                                                   show x)))
-                                                Nothing]))
-                             bindings
+
+                   let mDecls = map (\x -> memberDecl (fieldDecl closureType
+                                                                 (varDeclNoInit (localvarstr ++ show x))))
+                                    bindings
+
                    let finalFuns = mfuns newvars
                    let appliedBody = body newvars
-                   let tnv = map fst newvars
-                   (s,je,t') <- translateM this appliedBody
-                   (stmts,jex,_) <- ((liftM (unzip3)) (finalFuns))
+                   let varnums = map fst newvars
+                   (bindStmts,bindExprs,_) <- (liftM unzip3 finalFuns)
+                   (bodyStmts,bodyExpr,t') <- translateM this appliedBody
                    let typ = javaType t'
-                   let assm =
-                         map (\(i,jz) ->
-                                J.BlockStmt
-                                  (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident (localvarstr ++
-                                                                                    show i)]))
-                                                       J.EqualA
-                                                       jz)))
-                             (tnv `zip` jex)
-                   let stasm =
-                         (concatMap (\(a,b) ->
-                                       a ++
-                                       [b])
-                                    (stmts `zip` assm)) ++
-                         s ++
-                         [J.BlockStmt
-                            (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "out"])) J.EqualA je))]
+                   -- assign new created closures bindings to variables
+                   let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
+                                  (varnums `zip` bindExprs)
+
+                   let stasm = (concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm)) ++ bodyStmts ++ [assign (name ["out"]) bodyExpr]
                    let letClass =
-                         [J.LocalClass
-                            (J.ClassDecl
-                               []
-                               (J.Ident ("Let" ++ show n))
-                               []
-                               Nothing
-                               []
-                               (J.ClassBody
-                                  (J.MemberDecl
-                                     (J.FieldDecl [J.Public]
-                                                  objClassTy
-                                                  [J.VarDecl (J.VarId (J.Ident "out")) Nothing]) :
-                                   mDecls ++
-                                   [J.InitDecl False
-                                               (J.Block stasm)])))
-                         ,J.LocalVars
-                            []
-                            (J.RefType (J.ClassRefType
-                                          (J.ClassType
-                                             [(J.Ident ("Let" ++ show n),[])])))
-                            [J.VarDecl (J.VarId (J.Ident (localvarstr ++ show n)))
-                                       (Just (J.InitExp (J.InstanceCreation
-                                                           []
-                                                           (J.ClassType
-                                                              [(J.Ident ("Let" ++
-                                                                         show n)
-                                                               ,[])])
-                                                           []
-                                                           Nothing)))]
-                         ,J.LocalVars
-                            []
-                            typ
-                            [J.VarDecl (J.VarId (J.Ident (localvarstr ++
-                                                          show (n + 1))))
-                                       (Just (J.InitExp (J.Cast (typ)
-                                                                (J.ExpName (J.Name [J.Ident (localvarstr ++
-                                                                                             show n)
-                                                                                   ,J.Ident "out"])))))]]
+                         [localClass ("Let" ++ show n)
+                                      (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit "out")) :
+                                                  mDecls ++ [J.InitDecl False (J.Block stasm)]))
+
+                         ,localVar (classTy ("Let" ++ show n))
+                                   (varDecl (localvarstr ++ show n)
+                                            (instCreat (classTyp ("Let" ++ show n)) []))
+                         ,localVar typ (varDecl (localvarstr ++ show (n + 1))
+                                                (cast typ (J.ExpName (name [(localvarstr ++ show n), "out"]))))]
                    return (letClass
                           ,var (localvarstr ++
                                 show (n + 1))

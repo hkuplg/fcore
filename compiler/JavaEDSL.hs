@@ -85,9 +85,6 @@ cast = Cast
 instCreat :: ClassType -> [Argument] -> Exp
 instCreat cls args = InstanceCreation [] cls args Nothing
 
--- assign :: Name -> AssignOp -> Exp -> Exp
--- assign nam op expr = Assign (NameLhs nam) op expr
-
 assign :: Name -> Exp -> BlockStmt
 assign lhs rhs = BlockStmt $ ExpStmt $ Assign (NameLhs lhs) EqualA rhs
 
@@ -96,6 +93,9 @@ fieldAccess expr str = FieldAccess $ PrimaryFieldAccess expr (Ident str)
 
 localClassDecl :: String -> String -> ClassBody -> BlockStmt
 localClassDecl nam super body = LocalClass (ClassDecl [] (Ident nam) [] (Just $ ClassRefType $ ClassType [(Ident super, [])]) [] body)
+
+localClass :: String -> ClassBody -> BlockStmt
+localClass nam body = LocalClass (ClassDecl [] (Ident nam) [] Nothing [] body)
 
 funInstCreate :: Int -> Exp
 funInstCreate i = instCreat fun []
@@ -114,8 +114,4 @@ closureBodyGen initDecls body idCF generateClone =
                                             "apply"
                                             [])
                     ,bStmt (Return (Just (cast closureType (var "c"))))])
-
--- outputAssignment :: Exp -> BlockStmt
--- outputAssignment javaExpression =
---   BlockStmt (ExpStmt (Assign (NameLhs (name ["out"])) EqualA javaExpression))
 
