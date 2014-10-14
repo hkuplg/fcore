@@ -5,7 +5,8 @@
 {-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
 
 module Src
-  ( Type(..)
+  ( Module(..)
+  , Type(..)
   , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..)
   , Label
   , TypeContext, ValueContext
@@ -35,9 +36,12 @@ import Data.Data
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-type Name  = String
-type Label = Name
-type TcId  = (Name, Type)
+type Name       = String
+type ModuleName = Name
+type Label      = Name
+type TcId       = (Name, Type)
+
+data Module id = Module id [Bind id] deriving (Eq, Show)
 
 data Type
   = TyVar Name
@@ -85,6 +89,8 @@ data Expr id
   | Record [(Label, Expr id)]
   | RecordAccess (Expr id) Label
   | RecordUpdate (Expr id) [(Label, Expr id)]
+  | LetModule (Module id) (Expr id)
+  | ModuleAccess ModuleName Name
   deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
