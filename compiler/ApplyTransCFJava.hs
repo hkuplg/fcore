@@ -39,7 +39,7 @@ transApply this super = NT {toT = super {
 
   genApply = \f t x y -> if (last t) then genApply super f t x y else return [],
 
-  getCvarAss = \t f j1 j2 -> do
+  setClosureVars = \t f j1 j2 -> do
               (usedCl :: Set.Set J.Exp) <- get
               maybeCloned <-  case t of
                                 Body _ ->
@@ -50,7 +50,7 @@ transApply this super = NT {toT = super {
                                    else do
                                            put (Set.insert j1 usedCl)
                                            return j1
-              getCvarAss super t f maybeCloned j2,
+              setClosureVars super t f maybeCloned j2,
 
   genClone = return True
 }}

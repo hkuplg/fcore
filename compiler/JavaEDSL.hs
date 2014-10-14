@@ -51,6 +51,9 @@ localFinalVar typ vard = LocalVars [Final] typ [vard]
 methodCall :: String -> [Argument] -> Stmt
 methodCall ident argu = ExpStmt (MethodInv (MethodCall (Name [Ident ident]) argu))
 
+applyMethodCall :: Ident -> BlockStmt
+applyMethodCall f = BlockStmt (classMethodCall (ExpName $ Name [f]) "apply" [])
+
 classMethodCall :: Exp -> String -> [Argument] -> Stmt
 classMethodCall e s argus = ExpStmt (MethodInv (PrimaryMethodCall e [] (Ident s) argus))
 
@@ -88,8 +91,14 @@ instCreat cls args = InstanceCreation [] cls args Nothing
 assign :: Name -> Exp -> BlockStmt
 assign lhs rhs = BlockStmt $ ExpStmt $ Assign (NameLhs lhs) EqualA rhs
 
+assignField :: FieldAccess -> Exp -> BlockStmt
+assignField access rhs = BlockStmt $ ExpStmt $ Assign (FieldLhs access) EqualA rhs
+
 fieldAccess :: Exp -> String -> Exp
 fieldAccess expr str = FieldAccess $ PrimaryFieldAccess expr (Ident str)
+
+fieldAccExp :: Exp -> String -> FieldAccess
+fieldAccExp expr str = PrimaryFieldAccess expr (Ident str)
 
 localClassDecl :: String -> String -> ClassBody -> BlockStmt
 localClassDecl nam super body = LocalClass (ClassDecl [] (Ident nam) [] (Just $ ClassRefType $ ClassType [(Ident super, [])]) [] body)
@@ -115,3 +124,29 @@ closureBodyGen initDecls body idCF generateClone =
                                             [])
                     ,bStmt (Return (Just (cast closureType (var "c"))))])
 
+mainArgType :: [FormalParam]
+mainArgType = [paramDecl (arrayTy $ classTy "String") "args"]
+
+mainBody :: Maybe Block
+mainBody = Just (block [bStmt $ classMethodCall (var "System.out")
+                                                "println"
+                                                [var "apply()"]])
+
+mainClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
+mainClass className stmts returnType mainbodyDef =
+  ClassTypeDecl
+    (classDecl [Public]
+               className
+               (classBody [memberDecl $
+                           methodDecl [Static]
+                                      returnType
+                                      "apply"
+                                      []
+                                      body
+                          ,memberDecl $
+                           methodDecl [Public,Static]
+                                      Nothing
+                                      "main"
+                                      mainArgType
+                                      mainbodyDef]))
+  where body = Just (block stmts)

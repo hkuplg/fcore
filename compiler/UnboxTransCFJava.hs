@@ -128,6 +128,14 @@ jexp initDecls body idCF generateClone =
                                               [])
                       ,bStmt (J.Return (Just (cast closureType (var "c"))))])
 
+
+initStuff tempVar n expr ty =
+  localFinalVar ty (varDecl tempName initValue)
+  where tempName = tempVar ++ show n
+        initValue
+          | ty == objClassTy = expr
+          | otherwise = (cast ty expr)
+
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
 transUnbox this super = UT {toUT = super {
   translateM = \e -> case e of
