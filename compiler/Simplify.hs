@@ -98,7 +98,8 @@ coerce i (And t1 t2) t3 =
         Nothing -> Nothing
         Just c  -> return (C (Lam (transType i (And t1 t2))
                                (\x -> c `appC` Proj 2 (Var x))))
-coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) = coerce i t1 t2
+coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) | l1 == l2  = coerce i t1 t2
+                                               | otherwise = Nothing
 coerce  i _ _ = Nothing
 
 -- Typing
