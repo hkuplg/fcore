@@ -447,5 +447,5 @@ trans self =
                                   JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                   _ -> Just objClassTy
                let returnStmt = [bStmt $ J.Return $ Just e]
-               let mainDecl = mainClass name (bs ++ returnStmt) returnType mainBody
+               let mainDecl = wraperClass name (bs ++ returnStmt) returnType mainBody
                return (createCUB this [mainDecl],t)}
