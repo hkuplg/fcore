@@ -1,3 +1,5 @@
+//package hk.hku.cs.f2j; 
+
 import java.util.*;
 import java.lang.*;
 import java.io.*;
@@ -25,7 +27,8 @@ public class FileServer {
         Iterable<? extends JavaFileObject> compilationUnits =
             fileManager.getJavaFileObjectsFromFiles(Arrays.asList(files));
 
-        String [] compileOptions = new String[] {"-classpath", "runtime.jar"};
+        //String [] compileOptions = new String[] {"-classpath", cp};
+	String [] compileOptions = new String[] {"-classpath", "runtime.jar"};
         Iterable<String> compilationOptions = Arrays.asList(compileOptions);
 
         JavaCompiler.CompilationTask task =
@@ -35,7 +38,7 @@ public class FileServer {
 
     }
 
-    public static void compileLoad (String fileName)
+    public static String compileLoad (String fileName)
     {
 	compile(fileName);
 
@@ -57,17 +60,34 @@ public class FileServer {
         } catch (Exception e) {
             e.printStackTrace();     
         }
+
+	return className;
+    }
+
+    public static void DeleteDummy()
+    {
+      File dir = new File(".");
+      File fList[] = dir.listFiles();
+
+      for(File f : fList) {
+      	if(f.getName().endsWith(".class") && !f.getName().startsWith("FileServer"))
+	  f.delete();
+      }      
     }
 
     public static void main (String [] args)
     {
         Scanner scanner = new Scanner(System.in);
 
+	// Runtime path for runtime.jar
+	//String cp = scanner.nextLine();
+	//System.out.println(cp);
+
 	while(true){
 	  if(!scanner.hasNextLine()) break;
 
           String fileName = scanner.nextLine();
-          System.out.println(fileName);
+         //System.out.println(fileName);
 
         // Receive .java file from client
           try {
@@ -85,7 +105,15 @@ public class FileServer {
             e.printStackTrace();
           }
 
-          compileLoad(fileName);
+          String className = compileLoad(fileName);
+	  File file1 = new File(className + ".java");
+	  file1.delete();
+
+	  // Delete dummy .class files in current directory
+	  DeleteDummy();
+
+	  file1.delete();
+
           System.out.println("exit");
 	}
 

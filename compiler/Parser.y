@@ -188,7 +188,7 @@ aexp :: { Expr Name }
     | aexp "." field      { JField (Right $1) $3 undefined }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
-    -- | "{" semi_exprs "}"        { Seq $2 }
+    | "{" semi_exprs "}"        { Seq $2 }
     | "{" record_body "}"       { Record $2 }
     | aexp "with" "{" record_body "}" { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }

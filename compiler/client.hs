@@ -1,24 +1,51 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module Client where
 
 import System.Console.Haskeline
 import System.IO
 import System.Process hiding (runCommand)
 import System.TimeIt
+import System.Directory			(removeFile, doesFileExist)
+
 import Control.Monad.Error
+
 import Data.Char
 import Data.List.Split
 import Data.List
+import Data.FileEmbed			(embedFile)
+import qualified Data.ByteString 	(ByteString, writeFile)
+
 import Translations
+import JavaUtils
 import ParseCMD
 
+runtimeBytes :: Data.ByteString.ByteString
+runtimeBytes = $(embedFile "../runtime/runtime.jar")
+
+
 main = 
-  do let p = (proc "java" ["-cp", "runtime.jar:.", "FileServer"])
+  do exists <- doesFileExist =<< getRuntimeJarPath
+     existsCur <- doesFileExist "./runtime.jar"
+     unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
+     fileExist "runtime.jar"
+     let p0 = (proc "javac" ["-cp", "runtime.jar:.", "FileServer.java"])
+     createProcess p0
+     fileExist "FileServer.class"
+     let p = (proc "java" ["-cp", "runtime.jar:.", "FileServer"])
                   {std_in = CreatePipe, std_out = CreatePipe}
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP LineBuffering
      hSetBuffering outP LineBuffering
      runInputT defaultSettings (loop inP outP False 0)
      
+fileExist :: String -> IO ()
+fileExist name = do
+	exist <- doesFileExist name
+	if (exist) 
+	  then return ()
+	  else fileExist name	
+
 loop :: Handle -> Handle -> Bool -> Int -> InputT IO ()
 loop inP outP flag num = do
 	msg <- getInputLine "% "
@@ -39,6 +66,7 @@ runCommand inP outP flag num msg = do
 	  	case flag of 
 		  True 	-> liftIO (timeIt (wrap inP outP fileName))
 		  False -> liftIO (wrap inP outP fileName)
+		liftIO (removeFile fileName)
 		loop inP outP flag (num+1)
 
 processCMD :: Handle -> Handle -> Bool -> Int -> [String] -> InputT IO ()
@@ -89,7 +117,7 @@ sfToJava h f = do
 	let file = javaFile ++ "\n" ++  "//end of file"
 	putStrLn file
 	sendFile h file
-	putStrLn "sent!"
+	--putStrLn "sent!"
 
 receiveMsg :: Handle -> IO () 
 receiveMsg h = do
