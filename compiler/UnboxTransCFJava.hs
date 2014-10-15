@@ -34,27 +34,26 @@ getClassType _ _ = closureClass ++ "BoxBox"
 wrap :: J.Exp -> Type t -> Type t -> ([J.BlockStmt], J.Exp)
 wrap e t1 t2 = ([], e)
 
-javaType2 CFInt             = J.PrimType J.IntT --classTy "java.lang.Integer"
-javaType2 (Forall (Type t1 f))  = case (f ()) of (Body t2) -> classTy (getClassType t1 t2)
-                                                 _ -> classTy (getClassType t1 CFInteger)
-javaType2 x                 = javaType x
-
-assignVar2 :: String -> J.Exp -> Type t -> J.BlockStmt
-assignVar2 varId e t = J.LocalVars [] (javaType2 t) [varDecl varId e]
+javaType2 :: Type t -> J.Type
+javaType2 CFInt = J.PrimType J.IntT
+javaType2 (Forall (Type t1 f)) =
+  case (f ()) of
+    (Body t2) -> classTy (getClassType t1 t2)
+    _ -> classTy (getClassType t1 CFInteger)
+javaType2 x = javaType x
 
 genIfBody2 :: Monad m
-          => t
-          -> m ([J.BlockStmt],J.Exp,Type t2)
+          => m ([J.BlockStmt],J.Exp,Type t2)
           -> m ([J.BlockStmt],J.Exp,t1)
           -> J.Exp
           -> [J.BlockStmt]
           -> Int
           -> m ([J.BlockStmt],J.Exp,Type t2)
-genIfBody2 _ m2 m3 j1 s1 n =
+genIfBody2 m2 m3 j1 s1 n =
   do (s2,j2,t2) <- m2 {-translateM this e2-}
      (s3,j3,t3) <- m3 {-translateM this e3-}
      let ifvarname = (ifresultstr ++ show n)
-     let ifresdecl = localVar (javaType t2) (varDeclNoInit ifvarname)
+     let ifresdecl = localVar (javaType2 t2) (varDeclNoInit ifvarname)
      let thenPart = (J.StmtBlock $ block (s2 ++ [assign (name [ifvarname]) j2]))
      let elsePart = (J.StmtBlock $ block (s3 ++ [assign (name [ifvarname]) j3]))
      let ifstmt  = bStmt $ J.IfThenElse j1 thenPart elsePart
@@ -62,7 +61,9 @@ genIfBody2 _ m2 m3 j1 s1 n =
 
 chooseCastBox2 :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
 chooseCastBox2 (CFInt) =
-  (initClass "int",J.PrimType J.IntT)
+  (\s n e -> localFinalVar (J.PrimType J.IntT)
+                           (varDecl (s ++ show n) (cast (J.PrimType J.IntT) e))
+  ,J.PrimType J.IntT)
 chooseCastBox2 (CFInteger) =
   (initClass "java.lang.Integer",classTy "java.lang.Integer")
 chooseCastBox2 (Forall (Type t1 f)) =
@@ -74,13 +75,13 @@ chooseCastBox2 (Forall (Type t1 f)) =
 chooseCastBox2 t = chooseCastBox t
 
 getS3_2 :: MonadState Int m => Translate m -> J.Ident -> TScope Int -> J.Exp -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
-getS3_2 this func t j3 cvarass =
+getS3_2 this fname retTyp j3 fs =
   do (n :: Int) <- get
      put (n+1)
-     let (cast,typ) = chooseCastBox2 (scope2ctyp t)
-     apply <- genApply this func t (var (tempvarstr ++ show n)) typ
-     rest <- genRes this t [cast tempvarstr n j3]
-     let r = cvarass ++ apply ++ rest
+     let (castBox,typ) = chooseCastBox2 (scope2ctyp retTyp)
+     apply <- genApply this fname retTyp (var (tempvarstr ++ show n)) typ
+     rest <- genRes this retTyp [castBox tempvarstr n j3]
+     let r = fs ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))
 
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
@@ -108,9 +109,7 @@ transUnbox this super =
                                   (Src.Compare realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
                                   (Src.Logic realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
                           newVarName <- getNewVarName this
-                          return (s1 ++ s2 ++ [assignVar2 newVarName je typ]
-                                 ,var newVarName
-                                 ,typ)
+                          return (s1 ++ s2 ++ [localVar (javaType2 typ) (varDecl newVarName je)],var newVarName,typ)
                      _ -> translateM super e
               ,translateScopeM = \e m -> case e of
                    Type t g ->
@@ -150,24 +149,15 @@ transUnbox this super =
                         put (n+1)
                         (s1,j1, Forall (Type t1 g)) <- m1
                         (s2,j2,t2) <- m2
-                        let t    = g ()
-                        let cName = getClassType t1 (scope2ctyp t)
+                        let retTyp = g ()
+                        let cName = getClassType t1 (scope2ctyp retTyp)
                         let (wrapS, jS) = wrap j2 t1 t2
-                        let f    = J.Ident (localvarstr ++ show n) -- use a fresh variable
-                        let cvarass = [J.LocalVars
-                                   []
-                                   (classTy cName)
-                                   ([J.VarDecl (J.VarId f)
-                                               (Just (J.InitExp j1))])
-                                ,J.BlockStmt
-                                   (J.ExpStmt (J.Assign (J.FieldLhs
-                                                           (J.PrimaryFieldAccess (J.ExpName (J.Name [f]))
-                                                                                 (J.Ident localvarstr)))
-                                                        J.EqualA
-                                                        jS))]
-                        let j3 = (J.FieldAccess (J.PrimaryFieldAccess (J.ExpName (J.Name [f])) (J.Ident "out")))
-                        (s3, nje3) <- getS3_2 (up this) f t j3 cvarass
-                        return (s1 ++ s2 ++ wrapS ++ s3, nje3, scope2ctyp t)
+                        let fname = (localvarstr ++ show n) -- use a fresh variable
+                        let closureVars = [localVar (classTy cName) (varDecl fname j1)
+                                          ,assignField (fieldAccExp (var fname) closureInput) jS]
+                        let fout = fieldAccess (var fname) "out"
+                        (s3, nje3) <- getS3_2 (up this) (J.Ident fname) retTyp fout closureVars
+                        return (s1 ++ s2 ++ wrapS ++ s3, nje3, scope2ctyp retTyp)
               ,translateIf =
                  \m1 m2 m3 ->
                    do n <- get
@@ -175,4 +165,4 @@ transUnbox this super =
                       (s1,j1,t1) <- m1 {- translateM this e1 -}
                       -- let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
                       -- genIfBody this m2 m3 j1' s1 n,
-                      genIfBody2 this m2 m3 j1 s1 n}}
+                      genIfBody2 m2 m3 j1 s1 n}}

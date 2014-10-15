@@ -428,6 +428,7 @@ trans self =
             do (bs,e,t) <- translateM this exp
                let returnType = case t of
                                   JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+                                  CFInt -> Just $ J.PrimType $ J.IntT
                                   _ -> Just objClassTy
                let returnStmt = [bStmt $ J.Return $ Just e]
                let mainDecl = wrapperClass name (bs ++ returnStmt) returnType mainBody
