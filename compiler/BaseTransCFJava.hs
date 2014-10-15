@@ -30,12 +30,6 @@ createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
 createCUB _ compDef = cu
   where cu = J.CompilationUnit Nothing [] compDef
 
---consPrimList :: [([a], J.Exp, PCTyp t)] -> ([a], J.Exp, PCTyp t)
---consPrimList l = case l of
-
--- initStuff tempVar n expr ty =
---   localFinalVar ty (varDecl tempName initValue)
---   where tempName = tempVar ++ show n
 
 initClass :: String -> String -> Int -> J.Exp -> J.BlockStmt
 initClass className tempVarStr n expr =
@@ -47,14 +41,6 @@ initClass className tempVarStr n expr =
 
 
 type Var = Int -- Either Int Int left -> standard variable; right -> recursive variable
-
-{-
-translateScopeTyp javaExpression statementsBeforeOA currentId nextId initVars generateClone =
-     [(J.LocalClass (J.ClassDecl [] (J.Ident ("Fun" ++ show nextId)) []
-        (Just $ J.ClassRefType (J.ClassType [(J.Ident "Closure",[])])) [] (jexp [currentInitialDeclaration
-        (J.Ident (localvarstr ++ show currentId))] (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression]))) nextId generateClone))),
-        J.LocalVars [] (closureType) ([J.VarDecl (J.VarId $ J.Ident (localvarstr ++ show nextId)) (Just (J.InitExp (instCreat nextId)))])]
--}
 
 type TransType = ([J.BlockStmt], J.Exp, Type Int)
 

@@ -4,7 +4,7 @@ module UnboxTransCFJava where
 
 import Prelude hiding (init, last)
 
-import qualified Data.Set as Set
+-- import qualified Data.Set as Set
 
 import qualified Language.Java.Syntax as J
 import ClosureF
@@ -41,23 +41,6 @@ javaType2 x                 = javaType x
 
 assignVar2 :: String -> J.Exp -> Type t -> J.BlockStmt
 assignVar2 varId e t = J.LocalVars [] (javaType2 t) [varDecl varId e]
-
-
-currentInitialDeclaration2 :: J.Ident -> ClassName -> J.Decl
-currentInitialDeclaration2 idCurrentName cName =
-  J.MemberDecl $
-  J.FieldDecl
-    []
-    (classTy cName)
-    [J.VarDecl (J.VarId idCurrentName)
-               (Just (J.InitExp J.This))]
-
--- inputFieldAccess :: String -> J.Exp
--- inputFieldAccess varId = fieldAccess varId localvarstr
-
-outputAssignment :: J.Exp -> J.BlockStmt
-outputAssignment javaExpression =
-  J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (name ["out"])) J.EqualA javaExpression))
 
 genIfBody2 :: Monad m
           => t
@@ -100,38 +83,6 @@ getS3_2 this func t j3 cvarass =
      let r = cvarass ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))
 
-jexp :: [J.Decl] -> Maybe J.Block -> Int -> Bool -> J.ClassBody
-jexp initDecls body idCF generateClone =
-  classBody $ initDecls ++
-  [applyMethod] ++
-  if generateClone
-     then [cloneMethod]
-     else []
-  where applyMethod =
-          J.MemberDecl $
-          methodDecl [J.Public]
-                     Nothing
-                     "apply"
-                     []
-                     body
-        cloneMethod =
-          J.MemberDecl $
-          methodDecl [J.Public]
-                     (Just closureType)
-                     "clone"
-                     []
-                     cloneBody
-        cloneBody =
-          Just (block [localVar closureType
-                                (varDecl "c"
-                                         (funInstCreate idCF))
-                      ,assign (name ["c",closureInput])
-                              (J.ExpName $ name ["this",closureInput])
-                      ,bStmt (classMethodCall (var "c")
-                                              "apply"
-                                              [])
-                      ,bStmt (J.Return (Just (cast closureType (var "c"))))])
-
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
 transUnbox this super =
   UT {toUT =
@@ -169,27 +120,28 @@ transUnbox this super =
                          let nextInClosure = g (n',t)
 
                          let aType = javaType2 t
-                         let flag = aType == objClassTy
                          let accessField = fieldAccess (var (localvarstr ++ show v)) closureInput
-                         let js = localFinalVar aType (varDecl (localvarstr ++ show n')
-                                                               (if flag
-                                                                   then accessField
-                                                                   else cast aType accessField))
+                         -- let js = localFinalVar aType (varDecl (localvarstr ++ show n')
+                         --                                       (if flag
+                         --                                           then accessField
+                         --                                           else cast aType accessField))
+                         let js = localFinalVar aType (varDecl (localvarstr ++ show n') (cast aType accessField))
 
-                         (statementsBeforeOA,javaExpression,t1) <- translateScopeM (up this) nextInClosure Nothing
                          b <- genClone (up this)
-                         let cName = getClassType t (scope2ctyp t1)
                          let currentId = v
-                         let nextId = n
+                         let oldId = n
                          let initVars = [js]
-
+                         (ostmts,oexpr,t1) <- translateScopeM (up this) nextInClosure Nothing
+                         let cName = getClassType t (scope2ctyp t1)
                          let cvar =
-                               [localClassDecl ("Fun" ++ show nextId)
+                               [localClassDecl ("Fun" ++ show oldId)
                                                cName
-                                               (jexp [currentInitialDeclaration2 (J.Ident (localvarstr ++ show currentId)) cName]
-                                                     (Just (J.Block (initVars ++ statementsBeforeOA ++ [outputAssignment javaExpression])))
-                                                     nextId b)
-                               ,localVar (classTy cName) (varDecl (localvarstr ++ show nextId) (funInstCreate nextId))]
+                                               (closureBodyGen [memberDecl $ fieldDecl (classTy cName)
+                                                                                       (varDecl (localvarstr ++ show currentId) J.This)]
+                                                               (initVars ++ ostmts ++ [assign (name ["out"]) oexpr])
+                                                               oldId
+                                                               b)
+                               ,localVar (classTy cName) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                          return (cvar,var (localvarstr ++ show n), Type t (\_ -> t1) )
 
                    _ -> translateScopeM super e m
