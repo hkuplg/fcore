@@ -266,6 +266,13 @@ tcExpr (RecordUpdate e fs) =
      (e', t) <- tcExpr e
      return (RecordUpdate e' (zip (map fst fs) es'), t)
 
+-- Well, I know the desugaring is too early to happen here...
+tcExpr (LetModule (Module m binds) e) =
+  do let fs = map bindId binds
+     let letrec = Let Rec binds (Record (map (\f -> (f, Var f)) fs))
+     tcExpr $ Let NonRec [Bind m [] [] letrec Nothing] e
+tcExpr (ModuleAccess m f) = tcExpr (RecordAccess (Var m) f)
+
 tcExprAgainst :: Expr Name -> Type -> TcM (Expr TcId, Type)
 tcExprAgainst expr expected_ty
   = do (expr', actual_ty) <- tcExpr expr

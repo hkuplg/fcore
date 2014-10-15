@@ -53,6 +53,9 @@ import JavaUtils
   JAVACLASS { Tjavaclass $$ }
   "new"     { Tnew }
 
+  "module"  { Tmodule }
+  "end"     { Tend }
+
   INTEGER  { Tinteger $$ }
   STRING   { Tstring $$ }
   BOOLEAN  { Tboolean $$ }
@@ -96,6 +99,13 @@ import JavaUtils
 
 -- The parser rules of GHC may come in handy:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
+
+-- Modules
+module :: { Module Name }
+  : "module" module_name semi_binds "end"  { Module $2 $3 }
+
+module_name :: { Name }
+  : UPPERID  { $1 }
 
 -- Types
 
@@ -141,6 +151,7 @@ tyvar :: { Name }
 
 expr :: { Expr Name }
      : infixexpr %prec EOF      { $1 }
+     | module expr              { LetModule $1 $2 }
 
 infixexpr :: { Expr Name }
     : expr10                    { $1 }
@@ -186,6 +197,7 @@ aexp :: { Expr Name }
     | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Right $1) $3 $5 undefined }
     | JAVACLASS "." field { JField (Left $1) $3 undefined }
     | aexp "." field      { JField (Right $1) $3 undefined }
+    | module_name "." var  { ModuleAccess $1 $3 }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
     | "{" semi_exprs "}"        { Seq $2 }
@@ -239,6 +251,10 @@ maybe_sig :: { Maybe Type }
 and_binds :: { [Bind Name] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
+
+semi_binds :: { [Bind Name] }
+    : bind                      { [$1]  }
+    | bind ";" and_binds      { $1:$3 }
 
 recflag :: { RecFlag }
   : "rec"       { Rec }

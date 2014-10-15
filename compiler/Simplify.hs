@@ -98,7 +98,8 @@ coerce i (And t1 t2) t3 =
         Nothing -> Nothing
         Just c  -> return (C (Lam (transType i (And t1 t2))
                                (\x -> c `appC` Proj 2 (Var x))))
-coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) = coerce i t1 t2
+coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) | l1 == l2  = coerce i t1 t2
+                                               | otherwise = Nothing
 coerce  i _ _ = Nothing
 
 -- Typing
@@ -124,17 +125,20 @@ transExpr (Fix f t1 t) =
                   (transType i t1)
                   (transType i t))
 
--- LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
 transExpr (LetRec sigs binds body) =
-  do i <- takeFreshIndex
-     let sigs' = map (transType i) sigs
-     js <- replicateM (length sigs) takeFreshIndex
-     k <- takeFreshIndex
-     let binds' ids' = map (\e -> snd (evalState (transExpr e) k)) (binds (zipWith (\n t -> (n, t)) ids' sigs))
-     let body' ids' = snd (evalState (transExpr (body (zipWith (\n t -> (n, t)) ids' sigs))) k)
-     let t = infer (unsafeCoerce body' sigs)
-     k <- takeFreshIndex
-     return (t, LetRec sigs' binds' body')
+  do i <- get; fs <- replicateM num_of_binds takeFreshIndex
+     let fs_with_sigs = zip fs sigs
+     (_type_of_binds, opened_binds') <- mapAndUnzipM transExpr (binds fs_with_sigs)
+     (type_of_body,   opened_body')  <- transExpr (body fs_with_sigs)
+     let sigs'  = map (transType i) sigs
+         binds' = (\fs' -> map (subst fs fs') opened_binds')
+         body'  = (\fs' -> subst fs fs' opened_body')
+     return (type_of_body, LetRec sigs' binds' body')
+   where
+     num_of_binds = length sigs
+
+     subst :: [Int] -> [Int] -> Expr Int Int -> Expr Int Int
+     subst xs rs  = foldl (.) (\x->x) [fsubstEE (x, Var (rs !! i)) | (x,i) <- (zip xs [0..num_of_binds-1])]
 
 transExpr (BLam f) =
   do i <- takeFreshIndex
