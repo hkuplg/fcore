@@ -23,8 +23,9 @@ type InitVars = [J.BlockStmt]
 newIdent :: Int -> J.Ident
 newIdent n = J.Ident $ localvarstr ++ show n
 
-identDecl :: J.Ident -> Type Int -> J.Exp -> [J.BlockStmt]
-identDecl id t j = [J.LocalVars [] (javaType t) [J.VarDecl (J.VarId id) (Just $ J.InitExp j)]]
+identDecl :: Monad m => Translate m -> J.Ident -> Type Int -> J.Exp -> m [J.BlockStmt]
+identDecl this id t j = do aType <- javaType this t
+                           return $ [J.LocalVars [] aType [J.VarDecl (J.VarId id) (Just $ J.InitExp j)]]
 
 createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
 createCUB _ compDef = cu
@@ -53,6 +54,7 @@ data Translate m =
     ,genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,genClone :: m Bool
+    ,javaType :: Type Int -> m J.Type
     ,setClosureVars :: TScope Int -> String -> J.Exp -> J.Exp -> m [J.BlockStmt]
      -- getS3 :: TScope Int -> J.Exp -> (J.Exp -> J.Type -> [J.BlockStmt]) -> ([J.BlockStmt] -> [J.BlockStmt]) -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
     ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
@@ -79,18 +81,6 @@ chooseCastBox (TupleType tuple) =
       where tupleClassName = getTupleClassName tuple
 chooseCastBox _ = (initClass "Object",objClassTy)
 
--- Needed
-javaType :: Type t -> J.Type
-javaType (JClass c) = classTy c
-javaType (Forall _) = closureType
-javaType (TupleType tuple) =
-  case tuple of
-    [t] -> javaType t
-    _ -> classTy $ getTupleClassName tuple
-javaType CFInt = classTy "java.lang.Integer"
-javaType CFInteger = classTy "java.lang.Integer"
-javaType _ = objClassTy
-
 getS3 :: MonadState Int m
       => Translate m
       -> J.Ident
@@ -107,17 +97,19 @@ getS3 this fname retTyp fout fs =
      let r = fs ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))
 
-genIfBody :: Monad m
-          => m TransType
+genIfBody :: MonadState Int m
+          => Translate m
           -> m TransType
-          -> ([J.BlockStmt], J.Exp)
+          -> m TransType
+          -> ([J.BlockStmt],J.Exp)
           -> Int
           -> m TransType
-genIfBody m2 m3 (s1,j1) n =
+genIfBody this m2 m3 (s1,j1) n =
   do (s2,j2,t2) <- m2 {-translateM this e2-}
      (s3,j3,t3) <- m3 {-translateM this e3-}
      let ifvarname = (ifresultstr ++ show n)
-     let ifresdecl = localVar (javaType t2) (varDeclNoInit ifvarname)
+     aType <- javaType this t2
+     let ifresdecl = localVar aType (varDeclNoInit ifvarname)
      let thenPart = (J.StmtBlock $ block (s2 ++ [assign (name [ifvarname]) j2]))
      let elsePart = (J.StmtBlock $ block (s3 ++ [assign (name [ifvarname]) j3]))
      let ifstmt  = bStmt $ J.IfThenElse j1 thenPart elsePart
@@ -125,8 +117,9 @@ genIfBody m2 m3 (s1,j1) n =
      return (s1 ++ [ifresdecl,ifstmt],var ifvarname ,t2) -- need to check t2 == t3
 
 -- needed
-assignVar :: Type t -> String -> J.Exp -> J.BlockStmt
-assignVar t varId e = localVar (javaType t) (varDecl varId e)
+assignVar this t varId e = do aType <- javaType this t
+                              return $ localVar aType (varDecl varId e)
+
 
 pairUp :: [Var] -> [(J.Exp, Type Int)] -> [(Var, Type Int)]
 pairUp bindings vars = exchanged
@@ -147,7 +140,7 @@ concatFirst :: ([[a]], [b], [c]) -> ([a], [b], [c])
 concatFirst (xs, y, z) = (concat xs, y, z)
 
 -- Needed
-getNewVarName :: MonadState Int m => t -> m String
+getNewVarName :: MonadState Int m => Translate m -> m String
 getNewVarName this = do (n :: Int) <- get
                         put (n + 1)
                         return $ localvarstr ++ show n
@@ -174,7 +167,8 @@ trans self =
                                        (Src.Compare realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
                                        (Src.Logic realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
                    newVarName <- getNewVarName this
-                   return (s1 ++ s2 ++ [assignVar typ newVarName jexpr],var newVarName,typ)
+                   assignExpr <- assignVar this typ newVarName jexpr
+                   return (s1 ++ s2 ++ [assignExpr],var newVarName,typ)
               If e1 e2 e3 -> translateIf this (translateM this e1) (translateM this e2) (translateM this e3)
               Tuple tuple ->
                 case tuple of
@@ -187,7 +181,8 @@ trans self =
                        newVarName <- getNewVarName this
                        let c = getTupleClassName tuple
                        let rhs = instCreat (classTyp c) exprs
-                       return (statements ++ [assignVar (JClass c) newVarName rhs],var newVarName,TupleType types)
+                       assignExpr <- assignVar this (JClass c) newVarName rhs
+                       return (statements ++ [assignExpr],var newVarName,TupleType types)
               Proj index expr ->
                 do ret@(statement,javaExpr,exprType) <- translateM this expr
                    case exprType of
@@ -195,8 +190,10 @@ trans self =
                      TupleType types ->
                        do newVarName <- getNewVarName this
                           let typ = (types !! (index - 1))
-                          let rhs = cast (javaType typ) (fieldAccess javaExpr ("_" ++ show index))
-                          return (statement ++ [assignVar typ newVarName rhs] ,var newVarName ,typ)
+                          aType <- javaType this typ
+                          let rhs = cast (aType) (fieldAccess javaExpr ("_" ++ show index))
+                          assignExpr <- assignVar this typ newVarName rhs
+                          return (statement ++ [assignExpr] ,var newVarName ,typ)
                      _ ->
                        panic "BaseTransCFJava.trans: expected tuple type"
               TApp e t ->
@@ -224,8 +221,8 @@ trans self =
                    let x = newIdent n
                    let xf = newIdent (n + 1)
 
-                   let xDecl = identDecl x t1 j1
-                   let xfDecl = identDecl xf t2 j2
+                   xDecl <- identDecl this x t1 j1
+                   xfDecl <- identDecl this xf t2 j2
 
                    return (s1 ++ xDecl ++ s2 ++ xfDecl, J.ExpName (J.Name [xf]), t2)
 
@@ -247,7 +244,7 @@ trans self =
                    let varnums = map fst newvars
                    (bindStmts,bindExprs,_) <- (liftM unzip3 finalFuns)
                    (bodyStmts,bodyExpr,t') <- translateM this appliedBody
-                   let typ = javaType t'
+                   typ <- javaType this t'
                    -- assign new created closures bindings to variables
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
                                   (varnums `zip` bindExprs)
@@ -281,8 +278,9 @@ trans self =
                            Nothing
                    let typ = JClass c
                    newVarName <- getNewVarName this
+                   assignExpr <- assignVar this typ newVarName rhs
                    return (statements ++
-                           [assignVar typ newVarName rhs]
+                           [assignExpr]
                           ,var newVarName
                           ,typ)
               JMethod c m args r ->
@@ -314,8 +312,9 @@ trans self =
                    let typ = JClass r
                    if r /= "java.lang.Void"
                       then do newVarName <- getNewVarName this
+                              assignExpr <- assignVar this typ newVarName rhs
                               return (statements ++ classStatement ++
-                                      [assignVar typ newVarName rhs]
+                                      [assignExpr]
                                      ,var newVarName
                                      ,typ)
                       else return (statements ++ classStatement ++
@@ -334,13 +333,15 @@ trans self =
                                                               ,undefined)
                    newVarName <- getNewVarName this
                    let typ = JClass r
+                   aType <- javaType this typ
                    let rhs =
-                         J.Cast (javaType typ) $
+                         J.Cast aType $
                          J.FieldAccess $
                          J.PrimaryFieldAccess classExpr
                                               (J.Ident fName)
+                   assignExpr <- assignVar this typ newVarName rhs
                    return (classStatement ++
-                           [assignVar typ newVarName rhs]
+                           [assignExpr]
                           ,var newVarName
                           ,typ)
               SeqExprs es ->
@@ -369,7 +370,7 @@ trans self =
                    put (n' + 1)
                    let nextInClosure = g (n',t)
 
-                   let typT1 = javaType t
+                   typT1 <- javaType this t
                    let flag = typT1 == objClassTy
                    let accessField = fieldAccess (var (localvarstr ++ show v)) closureInput
                    let xf = localFinalVar typT1 (varDecl (localvarstr ++ show n')
@@ -391,16 +392,16 @@ trans self =
                (s2,j2,t2) <- m2
                let retTyp = g ()
                let fname = localvarstr ++ show n -- use a fresh variable
-               closureVars <- setClosureVars (up this) retTyp fname j1 j2
+               closureVars <- setClosureVars this retTyp fname j1 j2
                let fout = (fieldAccess (var fname) "out")
-               (s3,nje3) <- getS3 (up this) (J.Ident fname) retTyp fout closureVars
+               (s3,nje3) <- getS3 this (J.Ident fname) retTyp fout closureVars
                return (s1 ++ s2 ++ s3,nje3,scope2ctyp retTyp)
        ,translateIf =
           \m1 m2 m3 ->
             do n <- get
                put (n + 1)
                (s1,j1,t1) <- m1 {- translateM this e1 -}
-               genIfBody m2 m3 (s1, j1) n
+               genIfBody this m2 m3 (s1, j1) n
        ,translateScopeTyp =
           \currentId oldId initVars _ otherStmts ->
             do b <- genClone this
@@ -422,6 +423,15 @@ trans self =
           \t fname j1 j2 ->
             return [localVar closureType (varDecl fname j1)
                    ,assignField (fieldAccExp (var fname) closureInput) j2]
+       ,javaType = \typ -> case typ of
+                             (JClass c) -> return $ classTy c
+                             (Forall _) -> return closureType
+                             (TupleType tuple) -> case tuple of
+                                                    [t] -> javaType this t
+                                                    _ -> return $ classTy $ getTupleClassName tuple
+                             CFInt -> return $ classTy "java.lang.Integer"
+                             CFInteger -> return $ classTy "java.lang.Integer"
+                             _ -> return $ objClassTy
        ,genClone = return False -- do not generate clone method
        ,createWrap =
           \name exp ->

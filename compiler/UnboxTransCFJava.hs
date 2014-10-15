@@ -34,30 +34,6 @@ getClassType _ _ = closureClass ++ "BoxBox"
 wrap :: J.Exp -> Type t -> Type t -> ([J.BlockStmt], J.Exp)
 wrap e t1 t2 = ([], e)
 
-javaType2 :: Type t -> J.Type
-javaType2 CFInt = J.PrimType J.IntT
-javaType2 (Forall (Type t1 f)) =
-  case (f ()) of
-    (Body t2) -> classTy (getClassType t1 t2)
-    _ -> classTy (getClassType t1 CFInteger)
-javaType2 x = javaType x
-
-genIfBody2 :: Monad m
-          => m ([J.BlockStmt],J.Exp,Type t2)
-          -> m ([J.BlockStmt],J.Exp,t1)
-          -> J.Exp
-          -> [J.BlockStmt]
-          -> Int
-          -> m ([J.BlockStmt],J.Exp,Type t2)
-genIfBody2 m2 m3 j1 s1 n =
-  do (s2,j2,t2) <- m2 {-translateM this e2-}
-     (s3,j3,t3) <- m3 {-translateM this e3-}
-     let ifvarname = (ifresultstr ++ show n)
-     let ifresdecl = localVar (javaType2 t2) (varDeclNoInit ifvarname)
-     let thenPart = (J.StmtBlock $ block (s2 ++ [assign (name [ifvarname]) j2]))
-     let elsePart = (J.StmtBlock $ block (s3 ++ [assign (name [ifvarname]) j3]))
-     let ifstmt  = bStmt $ J.IfThenElse j1 thenPart elsePart
-     return (s1 ++ [ifresdecl,ifstmt],var ifvarname ,t2) -- need to check t2 == t3
 
 chooseCastBox2 :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
 chooseCastBox2 (CFInt) =
@@ -108,8 +84,9 @@ transUnbox this super =
                                   (Src.Arith realOp) -> (J.BinOp j1 realOp j2,CFInt)
                                   (Src.Compare realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
                                   (Src.Logic realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
-                          newVarName <- getNewVarName this
-                          return (s1 ++ s2 ++ [localVar (javaType2 typ) (varDecl newVarName je)],var newVarName,typ)
+                          newVarName <- getNewVarName (up this)
+                          aType <- javaType (up this) typ
+                          return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
                      _ -> translateM super e
               ,translateScopeM = \e m -> case e of
                    Type t g ->
@@ -118,7 +95,7 @@ transUnbox this super =
                          put (n' + 1)
                          let nextInClosure = g (n',t)
 
-                         let aType = javaType2 t
+                         aType <- javaType (up this) t
                          let accessField = fieldAccess (var (localvarstr ++ show v)) closureInput
                          -- let js = localFinalVar aType (varDecl (localvarstr ++ show n')
                          --                                       (if flag
@@ -165,4 +142,11 @@ transUnbox this super =
                       (s1,j1,t1) <- m1 {- translateM this e1 -}
                       -- let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
                       -- genIfBody this m2 m3 j1' s1 n,
-                      genIfBody2 m2 m3 j1 s1 n}}
+                      genIfBody (up this) m2 m3 (s1,j1) n
+              ,javaType = \typ -> case typ of
+                                    CFInt -> return $ J.PrimType J.IntT
+                                    (Forall (Type t1 f)) -> case (f ()) of
+                                                              (Body t2) -> return $ classTy (getClassType t1 t2)
+                                                              _ -> return $ classTy (getClassType t1 CFInteger)
+                                    x -> javaType super x
+             }}
