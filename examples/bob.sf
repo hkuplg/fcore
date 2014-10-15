@@ -1,0 +1,3 @@
+let bob = { name = "Bob", age = 30, language = "Haskell" } 
+in 
+bob.language
