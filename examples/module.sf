@@ -1,6 +1,6 @@
 module M
   add (a:Int) (b:Int) : Int = a + b;
-  one (dummy:Int) : Int = 1
+  sub (a:Int) (b:Int) : Int = a - b
 end
 
-M.add 2 (M.one 42)
+M.add 1 2
