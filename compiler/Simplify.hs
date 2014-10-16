@@ -250,6 +250,7 @@ getter i (And t1 t2) l
           Just (c,t) ->
             Just (C $ Lam (transType i (And t1 t2)) (\x -> appC c (Proj 1 (Var x)))
                  ,t)
+getter _ _ _ = Nothing
 
 putter :: Int -> Type Int -> S.Label -> Expr Int Int -> Maybe (Coercion Int Int, Type Int)
 putter i (RecordTy (l,t)) l1 e
@@ -272,6 +273,7 @@ putter i (And t1 t2) l e
               C _  -> Just (C $ Lam (transType i (And t1 t2))
                                   (\x -> Tuple [appC c (Proj 1 (Var x)), Proj 2 (Var x)])
                            ,t)
+putter _ _ _ _ = Nothing
 
 -- id_t: the identity function in the Core world, specialised to type t.
 id :: Type Int -> Expr Int Int
