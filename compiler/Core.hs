@@ -11,8 +11,6 @@ module Core
   -- "Eq"
   , alphaEquiv
 
-  , eval
-
   -- "Show"
   , pprType, pprExpr
 
