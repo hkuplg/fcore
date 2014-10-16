@@ -97,7 +97,9 @@ type ValueContext t e = Map.Map e (Type t)
 emptyValueContext :: ValueContext t e
 emptyValueContext = Map.empty
 
-alphaEquiv :: Type Int -> Type Int -> Bool
+type Index = Int
+
+alphaEquiv :: Type Index -> Type Index -> Bool
 alphaEquiv = go 0
   where
     go i (TyVar a)    (TyVar b)    = a == b
@@ -109,7 +111,7 @@ alphaEquiv = go 0
     go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
     go i t1           t2           = False
 
-pprType :: Prec -> Int -> Type Int -> Doc
+pprType :: Prec -> Index -> Type Index -> Doc
 
 pprType p i (TyVar a)     = pprTVar a
 
@@ -139,13 +141,13 @@ pprType p i (And t1 t2) =
 
 pprType p i (RecordTy (l,t)) = lbrace <> text l <> colon <> pprType basePrec i t <> rbrace
 
--- instance Show (Expr Int Int) where
+-- instance Show (Expr Index Index) where
 --   show = show . pretty
 
-instance Pretty (Expr Int Int) where
+instance Pretty (Expr Index Index) where
   pretty = pprExpr basePrec (0, 0)
 
-pprExpr :: Prec -> (Int, Int) -> Expr Int Int -> Doc
+pprExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
 pprExpr p (i,j) (Var x) = pprVar x
 
@@ -230,7 +232,7 @@ pprExpr p (i,j) (Record (l,e))          = lbrace <> text l <> equals <> pprExpr 
 pprExpr p (i,j) (RecordAccess e l)      = pprExpr p (i,j) e <> dot <> text l
 pprExpr p (i,j) (RecordUpdate e (l,e1)) = pprExpr p (i,j) e <+> text "with" <+> pprExpr p (i,j) (Record (l,e1))
 
-fsubstTT :: (Int, Type Int) -> Type Int -> Type Int
+fsubstTT :: (Index, Type Index) -> Type Index -> Type Index
 fsubstTT (x,r) (TyVar a)
   | a == x                 = r
   | otherwise              = TyVar a
@@ -239,7 +241,7 @@ fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
 fsubstTT (x,r) (JClass c)  = JClass c
 fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 
-fsubstTE :: (Int, Type Int) -> Expr Int Int -> Expr Int Int
+fsubstTE :: (Index, Type Index) -> Expr Index Index -> Expr Index Index
 fsubstTE (x,r) (Var a)       = Var a
 fsubstTE (x,r) (Lit n)       = Lit n
 fsubstTE (x,r) (BLam g)      = BLam (fsubstTE (x,r) . g)
@@ -248,7 +250,7 @@ fsubstTE (x,r) (TApp e t)    = TApp (fsubstTE (x,r) e) (fsubstTT (x,r) t)
 fsubstTE (x,r) (App e1 e2)   = App (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
 fsubstTE (x,r) (Merge e1 e2) = Merge (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
 
-fsubstEE :: (Int, Expr Int Int) -> Expr Int Int -> Expr Int Int
+fsubstEE :: (Index, Expr Index Index) -> Expr Index Index -> Expr Index Index
 fsubstEE (x,r)
   = go
   where
