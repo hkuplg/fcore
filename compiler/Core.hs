@@ -111,10 +111,6 @@ alphaEquiv = go 0
     go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
     go i t1           t2           = False
 
--- Evaluation with call-by-value strategy
-eval :: Expr t e -> Expr t e
-eval (Proj i e) = case eval e of { Tuple es -> es !! (i - 1) }
-
 pprType :: Prec -> Int -> Type Int -> Doc
 
 pprType p i (TyVar a)     = pprTVar a
