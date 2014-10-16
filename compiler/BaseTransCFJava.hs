@@ -67,21 +67,6 @@ getTupleClassName tuple = if lengthOfTuple > 50
                              else "hk.hku.cs.f2j.tuples.Tuple" ++ show lengthOfTuple
   where lengthOfTuple = length tuple
 
--- chooseCastBox :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
--- chooseCastBox (JClass c) =
---   (initClass c,classTy c)
--- chooseCastBox (CFInt) = (initClass "java.lang.Integer", classTy "java.lang.Integer")
--- chooseCastBox (CFInteger) = (initClass "java.lang.Integer", classTy "java.lang.Integer")
--- chooseCastBox (Forall _) =
---   (initClass closureClass,closureType)
--- chooseCastBox (TupleType tuple) =
---   case tuple of
---     [t] -> chooseCastBox t
---     _ ->
---       (initClass tupleClassName,classTy tupleClassName)
---       where tupleClassName = getTupleClassName tuple
--- chooseCastBox _ = (initClass "Object",objClassTy)
-
 getS3 :: MonadState Int m
       => Translate m
       -> J.Ident
