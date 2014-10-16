@@ -53,6 +53,7 @@ loop inP outP flagT flagS num = do
 	msg <- getInputLine "% "
 	case msg of
 	  Nothing -> return ()
+	  Just "" -> loop inP outP flagT flagS num
 	  Just input -> runCommand inP outP flagT flagS num input
 	
 runCommand :: Handle -> Handle -> Bool -> Bool -> Int -> String -> InputT IO ()
