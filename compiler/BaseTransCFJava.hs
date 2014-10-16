@@ -434,6 +434,7 @@ trans self =
             do (bs,e,t) <- translateM this exp
                let returnType = case t of
                                   JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+                                  JClass "java.lang.Boolean" -> Just $ J.PrimType $ J.BooleanT
                                   CFInt -> Just $ J.PrimType $ J.IntT
                                   _ -> Just objClassTy
                let returnStmt = [bStmt $ J.Return $ Just e]

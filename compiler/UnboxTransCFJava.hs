@@ -30,6 +30,10 @@ getClassType CFInt _ = closureClass ++ "IntBox"
 getClassType _ CFInt = closureClass ++ "BoxInt"
 getClassType _ _ = closureClass ++ "BoxBox"
 
+getFunType :: Type t -> (Type t, Type t)
+getFunType (Forall (Type b f)) = (b, scope2ctyp (f ()))
+
+
 --TODO: generate wrappers when types T1~T2
 wrap :: J.Exp -> Type t -> Type t -> ([J.BlockStmt], J.Exp)
 wrap e t1 t2 = ([], e)
@@ -61,6 +65,39 @@ transUnbox this super =
                           newVarName <- getNewVarName (up this)
                           aType <- javaType (up this) typ
                           return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
+                     LetRec t xs body ->
+                       do (n :: Int) <- get
+                          let needed = length (xs (zip [n ..] t))
+                          put (n + 2 + needed)
+                          mfuns <- return (\defs -> forM (xs defs) (translateM (up this)))
+                          let vars = (liftM (map (\(_,b,c) -> (b,c)))) (mfuns (zip [n ..] t))
+                          let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
+                          newvars <- ((liftM (pairUp bindings)) vars)
+                          let mDecls = map (\(x, typ) ->
+                                              memberDecl (fieldDecl (classTy $ let (t1, t2) = getFunType typ
+                                                                               in getClassType t1 t2)
+                                                                    (varDeclNoInit (localvarstr ++ show x))))
+                                           newvars
+                          let finalFuns = mfuns newvars
+                          let appliedBody = body newvars
+                          let varnums = map fst newvars
+                          (bindStmts,bindExprs,_) <- (liftM unzip3 finalFuns)
+                          (bodyStmts,bodyExpr,t') <- translateM (up this) appliedBody
+                          typ <- javaType (up this) t'
+                          -- assign new created closures bindings to variables
+                          let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
+                                         (varnums `zip` bindExprs)
+                          let stasm = (concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm)) ++ bodyStmts ++ [assign (name ["out"]) bodyExpr]
+                          let letClass =
+                                [localClass ("Let" ++ show n)
+                                             (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit "out")) :
+                                                         mDecls ++ [J.InitDecl False (J.Block stasm)]))
+                                ,localVar (classTy ("Let" ++ show n))
+                                          (varDecl (localvarstr ++ show n)
+                                                   (instCreat (classTyp ("Let" ++ show n)) []))
+                                ,localVar typ (varDecl (localvarstr ++ show (n + 1))
+                                                       (cast typ (J.ExpName (name [(localvarstr ++ show n), "out"]))))]
+                          return (letClass,var (localvarstr ++ show (n + 1)),t')
                      _ -> translateM super e
               ,translateScopeM = \e m -> case e of
                    Type t g ->
