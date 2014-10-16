@@ -19,13 +19,14 @@ import qualified Data.ByteString 	(ByteString, writeFile)
 import Translations
 import JavaUtils
 import ParseCMD
+--import ReplCMD
 
 runtimeBytes :: Data.ByteString.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
 
-
-main = 
-  do exists <- doesFileExist =<< getRuntimeJarPath
+main :: IO ()
+main = do 
+     exists <- doesFileExist =<< getRuntimeJarPath
      existsCur <- doesFileExist "./runtime.jar"
      unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
      fileExist "runtime.jar"
@@ -37,7 +38,8 @@ main =
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP LineBuffering
      hSetBuffering outP LineBuffering
-     runInputT defaultSettings (loop inP outP False 0)
+     liftIO printHelp
+     runInputT defaultSettings (loop inP outP False False 0)
      
 fileExist :: String -> IO ()
 fileExist name = do
@@ -46,77 +48,94 @@ fileExist name = do
 	  then return ()
 	  else fileExist name	
 
-loop :: Handle -> Handle -> Bool -> Int -> InputT IO ()
-loop inP outP flag num = do
+loop :: Handle -> Handle -> Bool -> Bool -> Int -> InputT IO ()
+loop inP outP flagT flagS num = do
 	msg <- getInputLine "% "
 	case msg of
 	  Nothing -> return ()
-	  Just input -> runCommand inP outP flag num input
+	  Just "" -> loop inP outP flagT flagS num
+	  Just input -> runCommand inP outP flagT flagS num input
 	
-runCommand :: Handle -> Handle -> Bool -> Int -> String -> InputT IO ()
-runCommand inP outP flag num msg = do
+runCommand :: Handle -> Handle -> Bool -> Bool -> Int -> String -> InputT IO ()
+runCommand inP outP flagT flagS num msg = do
 	case (stripPrefix ":" msg) of
 	  Just input -> 
 		case parseMsg msg of
 		  Left err ->  outputStrLn "Parse error"
-		  Right line -> processCMD inP outP flag num line
+		  Right line -> processCMD inP outP flagT flagS num line
 	  Nothing -> do 
 	  	let fileName = "main_" ++ (show num) ++ ".sf"
 	  	liftIO (writeFile fileName msg)
-	  	case flag of 
-		  True 	-> liftIO (timeIt (wrap inP outP fileName))
-		  False -> liftIO (wrap inP outP fileName)
+	  	case flagT of 
+		  True 	-> liftIO (timeIt (wrap inP outP flagS fileName))
+		  False -> liftIO (wrap inP outP flagS fileName)
 		liftIO (removeFile fileName)
-		loop inP outP flag (num+1)
+		loop inP outP flagT flagS (num+1)
 
-processCMD :: Handle -> Handle -> Bool -> Int -> [String] -> InputT IO ()
-processCMD inP outP flag num (x : xs) = do
+processCMD :: Handle -> Handle -> Bool -> Bool -> Int -> [String] -> InputT IO ()
+processCMD inP outP flagT flagS num (x : xs) = do
 	case x of 
+	  ":help" -> liftIO printHelp
 	  ":send" -> do
 		case getCMD xs of
 		  Just filename -> do 
-	      		case flag of
-			  True	-> liftIO (timeIt (wrap inP outP filename))
-	  		  False -> liftIO (wrap inP outP filename)
+	      		case flagT of
+			  True	-> liftIO (timeIt (wrap inP outP flagS filename))
+	  		  False -> liftIO (wrap inP outP flagS filename)
 		  Nothing       ->  outputStrLn "Error input"
-		loop inP outP flag num
+		loop inP outP flagT flagS num
 	  ":time" -> case getCMD xs of 
-		Just "on"  -> loop inP outP True num
-		Just "off" -> loop inP outP False num
+		Just "on"  -> loop inP outP True flagS num
+		Just "off" -> loop inP outP False flagS num
 		_          -> do outputStrLn "Error input"
-			         loop inP outP flag num
+			         loop inP outP flagT flagS num
 	  ":quit" -> return ()
+	  ":showfile" -> case getCMD xs of
+	  	Just "on" -> loop inP outP flagT True num
+		Just "off" -> loop inP outP flagT False num
 	  input	  -> do outputStrLn $ "Command not recognized: " ++ input
-	  	        loop inP outP flag num
+	  	        loop inP outP flagT flagS num
 
 getCMD :: [String] -> Maybe String
 getCMD xs = case xs of
 		[x] -> Just x
 		xs  -> Nothing
 
-wrap :: Handle -> Handle -> String -> IO ()
-wrap inP outP name = do
-	send inP name 
-	receiveMsg outP
+wrap :: Handle -> Handle -> Bool -> String -> IO ()
+wrap inP outP flagS name = do
+	send inP flagS name 
+	exist <- doesFileExist name
+	if exist
+	  then receiveMsg outP
+	  else return ()
 
-send :: Handle -> String -> IO () 
-send h name = do 
-	let className = getClassName name
-	sendMsg h (className ++ ".java")
-	sfToJava h name
+send :: Handle -> Bool -> String -> IO () 
+send h flagS name = do 
+	exist <- doesFileExist name
+	if not exist 
+	  then do
+	    putStrLn (name ++ " does not exist")
+	    return ()
+	  else do
+	    let className = getClassName name
+	    sendMsg h (className ++ ".java")
+	    putStrLn name
+	    sfToJava h flagS name
 
 getClassName :: String -> String
 getClassName (x : xs) = (toUpper x) : (takeWhile (/= '.') xs)
 
-sfToJava :: Handle -> FilePath -> IO ()
-sfToJava h f = do 
+sfToJava :: Handle -> Bool -> FilePath -> IO ()
+sfToJava h flagS f = do 
 	contents <- readFile f
-	putStrLn contents
 	let className = getClassName f
 	javaFile <- sf2java 0 False compileAO className contents
 	let file = javaFile ++ "\n" ++  "//end of file"
-	putStrLn file
 	sendFile h file
+	case flagS of 
+	  True -> do putStrLn contents
+	  	     putStrLn file
+	  False -> return ()
 	--putStrLn "sent!"
 
 receiveMsg :: Handle -> IO () 
@@ -136,9 +155,24 @@ sendFile :: Handle -> String -> IO ()
 sendFile h f = do
 	hPutStrLn h f
 
+printHelp :: IO ()
+printHelp = do
+	putStrLn ""
+	putStrLn "Welcome to f2ji!"
+	putStrLn "[COMMANDS] [SOURCE FILE/FLAG]"
+	putStrLn "Options:"
+	putStrLn "  :help               Print help manual"
+	putStrLn "  :send sourceFile    Load sourceFile"
+	putStrLn "  :showfile on        Show source file and .java file contents"
+	putStrLn "  :showfile off       Hide source file and .java file contents"
+	putStrLn "  :time on            Show execution time"
+	putStrLn "  :time off           Hide execution time"
+	putStrLn "  :quit               Quit f2ji"
+
 printFile = do 
 	f <- getLine
 	contents <- readFile f
 	putStr contents
+
 
 

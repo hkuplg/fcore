@@ -26,6 +26,7 @@ import Prelude hiding (pred)
 type Connection = (Handle, Handle)
 
 typeCheck :: Expr Name -> IO (Either TypeError (Expr TcId, Type))
+-- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnv type_server) . runErrorT . tcExpr) e)
 
