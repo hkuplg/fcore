@@ -196,12 +196,12 @@ pprExpr p (i,j) (JNewObj c args) =
 pprExpr p i (JMethod name m args r) = methodStr name <> dot <> text m <> tupled (map (pprExpr basePrec i) args)
   where
     methodStr (Left x) = text x
-    methodStr (Right x) = pprExpr p i x
+    methodStr (Right x) = pprExpr (6,PrecMinus) i x
 
-pprExpr p i (JField name m args r) = fieldStr name <> dot <> text m <> tupled (map (pprExpr basePrec i) args)
+pprExpr p i (JField name f r) = fieldStr name <> dot <> text f
   where
     fieldStr (Left x) = text x
-    fieldStr (Right x) = pprExpr p i x
+    fieldStr (Right x) = pprExpr (6,PrecMinus) i x
 
 pprExpr p (i,j) (Seq es) = semiBraces (map (pprExpr p (i,j)) es)
 
