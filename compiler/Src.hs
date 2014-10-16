@@ -182,6 +182,7 @@ substFreeTyVars (x, r) = go
       | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
       | otherwise                   = Forall a (go t)
     go (ListOf a)   = ListOf (go a)
+    go UnitType     = UnitType
 
 freeTyVars :: Type -> Set.Set Name
 freeTyVars (TyVar x)     = Set.singleton x
