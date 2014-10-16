@@ -193,9 +193,15 @@ pprExpr p i (Proj n e) =
 pprExpr p (i,j) (JNewObj c args) =
   parens (text "new" <+> text c <> tupled (map (pprExpr basePrec (i,j)) args))
 
-pprExpr p (i,j) (JMethod e m args r) = sorry "Core.pprExpr: JMethod"
+pprExpr p i (JMethod name m args r) = methodStr name <> dot <> text m <> tupled (map (pprExpr basePrec i) args)
+  where
+    methodStr (Left x) = text x
+    methodStr (Right x) = pprExpr p i x
 
-pprExpr p (i,j) (JField e m r) = sorry "Core.pprExpr: JField"
+pprExpr p i (JField name m args r) = fieldStr name <> dot <> text m <> tupled (map (pprExpr basePrec i) args)
+  where
+    fieldStr (Left x) = text x
+    fieldStr (Right x) = pprExpr p i x
 
 pprExpr p (i,j) (Seq es) = semiBraces (map (pprExpr p (i,j)) es)
 
