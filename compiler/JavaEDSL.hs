@@ -110,19 +110,19 @@ funInstCreate :: Int -> Exp
 funInstCreate i = instCreat fun []
   where fun = (ClassType [(Ident ("Fun" ++ show i),[])])
 
-closureBodyGen :: [Decl] -> [BlockStmt] -> Int -> Bool -> ClassBody
-closureBodyGen initDecls body idCF generateClone =
+closureBodyGen :: [Decl] -> [BlockStmt] -> Int -> Bool -> Type -> ClassBody
+closureBodyGen initDecls body idCF generateClone className =
   classBody $ initDecls ++ [applyMethod] ++ if generateClone
                                                then [cloneMethod]
                                                else []
   where applyMethod = MemberDecl $ methodDecl [Public] Nothing "apply" [] (Just (Block body))
-        cloneMethod = MemberDecl $ methodDecl [Public] (Just closureType) "clone" [] (Just cloneBody)
-        cloneBody = (block [localVar closureType (varDecl "c" (funInstCreate idCF))
+        cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
+        cloneBody = (block [localVar className (varDecl "c" (funInstCreate idCF))
                     ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
                     ,bStmt (classMethodCall (var "c")
                                             "apply"
                                             [])
-                    ,bStmt (Return (Just (cast closureType (var "c"))))])
+                    ,bStmt (Return (Just (cast className (var "c"))))])
 
 mainArgType :: [FormalParam]
 mainArgType = [paramDecl (arrayTy $ classTy "String") "args"]

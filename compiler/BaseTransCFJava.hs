@@ -398,7 +398,8 @@ trans self =
                                                                                (varDecl (localvarstr ++ show currentId) J.This)]
                                                        (initVars ++ ostmts ++ [assign (name ["out"]) oexpr])
                                                        oldId
-                                                       b)
+                                                       b
+                                                       closureType)
                        ,localVar closureType (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                       ,t1)
        ,genApply =

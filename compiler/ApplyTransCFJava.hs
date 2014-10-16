@@ -81,7 +81,8 @@ refactoredScopeTranslationBit javaExpression statementsBeforeOA currentId nextId
                          [assign (name ["out"]) javaExpression]))]
                     []
                     nextId
-                    True)))
+                    True
+                    closureType)))
           ,J.LocalVars
              []
              (closureType)

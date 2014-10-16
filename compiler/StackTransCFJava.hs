@@ -68,7 +68,9 @@ whileApply cl ctemp tempOut outType = J.BlockStmt (J.ExpStmt (J.Assign (J.NameLh
 
 --e.g. Next.next = x8;
 nextApply cl tempOut outType = [J.BlockStmt $ J.ExpStmt $ J.Assign (J.NameLhs (J.Name [J.Ident nextClass,J.Ident "next"])) J.EqualA (cl),
-                J.LocalVars [] outType [J.VarDecl (J.VarId tempOut) (Just (J.InitExp (J.Lit J.Null)))]]
+                J.LocalVars [] outType [J.VarDecl (J.VarId tempOut) (Just (J.InitExp (if outType == J.PrimType J.IntT
+                                                                                         then J.Lit (J.Int 0) -- TODO: potential bug
+                                                                                         else J.Lit J.Null)))]]
 
 applyCall :: J.BlockStmt
 applyCall = bStmt $ methodCall "apply" []

@@ -127,7 +127,8 @@ transUnbox this super =
                                                                                        (varDecl (localvarstr ++ show currentId) J.This)]
                                                                (initVars ++ ostmts ++ [assign (name ["out"]) oexpr])
                                                                oldId
-                                                               b)
+                                                               b
+                                                               (classTy cName))
                                ,localVar (classTy cName) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                          return (cvar,var (localvarstr ++ show n), Type t (\_ -> t1) )
 
