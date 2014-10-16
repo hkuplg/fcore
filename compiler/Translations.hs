@@ -240,6 +240,7 @@ sf2java num optDump compilation className src =
                                _ -> simplify core
             -- let simpleCore = simplify core
             when optDump $ do { putStrLn "Simplified Core"; print $ Core.pprExpr basePrec (0,0) simpleCore }
+	    --when optDump $ do { putStrLn "Closure F"; print $ ClosureF.pprExpr basePrec (0,0) (fexp2cexp simpleCore) }
             let (cu, _) = compilation className simpleCore
             return $ prettyPrint cu
 
