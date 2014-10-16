@@ -172,9 +172,14 @@ transExpr (If pred b1 b2) =
      return (b1Ty, If pred' b1' b2')
 
 transExpr (PrimOp e1 op e2) =
- do (t1, m1) <- transExpr e1
-    (t2, m2) <- transExpr e2
-    return (opReturnType op, PrimOp m1 op m2)
+ do (t1, e1') <- transExpr e1
+    (t2, e2') <- transExpr e2
+    return (t, PrimOp e1' op e2')
+  where
+    t = case op of
+          S.Arith _   -> JClass "java.lang.Integer"
+          S.Compare _ -> JClass "java.lang.Boolean"
+          S.Logic _   -> JClass "java.lang.Boolean"
 
 transExpr (Tuple es) =
   do (ts, es') <- mapAndUnzipM transExpr es

@@ -7,29 +7,21 @@ module Core
   , TypeContext
   , ValueContext
   , emptyValueContext
-
-  -- "Eq"
   , alphaEquiv
-
-  -- "Show"
-  , prettyType, prettyExpr
-
   , fsubstTT, fsubstTE, fsubstEE
-  , isSystemfType, isSystemfExpr
-  , opReturnType
+  , prettyType, prettyExpr
   ) where
 
 import qualified Src
 
 import JavaUtils
 import PrettyUtils
-import Panic
 
 import Text.PrettyPrint.Leijen
-import qualified Language.Java.Pretty (prettyPrint)
+import qualified Language.Java.Syntax as J (Op(..))
+import qualified Language.Java.Pretty      (prettyPrint)
 
-import Data.List  (intersperse, elemIndex)
-import Data.Maybe (fromJust)
+import           Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -184,7 +176,11 @@ prettyExpr p (i,j) (If e1 e2 e3)
 prettyExpr p (i,j) (PrimOp e1 op e2)
   = parens (prettyExpr p (i,j) e1 <+> pretty_op <+> prettyExpr p (i,j) e2)
   where
-    pretty_op = text (Language.Java.Pretty.prettyPrint (Src.unwrapOp op))
+    pretty_op = text (Language.Java.Pretty.prettyPrint java_op)
+    java_op   = case op of
+                  Src.Arith   op' -> op'
+                  Src.Compare op' -> op'
+                  Src.Logic   op' -> op'
 
 prettyExpr p (i,j) (Tuple es) = parens $ hcat (intersperse comma (map (prettyExpr basePrec (i,j)) es))
 
@@ -281,14 +277,3 @@ fsubstEE (x,r)
     go (Seq es)                       = Seq (map go es)
     go (Merge e1 e2)                  = Merge (go e1) (go e2)
     go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))
-
-isSystemfType :: Type t -> Bool
-isSystemfType = sorry "Core.isSystemfType"
-
-isSystemfExpr :: Expr t e -> Bool
-isSystemfExpr = sorry "Core.isSystemfExpr"
-
-opReturnType :: Src.Operator -> Type t
-opReturnType (Src.Arith _)   = JClass "java.lang.Integer"
-opReturnType (Src.Compare _) = JClass "java.lang.Boolean"
-opReturnType (Src.Logic _)   = JClass "java.lang.Boolean"

@@ -21,8 +21,6 @@ module Src
   , substFreeTyVars
   , wrap
   , opPrec
-  , unwrapOp
-  , opReturnType
   ) where
 
 import JavaUtils
@@ -282,13 +280,3 @@ opPrec (Compare J.NotEq)  = 7
 opPrec (Logic J.CAnd)     = 11
 opPrec (Logic J.COr)      = 12
 opPrec op = panic $ "Src.Syntax.opPrec: " ++ show op
-
-unwrapOp :: Operator -> J.Op
-unwrapOp (Arith op)   = op
-unwrapOp (Compare op) = op
-unwrapOp (Logic op)   = op
-
-opReturnType :: Operator -> Type
-opReturnType (Arith _)   = JClass "java.lang.Integer"
-opReturnType (Compare _) = JClass "java.lang.Boolean"
-opReturnType (Logic _)   = JClass "java.lang.Boolean"
