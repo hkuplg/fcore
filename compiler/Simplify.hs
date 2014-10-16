@@ -154,8 +154,8 @@ transExpr (App e1 e2)  =
              case coerce i t2 t11 of
                Just c  -> return (t12, e1' `App` (c `appC` e2'))
                Nothing -> panic ("Simplify.transExpr: App: Cannot coerce " ++
-                                 show (pprType basePrec i t2) ++ " to " ++
-                                 show (pprType basePrec i t11))
+                                 show (prettyType basePrec i t2) ++ " to " ++
+                                 show (prettyType basePrec i t11))
         _            -> panic "Simplify.transExpr: App: Not a function"
 
 transExpr (TApp e t) =

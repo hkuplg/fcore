@@ -12,7 +12,7 @@ module Core
   , alphaEquiv
 
   -- "Show"
-  , pprType, pprExpr
+  , prettyType, prettyExpr
 
   , fsubstTT, fsubstTE, fsubstEE
   , isSystemfType, isSystemfExpr
@@ -111,132 +111,132 @@ alphaEquiv = go 0
     go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
     go i t1           t2           = False
 
-pprType :: Prec -> Index -> Type Index -> Doc
+prettyType :: Prec -> Index -> Type Index -> Doc
 
-pprType p i (TyVar a)     = pprTVar a
+prettyType p i (TyVar a)     = prettyTVar a
 
-pprType p i (Fun t1 t2)  =
+prettyType p i (Fun t1 t2)  =
   parensIf p 2
-    (pprType (2,PrecPlus) i t1 <+> arrow <+> pprType (2,PrecMinus) i t2)
+    (prettyType (2,PrecPlus) i t1 <+> arrow <+> prettyType (2,PrecMinus) i t2)
 
-pprType p i (Forall f)   =
+prettyType p i (Forall f)   =
   parensIf p 1
-    (forall <+> pprTVar i <> dot <+>
-     pprType (1,PrecMinus) (succ i) (f i))
+    (forall <+> prettyTVar i <> dot <+>
+     prettyType (1,PrecMinus) (succ i) (f i))
 
-pprType p i (Product ts) = parens $ hcat (intersperse comma (map (pprType basePrec i) ts))
+prettyType p i (Product ts) = parens $ hcat (intersperse comma (map (prettyType basePrec i) ts))
 
 
-pprType p i (JClass "java.lang.Integer")   = text "Int"
-pprType p i (JClass "java.lang.String")    = text "String"
-pprType p i (JClass "java.lang.Boolean")   = text "Bool"
-pprType p i (JClass "java.lang.Character") = text "Char"
-pprType p i (JClass c)                     = text c
+prettyType p i (JClass "java.lang.Integer")   = text "Int"
+prettyType p i (JClass "java.lang.String")    = text "String"
+prettyType p i (JClass "java.lang.Boolean")   = text "Bool"
+prettyType p i (JClass "java.lang.Character") = text "Char"
+prettyType p i (JClass c)                     = text c
 
-pprType p i (And t1 t2) =
+prettyType p i (And t1 t2) =
   parensIf p 2
-    (pprType (2,PrecMinus) i t1 <+>
+    (prettyType (2,PrecMinus) i t1 <+>
      ampersand  <+>
-     pprType (2,PrecPlus) i t2)
+     prettyType (2,PrecPlus) i t2)
 
-pprType p i (RecordTy (l,t)) = lbrace <> text l <> colon <> pprType basePrec i t <> rbrace
+prettyType p i (RecordTy (l,t)) = lbrace <> text l <> colon <> prettyType basePrec i t <> rbrace
 
 -- instance Show (Expr Index Index) where
 --   show = show . pretty
 
 instance Pretty (Expr Index Index) where
-  pretty = pprExpr basePrec (0, 0)
+  pretty = prettyExpr basePrec (0, 0)
 
-pprExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
+prettyExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
-pprExpr p (i,j) (Var x) = pprVar x
+prettyExpr p (i,j) (Var x) = prettyVar x
 
-pprExpr p (i,j) (Lam t f) =
+prettyExpr p (i,j) (Lam t f) =
   parensIf p 2
-    (hang 3 (lambda <+> parens (pprVar j <+> colon <+> pprType basePrec i t) <> dot <+>
-             pprExpr (2,PrecMinus) (i, succ j) (f j)))
+    (hang 3 (lambda <+> parens (prettyVar j <+> colon <+> prettyType basePrec i t) <> dot <+>
+             prettyExpr (2,PrecMinus) (i, succ j) (f j)))
 
-pprExpr p (i,j) (App e1 e2) =
+prettyExpr p (i,j) (App e1 e2) =
   parensIf p 4
-    (pprExpr (4,PrecMinus) (i,j) e1 <+> pprExpr (4,PrecPlus) (i,j) e2)
+    (prettyExpr (4,PrecMinus) (i,j) e1 <+> prettyExpr (4,PrecPlus) (i,j) e2)
 
-pprExpr p (i,j) (BLam f) =
+prettyExpr p (i,j) (BLam f) =
   parensIf p 2
-    (biglambda <+> pprTVar i <> dot <+>
-     pprExpr (2,PrecMinus) (succ i, j) (f i))
+    (biglambda <+> prettyTVar i <> dot <+>
+     prettyExpr (2,PrecMinus) (succ i, j) (f i))
 
-pprExpr p (i,j) (TApp e t) =
+prettyExpr p (i,j) (TApp e t) =
   parensIf p 4
-    (pprExpr (4,PrecMinus) (i,j) e <+> pprType (4,PrecPlus) i t)
+    (prettyExpr (4,PrecMinus) (i,j) e <+> prettyType (4,PrecPlus) i t)
 
-pprExpr p (i,j) (Lit (Src.Integer n)) = integer n
-pprExpr p (i,j) (Lit (Src.String s))  = dquotes (string s)
-pprExpr p (i,j) (Lit (Src.Boolean b)) = bool b
-pprExpr p (i,j) (Lit (Src.Char c))    = char c
+prettyExpr p (i,j) (Lit (Src.Integer n)) = integer n
+prettyExpr p (i,j) (Lit (Src.String s))  = dquotes (string s)
+prettyExpr p (i,j) (Lit (Src.Boolean b)) = bool b
+prettyExpr p (i,j) (Lit (Src.Char c))    = char c
 
-pprExpr p (i,j) (If e1 e2 e3)
+prettyExpr p (i,j) (If e1 e2 e3)
   = parensIf p prec
-      (hang 3 (text "if"   <+> pprExpr (prec,PrecMinus) (i,j) e1 <+>
-               text "then" <+> pprExpr (prec,PrecMinus) (i,j) e2 <+>
-               text "else" <+> pprExpr (prec,PrecMinus) (i,j) e3))
+      (hang 3 (text "if"   <+> prettyExpr (prec,PrecMinus) (i,j) e1 <+>
+               text "then" <+> prettyExpr (prec,PrecMinus) (i,j) e2 <+>
+               text "else" <+> prettyExpr (prec,PrecMinus) (i,j) e3))
   where prec = 3
 
-pprExpr p (i,j) (PrimOp e1 op e2)
-  = parens (pprExpr p (i,j) e1 <+> ppr_op <+> pprExpr p (i,j) e2)
+prettyExpr p (i,j) (PrimOp e1 op e2)
+  = parens (prettyExpr p (i,j) e1 <+> pretty_op <+> prettyExpr p (i,j) e2)
   where
-    ppr_op = text (Language.Java.Pretty.prettyPrint (Src.unwrapOp op))
+    pretty_op = text (Language.Java.Pretty.prettyPrint (Src.unwrapOp op))
 
-pprExpr p (i,j) (Tuple es) = parens $ hcat (intersperse comma (map (pprExpr basePrec (i,j)) es))
+prettyExpr p (i,j) (Tuple es) = parens $ hcat (intersperse comma (map (prettyExpr basePrec (i,j)) es))
 
-pprExpr p i (Proj n e) =
+prettyExpr p i (Proj n e) =
   parensIf p 5
-    (pprExpr (5,PrecMinus) i e <> dot <> char '_' <> int n)
+    (prettyExpr (5,PrecMinus) i e <> dot <> char '_' <> int n)
 
-pprExpr p (i,j) (JNewObj c args) =
-  parens (text "new" <+> text c <> tupled (map (pprExpr basePrec (i,j)) args))
+prettyExpr p (i,j) (JNewObj c args) =
+  parens (text "new" <+> text c <> tupled (map (prettyExpr basePrec (i,j)) args))
 
-pprExpr p i (JMethod name m args r) = methodStr name <> dot <> text m <> tupled (map (pprExpr basePrec i) args)
+prettyExpr p i (JMethod name m args r) = methodStr name <> dot <> text m <> tupled (map (prettyExpr basePrec i) args)
   where
     methodStr (Left x) = text x
-    methodStr (Right x) = pprExpr (6,PrecMinus) i x
+    methodStr (Right x) = prettyExpr (6,PrecMinus) i x
 
-pprExpr p i (JField name f r) = fieldStr name <> dot <> text f
+prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
   where
     fieldStr (Left x) = text x
-    fieldStr (Right x) = pprExpr (6,PrecMinus) i x
+    fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
 
-pprExpr p (i,j) (Seq es) = semiBraces (map (pprExpr p (i,j)) es)
+prettyExpr p (i,j) (Seq es) = semiBraces (map (prettyExpr p (i,j)) es)
 
-pprExpr p (i,j) (Fix f t1 t) =
+prettyExpr p (i,j) (Fix f t1 t) =
   parens
-    (text "fix" <+> pprVar j <+>
-     parens (pprVar (succ j) <+> colon <+> pprType p i t1) <+>
+    (text "fix" <+> prettyVar j <+>
+     parens (prettyVar (succ j) <+> colon <+> prettyType p i t1) <+>
      colon <+>
-     pprType p i t <> dot <$$>
-     indent 2 (pprExpr p (i, j + 2) (f j (j + 1))))
+     prettyType p i t <> dot <$$>
+     indent 2 (prettyExpr p (i, j + 2) (f j (j + 1))))
 
-pprExpr p (i,j) (LetRec sigs binds body)
+prettyExpr p (i,j) (LetRec sigs binds body)
   = text "let" <+> text "rec" <$$>
-    vcat (intersperse (text "and") (map (indent 2) ppr_binds)) <$$>
+    vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$$>
     text "in" <$$>
-    ppr_body
+    pretty_body
   where
     n   = length sigs
     ids = [i..(i+n-1)]
-    ppr_ids   = map pprVar ids
-    ppr_sigs  = map (pprType p i) sigs
-    ppr_defs  = map (pprExpr p (i, j + n)) (binds ids)
-    ppr_binds = zipWith3 (\ppr_id ppr_sig ppr_def ->
-                  ppr_id <+> colon <+> ppr_sig <$$> indent 2 (equals <+> ppr_def))
-                  ppr_ids ppr_sigs ppr_defs
-    ppr_body  = pprExpr p (i, j + n) (body ids)
+    pretty_ids   = map prettyVar ids
+    pretty_sigs  = map (prettyType p i) sigs
+    pretty_defs  = map (prettyExpr p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->
+                  pretty_id <+> colon <+> pretty_sig <$$> indent 2 (equals <+> pretty_def))
+                  pretty_ids pretty_sigs pretty_defs
+    pretty_body  = prettyExpr p (i, j + n) (body ids)
 
-pprExpr p (i,j) (Merge e1 e2) =
-  parens $ pprExpr p (i,j) e1 <+> dcomma <+> pprExpr p (i,j) e2
+prettyExpr p (i,j) (Merge e1 e2) =
+  parens $ prettyExpr p (i,j) e1 <+> dcomma <+> prettyExpr p (i,j) e2
 
-pprExpr p (i,j) (Record (l,e))          = lbrace <> text l <> equals <> pprExpr basePrec (i,j) e <> rbrace
-pprExpr p (i,j) (RecordAccess e l)      = pprExpr p (i,j) e <> dot <> text l
-pprExpr p (i,j) (RecordUpdate e (l,e1)) = pprExpr p (i,j) e <+> text "with" <+> pprExpr p (i,j) (Record (l,e1))
+prettyExpr p (i,j) (Record (l,e))          = lbrace <> text l <> equals <> prettyExpr basePrec (i,j) e <> rbrace
+prettyExpr p (i,j) (RecordAccess e l)      = prettyExpr p (i,j) e <> dot <> text l
+prettyExpr p (i,j) (RecordUpdate e (l,e1)) = prettyExpr p (i,j) e <+> text "with" <+> prettyExpr p (i,j) (Record (l,e1))
 
 fsubstTT :: (Index, Type Index) -> Type Index -> Type Index
 fsubstTT (x,r) (TyVar a)
