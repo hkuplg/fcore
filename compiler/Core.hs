@@ -7,7 +7,6 @@ module Core
   , TypeContext
   , ValueContext
   , emptyValueContext
-  , fields, fieldLookup
 
   -- "Eq"
   , alphaEquiv
@@ -99,18 +98,6 @@ type ValueContext t e = Map.Map e (Type t)
 
 emptyValueContext :: ValueContext t e
 emptyValueContext = Map.empty
-
--- Fields
-fields :: Type t -> [(Maybe Src.Label, Type t)]
-fields (And t1 t2)      = fields t1 ++ fields t2
-fields (RecordTy (l,t)) = [(Just l,t)]
-fields t                = [(Nothing, t)]
-
-fieldLookup :: Src.Label -> [(Maybe Src.Label, Type t)] -> Maybe (Type t, Int)
-fieldLookup l f
-  = case lookup (Just l) (reverse f) of
-      Nothing -> Nothing
-      Just t  -> Just (t, length f - fromJust (elemIndex (Just l) (map fst (reverse f))))
 
 alphaEquiv :: Type Int -> Type Int -> Bool
 alphaEquiv = go 0
