@@ -34,32 +34,6 @@ getClassType _ _ = closureClass ++ "BoxBox"
 wrap :: J.Exp -> Type t -> Type t -> ([J.BlockStmt], J.Exp)
 wrap e t1 t2 = ([], e)
 
-
-chooseCastBox2 :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
-chooseCastBox2 (CFInt) =
-  (\s n e -> localFinalVar (J.PrimType J.IntT)
-                           (varDecl (s ++ show n) (cast (J.PrimType J.IntT) e))
-  ,J.PrimType J.IntT)
-chooseCastBox2 (CFInteger) =
-  (initClass "java.lang.Integer",classTy "java.lang.Integer")
-chooseCastBox2 (Forall (Type t1 f)) =
-  case (f ()) of
-    (Body t2) ->
-      (initClass (getClassType t1 t2),classTy (getClassType t1 t2))
-    _ ->
-      (initClass (getClassType t1 CFInteger),classTy (getClassType t1 CFInteger))
-chooseCastBox2 t = chooseCastBox t
-
-getS3_2 :: MonadState Int m => Translate m -> J.Ident -> TScope Int -> J.Exp -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
-getS3_2 this fname retTyp j3 fs =
-  do (n :: Int) <- get
-     put (n+1)
-     let (castBox,typ) = chooseCastBox2 (scope2ctyp retTyp)
-     apply <- genApply this fname retTyp (var (tempvarstr ++ show n)) typ
-     rest <- genRes this retTyp [castBox tempvarstr n j3]
-     let r = fs ++ apply ++ rest
-     return (r, var (tempvarstr ++ show n))
-
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
 transUnbox this super =
   UT {toUT =
@@ -133,7 +107,7 @@ transUnbox this super =
                         let closureVars = [localVar (classTy cName) (varDecl fname j1)
                                           ,assignField (fieldAccExp (var fname) closureInput) jS]
                         let fout = fieldAccess (var fname) "out"
-                        (s3, nje3) <- getS3_2 (up this) (J.Ident fname) retTyp fout closureVars
+                        (s3, nje3) <- getS3 (up this) (J.Ident fname) retTyp fout closureVars
                         return (s1 ++ s2 ++ wrapS ++ s3, nje3, scope2ctyp retTyp)
               ,translateIf =
                  \m1 m2 m3 ->
@@ -143,10 +117,21 @@ transUnbox this super =
                       -- let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
                       -- genIfBody this m2 m3 j1' s1 n,
                       genIfBody (up this) m2 m3 (s1,j1) n
-              ,javaType = \typ -> case typ of
-                                    CFInt -> return $ J.PrimType J.IntT
-                                    (Forall (Type t1 f)) -> case (f ()) of
-                                                              (Body t2) -> return $ classTy (getClassType t1 t2)
-                                                              _ -> return $ classTy (getClassType t1 CFInteger)
-                                    x -> javaType super x
+              ,javaType = \typ ->
+                            case typ of
+                              CFInt -> return $ J.PrimType J.IntT
+                              (Forall (Type t1 f)) -> case (f ()) of
+                                                        (Body t2) -> return $ classTy (getClassType t1 t2)
+                                                        _ -> return $ classTy (getClassType t1 CFInteger)
+                              x -> javaType super x
+              ,chooseCastBox = \typ ->
+                                 case typ of
+                                   CFInt -> return (\s n e -> localFinalVar (J.PrimType J.IntT)
+                                                                            (varDecl (s ++ show n) (cast (J.PrimType J.IntT) e))
+                                                   ,J.PrimType J.IntT)
+                                   (Forall (Type t1 f)) ->
+                                     case (f ()) of
+                                       (Body t2) -> return (initClass (getClassType t1 t2),classTy (getClassType t1 t2))
+                                       _ -> return (initClass (getClassType t1 CFInteger),classTy (getClassType t1 CFInteger))
+                                   t -> chooseCastBox super t
              }}

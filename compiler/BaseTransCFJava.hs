@@ -55,6 +55,7 @@ data Translate m =
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,genClone :: m Bool
     ,javaType :: Type Int -> m J.Type
+    ,chooseCastBox :: Type Int -> m (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
     ,setClosureVars :: TScope Int -> String -> J.Exp -> J.Exp -> m [J.BlockStmt]
      -- getS3 :: TScope Int -> J.Exp -> (J.Exp -> J.Type -> [J.BlockStmt]) -> ([J.BlockStmt] -> [J.BlockStmt]) -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
     ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
@@ -66,20 +67,20 @@ getTupleClassName tuple = if lengthOfTuple > 50
                              else "hk.hku.cs.f2j.tuples.Tuple" ++ show lengthOfTuple
   where lengthOfTuple = length tuple
 
-chooseCastBox :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
-chooseCastBox (JClass c) =
-  (initClass c,classTy c)
-chooseCastBox (CFInt) = (initClass "java.lang.Integer", classTy "java.lang.Integer")
-chooseCastBox (CFInteger) = (initClass "java.lang.Integer", classTy "java.lang.Integer")
-chooseCastBox (Forall _) =
-  (initClass closureClass,closureType)
-chooseCastBox (TupleType tuple) =
-  case tuple of
-    [t] -> chooseCastBox t
-    _ ->
-      (initClass tupleClassName,classTy tupleClassName)
-      where tupleClassName = getTupleClassName tuple
-chooseCastBox _ = (initClass "Object",objClassTy)
+-- chooseCastBox :: Type t -> (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
+-- chooseCastBox (JClass c) =
+--   (initClass c,classTy c)
+-- chooseCastBox (CFInt) = (initClass "java.lang.Integer", classTy "java.lang.Integer")
+-- chooseCastBox (CFInteger) = (initClass "java.lang.Integer", classTy "java.lang.Integer")
+-- chooseCastBox (Forall _) =
+--   (initClass closureClass,closureType)
+-- chooseCastBox (TupleType tuple) =
+--   case tuple of
+--     [t] -> chooseCastBox t
+--     _ ->
+--       (initClass tupleClassName,classTy tupleClassName)
+--       where tupleClassName = getTupleClassName tuple
+-- chooseCastBox _ = (initClass "Object",objClassTy)
 
 getS3 :: MonadState Int m
       => Translate m
@@ -91,7 +92,7 @@ getS3 :: MonadState Int m
 getS3 this fname retTyp fout fs =
   do (n :: Int) <- get
      put (n+1)
-     let (castBox,typ) = chooseCastBox (scope2ctyp retTyp)
+     (castBox,typ) <- chooseCastBox this (scope2ctyp retTyp)
      apply <- genApply this fname retTyp (var (tempvarstr ++ show n)) typ
      rest <- genRes this retTyp [castBox tempvarstr n fout]
      let r = fs ++ apply ++ rest
@@ -432,6 +433,16 @@ trans self =
                              CFInt -> return $ classTy "java.lang.Integer"
                              CFInteger -> return $ classTy "java.lang.Integer"
                              _ -> return $ objClassTy
+       ,chooseCastBox = \typ -> case typ of
+                                  (JClass c) -> return (initClass c, classTy c)
+                                  CFInt -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
+                                  CFInteger -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
+                                  (Forall _) -> return (initClass closureClass, closureType)
+                                  (TupleType tuple) -> case tuple of
+                                                         [t] -> chooseCastBox this t
+                                                         _ -> do let tupleClassName = getTupleClassName tuple
+                                                                 return (initClass tupleClassName, classTy tupleClassName)
+                                  _ -> return (initClass "Object", objClassTy)
        ,genClone = return False -- do not generate clone method
        ,createWrap =
           \name exp ->
