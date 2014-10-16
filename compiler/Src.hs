@@ -52,6 +52,7 @@ data Type
   | RecordTy [(Label, Type)]
   | ListOf Type
   | And Type Type
+  | UnitType
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `alphaEquiv` and `subtype` below.
@@ -62,6 +63,7 @@ data Lit
     | String String
     | Boolean Bool
     | Char Char
+    | Unit
     deriving (Eq, Show)
 
 data Operator = Arith J.Op | Compare J.Op | Logic J.Op
@@ -122,6 +124,7 @@ alphaEquiv (RecordTy fs1) (RecordTy fs2) = length fs1 == length fs2
                                           && (\((l1,t1),(l2,t2)) -> l1 == l2 && t1 `alphaEquiv` t2) `all` zip fs1 fs2
 alphaEquiv (ListOf t1)    (ListOf t2)    = t1 `alphaEquiv` t2
 alphaEquiv (And t1 t2)    (And t3 t4)    = t1 `alphaEquiv` t3 && t2 `alphaEquiv` t4
+alphaEquiv UnitType       UnitType       = True
 alphaEquiv t1             t2             = falseIfDataConsDiffer "Src.alphaEquiv" t1 t2
 
 subtype :: Type -> Type -> Bool
@@ -137,6 +140,7 @@ subtype (RecordTy fs1)       (RecordTy fs2)       = desugarMultiRecordTy fs1 `su
 subtype (ListOf t1)    (ListOf t2)    = t1 `subtype` t2  -- List :: * -> * is covariant
 subtype (And t1 t2)    t3             = t1 `subtype` t3 || t2 `subtype` t3
 subtype t1             (And t2 t3)    = t1 `subtype` t2 && t1 `subtype` t3
+subtype UnitType       UnitType       = True
 subtype t1             t2             = falseIfDataConsDiffer "Src.subtype" t1 t2
 
 -- Records
@@ -188,6 +192,7 @@ freeTyVars (Product ts)  = Set.unions (map freeTyVars ts)
 freeTyVars (RecordTy fs) = Set.unions (map (\(_l,t) -> freeTyVars t) fs)
 freeTyVars (ListOf t)    = freeTyVars t
 freeTyVars (And t1 t2)   = Set.union (freeTyVars t1) (freeTyVars t2)
+freeTyVars UnitType      = Set.empty
 
 -- Pretty printers
 

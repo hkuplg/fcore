@@ -395,6 +395,7 @@ srcLitType (Integer _) = JClass "java.lang.Integer"
 srcLitType (String _)  = JClass "java.lang.String"
 srcLitType (Boolean _) = JClass "java.lang.Boolean"
 srcLitType (Char _)    = JClass "java.lang.Character"
+srcLitType Unit        = UnitType
 
 checkDupNames :: [Name] -> TcM ()
 checkDupNames names

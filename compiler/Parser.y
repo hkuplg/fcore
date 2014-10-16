@@ -60,6 +60,8 @@ import JavaUtils
   STRING   { Tstring $$ }
   BOOLEAN  { Tboolean $$ }
   CHAR     { Tchar $$ }
+  "()"     { Tunit }
+  "unit"   { Tunittype }
 
   "*"      { Tprimop J.Mult   }
   "/"      { Tprimop J.Div    }
@@ -128,6 +130,7 @@ atype :: { Type }
   | "{" recordty_body "}"    { RecordTy $2 }
   | "[" type "]"             { ListOf $2 }
   | "(" type ")"             { $2 }
+  | "unit"                   { UnitType }
 
 product_body :: { [Type] }
   : type "," type              { $1:[$3] }
@@ -185,10 +188,14 @@ fexpr :: { Expr Name }
 
 aexp :: { Expr Name }
     : var                       { Var $1 }
+
+    -- Literals
     | INTEGER                   { Lit (Integer $1) }
     | STRING                    { Lit (String $1) }
     | BOOLEAN                   { Lit (Boolean $1) }
     | CHAR                      { Lit (Char $1) }
+    | "()"                      { Lit Unit }
+
     | "(" comma_exprs ")"       { Tuple $2 }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" expr ")"              { $2 }
