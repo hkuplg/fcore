@@ -6,7 +6,6 @@ module Core
   , Expr(..)
   , TypeContext
   , ValueContext
-  , emptyValueContext
   , alphaEquiv
   , fsubstTT, fsubstTE, fsubstEE
   , prettyType, prettyExpr
@@ -85,9 +84,6 @@ data Expr t e
 
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
-
-emptyValueContext :: ValueContext t e
-emptyValueContext = Map.empty
 
 type Index = Int
 
