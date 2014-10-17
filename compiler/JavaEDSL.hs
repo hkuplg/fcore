@@ -17,12 +17,11 @@ classTy t = RefType $ ClassRefType $ classTyp t
 classTyp :: String -> ClassType
 classTyp t = ClassType [(Ident t, [])]
 
-
-closureClass :: String
-closureClass = "hk.hku.cs.f2j.Closure"
+-- closureClass :: String
+-- closureClass = "hk.hku.cs.f2j.Closure"
 
 closureType :: Type
-closureType = classTy closureClass
+closureType = classTy "hk.hku.cs.f2j.Closure"
 
 objClassTy :: Type
 objClassTy = classTy "Object"

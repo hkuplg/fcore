@@ -24,11 +24,14 @@ instance (:<) (UnboxTranslate m) (Translate m) where
 instance (:<) (UnboxTranslate m) (UnboxTranslate m) where
    up              = id
 
-getClassType :: Type t -> Type t -> ClassName
-getClassType CFInt CFInt = closureClass ++ "IntInt"
-getClassType CFInt _ = closureClass ++ "IntBox"
-getClassType _ CFInt = closureClass ++ "BoxInt"
-getClassType _ _ = closureClass ++ "BoxBox"
+getClassType :: (Monad m) => Translate m -> Type t -> Type t -> m ClassName
+getClassType this t1 t2 = do
+  closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+  case (t1, t2) of
+   (CFInt, CFInt) -> return (closureClass ++ "IntInt")
+   (CFInt, _) -> return (closureClass ++ "IntBox")
+   (_, CFInt) -> return (closureClass ++ "BoxInt")
+   (_, _) -> return (closureClass ++ "BoxBox")
 
 getFunType :: Type t -> (Type t, Type t)
 getFunType (Forall (Type b f)) = (b, scope2ctyp (f ()))
@@ -73,11 +76,15 @@ transUnbox this super =
                           let vars = (liftM (map (\(_,b,c) -> (b,c)))) (mfuns (zip [n ..] t))
                           let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
                           newvars <- ((liftM (pairUp bindings)) vars)
+                          cNames <- mapM (\(_, typ) ->
+                                           let (t1, t2) = getFunType typ
+                                           in getClassType (up this) t1 t2)
+                                    newvars
+                          let varTypes = zip bindings cNames
                           let mDecls = map (\(x, typ) ->
-                                              memberDecl (fieldDecl (classTy $ let (t1, t2) = getFunType typ
-                                                                               in getClassType t1 t2)
+                                              memberDecl (fieldDecl (classTy typ)
                                                                     (varDeclNoInit (localvarstr ++ show x))))
-                                           newvars
+                                           varTypes
                           let finalFuns = mfuns newvars
                           let appliedBody = body newvars
                           let varnums = map fst newvars
@@ -119,7 +126,7 @@ transUnbox this super =
                          let oldId = n
                          let initVars = [js]
                          (ostmts,oexpr,t1) <- translateScopeM (up this) nextInClosure Nothing
-                         let cName = getClassType t (scope2ctyp t1)
+                         cName <- getClassType (up this) t (scope2ctyp t1)
                          let cvar =
                                [localClassDecl ("Fun" ++ show oldId)
                                                cName
@@ -139,7 +146,7 @@ transUnbox this super =
                         (s1,j1, Forall (Type t1 g)) <- m1
                         (s2,j2,t2) <- m2
                         let retTyp = g ()
-                        let cName = getClassType t1 (scope2ctyp retTyp)
+                        cName <- getClassType (up this) t1 (scope2ctyp retTyp)
                         let (wrapS, jS) = wrap j2 t1 t2
                         let fname = (localvarstr ++ show n) -- use a fresh variable
                         let closureVars = [localVar (classTy cName) (varDecl fname j1)
@@ -159,9 +166,10 @@ transUnbox this super =
                             case typ of
                               CFInt -> return $ J.PrimType J.IntT
                               (Forall (Type t1 f)) -> case (f ()) of
-                                                        (Body t2) -> return $ classTy (getClassType t1 t2)
-                                                        _ -> return $ classTy (getClassType t1 CFInteger)
+                                                        (Body t2) -> liftM classTy (getClassType (up this) t1 t2)
+                                                        _ -> liftM classTy (getClassType (up this) t1 CFInteger)
                               x -> javaType super x
+              ,getPrefix = return "hk.hku.cs.f2j.unbox."
               ,chooseCastBox = \typ ->
                                  case typ of
                                    CFInt -> return (\s n e -> localFinalVar (J.PrimType J.IntT)
@@ -169,7 +177,12 @@ transUnbox this super =
                                                    ,J.PrimType J.IntT)
                                    (Forall (Type t1 f)) ->
                                      case (f ()) of
-                                       (Body t2) -> return (initClass (getClassType t1 t2),classTy (getClassType t1 t2))
-                                       _ -> return (initClass (getClassType t1 CFInteger),classTy (getClassType t1 CFInteger))
+                                       (Body t2) -> do
+                                         typ1 <- (getClassType (up this) t1 t2)
+                                         typ2 <- (getClassType (up this) t1 t2)
+                                         return (initClass typ1,classTy typ2)
+                                       _ -> do
+                                         typ1 <- (getClassType (up this) t1 CFInteger)
+                                         return (initClass typ1,classTy typ1)
                                    t -> chooseCastBox super t
              }}

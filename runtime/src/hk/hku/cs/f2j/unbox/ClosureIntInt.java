@@ -1,6 +1,6 @@
-package hk.hku.cs.f2j;
+package hk.hku.cs.f2j.unbox;
 
-public abstract class ClosureIntInt extends Closure
+public abstract class ClosureIntInt implements Closure
 {
   public int x;
   public int out;

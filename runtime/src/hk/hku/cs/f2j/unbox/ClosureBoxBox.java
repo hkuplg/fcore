@@ -1,6 +1,6 @@
-package hk.hku.cs.f2j;
+package hk.hku.cs.f2j.unbox;
 
-public abstract class ClosureBoxBox extends Closure
+public abstract class ClosureBoxBox implements Closure
 {
   public Object x;
   public Object out;

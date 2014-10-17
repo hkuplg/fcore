@@ -54,6 +54,7 @@ data Translate m =
     ,genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,genClone :: m Bool
+    ,getPrefix :: m String
     ,javaType :: Type Int -> m J.Type
     ,chooseCastBox :: Type Int -> m (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
     ,setClosureVars :: TScope Int -> String -> J.Exp -> J.Exp -> m [J.BlockStmt]
@@ -220,8 +221,8 @@ trans self =
                    let vars = (liftM (map (\(_,b,c) -> (b,c)))) (mfuns (zip [n ..] t))
                    let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
                    newvars <- ((liftM (pairUp bindings)) vars)
-
-                   let mDecls = map (\x -> memberDecl (fieldDecl closureType
+                   closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+                   let mDecls = map (\x -> memberDecl (fieldDecl (classTy closureClass)
                                                                  (varDeclNoInit (localvarstr ++ show x))))
                                     bindings
 
@@ -392,27 +393,30 @@ trans self =
           \currentId oldId initVars _ otherStmts ->
             do b <- genClone this
                (ostmts,oexpr,t1) <- otherStmts
+               closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                return ([localClassDecl ("Fun" ++ show oldId)
                                        closureClass
-                                       (closureBodyGen [memberDecl $ fieldDecl closureType
+                                       (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
                                                                                (varDecl (localvarstr ++ show currentId) J.This)]
                                                        (initVars ++ ostmts ++ [assign (name ["out"]) oexpr])
                                                        oldId
                                                        b
-                                                       closureType)
-                       ,localVar closureType (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
+                                                       (classTy closureClass))
+                       ,localVar (classTy closureClass) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                       ,t1)
        ,genApply =
           \f t x y ->
             return [applyMethodCall f]
        ,genRes = \t -> return
        ,setClosureVars =
-          \t fname j1 j2 ->
-            return [localVar closureType (varDecl fname j1)
+          \t fname j1 j2 -> do
+            closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+            return [localVar (classTy closureClass) (varDecl fname j1)
                    ,assignField (fieldAccExp (var fname) closureInput) j2]
        ,javaType = \typ -> case typ of
                              (JClass c) -> return $ classTy c
-                             (Forall _) -> return closureType
+                             (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+                                              return (classTy closureClass)
                              (TupleType tuple) -> case tuple of
                                                     [t] -> javaType this t
                                                     _ -> return $ classTy $ getTupleClassName tuple
@@ -423,12 +427,14 @@ trans self =
                                   (JClass c) -> return (initClass c, classTy c)
                                   CFInt -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
                                   CFInteger -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
-                                  (Forall _) -> return (initClass closureClass, closureType)
+                                  (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+                                                   return (initClass closureClass, (classTy closureClass))
                                   (TupleType tuple) -> case tuple of
                                                          [t] -> chooseCastBox this t
                                                          _ -> do let tupleClassName = getTupleClassName tuple
                                                                  return (initClass tupleClassName, classTy tupleClassName)
                                   _ -> return (initClass "Object", objClassTy)
+       ,getPrefix = return "hk.hku.cs.f2j."
        ,genClone = return False -- do not generate clone method
        ,createWrap =
           \name exp ->

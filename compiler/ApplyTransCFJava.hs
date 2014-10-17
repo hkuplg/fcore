@@ -35,7 +35,8 @@ transApply this super = NT {toT = super {
          True -> do   (initVars' :: InitVars) <- ask
                       translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m)
          False -> do  (s,je,t1) <- local (initVars ++) m
-                      return (refactoredScopeTranslationBit je s currentId nextId,t1),
+                      refactored <- refactoredScopeTranslationBit (up this) je s currentId nextId
+                      return (refactored,t1),
 
   genApply = \f t x y -> if (last t) then genApply super f t x y else return [],
 
@@ -55,16 +56,18 @@ transApply this super = NT {toT = super {
   genClone = return True
 }}
 
-refactoredScopeTranslationBit javaExpression statementsBeforeOA currentId nextId = completeClosure
-  where currentInitialDeclaration =
+refactoredScopeTranslationBit :: (Show a, Monad m) => Translate m -> J.Exp -> [J.BlockStmt] -> a -> Int -> m [J.BlockStmt]
+refactoredScopeTranslationBit this javaExpression statementsBeforeOA currentId nextId =
+  do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+     let closureType' = classTy closureClass
+     let currentInitialDeclaration =
           J.MemberDecl $
           J.FieldDecl
             []
-            closureType
+            closureType'
             [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show currentId)
                        (Just (J.InitExp J.This))]
-        completeClosure =
-          [(J.LocalClass
+     return [(J.LocalClass
               (J.ClassDecl
                  []
                  (J.Ident ("Fun" ++ show nextId))
@@ -82,10 +85,11 @@ refactoredScopeTranslationBit javaExpression statementsBeforeOA currentId nextId
                     []
                     nextId
                     True
-                    closureType)))
+                    closureType')))
           ,J.LocalVars
              []
-             (closureType)
+             (closureType')
              ([J.VarDecl (J.VarId $
                           J.Ident (localvarstr ++ show nextId))
                          (Just (J.InitExp (funInstCreate nextId)))])]
+
