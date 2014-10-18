@@ -58,6 +58,7 @@ data Translate m =
     ,getBox :: m String
     ,javaType :: Type Int -> m J.Type
     ,chooseCastBox :: Type Int -> m (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
+    ,stackMainBody :: Type Int -> m [J.BlockStmt]
     ,setClosureVars :: TScope Int -> String -> J.Exp -> J.Exp -> m [J.BlockStmt]
      -- getS3 :: TScope Int -> J.Exp -> (J.Exp -> J.Type -> [J.BlockStmt]) -> ([J.BlockStmt] -> [J.BlockStmt]) -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
     ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
@@ -439,6 +440,7 @@ trans self =
        ,getPrefix = return "hk.hku.cs.f2j."
        ,genClone = return False -- do not generate clone method
        ,getBox = return ""
+       ,stackMainBody = \_ -> return []
        ,createWrap =
           \name exp ->
             do (bs,e,t) <- translateM this exp

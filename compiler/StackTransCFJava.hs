@@ -97,13 +97,6 @@ nextApply this cl tempOut outType = do
 applyCall :: J.BlockStmt
 applyCall = bStmt $ methodCall ["apply"] []
 
-stackMainBody :: Monad m => Translate m -> Type t -> m [J.BlockStmt]
-stackMainBody this t = do
-  loop <- whileApplyLoop this "c" "result" (case t of
-                                                  JClass "java.lang.Integer" -> classTy "java.lang.Integer"
-                                                  _ -> objClassTy) closureType
-  return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
-
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {toTS = super {
   translateM = \e -> case e of
@@ -126,6 +119,14 @@ transS this super = TS {toTS = super {
 
   genRes = \t s -> return [],
 
+  stackMainBody = \t -> do
+    closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
+    loop <- whileApplyLoop (up this) "c" "result" (case t of
+                                                    CFInt -> J.PrimType J.IntT
+                                                    JClass "java.lang.Integer" -> classTy "java.lang.Integer"
+                                                    _ -> objClassTy) (classTy closureClass)
+    return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])]),
+
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
            box <- getBox (up this)
@@ -147,5 +148,12 @@ transSA this super = TS {toTS = (up (transS this super)) {
 transSU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSU this super =
   TS {toTS = (up (transS this super)) {
-         getBox = return "BoxBox"
+         getBox = return "BoxBox",
+         stackMainBody = \t -> do
+           closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
+           loop <- whileApplyLoop (up this) "c" "result" (case t of
+                                                           CFInt -> J.PrimType J.IntT
+                                                           JClass "java.lang.Integer" -> classTy "java.lang.Integer"
+                                                           _ -> objClassTy) (classTy closureClass)
+           return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
          }}
