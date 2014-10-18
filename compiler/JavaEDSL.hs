@@ -149,3 +149,9 @@ wrapperClass className stmts returnType mainbodyDef =
                                       mainArgType
                                       mainbodyDef]))
   where body = Just (block stmts)
+
+annotation :: String -> Modifier
+annotation ann = Annotation (MarkerAnnotation {annName = Name [Ident ann]})
+
+returnNull :: Maybe Block
+returnNull = (Just (Block [BlockStmt (Return (Just (Lit Null)))]))

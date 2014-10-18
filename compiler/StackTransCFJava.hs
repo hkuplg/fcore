@@ -61,11 +61,21 @@ empyClosure this outExp = do
   closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
   nextName <- nextClass (up this)
   return (assign (name [nextName, "next"])
-                          (J.InstanceCreation [] (J.ClassType [(J.Ident closureClass,[])]) [] (Just (J.ClassBody [J.MemberDecl (J.MethodDecl
-                                                                                                                                [J.Annotation (J.MarkerAnnotation {J.annName = J.Name [J.Ident "Override"]}),J.Public] [] (Just (J.RefType (J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))))
-                                                                                                                                (J.Ident "clone") [] [] (J.MethodBody (Just (J.Block [J.BlockStmt (J.Return (Just (J.Lit J.Null)))])))),
-                                                                                                                  J.MemberDecl (J.MethodDecl [J.Annotation J.MarkerAnnotation {J.annName = J.Name [J.Ident "Override"]}, J.Public] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just (J.Block
-                                                                                                                                                                                                                                                                                           [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "out"])) J.EqualA outExp))]))))]))))
+                          (J.InstanceCreation [] (classTyp closureClass) []
+                           (Just (classBody [memberDecl
+                                             (methodDecl
+                                              [annotation "Override",J.Public]
+                                              (Just (classTy closureClass))
+                                              "clone"
+                                              []
+                                              returnNull),
+                                             (memberDecl
+                                              (methodDecl
+                                               [annotation "Override", J.Public]
+                                               Nothing
+                                               "apply"
+                                               []
+                                               (Just (block [assign (name ["out"]) outExp]))))]))))
 
 whileApply :: (Monad m) => Translate m -> J.Exp -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
 whileApply this cl ctemp tempOut outType ctempCastTyp = do
