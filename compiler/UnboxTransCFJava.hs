@@ -152,7 +152,7 @@ transUnbox this super =
                         let closureVars = [localVar (classTy cName) (varDecl fname j1)
                                           ,assignField (fieldAccExp (var fname) closureInput) jS]
                         let fout = fieldAccess (var fname) "out"
-                        (s3, nje3) <- getS3 (up this) (J.Ident fname) retTyp fout closureVars
+                        (s3, nje3) <- getS3 (up this) (J.Ident fname) retTyp fout closureVars (classTy cName)
                         return (s1 ++ s2 ++ wrapS ++ s3, nje3, scope2ctyp retTyp)
               ,translateIf =
                  \m1 m2 m3 ->

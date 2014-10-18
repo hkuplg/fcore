@@ -38,7 +38,7 @@ transApply this super = NT {toT = super {
                       refactored <- refactoredScopeTranslationBit (up this) je s currentId nextId
                       return (refactored,t1),
 
-  genApply = \f t x y -> if (last t) then genApply super f t x y else return [],
+  genApply = \f t x y z -> if (last t) then genApply super f t x y z else return [],
 
   setClosureVars = \t f j1 j2 -> do
               (usedCl :: Set.Set J.Exp) <- get

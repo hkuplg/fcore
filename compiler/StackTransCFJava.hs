@@ -35,8 +35,8 @@ instance (:<) (TranslateStack m) (TranslateStack m) where -- reflexivity
 nextClass ::(Monad m) => (Translate m) -> m String
 nextClass this = liftM2 (++) (getPrefix this) (return "Next")
 
-whileApplyLoop :: (Monad m) => Translate m -> String -> String -> J.Type -> m [J.BlockStmt]
-whileApplyLoop this ctemp tempOut outType = do
+whileApplyLoop :: (Monad m) => Translate m -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
+whileApplyLoop this ctemp tempOut outType ctempCastTyp = do
   closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
   let closureType' = classTy closureClass
   nextName <- nextClass (up this)
@@ -48,7 +48,7 @@ whileApplyLoop this ctemp tempOut outType = do
                  (J.BinOp (J.ExpName $ name [nextName, "next"])
                   J.NotEq
                   (J.Lit J.Null))),
-          assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast closureType (var ctemp)) "out")))]
+          assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) "out")))]
 
 containsNext :: [J.BlockStmt] -> Bool
 containsNext l = foldr (||) False $ map (\x -> case x of (J.BlockStmt (J.ExpStmt (J.Assign (
@@ -67,9 +67,9 @@ empyClosure this outExp = do
                                                                                                                   J.MemberDecl (J.MethodDecl [J.Annotation J.MarkerAnnotation {J.annName = J.Name [J.Ident "Override"]}, J.Public] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just (J.Block
                                                                                                                                                                                                                                                                                            [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "out"])) J.EqualA outExp))]))))]))))
 
-whileApply :: (Monad m) => Translate m -> J.Exp -> String -> String -> J.Type -> m [J.BlockStmt]
-whileApply this cl ctemp tempOut outType = do
-  loop <- whileApplyLoop this ctemp tempOut outType
+whileApply :: (Monad m) => Translate m -> J.Exp -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
+whileApply this cl ctemp tempOut outType ctempCastTyp = do
+  loop <- whileApplyLoop this ctemp tempOut outType ctempCastTyp
   nextName <- nextClass (up this)
   return ((assign (name [nextName, "next"]) cl) : loop)
 
@@ -89,7 +89,7 @@ stackMainBody :: Monad m => Translate m -> Type t -> m [J.BlockStmt]
 stackMainBody this t = do
   loop <- whileApplyLoop this "c" "result" (case t of
                                                   JClass "java.lang.Integer" -> classTy "java.lang.Integer"
-                                                  _ -> objClassTy)
+                                                  _ -> objClassTy) closureType
   return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
 
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
@@ -102,13 +102,13 @@ transS this super = TS {toTS = super {
        App e1 e2   -> translateApply (up this) (local (|| True) $ translateM (up this) e1) (local (|| True) $ translateM (up this) e2)
        otherwise   -> local (|| True) $ translateM super e,
 
-  genApply = \f t x jType ->
+  genApply = \f t x jType ctempCastTyp ->
       do (genApplys :: Bool) <- ask
          (n :: Int) <- get
          put (n+1)
          case x of
             J.ExpName (J.Name [J.Ident h]) -> if genApplys then -- relies on translated code!
-                                        (whileApply (up this) (J.ExpName (J.Name [f])) ("c" ++ show n) h jType)
+                                        (whileApply (up this) (J.ExpName (J.Name [f])) ("c" ++ show n) h jType ctempCastTyp)
                                       else nextApply (up this) (J.ExpName (J.Name [f])) h jType
             _ -> panic "expected temporary variable name" ,
 
@@ -129,3 +129,5 @@ transSA :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, 
 transSA this super = TS {toTS = (up (transS this super)) {
    genRes = \t s -> if (last t) then return [] else genRes super t s
   }}
+
+-- Alternative version of transS that interacts with the Unbox translation
