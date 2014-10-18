@@ -428,7 +428,7 @@ trans self =
                                   CFInt -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
                                   CFInteger -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
                                   (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
-                                                   return (initClass closureClass, (classTy closureClass))
+                                                   return (initClass closureClass, classTy closureClass)
                                   (TupleType tuple) -> case tuple of
                                                          [t] -> chooseCastBox this t
                                                          _ -> do let tupleClassName = getTupleClassName tuple

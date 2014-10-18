@@ -113,7 +113,7 @@ transBenchStack this super = TBS {
            let paraType = getParaType t
            --let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType BenchGenStack.testfuncBody returnType mainbody
            empyClosure' <- empyClosure (up this) e
-           stackbody' <- stackbody (up this) t
+           stackbody' <- stackMainBody (up this) t
            let stackDecl = BenchGenStack.getClassDecl name bs (if (containsNext bs) then [] else [empyClosure']) paraType BenchGenStack.testfuncBody returnType (Just $ J.Block $ stackbody')
            return (BenchGenStack.createCUB super [stackDecl], t)
    }
@@ -141,7 +141,7 @@ transBenchStackOpt this super = TBSA {
                                       _ -> Just objClassTy
            let paraType = getParaType t
            empyClosure' <- empyClosure (up this) e
-           stackbody' <- stackbody (up this) t
+           stackbody' <- stackMainBody (up this) t
            let stackDecl = BenchGenStack.getClassDecl name bs (if (containsNext bs) then [] else [empyClosure']) paraType BenchGenStack.testfuncBody returnType (Just $ J.Block $ stackbody')
            return (BenchGenStack.createCUB super [stackDecl], t)
            --nextClass

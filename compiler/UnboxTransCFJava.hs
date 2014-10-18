@@ -179,8 +179,7 @@ transUnbox this super =
                                      case (f ()) of
                                        (Body t2) -> do
                                          typ1 <- (getClassType (up this) t1 t2)
-                                         typ2 <- (getClassType (up this) t1 t2)
-                                         return (initClass typ1,classTy typ2)
+                                         return (initClass typ1,classTy typ1)
                                        _ -> do
                                          typ1 <- (getClassType (up this) t1 CFInteger)
                                          return (initClass typ1,classTy typ1)
