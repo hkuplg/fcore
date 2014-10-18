@@ -47,8 +47,8 @@ localVar typ vard = LocalVars [] typ [vard]
 localFinalVar :: Type -> VarDecl -> BlockStmt
 localFinalVar typ vard = LocalVars [Final] typ [vard]
 
-methodCall :: String -> [Argument] -> Stmt
-methodCall ident argu = ExpStmt (MethodInv (MethodCall (Name [Ident ident]) argu))
+methodCall :: [String] -> [Argument] -> Stmt
+methodCall idents argu = ExpStmt (MethodInv (MethodCall (name idents) argu))
 
 applyMethodCall :: Ident -> BlockStmt
 applyMethodCall f = BlockStmt (classMethodCall (ExpName $ Name [f]) "apply" [])

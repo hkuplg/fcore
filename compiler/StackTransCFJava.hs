@@ -42,19 +42,13 @@ whileApplyLoop this ctemp tempOut outType = do
   nextName <- nextClass (up this)
   return [localVar closureType' (varDeclNoInit ctemp),
           localVar outType (varDecl tempOut (J.Lit J.Null)),
-          J.BlockStmt (J.Do (J.StmtBlock (J.Block [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident ctemp]))
-                                                                           J.EqualA
-                                                                           (J.ExpName $ name [nextName, "next"])))
-                                                  ,J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident nextName,J.Ident "next"]))
-                                                                           J.EqualA
-                                                                           (J.Lit J.Null)))
-                                                  ,J.BlockStmt (J.ExpStmt (J.MethodInv (J.MethodCall (J.Name [J.Ident ctemp,J.Ident "apply"]) [])))]))
-                       (J.BinOp (J.ExpName $ J.Name [J.Ident (nextName ++ ".next" )])
-                        J.NotEq
-                        (J.Lit J.Null))),
-          J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident tempOut]))
-                                  J.EqualA (cast outType
-                                            (J.FieldAccess (fieldAccExp (cast closureType (var ctemp)) "out")))))]
+          bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
+                                          ,assign (name [nextName, "next"]) (J.Lit J.Null)
+                                          ,bStmt (methodCall [ctemp, "apply"] [])]))
+                 (J.BinOp (J.ExpName $ name [nextName, "next"])
+                  J.NotEq
+                  (J.Lit J.Null))),
+          assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast closureType (var ctemp)) "out")))]
 
 containsNext :: [J.BlockStmt] -> Bool
 containsNext l = foldr (||) False $ map (\x -> case x of (J.BlockStmt (J.ExpStmt (J.Assign (
@@ -66,39 +60,37 @@ empyClosure :: Monad m => Translate m -> J.Exp -> m J.BlockStmt
 empyClosure this outExp = do
   closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
   nextName <- nextClass (up this)
-  return (J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident nextName,J.Ident "next"])) J.EqualA
+  return (assign (name [nextName, "next"])
                           (J.InstanceCreation [] (J.ClassType [(J.Ident closureClass,[])]) [] (Just (J.ClassBody [J.MemberDecl (J.MethodDecl
                                                                                                                                 [J.Annotation (J.MarkerAnnotation {J.annName = J.Name [J.Ident "Override"]}),J.Public] [] (Just (J.RefType (J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))))
                                                                                                                                 (J.Ident "clone") [] [] (J.MethodBody (Just (J.Block [J.BlockStmt (J.Return (Just (J.Lit J.Null)))])))),
                                                                                                                   J.MemberDecl (J.MethodDecl [J.Annotation J.MarkerAnnotation {J.annName = J.Name [J.Ident "Override"]}, J.Public] [] Nothing (J.Ident "apply") [] [] (J.MethodBody (Just (J.Block
-                                                                                                                                                                                                                                                                                           [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "out"])) J.EqualA outExp))]))))]))))))
+                                                                                                                                                                                                                                                                                           [J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident "out"])) J.EqualA outExp))]))))]))))
 
 whileApply :: (Monad m) => Translate m -> J.Exp -> String -> String -> J.Type -> m [J.BlockStmt]
 whileApply this cl ctemp tempOut outType = do
   loop <- whileApplyLoop this ctemp tempOut outType
   nextName <- nextClass (up this)
-  return (J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident nextName,J.Ident "next"])) J.EqualA cl))
-          : loop)
+  return ((assign (name [nextName, "next"]) cl) : loop)
 
 --e.g. Next.next = x8;
 nextApply :: (Monad m) => Translate m -> J.Exp -> String -> J.Type -> m [J.BlockStmt]
 nextApply this cl tempOut outType = do
   nextName <- nextClass this
-  return ([J.BlockStmt $ J.ExpStmt $ J.Assign (J.NameLhs (J.Name [J.Ident nextName,J.Ident "next"])) J.EqualA (cl),
-           J.LocalVars [] outType [J.VarDecl (J.VarId (J.Ident tempOut)) (Just (J.InitExp (if outType == J.PrimType J.IntT
-                                                                                 then J.Lit (J.Int 0) -- TODO: potential bug
-                                                                                 else J.Lit J.Null)))]])
+  return ([assign (name [nextName,"next"]) cl,
+           localVar outType (varDecl tempOut (if outType == J.PrimType J.IntT
+                                              then J.Lit (J.Int 0) -- TODO: potential bug
+                                              else J.Lit J.Null))])
 
 applyCall :: J.BlockStmt
-applyCall = bStmt $ methodCall "apply" []
+applyCall = bStmt $ methodCall ["apply"] []
 
 stackMainBody :: Monad m => Translate m -> Type t -> m [J.BlockStmt]
 stackMainBody this t = do
   loop <- whileApplyLoop this "c" "result" (case t of
                                                   JClass "java.lang.Integer" -> classTy "java.lang.Integer"
                                                   _ -> objClassTy)
-  return (applyCall : loop ++ [J.BlockStmt (J.ExpStmt (J.MethodInv (J.PrimaryMethodCall
-                                                                    (J.ExpName (J.Name [J.Ident "System.out"])) [] (J.Ident "println") [J.ExpName $ J.Name [J.Ident "result"]])))])
+  return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
 
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {toTS = super {
