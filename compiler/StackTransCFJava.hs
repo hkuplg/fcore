@@ -129,7 +129,7 @@ transS this super = TS {toTS = super {
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
-           box <- getBox (up this)
+           box <- getBox (up this) t
            empyClosure' <- empyClosure (up this) e box
            mainbody <- stackMainBody (up this) t
            let stackDecl = wrapperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure'])) Nothing (Just $ J.Block mainbody)
@@ -148,12 +148,45 @@ transSA this super = TS {toTS = (up (transS this super)) {
 transSU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSU this super =
   TS {toTS = (up (transS this super)) {
-         getBox = return "BoxBox",
+         getBox = \t -> case t of
+                         CFInt -> return "BoxInt"
+                         _ -> return "BoxBox",
          stackMainBody = \t -> do
            closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
-           loop <- whileApplyLoop (up this) "c" "result" (case t of
-                                                           CFInt -> J.PrimType J.IntT
-                                                           JClass "java.lang.Integer" -> classTy "java.lang.Integer"
-                                                           _ -> objClassTy) (classTy closureClass)
+           let closureType' = classTy closureClass
+           nextName <- nextClass (up this)
+           let finalType = case t of
+                            CFInt -> "Int"
+                            _ -> "Box"
+           let resultType = case t of
+                             CFInt -> J.PrimType J.IntT
+                             JClass "java.lang.Integer" -> classTy "java.lang.Integer"
+                             _ -> objClassTy
+
+           let loop = [localVar closureType' (varDeclNoInit "c"),
+                       localVar resultType (varDecl "result" (case resultType of
+                                                               J.PrimType J.IntT -> J.Lit (J.Int 0)
+                                                               _ -> (J.Lit J.Null))),
+                       bStmt (J.Do (J.StmtBlock (block [assign (name ["c"]) (J.ExpName $ name [nextName, "next"])
+                                                       ,assign (name [nextName, "next"]) (J.Lit J.Null)
+                                                       ,bStmt (methodCall ["c", "apply"] [])]))
+                              (J.BinOp (J.ExpName $ name [nextName, "next"])
+                               J.NotEq
+                               (J.Lit J.Null))),
+                       bStmt (J.IfThenElse
+                              (J.InstanceOf (var "c") (J.ClassRefType $ classTyp (closureClass ++ "Int" ++ finalType)))
+                              (J.StmtBlock (block [assign
+                                                   (name ["result"])
+                                                   (cast resultType
+                                                    (J.FieldAccess (fieldAccExp
+                                                                    (cast (classTy (closureClass ++ "Int" ++ finalType)) (var "c"))
+                                                                    "out")))]))
+                              (J.StmtBlock (block [assign
+                                                   (name ["result"])
+                                                   (cast resultType
+                                                    (J.FieldAccess (fieldAccExp
+                                                                    (cast (classTy (closureClass ++ "Box" ++ finalType)) (var "c"))
+                                                                    "out")))])))]
+
            return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
          }}

@@ -55,7 +55,7 @@ data Translate m =
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,genClone :: m Bool
     ,getPrefix :: m String
-    ,getBox :: m String
+    ,getBox :: Type Int -> m String
     ,javaType :: Type Int -> m J.Type
     ,chooseCastBox :: Type Int -> m (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
@@ -439,7 +439,7 @@ trans self =
                                   _ -> return (initClass "Object", objClassTy)
        ,getPrefix = return "hk.hku.cs.f2j."
        ,genClone = return False -- do not generate clone method
-       ,getBox = return ""
+       ,getBox = \_ -> return ""
        ,stackMainBody = \_ -> return []
        ,createWrap =
           \name exp ->
