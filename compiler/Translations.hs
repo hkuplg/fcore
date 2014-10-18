@@ -111,7 +111,7 @@ applyUnbox = new ((transApply <.> adaptUnbox transUnbox) $> trans)
 
 -- Stack + Unbox + Naive
 stackUnbox :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
-stackUnbox = new ((transS <.> adaptUnbox transUnbox) $> trans)
+stackUnbox = new ((transSU <.> adaptUnbox transUnbox) $> trans)
 
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where

@@ -41,7 +41,9 @@ whileApplyLoop this ctemp tempOut outType ctempCastTyp = do
   let closureType' = classTy closureClass
   nextName <- nextClass (up this)
   return [localVar closureType' (varDeclNoInit ctemp),
-          localVar outType (varDecl tempOut (J.Lit J.Null)),
+          localVar outType (varDecl tempOut (case outType of
+                                              J.PrimType J.IntT -> J.Lit (J.Int 0)
+                                              _ -> (J.Lit J.Null))),
           bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
                                           ,assign (name [nextName, "next"]) (J.Lit J.Null)
                                           ,bStmt (methodCall [ctemp, "apply"] [])]))
@@ -56,26 +58,26 @@ containsNext l = foldr (||) False $ map (\x -> case x of (J.BlockStmt (J.ExpStmt
                                                          _ -> False) l
 
 -- ad-hoc fix for final-returned expressions in Stack translation
-empyClosure :: Monad m => Translate m -> J.Exp -> m J.BlockStmt
-empyClosure this outExp = do
-  closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+empyClosure :: Monad m => Translate m -> J.Exp -> String -> m J.BlockStmt
+empyClosure this outExp box = do
+  closureClass <- liftM (++ box) $ liftM2 (++) (getPrefix this) (return "Closure")
   nextName <- nextClass (up this)
   return (assign (name [nextName, "next"])
-                          (J.InstanceCreation [] (classTyp closureClass) []
-                           (Just (classBody [memberDecl
-                                             (methodDecl
-                                              [annotation "Override",J.Public]
-                                              (Just (classTy closureClass))
-                                              "clone"
-                                              []
-                                              returnNull),
-                                             (memberDecl
-                                              (methodDecl
-                                               [annotation "Override", J.Public]
-                                               Nothing
-                                               "apply"
-                                               []
-                                               (Just (block [assign (name ["out"]) outExp]))))]))))
+          (J.InstanceCreation [] (classTyp closureClass) []
+           (Just (classBody [memberDecl
+                             (methodDecl
+                              [annotation "Override",J.Public]
+                              (Just (classTy closureClass))
+                              "clone"
+                              []
+                              returnNull),
+                             (memberDecl
+                              (methodDecl
+                               [annotation "Override", J.Public]
+                               Nothing
+                               "apply"
+                               []
+                               (Just (block [assign (name ["out"]) outExp]))))]))))
 
 whileApply :: (Monad m) => Translate m -> J.Exp -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
 whileApply this cl ctemp tempOut outType ctempCastTyp = do
@@ -126,7 +128,8 @@ transS this super = TS {toTS = super {
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM (up this) exp
-           empyClosure' <- empyClosure (up this) e
+           box <- getBox (up this)
+           empyClosure' <- empyClosure (up this) e box
            mainbody <- stackMainBody (up this) t
            let stackDecl = wrapperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure'])) Nothing (Just $ J.Block mainbody)
            return (createCUB  (up this :: Translate m) [stackDecl], t)
@@ -141,3 +144,8 @@ transSA this super = TS {toTS = (up (transS this super)) {
   }}
 
 -- Alternative version of transS that interacts with the Unbox translation
+transSU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transSU this super =
+  TS {toTS = (up (transS this super)) {
+         getBox = return "BoxBox"
+         }}
