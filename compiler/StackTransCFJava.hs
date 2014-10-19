@@ -148,6 +148,7 @@ transSA this super = TS {toTS = (up (transS this super)) {
 transSU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSU this super =
   TS {toTS = (up (transS this super)) {
+         genRes = \t s -> if (last t) then return [] else genRes super t s,
          getBox = \t -> case t of
                          CFInt -> return "BoxInt"
                          _ -> return "BoxBox",

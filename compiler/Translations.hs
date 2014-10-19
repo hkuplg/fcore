@@ -14,6 +14,7 @@ module Translations
     , compileN
     , compileAO
     , compileS
+    , compileSAU
     , compileSN
     , compileBN
     , compileBS
@@ -113,6 +114,9 @@ applyUnbox = new ((transApply <.> adaptUnbox transUnbox) $> trans)
 stackUnbox :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
 stackUnbox = new ((transSU <.> adaptUnbox transUnbox) $> trans)
 
+-- Stack + Apply + Unbox + Naive
+stackApplyUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
+stackApplyUnbox = new ((transApply <.> adaptStack transSU <.> adaptUnbox transUnbox) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
   up = NT . toTS
@@ -378,6 +382,15 @@ translateS = createWrap (up stackinst)
 compileS :: Compilation
 compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) False) []) Set.empty) 0
 
+-- Setting for apply + stack + unbox + naive
+stackau :: ApplyOptTranslate StackType
+stackau = stackApplyUnbox
+
+translateSAU :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit, Type Int)
+translateSAU = createWrap (up stackau)
+
+compileSAU :: Compilation
+compileSAU name e = evalState (evalStateT (runReaderT (runReaderT (translateSAU name (fexp2cexp e)) False) []) Set.empty) 0
 
 -- | Setting for benchmark
 
