@@ -61,6 +61,12 @@ tailFactLike
            (Var tail_fact `App` (Var acc `mult` one) `App` one)))
     javaInt (javaInt `Fun` javaInt)
 
+
+plus2 :: Expr t e
+plus2 = (App (Lam (Fun javaInt (Fun javaInt javaInt))
+                  (\e -> (App (App (Var e) one) zero)))
+             (Lam javaInt (\e -> (Lam javaInt (\f -> (Var e) `mult` (Var f))))))
+
 -- let rec
 --   even : Int -> Int = \(n : Int). if n == 0 then True  else odd  (n - 1)
 --   odd  : Int -> Int = \(n : Int). if n == 0 then False else even (n - 1)

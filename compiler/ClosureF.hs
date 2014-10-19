@@ -24,6 +24,8 @@ data Type t =
       TVar t
     | Forall (TScope t)
     | JClass ClassName
+    | CFInt
+    | CFInteger
     | TupleType [Type t]
 
 data Expr t e =
@@ -64,6 +66,7 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 
 ftyp2ctyp :: C.Type t -> Type t
 ftyp2ctyp (C.TyVar x) = TVar x
+ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
 ftyp2ctyp (C.JClass c) = JClass c
 ftyp2ctyp (C.Product ts) = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp t         = Forall (ftyp2scope t)
