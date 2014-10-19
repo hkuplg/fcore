@@ -35,7 +35,7 @@ transApply this super = NT {toT = super {
          True -> do   (initVars' :: InitVars) <- ask
                       translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m)
          False -> do  (s,je,t1) <- local (initVars ++) m
-                      refactored <- refactoredScopeTranslationBit (up this) je s currentId nextId
+                      refactored <- modifiedScopeTyp (up this) je s currentId nextId
                       return (refactored,t1),
 
   genApply = \f t x y z -> if (last t) then genApply super f t x y z else return [],
@@ -56,40 +56,17 @@ transApply this super = NT {toT = super {
   genClone = return True
 }}
 
-refactoredScopeTranslationBit :: (Show a, Monad m) => Translate m -> J.Exp -> [J.BlockStmt] -> a -> Int -> m [J.BlockStmt]
-refactoredScopeTranslationBit this javaExpression statementsBeforeOA currentId nextId =
+modifiedScopeTyp :: (Show a, Monad m) => Translate m -> J.Exp -> [J.BlockStmt] -> a -> Int -> m [J.BlockStmt]
+modifiedScopeTyp this oexpr ostmts currentId nextId =
   do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
      let closureType' = classTy closureClass
-     let currentInitialDeclaration =
-          J.MemberDecl $
-          J.FieldDecl
-            []
-            closureType'
-            [J.VarDecl (J.VarId $ J.Ident $ localvarstr ++ show currentId)
-                       (Just (J.InitExp J.This))]
-     return [(J.LocalClass
-              (J.ClassDecl
-                 []
-                 (J.Ident ("Fun" ++ show nextId))
-                 []
-                 (Just $
-                  J.ClassRefType (J.ClassType [(J.Ident closureClass,[])]))
-                 []
-                 (closureBodyGen
-                    [currentInitialDeclaration
-                    ,J.InitDecl
-                       False
-                       (J.Block $
-                        (statementsBeforeOA ++
-                         [assign (name ["out"]) javaExpression]))]
-                    []
-                    nextId
-                    True
-                    closureType')))
-          ,J.LocalVars
-             []
-             (closureType')
-             ([J.VarDecl (J.VarId $
-                          J.Ident (localvarstr ++ show nextId))
-                         (Just (J.InitExp (funInstCreate nextId)))])]
+     let currentInitialDeclaration = memberDecl $ fieldDecl (classTy closureClass) (varDecl (localvarstr ++ show currentId) J.This)
+     return [(localClassDecl ("Fun" ++ show nextId) closureClass
+              (closureBodyGen
+               [currentInitialDeclaration, J.InitDecl False (block $ (ostmts ++ [assign (name ["out"]) oexpr]))]
+               []
+               nextId
+               True
+               closureType'))
+          ,localVar closureType' (varDecl (localvarstr ++ show nextId) (funInstCreate nextId))]
 

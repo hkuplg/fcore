@@ -175,18 +175,18 @@ transSU this super =
                                (J.Lit J.Null))),
                        bStmt (J.IfThenElse
                               (J.InstanceOf (var "c") (J.ClassRefType $ classTyp (closureClass ++ "Int" ++ finalType)))
-                              (J.StmtBlock (block [assign
-                                                   (name ["result"])
-                                                   (cast resultType
-                                                    (J.FieldAccess (fieldAccExp
-                                                                    (cast (classTy (closureClass ++ "Int" ++ finalType)) (var "c"))
-                                                                    "out")))]))
-                              (J.StmtBlock (block [assign
-                                                   (name ["result"])
-                                                   (cast resultType
-                                                    (J.FieldAccess (fieldAccExp
-                                                                    (cast (classTy (closureClass ++ "Box" ++ finalType)) (var "c"))
-                                                                    "out")))])))]
+                              (assignE
+                                (name ["result"])
+                                (cast resultType
+                                 (J.FieldAccess (fieldAccExp
+                                                 (cast (classTy (closureClass ++ "Int" ++ finalType)) (var "c"))
+                                                 "out"))))
+                              (assignE
+                               (name ["result"])
+                               (cast resultType
+                                (J.FieldAccess (fieldAccExp
+                                                (cast (classTy (closureClass ++ "Box" ++ finalType)) (var "c"))
+                                                "out")))))]
 
            return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
          }}

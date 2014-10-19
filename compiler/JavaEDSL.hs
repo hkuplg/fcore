@@ -90,6 +90,9 @@ instCreat cls args = InstanceCreation [] cls args Nothing
 assign :: Name -> Exp -> BlockStmt
 assign lhs rhs = BlockStmt $ ExpStmt $ Assign (NameLhs lhs) EqualA rhs
 
+assignE :: Name -> Exp -> Stmt
+assignE lhs rhs = ExpStmt $ Assign (NameLhs lhs) EqualA rhs
+
 assignField :: FieldAccess -> Exp -> BlockStmt
 assignField access rhs = BlockStmt $ ExpStmt $ Assign (FieldLhs access) EqualA rhs
 
