@@ -115,28 +115,13 @@ transUnbox this super =
 
                          aType <- javaType (up this) t
                          let accessField = fieldAccess (var (localvarstr ++ show v)) closureInput
-                         -- let js = localFinalVar aType (varDecl (localvarstr ++ show n')
-                         --                                       (if flag
-                         --                                           then accessField
-                         --                                           else cast aType accessField))
                          let js = localFinalVar aType (varDecl (localvarstr ++ show n') (cast aType accessField))
 
-                         b <- genClone (up this)
-                         let currentId = v
-                         let oldId = n
-                         let initVars = [js]
-                         (ostmts,oexpr,t1) <- translateScopeM (up this) nextInClosure Nothing
+                         let ostmts = translateScopeM (up this) nextInClosure Nothing
+                         (_,_,t1) <- ostmts
                          cName <- getClassType (up this) t (scope2ctyp t1)
-                         let cvar =
-                               [localClassDecl ("Fun" ++ show oldId)
-                                               cName
-                                               (closureBodyGen [memberDecl $ fieldDecl (classTy cName)
-                                                                                       (varDecl (localvarstr ++ show currentId) J.This)]
-                                                               (initVars ++ ostmts ++ [assign (name ["out"]) oexpr])
-                                                               oldId
-                                                               b
-                                                               (classTy cName))
-                               ,localVar (classTy cName) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
+
+                         (cvar,t1) <- translateScopeTyp (up this) v n [js] nextInClosure ostmts cName
                          return (cvar,var (localvarstr ++ show n), Type t (\_ -> t1) )
 
                    _ -> translateScopeM super e m

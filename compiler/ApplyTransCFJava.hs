@@ -30,12 +30,12 @@ last (Body _)   = True
 -- main translation function
 transApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transApply this super = NT {toT = super {
-  translateScopeTyp = \currentId nextId initVars nextInClosure m ->
+  translateScopeTyp = \currentId nextId initVars nextInClosure m closureClass ->
     case last nextInClosure of
          True -> do   (initVars' :: InitVars) <- ask
-                      translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m)
+                      translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
          False -> do  (s,je,t1) <- local (initVars ++) m
-                      refactored <- modifiedScopeTyp (up this) je s currentId nextId
+                      let refactored = modifiedScopeTyp je s currentId nextId closureClass
                       return (refactored,t1),
 
   genApply = \f t x y z -> if (last t) then genApply super f t x y z else return [],
@@ -56,17 +56,16 @@ transApply this super = NT {toT = super {
   genClone = return True
 }}
 
-modifiedScopeTyp :: (Show a, Monad m) => Translate m -> J.Exp -> [J.BlockStmt] -> a -> Int -> m [J.BlockStmt]
-modifiedScopeTyp this oexpr ostmts currentId nextId =
-  do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
-     let closureType' = classTy closureClass
-     let currentInitialDeclaration = memberDecl $ fieldDecl (classTy closureClass) (varDecl (localvarstr ++ show currentId) J.This)
-     return [(localClassDecl ("Fun" ++ show nextId) closureClass
-              (closureBodyGen
-               [currentInitialDeclaration, J.InitDecl False (block $ (ostmts ++ [assign (name ["out"]) oexpr]))]
-               []
-               nextId
-               True
-               closureType'))
-          ,localVar closureType' (varDecl (localvarstr ++ show nextId) (funInstCreate nextId))]
+modifiedScopeTyp :: J.Exp -> [J.BlockStmt] -> Int -> Int -> String -> [J.BlockStmt]
+modifiedScopeTyp oexpr ostmts currentId nextId closureClass = completeClosure
+  where closureType' = classTy closureClass
+        currentInitialDeclaration = memberDecl $ fieldDecl closureType' (varDecl (localvarstr ++ show currentId) J.This)
+        completeClosure = [(localClassDecl ("Fun" ++ show nextId) closureClass
+                            (closureBodyGen
+                             [currentInitialDeclaration, J.InitDecl False (block $ (ostmts ++ [assign (name ["out"]) oexpr]))]
+                             []
+                             nextId
+                             True
+                             closureType'))
+                          ,localVar closureType' (varDecl (localvarstr ++ show nextId) (funInstCreate nextId))]
 

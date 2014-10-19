@@ -50,7 +50,7 @@ data Translate m =
     ,translateScopeM :: Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> Maybe (Int,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int)
     ,translateApply :: m TransType -> m TransType -> m TransType
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
-    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> m ([J.BlockStmt],TScope Int)
+    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
     ,genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,genClone :: m Bool
@@ -367,12 +367,15 @@ trans self =
                                                          (if flag
                                                              then accessField
                                                              else cast typT1 accessField))
+                   closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                    (cvar,t1) <- translateScopeTyp this
                                                   v -- n + 1
                                                   n
                                                   [xf]
                                                   nextInClosure
                                                   (translateScopeM this nextInClosure Nothing)
+                                                  closureClass
+
                    return (cvar,var (localvarstr ++ show n),Type t (\_ -> t1))
        ,translateApply =
           \m1 m2 ->
@@ -393,10 +396,9 @@ trans self =
                (s1,j1,t1) <- m1 {- translateM this e1 -}
                genIfBody this m2 m3 (s1, j1) n
        ,translateScopeTyp =
-          \currentId oldId initVars _ otherStmts ->
+          \currentId oldId initVars _ otherStmts closureClass ->
             do b <- genClone this
                (ostmts,oexpr,t1) <- otherStmts
-               closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                return ([localClassDecl ("Fun" ++ show oldId)
                                        closureClass
                                        (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
