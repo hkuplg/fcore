@@ -259,9 +259,10 @@ trans self =
                                                   toTupleOf3Lists args'
                    let rhs =
                          J.InstanceCreation
-                           (map (\(JClass x) ->
-                                   J.ActualType $ J.ClassRefType $
-                                   J.ClassType [(J.Ident x,[])])
+                           (map (\y -> case y of
+                                         JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                                         CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])] )
                                 types)
                            (J.ClassType [(J.Ident c,[])])
                            exprs
