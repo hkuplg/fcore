@@ -1,7 +1,7 @@
 let max (x : Int) (y : Int) : Int =
   if x > y then x else y
 in
-let maxValue (values : lib.IntArray) (weights : lib.IntArray) (totalWeight : Int) : Int = (
+let maxValue (values : List) (weights : List) (totalWeight : Int) : Int = (
   let rec maxValue' (k : Int -> Int) (i : Int) (w : Int) : Int =
     if i == 0 || w == 0 then (k 0)
     else
@@ -17,4 +17,4 @@ let maxValue (values : lib.IntArray) (weights : lib.IntArray) (totalWeight : Int
   maxValue' (\(x : Int) . x) values.length() totalWeight
 )
 in
-maxValue (new lib.IntArray(1,2,3)) (new lib.IntArray(2,3,4)) 2
+maxValue [9,3,4] [2,5,8] 10

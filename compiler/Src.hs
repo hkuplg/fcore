@@ -46,7 +46,6 @@ data Type
   | Forall Name Type
   | Product [Type]
   | RecordTy [(Label, Type)]
-  | ListOf Type
   | And Type Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
@@ -114,7 +113,6 @@ alphaEquiv (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `al
 alphaEquiv (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEquiv `all` zip ts1 ts2
 alphaEquiv (RecordTy fs1) (RecordTy fs2) = length fs1 == length fs2
                                           && (\((l1,t1),(l2,t2)) -> l1 == l2 && t1 `alphaEquiv` t2) `all` zip fs1 fs2
-alphaEquiv (ListOf t1)    (ListOf t2)    = t1 `alphaEquiv` t2
 alphaEquiv (And t1 t2)    (And t3 t4)    = t1 `alphaEquiv` t3 && t2 `alphaEquiv` t4
 alphaEquiv t1             t2             = falseIfDataConsDiffer "Src.alphaEquiv" t1 t2
 
@@ -128,7 +126,6 @@ subtype (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a1, TyVar a2) t1 `subty
 subtype (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry subtype `all` zip ts1 ts2
 subtype (RecordTy [(l1,t1)]) (RecordTy [(l2,t2)]) = l1 == l2 && t1 `subtype` t2
 subtype (RecordTy fs1)       (RecordTy fs2)       = desugarMultiRecordTy fs1 `subtype` desugarMultiRecordTy fs2
-subtype (ListOf t1)    (ListOf t2)    = t1 `subtype` t2  -- List :: * -> * is covariant
 subtype (And t1 t2)    t3             = t1 `subtype` t3 || t2 `subtype` t3
 subtype t1             (And t2 t3)    = t1 `subtype` t2 && t1 `subtype` t3
 subtype t1             t2             = falseIfDataConsDiffer "Src.subtype" t1 t2
@@ -151,7 +148,6 @@ fields t
       RecordTy []         -> panic "Src.fields"
       RecordTy [(l1,t1)]  -> [(Just l1, t1)]
       RecordTy fs@(_:_:_) -> fields (desugarMultiRecordTy fs)
-      ListOf _            -> unlabeledField
       (And t1 t2)         -> fields t1 ++ fields t2
 
       where unlabeledField = [(Nothing, t)]
@@ -171,7 +167,6 @@ substFreeTyVars (x, r) = go
       | a == x                      = Forall a t
       | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
       | otherwise                   = Forall a (go t)
-    go (ListOf a)   = ListOf (go a)
 
 freeTyVars :: Type -> Set.Set Name
 freeTyVars (TyVar x)     = Set.singleton x
@@ -180,7 +175,6 @@ freeTyVars (Fun t1 t2)   = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (Forall a t)  = Set.delete a (freeTyVars t)
 freeTyVars (Product ts)  = Set.unions (map freeTyVars ts)
 freeTyVars (RecordTy fs) = Set.unions (map (\(_l,t) -> freeTyVars t) fs)
-freeTyVars (ListOf t)    = freeTyVars t
 freeTyVars (And t1 t2)   = Set.union (freeTyVars t1) (freeTyVars t2)
 
 -- Pretty printers
@@ -191,7 +185,6 @@ instance Pretty Type where
   pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
   pretty (Product ts) = tupled (map pretty ts)
   pretty (JClass c)   = text c
-  pretty (ListOf a)   = brackets $ pretty a
   pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
 
 instance Pretty id => Pretty (Expr id) where

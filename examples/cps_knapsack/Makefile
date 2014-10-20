@@ -1,7 +1,6 @@
 all : cps_knapsack.sf
-	cd lib; javac *.java
-	f2j -r -m stack $^
+	f2j -r $^
 
 .PHONY : clean
 clean :
-	rm -f lib/*.class *.class *.java
+	rm -f *.class *.java
