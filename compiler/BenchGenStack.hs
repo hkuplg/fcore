@@ -127,10 +127,11 @@ transBenchStackOpt this super = TBSA {
   toTBSA = super {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
+           box <- getBox (up this) t
            let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just objClassTy
            let paraType = getParaType t
-           empyClosure' <- empyClosure (super) e ""
+           empyClosure' <- empyClosure (super) e box
            stackbody' <- stackMainBody (super) t
            testBody <- BenchGenStack.testfuncBody (up this) paraType
            isTest <- genTest (up this)
