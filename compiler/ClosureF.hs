@@ -24,6 +24,8 @@ data Type t =
       TVar t
     | Forall (TScope t)
     | JClass ClassName
+    | CFInt
+    | CFInteger
     | TupleType [Type t]
 
 data Expr t e =
@@ -37,6 +39,7 @@ data Expr t e =
    | If (Expr t e) (Expr t e) (Expr t e)
    | Tuple [Expr t e]
    | Proj Int (Expr t e)
+   | Let (Expr t e) (e -> Expr t e)
    -- fixpoints
    | LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
    | Fix (Type t) (e -> EScope t e)
@@ -63,6 +66,7 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 
 ftyp2ctyp :: C.Type t -> Type t
 ftyp2ctyp (C.TyVar x) = TVar x
+ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
 ftyp2ctyp (C.JClass c) = JClass c
 ftyp2ctyp (C.Product ts) = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp t         = Forall (ftyp2scope t)
@@ -95,6 +99,7 @@ fexp2cexp (C.Lit e) = Lit e
 fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
+fexp2cexp (C.Let bind body)          = Let (fexp2cexp bind) (\e -> fexp2cexp $ body e)
 fexp2cexp (C.LetRec ts f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
 fexp2cexp (C.Fix f t1 t2) =
   let  g e = groupLambda (C.Lam t1 (f e)) -- is this right???? (BUG)
@@ -146,9 +151,7 @@ joinTScope (Type t f) = let t' = joinType t in Type t' (\x -> joinTScope (f x))
 
 -- Free variable substitution
 
-substScope
-  :: Subst t =>
-     Int -> Type Int -> Scope (Type t) t () -> Scope (Type t) t ()
+substScope :: Subst t => Int -> Type Int -> Scope (Type t) t () -> Scope (Type t) t ()
 substScope n t (Body t1) = Body (substType n t t1)
 substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
 substScope n t (Type t1 f) = Type (substType n t t1) (\x -> substScope n t (f x))

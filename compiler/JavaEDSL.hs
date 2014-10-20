@@ -3,23 +3,37 @@
 module JavaEDSL where
 
 import Language.Java.Syntax
+import StringPrefixes
 
 -- TODO: module
+
 
 arrayTy :: Type -> Type
 arrayTy ty  = RefType (ArrayType ty)
 
 classTy :: String -> Type
-classTy t = RefType $ ClassRefType (ClassType [(Ident t,[])])
+classTy t = RefType $ ClassRefType $ classTyp t
+
+classTyp :: String -> ClassType
+classTyp t = ClassType [(Ident t, [])]
+
+-- closureClass :: String
+-- closureClass = "hk.hku.cs.f2j.Closure"
+
+closureType :: Type
+closureType = classTy "hk.hku.cs.f2j.Closure"
+
+objClassTy :: Type
+objClassTy = classTy "Object"
 
 -- javaClassType :: String -> Type
 -- javaClassType t = RefType $ classTy t
 
-names :: [String] -> Name
-names xs = Name $ map Ident xs
+name :: [String] -> Name
+name xs = Name $ map Ident xs
 
 var :: String -> Exp
-var x = ExpName $ names [x]
+var x = ExpName $ name [x]
 
 block :: [BlockStmt] -> Block
 block = Block
@@ -27,11 +41,17 @@ block = Block
 bStmt :: Stmt -> BlockStmt
 bStmt = BlockStmt
 
-localVars :: [Modifier] -> Type -> [VarDecl] -> BlockStmt
-localVars = LocalVars
+localVar :: Type -> VarDecl -> BlockStmt
+localVar typ vard = LocalVars [] typ [vard]
 
-methodCall :: String -> [Argument] -> Stmt
-methodCall ident argu = ExpStmt (MethodInv (MethodCall (Name [Ident ident]) argu))
+localFinalVar :: Type -> VarDecl -> BlockStmt
+localFinalVar typ vard = LocalVars [Final] typ [vard]
+
+methodCall :: [String] -> [Argument] -> Stmt
+methodCall idents argu = ExpStmt (MethodInv (MethodCall (name idents) argu))
+
+applyMethodCall :: Ident -> BlockStmt
+applyMethodCall f = BlockStmt (classMethodCall (ExpName $ Name [f]) "apply" [])
 
 classMethodCall :: Exp -> String -> [Argument] -> Stmt
 classMethodCall e s argus = ExpStmt (MethodInv (PrimaryMethodCall e [] (Ident s) argus))
@@ -39,14 +59,17 @@ classMethodCall e s argus = ExpStmt (MethodInv (PrimaryMethodCall e [] (Ident s)
 paramDecl :: Type -> String -> FormalParam
 paramDecl t n = FormalParam [] t False (VarId (Ident n))
 
-varDecl :: String -> Maybe VarInit -> VarDecl
-varDecl name e = VarDecl (VarId $ Ident name) e
+varDecl :: String -> Exp -> VarDecl
+varDecl nam e = VarDecl (VarId $ Ident nam) (Just $ InitExp e)
+
+varDeclNoInit :: String -> VarDecl
+varDeclNoInit nam = VarDecl (VarId $ Ident nam) Nothing
 
 methodDecl :: [Modifier] -> Maybe Type -> String -> [FormalParam] -> Maybe Block -> MemberDecl
-methodDecl modi ty name params body = MethodDecl modi [] ty (Ident name) params [] (MethodBody body)
+methodDecl modi ty nam params body = MethodDecl modi [] ty (Ident nam) params [] (MethodBody body)
 
-fieldDecl :: [Modifier] -> Type -> [VarDecl] -> MemberDecl
-fieldDecl = FieldDecl
+fieldDecl :: Type -> VarDecl -> MemberDecl
+fieldDecl typ vdecl = FieldDecl [] typ [vdecl]
 
 memberDecl :: MemberDecl -> Decl
 memberDecl = MemberDecl
@@ -64,7 +87,74 @@ cast = Cast
 instCreat :: ClassType -> [Argument] -> Exp
 instCreat cls args = InstanceCreation [] cls args Nothing
 
-assign :: Name -> AssignOp -> Exp -> Exp
-assign name op expr = Assign (NameLhs name)
-                             op
-                             expr
+assign :: Name -> Exp -> BlockStmt
+assign lhs rhs = BlockStmt $ ExpStmt $ Assign (NameLhs lhs) EqualA rhs
+
+assignE :: Name -> Exp -> Stmt
+assignE lhs rhs = ExpStmt $ Assign (NameLhs lhs) EqualA rhs
+
+assignField :: FieldAccess -> Exp -> BlockStmt
+assignField access rhs = BlockStmt $ ExpStmt $ Assign (FieldLhs access) EqualA rhs
+
+fieldAccess :: Exp -> String -> Exp
+fieldAccess expr str = FieldAccess $ PrimaryFieldAccess expr (Ident str)
+
+fieldAccExp :: Exp -> String -> FieldAccess
+fieldAccExp expr str = PrimaryFieldAccess expr (Ident str)
+
+localClassDecl :: String -> String -> ClassBody -> BlockStmt
+localClassDecl nam super body = LocalClass (ClassDecl [] (Ident nam) [] (Just $ ClassRefType $ ClassType [(Ident super, [])]) [] body)
+
+localClass :: String -> ClassBody -> BlockStmt
+localClass nam body = LocalClass (ClassDecl [] (Ident nam) [] Nothing [] body)
+
+funInstCreate :: Int -> Exp
+funInstCreate i = instCreat fun []
+  where fun = (ClassType [(Ident ("Fun" ++ show i),[])])
+
+closureBodyGen :: [Decl] -> [BlockStmt] -> Int -> Bool -> Type -> ClassBody
+closureBodyGen initDecls body idCF generateClone className =
+  classBody $ initDecls ++ [applyMethod] ++ if generateClone
+                                               then [cloneMethod]
+                                               else []
+  where applyMethod = MemberDecl $ methodDecl [Public] Nothing "apply" [] (Just (Block body))
+        cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
+        cloneBody = (block [localVar className (varDecl "c" (funInstCreate idCF))
+                    ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
+                    ,bStmt (classMethodCall (var "c")
+                                            "apply"
+                                            [])
+                    ,bStmt (Return (Just (cast className (var "c"))))])
+
+mainArgType :: [FormalParam]
+mainArgType = [paramDecl (arrayTy $ classTy "String") "args"]
+
+mainBody :: Maybe Block
+mainBody = Just (block [bStmt $ classMethodCall (var "System.out")
+                                                "println"
+                                                [var "apply()"]])
+
+wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
+wrapperClass className stmts returnType mainbodyDef =
+  ClassTypeDecl
+    (classDecl [Public]
+               className
+               (classBody [memberDecl $
+                           methodDecl [Static]
+                                      returnType
+                                      "apply"
+                                      []
+                                      body
+                          ,memberDecl $
+                           methodDecl [Public,Static]
+                                      Nothing
+                                      "main"
+                                      mainArgType
+                                      mainbodyDef]))
+  where body = Just (block stmts)
+
+annotation :: String -> Modifier
+annotation ann = Annotation (MarkerAnnotation {annName = Name [Ident ann]})
+
+returnNull :: Maybe Block
+returnNull = (Just (Block [BlockStmt (Return (Just (Lit Null)))]))

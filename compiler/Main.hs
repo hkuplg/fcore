@@ -34,7 +34,12 @@ data Options = Options
 
 data TransMethod = Naive
                  | ApplyOpt
+                 | ApplyU
                  | Stack
+                 | Unbox
+                 | StackU
+                 | StackN
+                 | StackAU
                  | BenchN
                  | BenchS
                  | BenchNA
@@ -80,10 +85,14 @@ main = do
            translate_method = optTransMethod
        putStrLn (takeBaseName source_path ++ " using " ++ show translate_method)
        putStrLn ("  Compiling to Java source code ( " ++ output_path ++ " )")
-
        case translate_method of Naive    -> compilesf2java 0 optDump compileN source_path output_path
                                 ApplyOpt -> compilesf2java 0 optDump compileAO source_path output_path
+                                ApplyU -> compilesf2java 0 optDump compileAoptUnbox source_path output_path
                                 Stack    -> compilesf2java 0 optDump compileS source_path output_path
+                                StackAU -> compilesf2java 0 optDump compileSAU source_path output_path
+                                StackN    -> compilesf2java 0 optDump compileSN source_path output_path
+                                StackU    -> compilesf2java 0 optDump compileSU source_path output_path
+                                Unbox -> compilesf2java 0 optDump compileUnbox source_path output_path
                                 BenchN    -> compilesf2java 0 optDump  (compileBN False) source_path output_path
                                 BenchS    -> compilesf2java 0 optDump (compileBS False) source_path output_path
                                 BenchNA   -> compilesf2java 0 optDump (compileBN True) source_path output_path

@@ -10,6 +10,7 @@ import Core
 import Simplify
 import PartialEvaluator
 import Inliner
+import OptiUtils
 
 import PrettyUtils
 
@@ -60,38 +61,27 @@ tailFactLike
            (Var tail_fact `App` (Var acc `mult` one) `App` one)))
     javaInt (javaInt `Fun` javaInt)
 
+
+plus2 :: Expr t e
+plus2 = (App (Lam (Fun javaInt (Fun javaInt javaInt))
+                  (\e -> (App (App (Var e) one) zero)))
+             (Lam javaInt (\e -> (Lam javaInt (\f -> (Var e) `mult` (Var f))))))
+
 -- let rec
 --   even : Int -> Int = \(n : Int). if n == 0 then True  else odd  (n - 1)
 --   odd  : Int -> Int = \(n : Int). if n == 0 then False else even (n - 1)
 -- in
 -- even 42
-
 evenOdd :: Expr t e
 evenOdd
   = LetRec
-      [(Fun javaInt javaInt), (Fun javaInt javaInt)]
+      [(Fun javaInt javaBool), (Fun javaInt javaBool)]
       (\ids ->
          [ Lam javaInt (\n -> If (Var n `eq` zero) true  (App (Var (ids !! 1)) (Var n `sub` one)))
          , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
       (\ids ->
          App (Var (ids !! 1)) magicNumber)
 
-evenOdd1 :: Expr t e
-evenOdd1 = LetRec [(Fun javaInt javaInt), (Fun javaInt javaInt)]
-                  (\ids -> [ Lam javaInt (\n -> If (Var n `eq` zero) true (App (Var (ids !! 1)) (Var n `sub` one)))
-                           , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
-                  (\ids -> App (Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))) magicNumber)
-
-
-evenOdd2 :: Expr t e
-evenOdd2
-  = LetRec
-      [(Fun javaInt javaInt), (Fun javaInt javaInt)]
-      (\ids ->
-         [ Lam javaInt (\n -> If (Var n `eq` zero) true  (App (Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))) (Var n `sub` one)))
-         , Lam javaInt (\n -> If (Var n `eq` zero) false (App (Var (ids !! 0)) (Var n `sub` one)))])
-      (\ids ->
-         App (Var (ids !! 1)) magicNumber)
 
 -- Int -> (Int -> Bool, Int -> Bool)
 evenOddEncodedTy :: Type t
