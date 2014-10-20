@@ -25,7 +25,7 @@ newIdent n = J.Ident $ localvarstr ++ show n
 
 identDecl :: Monad m => Translate m -> J.Ident -> Type Int -> J.Exp -> m [J.BlockStmt]
 identDecl this id t j = do aType <- javaType this t
-                           return $ [J.LocalVars [] aType [J.VarDecl (J.VarId id) (Just $ J.InitExp j)]]
+                           return $ [J.LocalVars [J.Final] aType [J.VarDecl (J.VarId id) (Just $ J.InitExp j)]]
 
 createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
 createCUB _ compDef = cu
