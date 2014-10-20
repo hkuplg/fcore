@@ -37,7 +37,6 @@ transType i (Forall f)       = Forall (\a -> transType (i + 1) (f i)) -- bug!
 transType i (Product ts)     = Product (map (transType i) ts)
 transType i (And a1 a2)      = Product [transType i a1, transType i a2]
 transType i (RecordTy (l,t)) = transType i t
-transType i (ListOf t)       = ListOf $ transType i t
 
 -- Subtyping
 
@@ -101,8 +100,7 @@ coerce i (And t1 t2) t3 =
                                (\x -> c `appC` Proj 2 (Var x))))
 coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
-coerce i (ListOf t1) (ListOf t2) = coerce i t1 t2
-coerce i _ _ = Nothing
+coerce  i _ _ = Nothing
 
 -- Typing
 
@@ -214,12 +212,6 @@ transExpr (JField (Left c) m retC) =
 transExpr (Seq es) =
   do (ts, es') <- mapAndUnzipM transExpr es
      return (last ts, Seq es')
-
-transExpr (PrimList es) =
-  do (ts, es') <- mapAndUnzipM transExpr es
-     let t = case ts of [] -> JClass "java.lang.Void"
-                        _  -> head ts
-     return (ListOf t, PrimList es')
 
 transExpr (Merge e1 e2) =
   do (t1, e1') <- transExpr e1
