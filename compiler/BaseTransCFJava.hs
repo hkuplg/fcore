@@ -54,6 +54,7 @@ data Translate m =
     ,genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,genClone :: m Bool
+    ,genTest :: m Bool
     ,getPrefix :: m String
     ,getBox :: Type Int -> m String
     ,javaType :: Type Int -> m J.Type
@@ -441,6 +442,7 @@ trans self =
                                   _ -> return (initClass "Object", objClassTy)
        ,getPrefix = return "hk.hku.cs.f2j."
        ,genClone = return False -- do not generate clone method
+       ,genTest = return False -- do not generate test method
        ,getBox = \_ -> return ""
        ,stackMainBody = \_ -> return []
        ,createWrap =
@@ -452,5 +454,6 @@ trans self =
                                   CFInt -> Just $ J.PrimType $ J.IntT
                                   _ -> Just objClassTy
                let returnStmt = [bStmt $ J.Return $ Just e]
-               let mainDecl = wrapperClass name (bs ++ returnStmt) returnType mainBody
+               isTest <- genTest this
+               let mainDecl = wrapperClass name (bs ++ returnStmt) returnType mainBody [] Nothing isTest
                return (createCUB this [mainDecl],t)}

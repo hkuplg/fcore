@@ -91,8 +91,8 @@ getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.C
 
 getParaType :: (Type t) -> [String]
 getParaType tp = case tp of
-					Forall a -> getScopeType a 0
-					_ -> []
+                  Forall a -> getScopeType a 0
+                  _ -> []
 
 -- (Scope b t e) -> [Int]
 getScopeType (Kind f) n = []

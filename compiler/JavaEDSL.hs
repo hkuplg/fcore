@@ -134,24 +134,16 @@ mainBody = Just (block [bStmt $ classMethodCall (var "System.out")
                                                 "println"
                                                 [var "apply()"]])
 
-wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
-wrapperClass className stmts returnType mainbodyDef =
+wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> [FormalParam] -> Maybe Block -> Bool -> TypeDecl
+wrapperClass className stmts returnType mainbodyDef testArgType testBodyDef genTest =
   ClassTypeDecl
     (classDecl [Public]
                className
-               (classBody [memberDecl $
-                           methodDecl [Static]
-                                      returnType
-                                      "apply"
-                                      []
-                                      body
-                          ,memberDecl $
-                           methodDecl [Public,Static]
-                                      Nothing
-                                      "main"
-                                      mainArgType
-                                      mainbodyDef]))
+               (classBody (applyMethod : mainMethod : if genTest then [testMethod] else [])))
   where body = Just (block stmts)
+        applyMethod = memberDecl $ methodDecl [Static] returnType "apply" [] body
+        testMethod = memberDecl $ methodDecl [Public,Static] returnType "test" testArgType testBodyDef
+        mainMethod  = memberDecl $ methodDecl [Public,Static] Nothing "main" mainArgType mainbodyDef
 
 annotation :: String -> Modifier
 annotation ann = Annotation (MarkerAnnotation {annName = Name [Ident ann]})

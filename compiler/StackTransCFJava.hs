@@ -132,7 +132,8 @@ transS this super = TS {toTS = super {
            box <- getBox (up this) t
            empyClosure' <- empyClosure (up this) e box
            mainbody <- stackMainBody (up this) t
-           let stackDecl = wrapperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure'])) Nothing (Just $ J.Block mainbody)
+           isTest <- genTest super
+           let stackDecl = wrapperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure'])) Nothing (Just $ J.Block mainbody) [] Nothing isTest
            return (createCUB  (up this :: Translate m) [stackDecl], t)
 
   }}

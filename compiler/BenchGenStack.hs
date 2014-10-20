@@ -49,11 +49,12 @@ passClousre from to param = [
 	(J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (fieldAcc "hk.hku.cs.f2j.Next" "next")) (J.EqualA) (J.ExpName $ J.Name [(J.Ident to)]))
 	]
 
--- TODO: fix name confilc
-getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
-	(J.ClassBody [J.MemberDecl $ methodDecl [J.Static] Nothing "apply" [] body,
-	  J.MemberDecl $ methodDecl [J.Public, J.Static] returnType "test" (methodDeclTemp paraType) (Just (J.Block (testfuncBody paraType))) ,
-      J.MemberDecl $ methodDecl [J.Public, J.Static] Nothing "main" mainArgType mainbodyDef]))
+getClassDecl :: String -> [J.BlockStmt] -> [J.BlockStmt] -> [String] -> ([String] -> [J.BlockStmt]) -> Maybe J.Type -> Maybe J.Block -> J.TypeDecl
+getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef =
+  J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
+                   (J.ClassBody [J.MemberDecl $ methodDecl [J.Static] Nothing "apply" [] body,
+                                 J.MemberDecl $ methodDecl [J.Public, J.Static] returnType "test" (methodDeclTemp paraType) (Just (J.Block (testfuncBody paraType))) ,
+                                 J.MemberDecl $ methodDecl [J.Public, J.Static] Nothing "main" mainArgType mainbodyDef]))
     where
         body = Just (J.Block (bs ++ ass))
 
@@ -85,7 +86,8 @@ testfuncBody paraType =
 		_ -> []
 
 
-createCUB this compDef = cu where
+createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
+createCUB _ compDef = cu where
    cu = J.CompilationUnit (benchmarkPackage "benchmark") [] (compDef)
 -- [closureClass this] ++ !!!
 
@@ -130,21 +132,19 @@ instance (:<) (BenchGenTranslateStackOpt m) (Translate m) where
 instance (:<) (BenchGenTranslateStackOpt m) (BenchGenTranslateStackOpt m) where
   up = id
 
-
-
 transBenchStackOpt :: (MonadState Int m, selfType :< BenchGenTranslateStackOpt m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslateStackOpt m)
 transBenchStackOpt this super = TBSA {
-  toTBSA = super { 
+  toTBSA = super {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
-                                      _ -> Just objClassTy
+           -- let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+           --                            _ -> Just objClassTy
            let paraType = getParaType t
-           empyClosure' <- empyClosure (up this) e ""
-           stackbody' <- stackMainBody (up this) t
-           let stackDecl = BenchGenStack.getClassDecl name bs (if (containsNext bs) then [] else [empyClosure']) paraType BenchGenStack.testfuncBody returnType (Just $ J.Block $ stackbody')
+           empyClosure' <- empyClosure (super) e ""
+           stackbody' <- stackMainBody (super) t
+           isTest <- genTest (up this)
+           let stackDecl = wrapperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure'])) Nothing (Just $ J.Block $ stackbody') (methodDeclTemp paraType) (Just (J.Block (BenchGenStack.testfuncBody paraType))) isTest
            return (BenchGenStack.createCUB super [stackDecl], t)
-           --nextClass
+  ,genTest = return True
    }
 }
-
