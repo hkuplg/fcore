@@ -25,7 +25,7 @@ newIdent n = J.Ident $ localvarstr ++ show n
 
 identDecl :: Monad m => Translate m -> J.Ident -> Type Int -> J.Exp -> m [J.BlockStmt]
 identDecl this id t j = do aType <- javaType this t
-                           return $ [J.LocalVars [] aType [J.VarDecl (J.VarId id) (Just $ J.InitExp j)]]
+                           return $ [J.LocalVars [J.Final] aType [J.VarDecl (J.VarId id) (Just $ J.InitExp j)]]
 
 createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
 createCUB _ compDef = cu
@@ -260,9 +260,10 @@ trans self =
                                                   toTupleOf3Lists args'
                    let rhs =
                          J.InstanceCreation
-                           (map (\(JClass x) ->
-                                   J.ActualType $ J.ClassRefType $
-                                   J.ClassType [(J.Ident x,[])])
+                           (map (\y -> case y of
+                                         JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                                         CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])] )
                                 types)
                            (J.ClassType [(J.Ident c,[])])
                            exprs

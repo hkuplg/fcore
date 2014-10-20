@@ -1,4 +1,4 @@
-package hk.hku.cs.f2j;
+package lib;
 
 public class Complex {
     public static Complex ZERO = new Complex(0, 0);

@@ -1,4 +1,4 @@
-package hk.hku.cs.f2j;
+package lib;
 
 import javax.swing.JFrame;
 
