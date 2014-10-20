@@ -44,6 +44,7 @@ data TransMethod = Naive
                  | BenchS
                  | BenchNA
                  | BenchSA
+                 | BenchSAU
                  | BenchSAI1
                  | BenchSAI2
                  deriving (Eq, Show, Data, Typeable)
@@ -97,6 +98,7 @@ main = do
                                 BenchS    -> compilesf2java 0 optDump (compileBS False) source_path output_path
                                 BenchNA   -> compilesf2java 0 optDump (compileBN True) source_path output_path
                                 BenchSA   -> compilesf2java 0 optDump (compileBS True) source_path output_path
+                                BenchSAU   -> compilesf2java 0 optDump (compileBSAU) source_path output_path
                                 BenchSAI1 -> compilesf2java 1 optDump (compileBS True) source_path output_path
                                 BenchSAI2 -> compilesf2java 2 optDump (compileBS True) source_path output_path
 

@@ -53,6 +53,9 @@ methodCall idents argu = ExpStmt (MethodInv (MethodCall (name idents) argu))
 applyMethodCall :: Ident -> BlockStmt
 applyMethodCall f = BlockStmt (classMethodCall (ExpName $ Name [f]) "apply" [])
 
+applyCall :: BlockStmt
+applyCall = bStmt $ methodCall ["apply"] []
+
 classMethodCall :: Exp -> String -> [Argument] -> Stmt
 classMethodCall e s argus = ExpStmt (MethodInv (PrimaryMethodCall e [] (Ident s) argus))
 

@@ -21,6 +21,7 @@ module Translations
     , compileUnbox
     , compileAoptUnbox
     , compileSU
+    , compileBSAU
     , sf2java
     , compilesf2java
     ) where
@@ -171,11 +172,19 @@ instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
 benchGenStackOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
 benchGenStackOpt = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptStack transSA) $> trans)
 
+-- bench for stack + apply + unbox opt
+benchGenStackOptUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
+benchGenStackOptUnbox = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptStack transSU <.> adaptUnbox transUnbox) $> trans)
+
+
 instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
   up = NT . toTBSA
 
 instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
   up = TS . toTBSA
+
+instance (:<) (BenchGenTranslateStackOpt m) (UnboxTranslate m) where
+  up = UT . toTBSA
 
 {-
 stackApply :: (MonadState Int m, MonadWriter Bool m, MonadState (Map.Map J.Exp Int) m) => TranslateStack m
@@ -401,6 +410,10 @@ benchinst = benchGen
 translateBench :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
 translateBench = createWrap (up benchinst)
 
+compileBN :: Bool -> Compilation
+compileBN False = \name e -> evalState (translateBench name (fexp2cexp e)) 0--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+compileBN True = \name e -> evalState (translateBench name (fexp2cexp e)) 0--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
+
 
 --closureBench :: NType (J.TypeDecl)
 --closureBench = closureClass (up benchinst)
@@ -419,7 +432,7 @@ benchnaiveopt = benchGenNOpt
 translateBenchOpt :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
 translateBenchOpt = createWrap (up benchnaiveopt)
 
--- Bench stack
+-- Bench stack + apply
 benchstackinst :: BenchGenTranslateStack StackType  -- instantiation; all coinstraints resolved
 benchstackinst = benchGenStack -- stack naive
 
@@ -427,8 +440,7 @@ translateBenchStack :: String -> Expr Int (Var, Type Int) -> StackType (J.Compil
 translateBenchStack = createWrap (up benchstackinst)
 
 
-
--- TODO Bench stack + applyopt
+-- Bench stack + applyopt
 -- translateBSA
 benchstackoptinst :: BenchGenTranslateStackOpt StackType
 benchstackoptinst = benchGenStackOpt
@@ -436,13 +448,18 @@ benchstackoptinst = benchGenStackOpt
 translateBenchStackOpt :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit, Type Int)
 translateBenchStackOpt = createWrap (up benchstackoptinst)
 
-compileBN :: Bool -> Compilation
-compileBN False = \name e -> evalState (translateBench name (fexp2cexp e)) 0--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
-compileBN True = \name e -> evalState (translateBench name (fexp2cexp e)) 0--evalState (evalStateT (evalStateT (translateBench name (fexp2cexp e)) 0) Map.empty) Set.empty
-
-
--- BenchGenStack
 
 compileBS :: Bool -> Compilation
 compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) False) []) Set.empty) 0
 compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) False) []) Set.empty) 0
+
+-- Bench stack + apply + unbox
+
+benchstackoptunboxinst :: BenchGenTranslateStackOpt StackType
+benchstackoptunboxinst = benchGenStackOptUnbox
+
+translateBenchStackOptUnbox :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit, Type Int)
+translateBenchStackOptUnbox = createWrap (up benchstackoptunboxinst)
+
+compileBSAU :: Compilation
+compileBSAU = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOptUnbox name (fexp2cexp e)) False) []) Set.empty) 0

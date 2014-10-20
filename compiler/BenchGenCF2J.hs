@@ -20,15 +20,15 @@ import JavaEDSL
 
 -- Closure c0 = (Closure) apply();
 closureInit id = (J.LocalVars []  closureType--type
-	 [J.VarDecl (J.VarId (J.Ident id)) -- name
-	 	(Just $ J.InitExp $ (J.Cast closureType) (J.MethodInv $ J.MethodCall (J.Name [(J.Ident "apply")]) []))]) -- init
+         [J.VarDecl (J.VarId (J.Ident id)) -- name
+                (Just $ J.InitExp $ (J.Cast closureType) (J.MethodInv $ J.MethodCall (J.Name [(J.Ident "apply")]) []))]) -- init
 
 fieldAcc classId fieldId = (J.PrimaryFieldAccess (J.ExpName (J.Name [(J.Ident classId)])) (J.Ident fieldId))
 
 -- Closure c1 = (Closure) c0.out;
 closurePass idl idr = (J.LocalVars [] closureType --type
-	 [J.VarDecl (J.VarId (J.Ident idl)) -- name
-	 	(Just $ J.InitExp $ (J.Cast closureType) (J.FieldAccess $ (fieldAcc idr "out")))]) -- init
+         [J.VarDecl (J.VarId (J.Ident idl)) -- name
+                (Just $ J.InitExp $ (J.Cast closureType) (J.FieldAccess $ (fieldAcc idr "out")))]) -- init
 
 -- c1.x = x;
 paraAssign classId paraId = (J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (fieldAcc classId "x")) (J.EqualA) (J.ExpName $ J.Name [(J.Ident paraId)]))
@@ -42,49 +42,49 @@ retRes returnType classId = (J.BlockStmt (J.Return $ Just (J.Cast (classTy retur
 testfuncArgType :: [String] -> State Int [J.FormalParam]
 testfuncArgType [] = return []
 testfuncArgType (x:xs) = case x of
-			"Integer" -> do
-				(n::Int) <- get
-				put (n+1)
-				r <- testfuncArgType xs
-				return $ (J.FormalParam [] (J.PrimType J.IntT) False (J.VarId (J.Ident $ ("x" ++ show n)))) : r
-			a -> do
-				(n :: Int) <- get
-				put (n+1)
-				r <- testfuncArgType xs
-				return $ ((J.FormalParam []) (J.RefType $ J.ClassRefType $ J.ClassType [((J.Ident a), [])]) False (J.VarId $ (J.Ident $ "x" ++ show n))) : r
+                          "Integer" -> do
+                            (n::Int) <- get
+                            put (n+1)
+                            r <- testfuncArgType xs
+                            return $ (J.FormalParam [] (J.PrimType J.IntT) False (J.VarId (J.Ident $ ("x" ++ show n)))) : r
+                          a -> do
+                            (n :: Int) <- get
+                            put (n+1)
+                            r <- testfuncArgType xs
+                            return $ ((J.FormalParam []) (J.RefType $ J.ClassRefType $ J.ClassType [((J.Ident a), [])]) False (J.VarId $ (J.Ident $ "x" ++ show n))) : r
 
-testfuncBody paraType = 
-	case paraType of
-		[] -> []
-		x : [] -> [ closureInit c0, paraAssign c0 x0, invokeApply c0, retRes "Integer" c0] 
-				where
-					c0 = "c0"
-					x0 = "x0"
-					
-		x : y : [] ->
-			[ closureInit c0, 
-			  paraAssign  c0 x0 , 
-			  invokeApply c0, 
-			  closurePass c1 c0, 
-			  paraAssign c1 x1, 
-			  invokeApply c1, 
-			  retRes "Integer" c1]
-			where
-				c0 = "c0"
-				x0 = "x0" 
-				c1 = "c1"
-				x1 = "x1"
-		_ -> []
+testfuncBody paraType =
+        case paraType of
+                [] -> []
+                x : [] -> [ closureInit c0, paraAssign c0 x0, invokeApply c0, retRes "Integer" c0]
+                                where
+                                        c0 = "c0"
+                                        x0 = "x0"
+
+                x : y : [] ->
+                        [ closureInit c0,
+                          paraAssign  c0 x0 ,
+                          invokeApply c0,
+                          closurePass c1 c0,
+                          paraAssign c1 x1,
+                          invokeApply c1,
+                          retRes "Integer" c1]
+                        where
+                                c0 = "c0"
+                                x0 = "x0"
+                                c1 = "c1"
+                                x1 = "x1"
+                _ -> []
 
 
 -- TODO: fix name confict
-methodDeclTemp paraType = do
-	let (lst, n) = runState (testfuncArgType paraType) 0 in
-		lst
+genParams :: [String] -> [J.FormalParam]
+genParams paraType = let (lst, _) = runState (testfuncArgType paraType) 0
+                     in lst
 
 getClassDecl className bs ass paraType testfuncBody returnType mainbodyDef = J.ClassTypeDecl (J.ClassDecl [J.Public] (J.Ident className) [] (Nothing) []
-	(J.ClassBody [J.MemberDecl $ methodDecl [J.Static] returnType "apply" [] body,
-	  J.MemberDecl $ methodDecl [J.Public, J.Static] returnType "test" (methodDeclTemp paraType) (Just (J.Block (testfuncBody paraType))),
+        (J.ClassBody [J.MemberDecl $ methodDecl [J.Static] returnType "apply" [] body,
+          J.MemberDecl $ methodDecl [J.Public, J.Static] returnType "test" (genParams paraType) (Just (J.Block (testfuncBody paraType))),
       J.MemberDecl $ methodDecl [J.Public, J.Static] Nothing "main" mainArgType mainbodyDef]))
     where
         body = Just (J.Block (bs ++ ass))
@@ -95,8 +95,11 @@ getParaType tp = case tp of
                   _ -> []
 
 -- (Scope b t e) -> [Int]
+getScopeType :: TScope t  -> Int -> [String]
 getScopeType (Kind f) n = []
 getScopeType (Type (TVar i) f) n = "Integer" : (getScopeType (f ()) 0)
+getScopeType (Type CFInt f) n = "java.lang.Integer" : (getScopeType (f ()) 0)
+getScopeType (Type CFInteger f) n = "java.lang.Integer" : (getScopeType (f ()) 0)
 getScopeType (Type (JClass s) f) n = s : (getScopeType (f ()) 0)
 getScopeType _ _= []
 
@@ -104,7 +107,7 @@ benchmarkPackage name = Just (J.PackageDecl (J.Name [(J.Ident name)]))
 
 createCUB this compDef = cu where
    cu = J.CompilationUnit (benchmarkPackage "benchmark") [] (compDef)
---[closureClass this] ++ 
+--[closureClass this] ++
 
 -- data type for naive BenchGen
 data BenchGenTranslate m = TB {
@@ -120,8 +123,8 @@ instance (:<) (BenchGenTranslate m) (BenchGenTranslate m) where -- reflexivity
 
 transBench :: (MonadState Int m, selfType :< BenchGenTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslate m)
 transBench this super = TB {
-  toTB = super { 
-  -- here, I guess, you will mainly do the changes: have a look at BaseTransCFJava (and StackTransCFJava) how it's done currently             
+  toTB = super {
+  -- here, I guess, you will mainly do the changes: have a look at BaseTransCFJava (and StackTransCFJava) how it's done currently
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
            let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
@@ -147,7 +150,7 @@ instance (:<) (BenchGenTranslateOpt m) (BenchGenTranslateOpt m) where -- reflexi
 
 transBenchOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< BenchGenTranslateOpt m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslateOpt m)
 transBenchOpt this super = TBA {
-  toTBA = super { 
+  toTBA = super {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
            let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT

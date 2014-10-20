@@ -94,9 +94,6 @@ nextApply this cl tempOut outType = do
                                               then J.Lit (J.Int 0) -- TODO: potential bug
                                               else J.Lit J.Null))])
 
-applyCall :: J.BlockStmt
-applyCall = bStmt $ methodCall ["apply"] []
-
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {toTS = super {
   translateM = \e -> case e of
