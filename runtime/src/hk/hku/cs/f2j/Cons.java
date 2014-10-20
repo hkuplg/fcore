@@ -16,4 +16,11 @@ public class Cons implements FunctionalList {
     public FunctionalList tail() {
         return xs;
     }
+
+    public Integer at(int index) {
+        if(index == 0)
+            return head();
+        else
+            return tail().at(index - 1);
+    }
 }

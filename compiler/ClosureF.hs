@@ -25,6 +25,7 @@ data Type t =
     | Forall (TScope t)
     | JClass ClassName
     | TupleType [Type t]
+    | ListOf (Type t)
 
 data Expr t e =
      Var e
@@ -45,6 +46,8 @@ data Expr t e =
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
    | JField  (Either ClassName (Expr t e)) FieldName ClassName
    | SeqExprs [Expr t e]
+   -- 
+   | PrimList [Expr t e]
 
 
 -- System F to Closure F
@@ -62,10 +65,11 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 -}
 
 ftyp2ctyp :: C.Type t -> Type t
-ftyp2ctyp (C.TyVar x) = TVar x
-ftyp2ctyp (C.JClass c) = JClass c
+ftyp2ctyp (C.TyVar x)    = TVar x
+ftyp2ctyp (C.JClass c)   = JClass c
 ftyp2ctyp (C.Product ts) = TupleType (map ftyp2ctyp ts)
-ftyp2ctyp t         = Forall (ftyp2scope t)
+ftyp2ctyp (C.ListOf t)   = ListOf $ ftyp2ctyp t
+ftyp2ctyp t              = Forall (ftyp2scope t)
 
 {-
 fexp2cexp2 :: C.Expr Int (Int,F.Type Int) -> [t] -> [e] -> Expr t e
@@ -107,6 +111,7 @@ fexp2cexp (C.JField c fName r) =
   case c of (Right ce)  -> JField (Right $ fexp2cexp ce) fName r
             (Left cn) -> JField (Left cn) fName r
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
+fexp2cexp (C.PrimList es) = PrimList (map fexp2cexp es)
 fexp2cexp e                         = Lam (groupLambda e)
 
 adjust :: C.Type t -> EScope t e -> TScope t
@@ -138,6 +143,7 @@ joinType (TVar t)   = t
 joinType (Forall s) = Forall (joinTScope s)
 joinType (JClass c) = JClass c
 joinType (TupleType ts) = TupleType (map joinType ts)
+joinType (ListOf t) = ListOf $ joinType t
 
 joinTScope :: TScope (Type t) -> TScope t
 joinTScope (Body b)   = Body (joinType b)

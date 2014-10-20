@@ -37,6 +37,7 @@ transType d = go
         [(l,t)]  -> C.RecordTy (l, go t)
         _        -> go (RecordTy (take (length fs - 1) fs)) `C.And` (C.RecordTy (let (l,t) = last fs in (l,go t)))
     go UnitType     = C.JClass "java.lang.Integer"
+    go (ListOf t)   = C.ListOf (go t)
 
 dsTcExpr :: DsMap t e -> Expr TcId -> C.Expr t e
 dsTcExpr (d, g) = go
@@ -139,14 +140,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
         (Left cName)  -> C.JField (Left cName) fName r
         (Right cExpr) -> C.JField (Right (go cExpr)) fName r
 
-    -- Non Java Class translation
-    -- go (PrimList l)              = FPrimList (map go l)
-
-    -- Primitive List to java class
-
-    go (PrimList l)              = case l of     -- translate to java new obj
-                                     []   -> C.JNewObj "hk.hku.cs.f2j.Nil" []
-                                     x:xs -> C.JNewObj "hk.hku.cs.f2j.Cons" [go x, go (PrimList xs)]
+    go (PrimList l)              = C.PrimList (map go l)
 
     go (Seq es) = C.Seq (map go es)
 

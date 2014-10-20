@@ -249,9 +249,10 @@ tcExpr (Merge e1 e2) =
 
 tcExpr (PrimList l) =
       do (es, ts) <- mapAndUnzipM tcExpr l
-         case ts of [] -> return (PrimList es, (JClass "hk.hku.cs.f2j.Nil"))
-                    _  -> if (all (`alphaEquiv` (ts !! 0)) ts)
-                            then return (PrimList es, (JClass "hk.hku.cs.f2j.Cons"))
+         case ts of [] -> return (PrimList es, ListOf $ JClass "java.lang.Void")
+                    _  -> let typeOfTheFirstOne = ts !! 0 in
+                          if (all (`alphaEquiv` typeOfTheFirstOne) ts)
+                            then return (PrimList es, ListOf typeOfTheFirstOne)
                             else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
 
 tcExpr (Record fs) =
@@ -286,6 +287,7 @@ tcExprAgainstAnyJClass expr
   = do (expr', ty) <- tcExpr expr
        case ty of
          JClass c -> return (expr', c)
+         ListOf _ -> return (expr', "hk.hku.cs.f2j.FunctionalList")
          _        -> sorry "tcExprAgainstAnyJClass"
 
 tcExprAgainstMaybe :: Expr Name -> Maybe Type -> TcM (Expr TcId, Type)

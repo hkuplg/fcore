@@ -8,4 +8,8 @@ public class Nil implements FunctionalList {
     public FunctionalList tail() {
         return null;
     }
+
+    public Integer at(int index) {
+        return -1;
+    }
 }

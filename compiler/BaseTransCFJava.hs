@@ -192,10 +192,12 @@ chooseCastBox (TupleType tuple) =
       where tupleClassName = getTupleClassName tuple
 chooseCastBox _ = (initClass "Object",objClassTy)
 
+javaType :: Type t -> J.Type
 javaType (JClass c)        = classTy c
 javaType (Forall _)        = closureType
 javaType (TupleType tuple) = case tuple of [t] -> javaType t
                                            _   -> classTy $ getTupleClassName tuple
+javaType (ListOf _)        = classTy "hk.hku.cs.f2j.FunctionalList"
 javaType _                 = objClassTy
 
 getS3 :: MonadState Int m => Translate m -> J.Ident -> TScope Int -> J.Exp -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
@@ -607,6 +609,11 @@ trans self =
                          concat $
                          map (\(x,_,_) -> x) es'
                    return (statements,lastExp,lastType)
+              PrimList exprs ->
+                case exprs of
+                  []       -> translateM this $ JNewObj "hk.hku.cs.f2j.Nil" []
+                  (e':es') -> translateM this $ JNewObj "hk.hku.cs.f2j.Cons" [e', PrimList es']
+                            
        ,translateScopeM =
           \e m ->
             case e of

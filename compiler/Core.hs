@@ -34,6 +34,7 @@ data Type t
   | Product [Type t]       -- (t1, ..., tn)
   | And (Type t) (Type t)  -- t1 & t2
   | RecordTy (Src.Label, Type t)
+  | ListOf (Type t)
     -- Warning: If you ever add a case to this, you MUST also define the binary
     -- relations on your new case. Namely, add cases for your data constructor
     -- in `alphaEquiv' and `coerce' below. Consult George if you're not sure.
@@ -73,6 +74,8 @@ data Expr t e
 
   | Seq [Expr t e]
 
+  | PrimList [Expr t e]
+
   | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
   | Record (Src.Label, Expr t e)
   | RecordAccess (Expr t e) Src.Label
@@ -97,6 +100,7 @@ alphaEquiv = go 0
     go i (Product ss) (Product ts) = length ss == length ts
                                      && uncurry (go i) `all` zip ss ts
     go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
+    go i (ListOf t1)  (ListOf t2)  = go i t1 t2
     go i t1           t2           = False
 
 prettyType :: Prec -> Index -> Type Index -> Doc
@@ -114,6 +118,7 @@ prettyType p i (Forall f)   =
 
 prettyType p i (Product ts) = parens $ hcat (intersperse comma (map (prettyType basePrec i) ts))
 
+prettyType p i (ListOf t) = text "ListOf" <+> prettyType p i t
 
 prettyType p i (JClass "java.lang.Integer")   = text "Int"
 prettyType p i (JClass "java.lang.String")    = text "String"
@@ -273,3 +278,4 @@ fsubstEE (x,r)
     go (Seq es)                       = Seq (map go es)
     go (Merge e1 e2)                  = Merge (go e1) (go e2)
     go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))
+    go (PrimList es)                  = PrimList (map go es)
