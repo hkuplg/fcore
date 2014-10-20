@@ -1,5 +1,0 @@
---> false
-
-let fun(b : java.lang.Boolean) : java.lang.Boolean = False
-in
-fun True

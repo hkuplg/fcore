@@ -135,8 +135,8 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     -- Primitive List to java class
 
     go (PrimList l)              = case l of     -- translate to java new obj
-                                     []   -> C.JNewObj "hk.hku.cs.f2j.Nil" []
-                                     x:xs -> C.JNewObj "hk.hku.cs.f2j.Cons" [go x, go (PrimList xs)]
+                                     []   -> C.JNewObj "hk.hku.cs.f2j.FunctionalList" []
+                                     x:xs -> C.JNewObj "hk.hku.cs.f2j.FunctionalList" [go x, go (PrimList xs)]
 
     go (Seq es) = C.Seq (map go es)
 
