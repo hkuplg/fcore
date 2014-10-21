@@ -18,10 +18,10 @@ import Unsafe.Coerce
 import qualified Language.Java.Syntax as J (Op(..))
 
 instance Show (Expr t e) where
-  show e = show $ pprExpr basePrec (0,0) (unsafeCoerce e)
+  show e = show $ prettyExpr basePrec (0,0) (unsafeCoerce e)
 
 instance Show (Type t) where
-  show e = show $ pprType basePrec 0 (unsafeCoerce e)
+  show e = show $ prettyType basePrec 0 (unsafeCoerce e)
 
 -- let tailFact : Int -> Int -> Int
 --   = \(acc : Int). \(n : Int). if n == 0 then acc else tailFact (acc * n) (n - 1)
