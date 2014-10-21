@@ -1,0 +1,3 @@
+let id A (x : A) = x
+in
+id (forall A. A -> A) id Int 10
