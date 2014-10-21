@@ -118,7 +118,7 @@ adjust :: C.Type t -> EScope t e -> TScope t
 adjust (C.Fun t1 t2) (Type t1' g) = Type t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
 adjust (C.Forall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
 adjust t (Body b)               = Body (ftyp2ctyp t)
---adjust t u                      =
+adjust _ _ = sorry "ClosureF.adjust: no idea how to do"
 
 {-
 groupLambda2 :: C.Expr Int (Int,F.Type Int) -> [t] -> [e] -> EScope t e
@@ -140,6 +140,8 @@ scope2ctyp s         = Forall s
 
 joinType :: Type (Type t) -> Type t
 joinType (TVar t)   = t
+joinType CFInt = CFInt
+joinType CFInteger = CFInteger
 joinType (Forall s) = Forall (joinTScope s)
 joinType (JClass c) = JClass c
 joinType (TupleType ts) = TupleType (map joinType ts)
@@ -177,7 +179,8 @@ instance Subst t => Subst (Type t) where
 showType :: Type Int -> Int -> String
 showType (TVar i) n = "a" ++ show i
 showType (Forall s) n = "(forall " ++ showTScope s n ++ ")"
-
+showType (CFInt) n = "Int"
+showType (CFInteger) n = "Int"
 -- showType (CJClass "java.lang.Integer") n = "Int"
 showType (JClass c) n                   = c
 
@@ -199,6 +202,7 @@ showExpr (Lam s) n      = "(\\" ++ showEScope s n ++ ")"
 showExpr (App e1 e2) n  = showExpr e1 n ++ " " ++ showExpr e2 n
 showExpr (TApp e t) n   = showExpr e n ++ " " ++ showType t n
 showExpr (Fix t f) n    = sorry "ClosureF.showExpr: Fix"
+showExpr _ _   = sorry "ClosureF.showExpr: no idea how to do"
 
 instance Show (Type Int) where
    show e = showType e 0

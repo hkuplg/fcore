@@ -127,7 +127,10 @@ alphaEquiv = go 0
 
 -- Evaluation with call-by-value strategy
 eval :: Expr t e -> Expr t e
-eval (Proj i e) = case eval e of { Tuple es -> es !! (i - 1) }
+eval (Proj i e) = case eval e of
+                   Tuple es -> es !! (i - 1)
+                   _ -> sorry "Core.eval.Proj: no idea how to do"
+eval _ = sorry "Core.eval: no idea how to do"
 
 pprType :: Prec -> Int -> Type Int -> Doc
 
@@ -264,6 +267,7 @@ fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
 fsubstTT (x,r) (JClass c)  = JClass c
 fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
+fsubstTT _ _ = sorry "Core.fsubstTT: no idea how to do"
 
 fsubstTE :: (Int, Type Int) -> Expr Int Int -> Expr Int Int
 fsubstTE (x,r) (Var a)       = Var a
@@ -273,6 +277,7 @@ fsubstTE (x,r) (Lam t f)     = Lam (fsubstTT (x,r) t) (fsubstTE (x,r) . f)
 fsubstTE (x,r) (TApp e t)    = TApp (fsubstTE (x,r) e) (fsubstTT (x,r) t)
 fsubstTE (x,r) (App e1 e2)   = App (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
 fsubstTE (x,r) (Merge e1 e2) = Merge (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
+fsubstTE _ _ = sorry "Core.fsubstTE: no idea how to do"
 
 fsubstEE :: (Int, Expr Int Int) -> Expr Int Int -> Expr Int Int
 fsubstEE (x,r)
@@ -300,6 +305,7 @@ fsubstEE (x,r)
     go (Merge e1 e2)                  = Merge (go e1) (go e2)
     go (Let bind body)                = Let (go bind) (\e -> go (body e))
     go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))
+    go _ = sorry "Core:fsubstEE: no idea how to do"
 
 isSystemfType :: Type t -> Bool
 isSystemfType = sorry "Core.isSystemfType"

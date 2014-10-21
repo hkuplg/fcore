@@ -117,7 +117,7 @@ stackUnbox = new ((transSU <.> adaptUnbox transUnbox) $> trans)
 
 -- Stack + Apply + Unbox + Naive
 stackApplyUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
-stackApplyUnbox = new ((transApply <.> adaptStack transSU <.> adaptUnbox transUnbox) $> trans)
+stackApplyUnbox = new ((transApply <.> adaptStack transSAU <.> adaptUnbox transUnbox) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
   up = NT . toTS

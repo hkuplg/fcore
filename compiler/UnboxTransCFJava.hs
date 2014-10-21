@@ -132,13 +132,13 @@ transUnbox this super =
                         (s2,j2,t2) <- m2
                         let retTyp = g ()
                         cName <- getClassType (up this) t1 (scope2ctyp retTyp)
-                        let (wrapS, jS) = wrap j2 t1 t2
+                        -- let (wrapS, jS) = wrap j2 t1 t2
                         let fname = (localvarstr ++ show n) -- use a fresh variable
                         let closureVars = [localVar (classTy cName) (varDecl fname j1)
-                                          ,assignField (fieldAccExp (var fname) closureInput) jS]
+                                          ,assignField (fieldAccExp (var fname) closureInput) j2]
                         let fout = fieldAccess (var fname) "out"
                         (s3, nje3) <- getS3 (up this) (J.Ident fname) retTyp fout closureVars (classTy cName)
-                        return (s1 ++ s2 ++ wrapS ++ s3, nje3, scope2ctyp retTyp)
+                        return (s1 ++ s2 ++ s3, nje3, scope2ctyp retTyp)
               ,translateIf =
                  \m1 m2 m3 ->
                    do n <- get

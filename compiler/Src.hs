@@ -167,6 +167,7 @@ substFreeTyVars (x, r) = go
       | a == x                      = Forall a t
       | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
       | otherwise                   = Forall a (go t)
+    go _ = sorry "Src.substFreeTyVars: no idea how to do"
 
 freeTyVars :: Type -> Set.Set Name
 freeTyVars (TyVar x)     = Set.singleton x
@@ -186,6 +187,7 @@ instance Pretty Type where
   pretty (Product ts) = tupled (map pretty ts)
   pretty (JClass c)   = text c
   pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
+  pretty _ = sorry "Core.pretty: no idea how to do"
 
 instance Pretty id => Pretty (Expr id) where
   pretty (Var x) = pretty x
@@ -227,6 +229,7 @@ instance Pretty id => Pretty (Expr id) where
                                           (Right e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
+  pretty _ = sorry "Src.pretty: no idea how to do"
 
 instance Pretty id => Pretty (Bind id) where
   pretty Bind{..} =

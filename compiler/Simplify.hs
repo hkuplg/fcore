@@ -71,7 +71,7 @@ coerce i (Forall f) (Forall g) =
      case c of
        Id -> return Id
        _  -> return (C (Lam (transType i (Forall f))
-                         (\f -> BLam (\a -> (appC c . TApp (Var f)) (TyVar a)))))
+                         (\f' -> BLam (\a -> (appC c . TApp (Var f')) (TyVar a)))))
 coerce i (Product ss) (Product ts)
   | length ss /= length ts = Nothing
   | otherwise =
@@ -139,7 +139,7 @@ transExpr (LetRec sigs binds body) =
      let binds' ids' = map (\e -> snd (evalState (transExpr e) k)) (binds (zipWith (\n t -> (n, t)) ids' sigs))
      let body' ids' = snd (evalState (transExpr (body (zipWith (\n t -> (n, t)) ids' sigs))) k)
      let t = infer (unsafeCoerce body' sigs)
-     k <- takeFreshIndex
+     k' <- takeFreshIndex
      return (t, LetRec sigs' binds' body')
 
 transExpr (BLam f) =
@@ -252,6 +252,7 @@ getter i (And t1 t2) l
           Just (c,t) ->
             Just (C $ Lam (transType i (And t1 t2)) (\x -> appC c (Proj 1 (Var x)))
                  ,t)
+getter _ _ _ = sorry "Simplify.getter: no idea how to do"
 
 putter :: Int -> Type Int -> S.Label -> Expr Int Int -> Maybe (Coercion Int Int, Type Int)
 putter i (RecordTy (l,t)) l1 e
@@ -274,6 +275,7 @@ putter i (And t1 t2) l e
               C _  -> Just (C $ Lam (transType i (And t1 t2))
                                   (\x -> Tuple [appC c (Proj 1 (Var x)), Proj 2 (Var x)])
                            ,t)
+putter _ _ _ _ = sorry "Simplify.putter: no idea how to do"
 
 -- id_t: the identity function in the Core world, specialised to type t.
 id :: Type Int -> Expr Int Int

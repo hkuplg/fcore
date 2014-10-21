@@ -263,7 +263,8 @@ trans self =
                            (map (\y -> case y of
                                          JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
                                          CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])] )
+                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         _ -> sorry "BaseTransCFJava.trans.JNewObj: no idea how to do")
                                 types)
                            (J.ClassType [(J.Ident c,[])])
                            exprs
@@ -283,7 +284,8 @@ trans self =
                          (map (\y -> case y of
                                        JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
                                        CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                       CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])] )
+                                       CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                       _ -> sorry "BaseTransCFJava.trans.JNewObj: no idea how to do")
                               types)
                    (classStatement,rhs) <- case c of
                                              (Right ce) ->
@@ -343,6 +345,7 @@ trans self =
                          concat $
                          map (\(x,_,_) -> x) es'
                    return (statements,lastExp,lastType)
+              FVar _ -> sorry "BaseTransCFJava.trans.FVar: no idea how to do"
        ,translateScopeM =
           \e m ->
             case e of

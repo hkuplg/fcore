@@ -146,7 +146,6 @@ transSA this super = TS {toTS = (up (transS this super)) {
 transSU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSU this super =
   TS {toTS = (up (transS this super)) {
-         genRes = \t s -> if (last t) then return [] else genRes super t s,
          getBox = \t -> case t of
                          CFInt -> return "BoxInt"
                          _ -> return "BoxBox",
@@ -189,3 +188,10 @@ transSU this super =
 
            return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
          }}
+
+
+-- Alternative version of transS that interacts with the Unbox and Apply translation
+transSAU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transSAU this super = TS {toTS = (up (transSU this super)) {
+   genRes = \t s -> if (last t) then return [] else genRes super t s
+  }}
