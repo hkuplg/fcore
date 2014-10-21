@@ -97,6 +97,9 @@ evenOdd2
 evenOddEncodedTy :: Type t
 evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` javaBool]
 
+konstTy :: Type t
+konstTy = Forall (\a -> Forall (\b -> Fun (TyVar a) (Fun (TyVar b) (TyVar a))))
+
 -----------------------
 -- peval tests
 -----------------------
