@@ -97,14 +97,14 @@ nextApply this cl tempOut outType = do
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {toTS = super {
   translateM = \e -> case e of
-       Lam s       -> local (&& False) $ translateM super e
-       Fix t s     -> local (&& False) $ translateM super e
+       Lam _       -> local (&& False) $ translateM super e
+       Fix _ _     -> local (&& False) $ translateM super e
        TApp _ _    -> local (|| False) $ translateM super e
        If e1 e2 e3 -> translateIf (up this) (local (|| True) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
        App e1 e2   -> translateApply (up this) (local (|| True) $ translateM (up this) e1) (local (|| True) $ translateM (up this) e2)
-       otherwise   -> local (|| True) $ translateM super e,
+       _   -> local (|| True) $ translateM super e,
 
-  genApply = \f t x jType ctempCastTyp ->
+  genApply = \f _ x jType ctempCastTyp ->
       do (genApplys :: Bool) <- ask
          (n :: Int) <- get
          put (n+1)
@@ -114,7 +114,7 @@ transS this super = TS {toTS = super {
                                       else nextApply (up this) (J.ExpName (J.Name [f])) h jType
             _ -> panic "expected temporary variable name" ,
 
-  genRes = \t s -> return [],
+  genRes = \_ _ -> return [],
 
   stackMainBody = \t -> do
     closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
@@ -124,13 +124,13 @@ transS this super = TS {toTS = super {
                                                     _ -> objClassTy) (classTy closureClass)
     return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])]),
 
-  createWrap = \name exp ->
-        do (bs,e,t) <- translateM (up this) exp
+  createWrap = \nam expr ->
+        do (bs,e,t) <- translateM (up this) expr
            box <- getBox (up this) t
            empyClosure' <- empyClosure (up this) e box
            mainbody <- stackMainBody (up this) t
            isTest <- genTest super
-           let stackDecl = wrapperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure'])) Nothing (Just $ J.Block mainbody) [] Nothing isTest
+           let stackDecl = wrapperClass nam (bs ++ (if (containsNext bs) then [] else [empyClosure'])) Nothing (Just $ J.Block mainbody) [] Nothing isTest
            return (createCUB  (up this :: Translate m) [stackDecl], t)
 
   }}

@@ -23,13 +23,14 @@ instance (:<) (ApplyOptTranslate m) (Translate m) where
 instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where
    up              = id
 
+last :: Num t1 => Scope t t1 t2 -> Bool
 last (Type _ _) = False
 last (Kind f)   = last (f 0)
 last (Body _)   = True
 
 -- main translation function
 transApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
-transApply this super = NT {toT = super {
+transApply _ super = NT {toT = super {
   translateScopeTyp = \currentId nextId initVars nextInClosure m closureClass ->
     case last nextInClosure of
          True -> do   (initVars' :: InitVars) <- ask

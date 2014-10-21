@@ -24,8 +24,8 @@ newIdent :: Int -> J.Ident
 newIdent n = J.Ident $ localvarstr ++ show n
 
 identDecl :: Monad m => Translate m -> J.Ident -> Type Int -> J.Exp -> m [J.BlockStmt]
-identDecl this id t j = do aType <- javaType this t
-                           return $ [J.LocalVars [J.Final] aType [J.VarDecl (J.VarId id) (Just $ J.InitExp j)]]
+identDecl this idn t j = do aType <- javaType this t
+                            return $ [J.LocalVars [J.Final] aType [J.VarDecl (J.VarId idn) (Just $ J.InitExp j)]]
 
 createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
 createCUB _ compDef = cu
@@ -97,7 +97,7 @@ genIfBody :: MonadState Int m
           -> m TransType
 genIfBody this m2 m3 (s1,j1) n =
   do (s2,j2,t2) <- m2 {-translateM this e2-}
-     (s3,j3,t3) <- m3 {-translateM this e3-}
+     (s3,j3,_) <- m3 {-translateM this e3-}
      let ifvarname = (ifresultstr ++ show n)
      aType <- javaType this t2
      let ifresdecl = localVar aType (varDeclNoInit ifvarname)
@@ -108,6 +108,7 @@ genIfBody this m2 m3 (s1,j1) n =
      return (s1 ++ [ifresdecl,ifstmt],var ifvarname ,t2) -- need to check t2 == t3
 
 -- needed
+assignVar :: Monad m => Translate m -> Type Int -> String -> J.Exp -> m J.BlockStmt
 assignVar this t varId e = do aType <- javaType this t
                               return $ localVar aType (varDecl varId e)
 
@@ -132,9 +133,9 @@ concatFirst (xs, y, z) = (concat xs, y, z)
 
 -- Needed
 getNewVarName :: MonadState Int m => Translate m -> m String
-getNewVarName this = do (n :: Int) <- get
-                        put (n + 1)
-                        return $ localvarstr ++ show n
+getNewVarName _ = do (n :: Int) <- get
+                     put (n + 1)
+                     return $ localvarstr ++ show n
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self =
@@ -187,9 +188,9 @@ trans self =
                           return (statement ++ [assignExpr] ,var newVarName ,typ)
                      _ ->
                        panic "BaseTransCFJava.trans: expected tuple type"
-              TApp e t ->
+              TApp expr t ->
                 do n <- get
-                   (s,je,Forall (Kind f)) <- translateM this e
+                   (s,je,Forall (Kind f)) <- translateM this expr
                    return (s,je,scope2ctyp (substScope n t (f n)))
     -- TODO: CLam and CFix generation of top-level Fun closures is a bit ad-hoc transformation from the old generated code + duplicate code
               Lam se ->
@@ -198,15 +199,13 @@ trans self =
               Fix t s ->
                 do (n :: Int) <- get
                    put (n + 1)
-                   (s,je,t') <- translateScopeM this
-                                                (s (n,t))
-                                                (Just (n,t)) -- weird!
-                   return (s,je,Forall t')
+                   (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
+                   return (expr,je,Forall t')
 
-              Let e body ->
+              Let expr body ->
                 do (n :: Int) <- get
                    put (n + 2)
-                   (s1, j1, t1) <- translateM this e
+                   (s1, j1, t1) <- translateM this expr
                    (s2, j2, t2) <- translateM this (body (n,t1))
 
                    let x = newIdent n
@@ -386,8 +385,8 @@ trans self =
           \m1 m2 ->
             do (n :: Int) <- get
                put (n + 1)
-               (s1,j1,Forall (Type t1 g)) <- m1
-               (s2,j2,t2) <- m2
+               (s1,j1,Forall (Type _ g)) <- m1
+               (s2,j2,_) <- m2
                let retTyp = g ()
                let fname = localvarstr ++ show n -- use a fresh variable
                closureVars <- setClosureVars this retTyp fname j1 j2
@@ -398,7 +397,7 @@ trans self =
           \m1 m2 m3 ->
             do n <- get
                put (n + 1)
-               (s1,j1,t1) <- m1 {- translateM this e1 -}
+               (s1,j1,_) <- m1 {- translateM this e1 -}
                genIfBody this m2 m3 (s1, j1) n
        ,translateScopeTyp =
           \currentId oldId initVars _ otherStmts closureClass ->
@@ -415,11 +414,11 @@ trans self =
                        ,localVar (classTy closureClass) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                       ,t1)
        ,genApply =
-          \f t x y z ->
+          \f _ _ _ _ ->
             return [applyMethodCall f]
-       ,genRes = \t -> return
+       ,genRes = \_ -> return
        ,setClosureVars =
-          \t fname j1 j2 -> do
+          \_ fname j1 j2 -> do
             closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
             return [localVar (classTy closureClass) (varDecl fname j1)
                    ,assignField (fieldAccExp (var fname) closureInput) j2]
@@ -450,8 +449,8 @@ trans self =
        ,getBox = \_ -> return ""
        ,stackMainBody = \_ -> return []
        ,createWrap =
-          \name exp ->
-            do (bs,e,t) <- translateM this exp
+          \nam expr ->
+            do (bs,e,t) <- translateM this expr
                let returnType = case t of
                                   JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                   JClass "java.lang.Boolean" -> Just $ J.PrimType $ J.BooleanT
@@ -459,5 +458,5 @@ trans self =
                                   _ -> Just objClassTy
                let returnStmt = [bStmt $ J.Return $ Just e]
                isTest <- genTest this
-               let mainDecl = wrapperClass name (bs ++ returnStmt) returnType mainBody [] Nothing isTest
+               let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody [] Nothing isTest
                return (createCUB this [mainDecl],t)}

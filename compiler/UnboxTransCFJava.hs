@@ -14,6 +14,7 @@ import StringPrefixes
 import MonadLib
 import JavaUtils
 import JavaEDSL
+import Panic
 import qualified Src
 
 data UnboxTranslate m = UT {toUT :: Translate m}
@@ -35,11 +36,11 @@ getClassType this t1 t2 = do
 
 getFunType :: Type t -> (Type t, Type t)
 getFunType (Forall (Type b f)) = (b, scope2ctyp (f ()))
-
+getFunType _ = panic "UnboxTranslate.getFunType: expect Forall construcr"
 
 --TODO: generate wrappers when types T1~T2
-wrap :: J.Exp -> Type t -> Type t -> ([J.BlockStmt], J.Exp)
-wrap e t1 t2 = ([], e)
+-- wrap :: J.Exp -> Type t -> Type t -> ([J.BlockStmt], J.Exp)
+-- wrap e t1 t2 = ([], e)
 
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
 transUnbox this super =
@@ -47,9 +48,9 @@ transUnbox this super =
         super {translateM =
                  \e ->
                    case e of
-                     TApp e CFInt ->
+                     TApp expr CFInt ->
                        do n <- get
-                          (s,je,Forall (Kind f)) <- translateM (up this) e
+                          (s,je,Forall (Kind f)) <- translateM (up this) expr
                           return (s,je,scope2ctyp (substScope n CFInteger (f n)))
                      App e1 e2 ->
                        translateApply (up this) (translateM (up this) e1) (translateM (up this) e2)
@@ -118,8 +119,8 @@ transUnbox this super =
                          let js = localFinalVar aType (varDecl (localvarstr ++ show n') (cast aType accessField))
 
                          let ostmts = translateScopeM (up this) nextInClosure Nothing
-                         (_,_,t1) <- ostmts
-                         cName <- getClassType (up this) t (scope2ctyp t1)
+                         (_,_,tt) <- ostmts
+                         cName <- getClassType (up this) t (scope2ctyp tt)
 
                          (cvar,t1) <- translateScopeTyp (up this) v n [js] nextInClosure ostmts cName
                          return (cvar,var (localvarstr ++ show n), Type t (\_ -> t1) )
@@ -129,7 +130,7 @@ transUnbox this super =
                     do  (n :: Int) <- get
                         put (n+1)
                         (s1,j1, Forall (Type t1 g)) <- m1
-                        (s2,j2,t2) <- m2
+                        (s2,j2,_) <- m2
                         let retTyp = g ()
                         cName <- getClassType (up this) t1 (scope2ctyp retTyp)
                         -- let (wrapS, jS) = wrap j2 t1 t2
@@ -143,7 +144,7 @@ transUnbox this super =
                  \m1 m2 m3 ->
                    do n <- get
                       put (n + 1)
-                      (s1,j1,t1) <- m1 {- translateM this e1 -}
+                      (s1,j1,_) <- m1 {- translateM this e1 -}
                       -- let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
                       -- genIfBody this m2 m3 j1' s1 n,
                       genIfBody (up this) m2 m3 (s1,j1) n
