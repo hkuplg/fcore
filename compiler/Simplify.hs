@@ -30,13 +30,13 @@ infer e = unsafeCoerce $ fst (evalState (transExpr e') 0)
 -- Type translation
 
 transType :: Int -> Type Int -> Type Int
-transType i (TyVar a)        = TyVar a
-transType i (JClass c)       = JClass c
+transType _ (TyVar a)        = TyVar a
+transType _ (JClass c)       = JClass c
 transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
-transType i (Forall f)       = Forall (\a -> transType (i + 1) (f i)) -- bug!
+transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT (i, TyVar a) (f i))
 transType i (Product ts)     = Product (map (transType i) ts)
 transType i (And a1 a2)      = Product [transType i a1, transType i a2]
-transType i (RecordTy (l,t)) = transType i t
+transType i (RecordTy (_,t)) = transType i t
 
 -- Subtyping
 
@@ -141,7 +141,7 @@ transExpr (LetRec sigs binds body) =
      subst xs rs  = foldl (.) (\x->x) [fsubstEE (x, Var (rs !! i)) | (x,i) <- (zip xs [0..num_of_binds-1])]
 
 transExpr (BLam f) =
-  do i <- takeFreshIndex
+  do i <- get
      (t, m) <- transExpr (f i)
      return (Forall (\a -> fsubstTT (i, TyVar a) t), BLam (\a -> fsubstEE (i, Var a) m))
 
