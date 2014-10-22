@@ -80,8 +80,10 @@ processCMD (inP, outP) env flagT flagS num (x : xs) = do
 		  else do  
 		    let (var, exp) = createPair xs
 	  	    let envNew = Env.insert (var, exp) env
-		    outputStrLn (show envNew)
 		    loop (inP, outP) envNew flagT flagS num	
+	  ":show" -> case getCMD xs of
+	  	Just "env" -> do outputStrLn (show env)
+				 loop (inP, outP) env flagT flagS num
 	  input	  -> do outputStrLn $ "Command not recognized: " ++ input
 	  	        loop (inP, outP) env flagT flagS num
 
@@ -108,8 +110,8 @@ printHelp = do
 	putStrLn "  :help               Print help manual"
 	putStrLn "  :send sourceFile    Load sourceFile"
 	putStrLn "  :let var = expr     Bind expr to var"
-	putStrLn "  :showfile on        Show source file and .java file contents"
-	putStrLn "  :showfile off       Hide source file and .java file contents"
+	putStrLn "  :showfile on/off    Show/Hide source file and .java file contents"
+	putStrLn "  :show env           Show current environment"
 	putStrLn "  :time on            Show execution time"
 	putStrLn "  :time off           Hide execution time"
 	putStrLn "  :quit               Quit f2ji"

@@ -1,5 +1,6 @@
 module Environment where
 
+import System.IO
 import Data.List.Split
 
 type Env = [(String, String)]
@@ -33,4 +34,5 @@ searchEnv :: String -> Env -> Bool
 searchEnv var env = case lookup var env of
 			Nothing  -> False
 			Just exp -> True
+
 
