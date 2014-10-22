@@ -9,6 +9,7 @@ import qualified Src
 import Core
 import Simplify
 import PartialEvaluator
+import SymbolicEvaluator
 import Inliner
 import OptiUtils
 

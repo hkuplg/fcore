@@ -10,10 +10,9 @@ import qualified Src                  as S
 data Value = VInt Integer
            | VBool Bool
            | VFun (Value -> Value)
-           -- | VTypFun (Type t -> Value t)
 
 -- big-step interpreter
-eval :: Expr t Value -> Value
+eval :: Expr () Value -> Value
 eval (Var x) = x
 eval (Lit x) =
     case x of
@@ -26,8 +25,8 @@ eval (App e1 e2) =
     case eval e1 of
       VFun f -> f (eval e2)
       _ -> panic "e1 is not a function"
---eval (BLam f) = VTypFun (eval . f)
---eval (TApp e1 e2) = (eval e1) e2
+eval (BLam f) = eval (f ())
+eval (TApp e1 _) = eval e1
 eval (If e1 e2 e3) =
        case eval e1 of
          VBool True -> eval e2
@@ -87,10 +86,10 @@ exec e = exec' e 0
 
 exec' :: ExecutionTree -> Int -> ExecutionTree
 exec' (Exp (SFun f)) n = exec' (f . Exp $ SFVar n) (n+1)
-exec' e n = e
+exec' e _ = e
 
 -- symbolic evaluation
-seval :: Expr t ExecutionTree -> ExecutionTree
+seval :: Expr () ExecutionTree -> ExecutionTree
 seval (Var x) = x
 seval (Lit x) =
     case x of
@@ -125,11 +124,11 @@ seval (PrimOp e1 op e2) =
 seval (Lam _ f) = Exp $ SFun (seval . f)
 seval (Let e f) = let v = seval e in seval (f v)
 seval (App e1 e2) = treeApply (seval e1) (seval e2)
-seval _ = panic $ "Not supported"
+seval (BLam f) =  seval $ f ()
+seval (TApp e _) = seval e
+seval e = panic $ "Not supported"
 -- seval (Fix e1 e2 e3) = _seval_body
 -- seval (LetRec e1 e2 e3) = _seval_body
--- seval (BLam e) = _seval_body
--- seval (TApp e1 e2) = _seval_body
 -- seval (Tuple e) = _seval_body
 -- seval (Proj e1 e2) = _seval_body
 -- seval (JNewObj e1 e2) = _seval_body
