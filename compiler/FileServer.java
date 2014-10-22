@@ -98,7 +98,6 @@ public class FileServer {
 	        String line = scanner.nextLine();
 		if(line.equals("//end of file")) break;
                 output.write(line);
-		//System.out.println(line);
             }
             output.close();
           } catch (Exception e) {
@@ -111,8 +110,6 @@ public class FileServer {
 
 	  // Delete dummy .class files in current directory
 	  DeleteDummy();
-
-	  file1.delete();
 
           System.out.println("exit");
 	}
