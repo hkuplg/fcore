@@ -99,50 +99,6 @@ alphaEquiv = go 0
     go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
     go i t1           t2           = False
 
-fsubstTT :: (Index, Type Index) -> Type Index -> Type Index
-fsubstTT (x,r) (TyVar a)
-  | a == x                 = r
-  | otherwise              = TyVar a
-fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
-fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
-fsubstTT (x,r) (JClass c)  = JClass c
-fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
-
-fsubstTE :: (Index, Type Index) -> Expr Index Index -> Expr Index Index
-fsubstTE (x,r) (Var a)       = Var a
-fsubstTE (x,r) (Lit n)       = Lit n
-fsubstTE (x,r) (BLam g)      = BLam (fsubstTE (x,r) . g)
-fsubstTE (x,r) (Lam t f)     = Lam (fsubstTT (x,r) t) (fsubstTE (x,r) . f)
-fsubstTE (x,r) (TApp e t)    = TApp (fsubstTE (x,r) e) (fsubstTT (x,r) t)
-fsubstTE (x,r) (App e1 e2)   = App (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
-fsubstTE (x,r) (Merge e1 e2) = Merge (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
-
-fsubstEE :: (Index, Expr Index Index) -> Expr Index Index -> Expr Index Index
-fsubstEE (x,r)
-  = go
-  where
-    go (Var a)
-      | a == x                        = r
-      | otherwise                     = Var a
-    go (Lam t f)                      = Lam t (go . f)
-    go (App e1 e2)                    = App (go e1) (go e2)
-    go (BLam f)                       = BLam (go . f )
-    go (TApp e t)                     = TApp (go e) t
-    go (Lit n)                        = Lit n
-    go (If prd b1 b2)                 = If (go prd) (go b1) (go b2)
-    go (PrimOp e1 op e2)              = PrimOp (go e1) op (go e2)
-    go (Tuple es)                     = Tuple (map go es)
-    go (Proj i e)                     = Proj i (go e)
-    go (Fix f t1 t)                   = Fix (\x' x1 -> go (f x' x1)) t1 t
-    go (JNewObj s args)               = JNewObj s (map go args)
-    go (JMethod (Right e)  m args ret) = JMethod (Right (go e)) m (map go args) ret
-    go (JMethod (Left c) m args ret)  = JMethod (Left c)     m (map go args) ret
-    go (JField (Right e) f ret)       = JField (Right (go e)) f ret
-    go (JField (Left c) f ret)        = JField (Left c)     f ret
-    go (Seq es)                       = Seq (map go es)
-    go (Merge e1 e2)                  = Merge (go e1) (go e2)
-    go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))
-
 prettyType :: Prec -> Index -> Type Index -> Doc
 
 prettyType p i (TyVar a)     = prettyTVar a
@@ -273,3 +229,47 @@ prettyExpr p (i,j) (Merge e1 e2) =
 prettyExpr p (i,j) (Record (l,e))          = lbrace <> text l <> equals <> prettyExpr basePrec (i,j) e <> rbrace
 prettyExpr p (i,j) (RecordAccess e l)      = prettyExpr p (i,j) e <> dot <> text l
 prettyExpr p (i,j) (RecordUpdate e (l,e1)) = prettyExpr p (i,j) e <+> text "with" <+> prettyExpr p (i,j) (Record (l,e1))
+
+fsubstTT :: (Index, Type Index) -> Type Index -> Type Index
+fsubstTT (x,r) (TyVar a)
+  | a == x                 = r
+  | otherwise              = TyVar a
+fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
+fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
+fsubstTT (x,r) (JClass c)  = JClass c
+fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
+
+fsubstTE :: (Index, Type Index) -> Expr Index Index -> Expr Index Index
+fsubstTE (x,r) (Var a)       = Var a
+fsubstTE (x,r) (Lit n)       = Lit n
+fsubstTE (x,r) (BLam g)      = BLam (fsubstTE (x,r) . g)
+fsubstTE (x,r) (Lam t f)     = Lam (fsubstTT (x,r) t) (fsubstTE (x,r) . f)
+fsubstTE (x,r) (TApp e t)    = TApp (fsubstTE (x,r) e) (fsubstTT (x,r) t)
+fsubstTE (x,r) (App e1 e2)   = App (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
+fsubstTE (x,r) (Merge e1 e2) = Merge (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
+
+fsubstEE :: (Index, Expr Index Index) -> Expr Index Index -> Expr Index Index
+fsubstEE (x,r)
+  = go
+  where
+    go (Var a)
+      | a == x                        = r
+      | otherwise                     = Var a
+    go (Lam t f)                      = Lam t (go . f)
+    go (App e1 e2)                    = App (go e1) (go e2)
+    go (BLam f)                       = BLam (go . f )
+    go (TApp e t)                     = TApp (go e) t
+    go (Lit n)                        = Lit n
+    go (If prd b1 b2)                 = If (go prd) (go b1) (go b2)
+    go (PrimOp e1 op e2)              = PrimOp (go e1) op (go e2)
+    go (Tuple es)                     = Tuple (map go es)
+    go (Proj i e)                     = Proj i (go e)
+    go (Fix f t1 t)                   = Fix (\x' x1 -> go (f x' x1)) t1 t
+    go (JNewObj s args)               = JNewObj s (map go args)
+    go (JMethod (Right e)  m args ret) = JMethod (Right (go e)) m (map go args) ret
+    go (JMethod (Left c) m args ret)  = JMethod (Left c)     m (map go args) ret
+    go (JField (Right e) f ret)       = JField (Right (go e)) f ret
+    go (JField (Left c) f ret)        = JField (Left c)     f ret
+    go (Seq es)                       = Seq (map go es)
+    go (Merge e1 e2)                  = Merge (go e1) (go e2)
+    go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))
