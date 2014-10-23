@@ -5,7 +5,8 @@
 {-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
 
 module Src
-  ( Type(..)
+  ( Module(..)
+  , Type(..)
   , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..)
   , Label
   , TypeContext, ValueContext
@@ -20,8 +21,6 @@ module Src
   , substFreeTyVars
   , wrap
   , opPrec
-  , unwrapOp
-  , opReturnType
   ) where
 
 import JavaUtils
@@ -35,9 +34,12 @@ import Data.Data
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-type Name  = String
-type Label = Name
-type TcId  = (Name, Type)
+type Name       = String
+type ModuleName = Name
+type Label      = Name
+type TcId       = (Name, Type)
+
+data Module id = Module id [Bind id] deriving (Eq, Show)
 
 data Type
   = TyVar Name
@@ -46,7 +48,9 @@ data Type
   | Forall Name Type
   | Product [Type]
   | RecordTy [(Label, Type)]
+  | ListOf Type
   | And Type Type
+  | UnitType
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `alphaEquiv` and `subtype` below.
@@ -57,6 +61,7 @@ data Lit
     | String String
     | Boolean Bool
     | Char Char
+    | Unit
     deriving (Eq, Show)
 
 data Operator = Arith J.Op | Compare J.Op | Logic J.Op
@@ -84,6 +89,8 @@ data Expr id
   | Record [(Label, Expr id)]
   | RecordAccess (Expr id) Label
   | RecordUpdate (Expr id) [(Label, Expr id)]
+  | LetModule (Module id) (Expr id)
+  | ModuleAccess ModuleName Name
   deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
@@ -113,7 +120,9 @@ alphaEquiv (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `al
 alphaEquiv (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEquiv `all` zip ts1 ts2
 alphaEquiv (RecordTy fs1) (RecordTy fs2) = length fs1 == length fs2
                                           && (\((l1,t1),(l2,t2)) -> l1 == l2 && t1 `alphaEquiv` t2) `all` zip fs1 fs2
+alphaEquiv (ListOf t1)    (ListOf t2)    = t1 `alphaEquiv` t2
 alphaEquiv (And t1 t2)    (And t3 t4)    = t1 `alphaEquiv` t3 && t2 `alphaEquiv` t4
+alphaEquiv UnitType       UnitType       = True
 alphaEquiv t1             t2             = falseIfDataConsDiffer "Src.alphaEquiv" t1 t2
 
 subtype :: Type -> Type -> Bool
@@ -126,8 +135,10 @@ subtype (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a1, TyVar a2) t1 `subty
 subtype (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry subtype `all` zip ts1 ts2
 subtype (RecordTy [(l1,t1)]) (RecordTy [(l2,t2)]) = l1 == l2 && t1 `subtype` t2
 subtype (RecordTy fs1)       (RecordTy fs2)       = desugarMultiRecordTy fs1 `subtype` desugarMultiRecordTy fs2
+subtype (ListOf t1)    (ListOf t2)    = t1 `subtype` t2  -- List :: * -> * is covariant
 subtype (And t1 t2)    t3             = t1 `subtype` t3 || t2 `subtype` t3
 subtype t1             (And t2 t3)    = t1 `subtype` t2 && t1 `subtype` t3
+subtype UnitType       UnitType       = True
 subtype t1             t2             = falseIfDataConsDiffer "Src.subtype" t1 t2
 
 -- Records
@@ -148,6 +159,7 @@ fields t
       RecordTy []         -> panic "Src.fields"
       RecordTy [(l1,t1)]  -> [(Just l1, t1)]
       RecordTy fs@(_:_:_) -> fields (desugarMultiRecordTy fs)
+      ListOf _            -> unlabeledField
       (And t1 t2)         -> fields t1 ++ fields t2
 
       where unlabeledField = [(Nothing, t)]
@@ -167,7 +179,8 @@ substFreeTyVars (x, r) = go
       | a == x                      = Forall a t
       | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
       | otherwise                   = Forall a (go t)
-    go _ = sorry "Src.substFreeTyVars: no idea how to do"
+    go (ListOf a)   = ListOf (go a)
+    go UnitType     = UnitType
 
 freeTyVars :: Type -> Set.Set Name
 freeTyVars (TyVar x)     = Set.singleton x
@@ -176,7 +189,9 @@ freeTyVars (Fun t1 t2)   = freeTyVars t1 `Set.union` freeTyVars t2
 freeTyVars (Forall a t)  = Set.delete a (freeTyVars t)
 freeTyVars (Product ts)  = Set.unions (map freeTyVars ts)
 freeTyVars (RecordTy fs) = Set.unions (map (\(_l,t) -> freeTyVars t) fs)
+freeTyVars (ListOf t)    = freeTyVars t
 freeTyVars (And t1 t2)   = Set.union (freeTyVars t1) (freeTyVars t2)
+freeTyVars UnitType      = Set.empty
 
 -- Pretty printers
 
@@ -186,6 +201,7 @@ instance Pretty Type where
   pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
   pretty (Product ts) = tupled (map pretty ts)
   pretty (JClass c)   = text c
+  pretty (ListOf a)   = brackets $ pretty a
   pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
   pretty _ = sorry "Core.pretty: no idea how to do"
 
@@ -266,13 +282,3 @@ opPrec (Compare J.NotEq)  = 7
 opPrec (Logic J.CAnd)     = 11
 opPrec (Logic J.COr)      = 12
 opPrec op = panic $ "Src.Syntax.opPrec: " ++ show op
-
-unwrapOp :: Operator -> J.Op
-unwrapOp (Arith op)   = op
-unwrapOp (Compare op) = op
-unwrapOp (Logic op)   = op
-
-opReturnType :: Operator -> Type
-opReturnType (Arith _)   = JClass "java.lang.Integer"
-opReturnType (Compare _) = JClass "java.lang.Boolean"
-opReturnType (Logic _)   = JClass "java.lang.Boolean"

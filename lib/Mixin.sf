@@ -1,0 +1,20 @@
+let rec
+  zero S (super : Unit -> S) (this : Unit -> S) : S = super
+and
+  mixin
+    S (f : (Unit -> S) -> (Unit -> S) -> S) : S
+    = let m = mixin S in f (\ (d : Unit). m f) (\ (d : Unit). m f)
+and
+  extends
+    S (f : (Unit -> S) -> (Unit -> S) -> S)
+      (g : (Unit -> S) -> (Unit -> S) -> S)
+         : (Unit -> S) -> (Unit -> S) -> S
+    = \ (super : Unit -> S). \ (this  : Unit -> S). f (\ (d : Unit). g super this) this
+in
+let fact (super : Unit -> Int -> Int) (this : Unit -> Int -> Int) : Int -> Int
+  = \ (n : Int). if n == 0 then 1 else n * this () (n - 1)
+  and
+  foolish (super : Unit -> Int -> Int) (this : Unit -> Int -> Int) : Int -> Int
+  = \ (n : Int). { java.lang.System.out.println("Hola"); super () n }
+in
+mixin (Int -> Int) (extends (Int -> Int) foolish fact) 5

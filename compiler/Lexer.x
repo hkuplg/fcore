@@ -57,13 +57,17 @@ tokens :-
     else        { \_ _ -> Telse }
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
+    module      { \_ _ -> Tmodule }
+    end         { \_ _ -> Tend }
 
-    -- Literal
+    -- Literals
     $digit+                { \_ s -> Tinteger (read s) }
-    \"($printable # \")*\"  { \_ s -> Tstring (init $ tail s) }
+    \"($printable # \")*\" { \_ s -> Tstring (init $ tail s) }
     \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
     True                   { \_ s -> Tboolean True}
     False                  { \_ s -> Tboolean False}
+    \(\)                   { \_ _ -> Tunit }
+    Unit                   { \_ _ -> Tunittype }
 
     -- java.package.path.Classname
     ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavaclass s }
@@ -97,9 +101,10 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tif | Tthen | Telse
            | Tcomma | Tsemi
            | Tupperid String | Tlowerid String | Tunderid Int
-           | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char
+           | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char | Tunit | Tunittype
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
+           | Tmodule | Tend
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

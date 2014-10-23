@@ -53,10 +53,15 @@ import JavaUtils
   JAVACLASS { Tjavaclass $$ }
   "new"     { Tnew }
 
+  "module"  { Tmodule }
+  "end"     { Tend }
+
   INTEGER  { Tinteger $$ }
   STRING   { Tstring $$ }
   BOOLEAN  { Tboolean $$ }
   CHAR     { Tchar $$ }
+  "()"     { Tunit }
+  "unit"   { Tunittype }
 
   "*"      { Tprimop J.Mult   }
   "/"      { Tprimop J.Div    }
@@ -97,6 +102,13 @@ import JavaUtils
 -- The parser rules of GHC may come in handy:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
+-- Modules
+module :: { Module Name }
+  : "module" module_name semi_binds "end"  { Module $2 $3 }
+
+module_name :: { Name }
+  : UPPERID  { $1 }
+
 -- Types
 
 -- "&" have the lowest precedence and is left associative.
@@ -117,6 +129,7 @@ atype :: { Type }
   | "(" product_body ")"     { Product $2 }
   | "{" recordty_body "}"    { RecordTy $2 }
   | "(" type ")"             { $2 }
+  | "unit"                   { UnitType }
 
 product_body :: { [Type] }
   : type "," type              { $1:[$3] }
@@ -140,6 +153,7 @@ tyvar :: { Name }
 
 expr :: { Expr Name }
      : infixexpr %prec EOF      { $1 }
+     | module expr              { LetModule $1 $2 }
 
 infixexpr :: { Expr Name }
     : expr10                    { $1 }
@@ -173,10 +187,14 @@ fexpr :: { Expr Name }
 
 aexp :: { Expr Name }
     : var                       { Var $1 }
+
+    -- Literals
     | INTEGER                   { Lit (Integer $1) }
     | STRING                    { Lit (String $1) }
     | BOOLEAN                   { Lit (Boolean $1) }
     | CHAR                      { Lit (Char $1) }
+    | "()"                      { Lit Unit }
+
     | "(" comma_exprs ")"       { Tuple $2 }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" expr ")"              { $2 }
@@ -185,6 +203,7 @@ aexp :: { Expr Name }
     | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Right $1) $3 $5 undefined }
     | JAVACLASS "." field { JField (Left $1) $3 undefined }
     | aexp "." field      { JField (Right $1) $3 undefined }
+    | module_name "." var  { ModuleAccess $1 $3 }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
     | "{" semi_exprs "}"        { Seq $2 }
@@ -238,6 +257,10 @@ maybe_sig :: { Maybe Type }
 and_binds :: { [Bind Name] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
+
+semi_binds :: { [Bind Name] }
+    : bind                      { [$1]  }
+    | bind ";" and_binds      { $1:$3 }
 
 recflag :: { RecFlag }
   : "rec"       { Rec }

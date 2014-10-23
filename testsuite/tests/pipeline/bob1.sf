@@ -1,0 +1,3 @@
+--> Haskell
+
+{ name = "Bob", age = 30, language = "Haskell" }.language
