@@ -7,6 +7,8 @@ module Simplify where
 import Core
 import qualified Src as S
 
+import Mixins
+
 import Control.Monad (zipWithM)
 import Unsafe.Coerce (unsafeCoerce)
 
@@ -38,6 +40,21 @@ isIdC (C _) = False
 appC :: Coercion t e -> Expr t e -> Expr t e
 appC Id e      = e
 appC (C e1) e2 = App e1 e2
+
+subtype' :: Open (Index -> Type Index -> Type Index -> Bool)
+subtype' _    _ (TyVar a)    (TyVar b)   = a == b
+subtype' _    _ (JClass c)   (JClass d)  = c == d
+subtype' this i (Fun t1 t2)  (Fun t3 t4) = this i t3 t1 && this i t2 t4
+subtype' this i (Forall f)   (Forall g)  = this (i+1) (f i) (g i)
+subtype' this i (Product ss) (Product ts)
+  | length ss /= length ts               = False
+  | otherwise                            = uncurry (this i) `all` zip ss ts
+subtype' this i t1 (And t2 t3)           = this i t1 t2 || this i t1 t3
+subtype' this i (And t1 t2) t3           = this i t1 t3 && this i t2 t3
+subtype' this i (RecordTy (l1,t1)) (RecordTy (l2,t2))
+  | l1 == l2                             = this i t1 t2
+  | otherwise                            = False
+subtype' _    _ _ _                      = False
 
 coerce :: Index -> Type Index -> Type Index -> Maybe (Coercion Index Index)
 coerce _ (TyVar a) (TyVar b) | a == b    = return Id -- TODO: How about alpha equivalence?
