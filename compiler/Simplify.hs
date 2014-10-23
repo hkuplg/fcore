@@ -41,7 +41,7 @@ appC :: Coercion t e -> Expr t e -> Expr t e
 appC Id e      = e
 appC (C e1) e2 = App e1 e2
 
-subtype' :: Open (Index -> Type Index -> Type Index -> Bool)
+subtype' :: Base (Index -> Type Index -> Type Index -> Bool)
 subtype' _    _ (TyVar a)    (TyVar b)   = a == b
 subtype' _    _ (JClass c)   (JClass d)  = c == d
 subtype' this i (Fun t1 t2)  (Fun t3 t4) = this i t3 t1 && this i t2 t4

@@ -1,12 +1,12 @@
 module Mixins where
 
 
-type Open a = a -> a
+type Base a = a -> a
 
-new :: Open a -> a
+new :: Base a -> a
 new f = let r = f r in r
 
-top :: Open s
+top :: Base s
 top this = this
 
 
@@ -19,7 +19,7 @@ zero :: Mixin s
 zero super _this = super
 
 
-extends :: Mixin s -> Open s -> Mixin s
+extends :: Mixin s -> Base s -> Mixin s
 f `extends` g = \_super this -> f (g this) this
 
 mixes :: Mixin s -> Mixin s -> Mixin s
