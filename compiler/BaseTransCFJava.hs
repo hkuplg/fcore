@@ -20,13 +20,6 @@ type InitVars = [J.BlockStmt]
 
 -- Closure F to Java
 
-newIdent :: Int -> J.Ident
-newIdent n = J.Ident $ localvarstr ++ show n
-
-identDecl :: Monad m => Translate m -> J.Ident -> Type Int -> J.Exp -> m [J.BlockStmt]
-identDecl this idn t j = do aType <- javaType this t
-                            return $ [J.LocalVars [J.Final] aType [J.VarDecl (J.VarId idn) (Just $ J.InitExp j)]]
-
 createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
 createCUB _ compDef = cu
   where cu = J.CompilationUnit Nothing [] compDef
@@ -208,13 +201,15 @@ trans self =
                    (s1, j1, t1) <- translateM this expr
                    (s2, j2, t2) <- translateM this (body (n,t1))
 
-                   let x = newIdent n
-                   let xf = newIdent (n + 1)
+                   let x = localvarstr ++ show n
+                   let xf = localvarstr ++ show (n+1)
+                   jt1 <- javaType this t1
+                   jt2 <- javaType this t2
 
-                   xDecl <- identDecl this x t1 j1
-                   xfDecl <- identDecl this xf t2 j2
+                   let xDecl = localFinalVar jt1 (varDecl x j1)
+                   let xfDecl = localFinalVar jt2 (varDecl xf j2)
 
-                   return (s1 ++ xDecl ++ s2 ++ xfDecl, J.ExpName (J.Name [xf]), t2)
+                   return (s1 ++ [xDecl] ++ s2 ++ [xfDecl], var xf, t2)
 
               LetRec t xs body ->
                 do (n :: Int) <- get
