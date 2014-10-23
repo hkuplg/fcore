@@ -1,26 +1,45 @@
+{-# LANGUAGE TypeOperators, MultiParamTypeClasses, FlexibleInstances #-}
+{-# OPTIONS_GHC -Wall #-}
+
 module Mixin where
 
+import Prelude hiding (log)
 
-type Base a = a -> a
+class a <: b where
+  up :: a -> b
 
-new :: Base a -> a
+instance (t1 <: t2) => (t -> t1) <: (t -> t2) where
+  up f = up . f
+
+instance (t1 <: t2) => (t2 -> t) <: (t1 -> t) where
+  up f = f . up
+
+type Class t   = t -> t
+type Mixin s t = s -> t -> t
+
+new :: Class a -> a
 new f = let r = f r in r
 
-top :: Base s
-top this = this
+with :: (t <: s) => Class s -> Mixin s t -> Class t
+klass `with` mixin = \this -> mixin (klass (up this)) this
 
+-- The below provides an example.
 
-type Mixin s = s -> s -> s
+fib' :: Class (Int -> Int)
+fib' _    1 = 1
+fib' _    2 = 1
+fib' this n = this (n-1) + this (n-2)
 
-mixin :: Mixin s -> s
-mixin f = let m = mixin f in f m m
+instance (Int, String) <: Int where
+  up = fst
 
-zero :: Mixin s
-zero super _this = super
+logging :: Mixin (Int -> Int) (Int -> (Int, String))
+logging super _    1 = (super 1, "1")
+logging super _    2 = (super 2, "2 1")
+logging super this n = (super n, show n ++ " " ++ log1 ++ " " ++ log2)
+  where
+    (_, log1) = this (n-1)
+    (_, log2) = this (n-2)
 
-
-extends :: Mixin s -> Base s -> Mixin s
-f `extends` g = \_super this -> f (g this) this
-
-mixes :: Mixin s -> Mixin s -> Mixin s
-f `mixes` g = \super this -> f (g super this) this
+fibWithLogging :: Int -> (Int, String)
+fibWithLogging = new (fib' `with` logging)
