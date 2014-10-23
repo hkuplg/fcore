@@ -106,34 +106,34 @@ coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
 coerce _ _ _ = Nothing
 
-infer':: Index -> Index -> Expr Index (Index, Type Index) -> Type Index
-infer' _ _ (Var (_,t))         = t
-infer' _ _ (Lit (S.Integer _)) = JClass "java.lang.Integer"
-infer' _ _ (Lit (S.String _))  = JClass "java.lang.String"
-infer' _ _ (Lit (S.Boolean _)) = JClass "java.lang.Boolean"
-infer' _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
-infer' _ _ (Lit  S.Unit)       = JClass "java.lang.Integer"
-infer' i j (Lam t f)           = Fun t (infer' i (j+1) (f (j,t)))
-infer' i j (BLam f)            = Forall (\a -> fsubstTT (i, TyVar a) (infer' (i+1) j (f i)))
-infer' _ _ (Fix _ t1 t)        = Fun t1 t
-infer' i j (Let bind body)     = infer' i (j+1) (body (j, infer' i j bind))
-infer' i j (LetRec ts _ e)     = infer' i (j+n) (e (zip [j..j+n-1] ts)) where n = length ts
-infer' i j (App e1 _)          = t12                    where Fun _ t12 = infer' i j e1
-infer' i j (TApp e t1)         = fsubstTT (i, t1) (f i) where Forall f  = infer' i j e
-infer' i j (If _ b1 _)         = infer' i j b1
-infer' _ _ (PrimOp _ op _)     = case op of S.Arith _   -> JClass "java.lang.Integer"
-                                            S.Compare _ -> JClass "java.lang.Boolean"
-                                            S.Logic _   -> JClass "java.lang.Boolean"
-infer' i j (Tuple es)          = Product (map (infer' i j) es)
-infer' i j (Proj index e)      = ts !! (index-1) where Product ts = infer' i j e
-infer' _ _ (JNewObj c _)       = JClass c
-infer' _ _ (JMethod _ _ _ c)   = JClass c
-infer' _ _ (JField _ _ c)      = JClass c
-infer' i j (Seq es)            = infer' i j (last es)
-infer' i j (Merge e1 e2)       = And (infer' i j e1) (infer' i j e2)
-infer' i j (Record (l,e))      = RecordTy (l, infer' i j e)
-infer' i j (RecordAccess e l1) = t1 where Just (_,t1) = getter i (infer' i j e) l1
-infer' i j (RecordUpdate e _)  = infer' i j e
+infer':: Class (Index -> Index -> Expr Index (Index, Type Index) -> Type Index)
+infer' _    _ _ (Var (_,t))         = t
+infer' _    _ _ (Lit (S.Integer _)) = JClass "java.lang.Integer"
+infer' _    _ _ (Lit (S.String _))  = JClass "java.lang.String"
+infer' _    _ _ (Lit (S.Boolean _)) = JClass "java.lang.Boolean"
+infer' _    _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
+infer' _    _ _ (Lit  S.Unit)       = JClass "java.lang.Integer"
+infer' this i j (Lam t f)           = Fun t (this i (j+1) (f (j,t)))
+infer' this i j (BLam f)            = Forall (\a -> fsubstTT (i, TyVar a) (this (i+1) j (f i)))
+infer' _    _ _ (Fix _ t1 t)        = Fun t1 t
+infer' this i j (Let bind body)     = this i (j+1) (body (j, this i j bind))
+infer' this i j (LetRec ts _ e)     = this i (j+n) (e (zip [j..j+n-1] ts)) where n = length ts
+infer' this i j (App e1 _)          = t12                    where Fun _ t12 = this i j e1
+infer' this i j (TApp e t1)         = fsubstTT (i, t1) (f i) where Forall f  = this i j e
+infer' this i j (If _ b1 _)         = this i j b1
+infer' _    _ _ (PrimOp _ op _)     = case op of S.Arith _   -> JClass "java.lang.Integer"
+                                                 S.Compare _ -> JClass "java.lang.Boolean"
+                                                 S.Logic _   -> JClass "java.lang.Boolean"
+infer' this i j (Tuple es)          = Product (map (this i j) es)
+infer' this i j (Proj index e)      = ts !! (index-1) where Product ts = this i j e
+infer' _    _ _ (JNewObj c _)       = JClass c
+infer' _    _ _ (JMethod _ _ _ c)   = JClass c
+infer' _    _ _ (JField _ _ c)      = JClass c
+infer' this i j (Seq es)            = this i j (last es)
+infer' this i j (Merge e1 e2)       = And (this i j e1) (this i j e2)
+infer' this i j (Record (l,e))      = RecordTy (l, this i j e)
+infer' this i j (RecordAccess e l1) = t1 where Just (_,t1) = getter i (this i j e) l1
+infer' this i j (RecordUpdate e _)  = this i j e
 
 transExpr:: Index -> Index -> Expr Index (Index, Type Index) -> (Type Index, Expr Index Index)
 transExpr _ _ (Var (x, t))        = (t, Var x)
