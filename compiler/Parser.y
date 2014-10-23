@@ -260,7 +260,7 @@ and_binds :: { [Bind Name] }
 
 semi_binds :: { [Bind Name] }
     : bind                      { [$1]  }
-    | bind ";" and_binds      { $1:$3 }
+    | bind ";" semi_binds      { $1:$3 }
 
 recflag :: { RecFlag }
   : "rec"       { Rec }
