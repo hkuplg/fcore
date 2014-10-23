@@ -5,9 +5,6 @@ module JavaEDSL where
 import Language.Java.Syntax
 import StringPrefixes
 
--- TODO: module
-
-
 arrayTy :: Type -> Type
 arrayTy ty  = RefType (ArrayType ty)
 
@@ -17,17 +14,11 @@ classTy t = RefType $ ClassRefType $ classTyp t
 classTyp :: String -> ClassType
 classTyp t = ClassType [(Ident t, [])]
 
--- closureClass :: String
--- closureClass = "hk.hku.cs.f2j.Closure"
-
 closureType :: Type
-closureType = classTy "hk.hku.cs.f2j.Closure"
+closureType = classTy (namespace ++ "Closure")
 
 objClassTy :: Type
 objClassTy = classTy "Object"
-
--- javaClassType :: String -> Type
--- javaClassType t = RefType $ classTy t
 
 name :: [String] -> Name
 name xs = Name $ map Ident xs

@@ -34,7 +34,7 @@ whileApplyLoopB this ctemp tempOut outType ctempCastTyp = do
 passClousre from to param = [
   (J.BlockStmt $ J.ExpStmt $ J.Assign (J.NameLhs $ J.Name [(J.Ident to)]) J.EqualA (J.Cast closureType (J.ExpName $ J.Name [(J.Ident from)]))),
   paraAssign to param,
-  (J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (fieldAcc "hk.hku.cs.f2j.Next" "next")) (J.EqualA) (J.ExpName $ J.Name [(J.Ident to)]))]
+  (J.BlockStmt $ J.ExpStmt $ J.Assign (J.FieldLhs $ (fieldAcc "f2j.Next" "next")) (J.EqualA) (J.ExpName $ J.Name [(J.Ident to)]))]
 
 retResStack :: String -> String -> J.BlockStmt
 retResStack returnType id = (J.BlockStmt (J.Return $ Just (J.Cast (classTy returnType) (J.ExpName $ J.Name [(J.Ident id)]))))
