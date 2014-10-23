@@ -18,10 +18,10 @@ classTyp :: String -> ClassType
 classTyp t = ClassType [(Ident t, [])]
 
 -- closureClass :: String
--- closureClass = "hk.hku.cs.f2j.Closure"
+-- closureClass = "f2j.Closure"
 
 closureType :: Type
-closureType = classTy "hk.hku.cs.f2j.Closure"
+closureType = classTy "f2j.Closure"
 
 objClassTy :: Type
 objClassTy = classTy "Object"
