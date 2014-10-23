@@ -1,7 +1,7 @@
 --> 87178291200
 
 let rec fact (n : java.math.BigInteger) : java.math.BigInteger =
-    if n.intValue() == 0
+    if n.intValue( ) == 0
         then new java.math.BigInteger("1")
         else n.multiply(fact(n.subtract(new java.math.BigInteger("1"))))
 in

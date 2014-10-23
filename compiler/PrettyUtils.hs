@@ -12,18 +12,18 @@ module PrettyUtils
     -- Pretty printing combinators
   , arrow, forall, ampersand, lambda, biglambda, dcomma
 
-  , pprTVar, pprVar
+  , prettyTVar, prettyVar
   ) where
 
 import Text.PrettyPrint.Leijen
 import Data.Char (ord, chr)
 
 class Outputable a where
-  ppr :: a -> Doc
-  ppr = pprPrec basePrec
+  pretty :: a -> Doc
+  pretty = prettyPrec basePrec
 
-  pprPrec   :: Prec -> a -> Doc
-  pprPrec _ = ppr
+  prettyPrec   :: Prec -> a -> Doc
+  prettyPrec _ = PrettyUtils.pretty
 
 arrow, forall, ampersand, lambda, biglambda, dcomma :: Doc
 arrow     = text "->"
@@ -49,11 +49,11 @@ parensIf (envLevel, envDelta) myLevel doc
       PrecMinus -> doc
   | otherwise           = doc
 
-pprTVar, pprVar :: Int -> Doc
-pprTVar = pprVarFrom 'A'
-pprVar  = pprVarFrom 'a'
+prettyTVar, prettyVar :: Int -> Doc
+prettyTVar = prettyVarFrom 'A'
+prettyVar  = prettyVarFrom 'a'
 
-pprVarFrom :: Char -> Int -> Doc
-pprVarFrom c n
+prettyVarFrom :: Char -> Int -> Doc
+prettyVarFrom c n
   | n < 26    = text [chr (ord c + n)]
   | otherwise = text (c : show n)
