@@ -34,11 +34,19 @@ data Options = Options
 
 data TransMethod = Naive
                  | ApplyOpt
+                 | ApplyU
                  | Stack
+                 | Unbox
+                 | StackU
+                 | StackN
+                 | StackAU
                  | BenchN
                  | BenchS
                  | BenchNA
                  | BenchSA
+                 | BenchSAU
+                 | BenchSAU1
+                 | BenchSAU2
                  | BenchSAI1
                  | BenchSAI2
                  deriving (Eq, Show, Data, Typeable)
@@ -80,16 +88,24 @@ main = do
            translate_method = optTransMethod
        putStrLn (takeBaseName source_path ++ " using " ++ show translate_method)
        putStrLn ("  Compiling to Java source code ( " ++ output_path ++ " )")
-
        case translate_method of Naive    -> compilesf2java 0 optDump compileN source_path output_path
                                 ApplyOpt -> compilesf2java 0 optDump compileAO source_path output_path
+                                ApplyU -> compilesf2java 0 optDump compileAoptUnbox source_path output_path
                                 Stack    -> compilesf2java 0 optDump compileS source_path output_path
+                                StackAU -> compilesf2java 0 optDump compileSAU source_path output_path
+                                StackN    -> compilesf2java 0 optDump compileSN source_path output_path
+                                StackU    -> compilesf2java 0 optDump compileSU source_path output_path
+                                Unbox -> compilesf2java 0 optDump compileUnbox source_path output_path
                                 BenchN    -> compilesf2java 0 optDump  (compileBN False) source_path output_path
                                 BenchS    -> compilesf2java 0 optDump (compileBS False) source_path output_path
                                 BenchNA   -> compilesf2java 0 optDump (compileBN True) source_path output_path
                                 BenchSA   -> compilesf2java 0 optDump (compileBS True) source_path output_path
                                 BenchSAI1 -> compilesf2java 1 optDump (compileBS True) source_path output_path
                                 BenchSAI2 -> compilesf2java 2 optDump (compileBS True) source_path output_path
+                                BenchSAU   -> compilesf2java 0 optDump (compileBSAU) source_path output_path
+                                BenchSAU1   -> compilesf2java 1 optDump (compileBSAU) source_path output_path
+                                BenchSAU2   -> compilesf2java 2 optDump (compileBSAU) source_path output_path
+
 
        when (optCompile || optCompileAndRun) $
          do putStrLn "  Compiling to Java bytecode"

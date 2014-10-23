@@ -128,7 +128,6 @@ atype :: { Type }
   | JAVACLASS                { JClass $1 }
   | "(" product_body ")"     { Product $2 }
   | "{" recordty_body "}"    { RecordTy $2 }
-  | "[" type "]"             { ListOf $2 }
   | "(" type ")"             { $2 }
   | "unit"                   { UnitType }
 

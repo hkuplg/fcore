@@ -69,14 +69,11 @@ dsTcExpr (d, g) = go
         [] -> go e
         _  -> C.RecordUpdate (go (RecordUpdate e (take (length fs - 1) fs))) (let (l1,e1) = last fs in (l1, go e1))
 
-{-
-   let f1 : t1 = e1 in e
-~> (\(f1 : t1. e)) e1
--}
     go (LetOut NonRec [(f1, t1, e1)] e) =
       C.App
         (C.Lam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e))
         (go e1)
+      -- C.Let (go e1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e)
 
 {-
 Note that rewriting simultaneous let expressions by nesting is wrong unless we do
@@ -90,19 +87,15 @@ variable renaming. An example:
 
    let f1 = e1, ..., fn = en in e
 ~> let y = (t1, ..., tn). (e1, ..., en) in e[*]
-~> (\(y : (t1, ..., tn)). e[*]) (e1, ..., en)
 -}
     go (LetOut NonRec bs@(_:_) e) =
-      C.App
-        (C.Lam
-          (transType d tupled_ts)
-          (\y -> dsTcExpr (d, g' y `Map.union` g) e))
+      C.Let
         (go tupled_es)
+        (\y -> dsTcExpr (d, g' y `Map.union` g) e)
         where
-          (fs, ts, es)  = unzip3 bs
+          (fs, _, es)  = unzip3 bs
 
           tupled_es = Tuple es
-          tupled_ts = Product ts
 
           -- Substitution: fi -> y._(i-1)
           g' y = Map.fromList $
@@ -145,8 +138,8 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     -- Primitive List to java class
 
     go (PrimList l)              = case l of     -- translate to java new obj
-                                     []   -> C.JNewObj "hk.hku.cs.f2j.Nil" []
-                                     x:xs -> C.JNewObj "hk.hku.cs.f2j.Cons" [go x, go (PrimList xs)]
+                                     []   -> C.JNewObj "hk.hku.cs.f2j.FunctionalList" []
+                                     x:xs -> C.JNewObj "hk.hku.cs.f2j.FunctionalList" [go x, go (PrimList xs)]
 
     go (Seq es) = C.Seq (map go es)
 

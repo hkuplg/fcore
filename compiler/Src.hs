@@ -203,6 +203,7 @@ instance Pretty Type where
   pretty (JClass c)   = text c
   pretty (ListOf a)   = brackets $ pretty a
   pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
+  pretty _ = sorry "Core.pretty: no idea how to do"
 
 instance Pretty id => Pretty (Expr id) where
   pretty (Var x) = pretty x
@@ -244,6 +245,7 @@ instance Pretty id => Pretty (Expr id) where
                                           (Right e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
+  pretty _ = sorry "Src.pretty: no idea how to do"
 
 instance Pretty id => Pretty (Bind id) where
   pretty Bind{..} =

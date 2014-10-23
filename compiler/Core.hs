@@ -16,6 +16,7 @@ import qualified Src
 
 import JavaUtils
 import PrettyUtils
+import Panic
 
 import Text.PrettyPrint.Leijen
 import qualified Language.Java.Syntax as J (Op(..))
@@ -50,6 +51,7 @@ data Expr t e
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
+  | Let (Expr t e) (e -> Expr t e)
   | LetRec [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
@@ -239,6 +241,7 @@ fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
 fsubstTT (x,r) (JClass c)  = JClass c
 fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
+fsubstTT _ _ = sorry "Core.fsubstTT: no idea how to do"
 
 fsubstTE :: (Index, Type Index) -> Expr Index Index -> Expr Index Index
 fsubstTE (x,r) (Var a)       = Var a
@@ -248,6 +251,7 @@ fsubstTE (x,r) (Lam t f)     = Lam (fsubstTT (x,r) t) (fsubstTE (x,r) . f)
 fsubstTE (x,r) (TApp e t)    = TApp (fsubstTE (x,r) e) (fsubstTT (x,r) t)
 fsubstTE (x,r) (App e1 e2)   = App (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
 fsubstTE (x,r) (Merge e1 e2) = Merge (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
+fsubstTE _ _ = sorry "Core.fsubstTE: no idea how to do"
 
 fsubstEE :: (Index, Expr Index Index) -> Expr Index Index -> Expr Index Index
 fsubstEE (x,r)
@@ -273,4 +277,5 @@ fsubstEE (x,r)
     go (JField (Left c) f ret)        = JField (Left c)     f ret
     go (Seq es)                       = Seq (map go es)
     go (Merge e1 e2)                  = Merge (go e1) (go e2)
+    go (Let bind body)                = Let (go bind) (\e -> go (body e))
     go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))

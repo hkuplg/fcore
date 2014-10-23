@@ -27,3 +27,4 @@ inliner (JMethod jc m es cn) =
 inliner (JField jc fn cn) = JField (fmap inliner jc) fn cn
 inliner (Seq es) = Seq (map inliner es)
 inliner (Merge e1 e2) = Merge (inliner e1) (inliner e2)
+inliner (Let e body) = Let (inliner e) (\x -> inliner (body (Var x)))

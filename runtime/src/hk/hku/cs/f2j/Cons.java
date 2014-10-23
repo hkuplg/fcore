@@ -1,6 +1,6 @@
 package hk.hku.cs.f2j;
 
-public class Cons implements FunctionalList {
+public class Cons extends FunctionalList {
     final Integer x;
     final FunctionalList xs;
 

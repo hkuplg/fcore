@@ -271,9 +271,9 @@ tcExpr (Merge e1 e2) =
 
 tcExpr (PrimList l) =
       do (es, ts) <- mapAndUnzipM tcExpr l
-         case ts of [] -> return (PrimList es, (JClass "hk.hku.cs.f2j.Nil"))
+         case ts of [] -> return (PrimList es, (JClass "hk.hku.cs.f2j.FunctionalList"))
                     _  -> if (all (`alphaEquiv` (ts !! 0)) ts)
-                            then return (PrimList es, (JClass "hk.hku.cs.f2j.Cons"))
+                            then return (PrimList es, (JClass "hk.hku.cs.f2j.FunctionalList"))
                             else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
 
 tcExpr (Record fs) =
