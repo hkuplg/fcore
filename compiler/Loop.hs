@@ -39,16 +39,14 @@ runCommand (inP, outP) val_ctx env flagT flagS num msg = do
 		  Right line -> processCMD (inP, outP) val_ctx env 
 		  			   flagT flagS num line
 	  Nothing   -> do 
-		let fileName = "main_" ++ (show num) ++ ".sf"
+		let filename = "main_" ++ (show num) ++ ".sf"
 		let bind = reverseEnv env
 		let msgEnv = (createBindEnv bind) ++ msg
-	  	liftIO (writeFile fileName msgEnv)
-	  	case flagT of 
-		  True 	-> liftIO (timeIt (wrap (inP, outP) flagS fileName))
-		  False -> liftIO (wrap (inP, outP) flagS fileName)
-		exist <- liftIO (doesFileExist fileName)
+	  	liftIO (writeFile filename msgEnv)
+	  	liftIO (wrapFlag (inP, outP) flagT flagS filename)
+		exist <- liftIO (doesFileExist filename)
 		if exist 
-		  then do liftIO (removeFile fileName)
+		  then do liftIO (removeFile filename)
 			  loop (inP, outP) val_ctx env flagT flagS (num+1)
 		  else loop (inP, outP) val_ctx env flagT flagS (num+1)
 
@@ -60,11 +58,8 @@ processCMD (inP, outP) val_ctx env flagT flagS num (x : xs) = do
 		loop (inP, outP) val_ctx env flagT flagS num
 	  ":send" -> do
 		case getCMD xs of
-		  Just filename -> do 
-	      		case flagT of
-			  True	-> liftIO (timeIt (wrap (inP, outP) flagS filename))
-	  		  False -> liftIO (wrap (inP, outP) flagS filename)
-		  Nothing       ->  outputStrLn "Invalid input"
+		  Just filename -> liftIO (wrapFlag (inP, outP) flagT flagS filename) 
+	      	  Nothing       ->  outputStrLn "Invalid input"
 		loop (inP, outP) val_ctx env flagT flagS num
 	  ":time" -> case getCMD xs of 
 		Just "on"  -> loop (inP, outP) val_ctx env True flagS num
@@ -106,6 +101,11 @@ getCMD :: [String] -> Maybe String
 getCMD xs = case xs of
 		[x] -> Just x
 		xs  -> Nothing
+
+wrapFlag :: Connection -> Bool -> Bool -> String -> IO ()
+wrapFlag (inP, outP) flagT flagS filename = case flagT of
+	True  -> timeIt (wrap (inP, outP) flagS filename)
+	False -> wrap (inP, outP) flagS filename
 
 checkType :: ValueContext -> String -> IO (Either TypeError (Expr TcId, Type))
 checkType val_ctx s =
