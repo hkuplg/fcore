@@ -1,22 +1,14 @@
 -- The simplifier: translate System F with intersection types to vanilla System F
 
-{-# LANGUAGE FlexibleContexts
-           , FlexibleInstances
-           , MultiParamTypeClasses
-           , TypeSynonymInstances #-}
-{-# OPTIONS_GHC -fwarn-incomplete-patterns -fno-warn-unused-matches #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module Simplify where
 
 import Core
 import qualified Src as S
 
-import Panic
-import PrettyUtils
-
-import Unsafe.Coerce
-import Control.Monad.Identity
-import Control.Monad.State
+import Control.Monad (zipWithM)
+import Unsafe.Coerce (unsafeCoerce)
 
 simplify :: Expr t e -> Expr t e
 simplify = unsafeCoerce . snd . transExpr 0 0 . unsafeCoerce
@@ -48,9 +40,9 @@ appC Id e      = e
 appC (C e1) e2 = App e1 e2
 
 coerce :: Index -> Type Index -> Type Index -> Maybe (Coercion Index Index)
-coerce i (TyVar a) (TyVar b) | a == b    = return Id -- TODO: How about alpha equivalence?
+coerce _ (TyVar a) (TyVar b) | a == b    = return Id -- TODO: How about alpha equivalence?
                              | otherwise = Nothing
-coerce i (JClass c) (JClass d) | c == d    = return Id
+coerce _ (JClass c) (JClass d) | c == d    = return Id
                                | otherwise = Nothing
 coerce i (Fun t1 t2) (Fun t3 t4) =
   do c1 <- coerce i t3 t1
@@ -66,7 +58,7 @@ coerce i (Forall f) (Forall g) =
      case c of
        Id -> return Id
        _  -> return (C (Lam (transType i (Forall f))
-                         (\f -> BLam (\a -> (appC c . TApp (Var f)) (TyVar a)))))
+                         (\f' -> BLam (\a -> (appC c . TApp (Var f')) (TyVar a)))))
 coerce i (Product ss) (Product ts)
   | length ss /= length ts = Nothing
   | otherwise =
@@ -95,7 +87,7 @@ coerce i (And t1 t2) t3 =
                                (\x -> c `appC` Proj 2 (Var x))))
 coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
-coerce  i _ _ = Nothing
+coerce _ _ _ = Nothing
 
 transExpr:: Index -> Index -> Expr Index (Index, Type Index) -> (Type Index, Expr Index Index)
 transExpr _ _ (Var (x, t))        = (t, Var x)
@@ -103,6 +95,7 @@ transExpr _ _ (Lit (S.Integer n)) = (JClass "java.lang.Integer",   Lit (S.Intege
 transExpr _ _ (Lit (S.String s))  = (JClass "java.lang.String",    Lit (S.String s))
 transExpr _ _ (Lit (S.Boolean b)) = (JClass "java.lang.Boolean",   Lit (S.Boolean b))
 transExpr _ _ (Lit (S.Char c))    = (JClass "java.lang.Character", Lit (S.Char c))
+transExpr _ _ (Lit  S.Unit)       = (JClass "java.lang.Integer",   Lit (S.Integer 0))
 transExpr i j (Lam t f) = (Fun t tbody, Lam t' (\x -> fsubstEE (j, Var x) body'))
   where (tbody, body') = transExpr i (j+1) (f (j, t))
         t'             = transType i t
@@ -124,7 +117,7 @@ transExpr i j (LetRec ts bs e) = (tbody, LetRec ts' bs' e')
     fs_with_sigs = zip fs ts
 
     subst :: [Index] -> [Index] -> Expr Index Index -> Expr Index Index
-    subst xs rs  = foldl (.) id [fsubstEE (x, Var (rs !! i)) | (x,i) <- (zip xs [0..n-1])]
+    subst xs rs  = foldl (.) id [fsubstEE (x, Var (rs !! k)) | (x,k) <- (zip xs [0..n-1])]
 transExpr i j (BLam f) = (Forall (\a -> fsubstTT (i, TyVar a) tbody), BLam (\a -> fsubstTE (i, TyVar a) body'))
   where (tbody, body') = transExpr (i+1) j (f i)
 transExpr i j (App e1 e2) = (t12, App e1' (c `appC` e2'))
@@ -190,7 +183,7 @@ transExpr i j (RecordUpdate e (l1,e1)) = (t, appC c e')
     Just (c, _) = putter i t l1 e1'
 
 getter :: Index -> Type Index -> S.Label -> Maybe (Coercion Index Index, Type Index)
-getter i (RecordTy (l,t)) l1
+getter _ (RecordTy (l,t)) l1
   | l1 == l   = Just (Id, t)
   | otherwise = Nothing
 getter i (And t1 t2) l
@@ -229,10 +222,10 @@ putter i (And t1 t2) l e
                            ,t)
 putter _ _ _ _ = Nothing
 
--- id_t: the identity function in the Core world, specialised to type t.
+-- Core's id, specialized to type t.
 coreId :: Type Index -> Expr Index Index
 coreId t = Lam t (\x -> Var x)
 
--- const_t: the const function in the Core world, specialised to type t.
+-- Core's const, specialized to type t.
 coreConst :: Type Index -> Expr Index Index -> Expr Index Index
-coreConst t e = Lam t (\_ -> e)
+coreConst t e = Lam t (const e)
