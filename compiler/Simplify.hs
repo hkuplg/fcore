@@ -103,6 +103,11 @@ transExpr i j (Fix f t1 t) = (Fun t1 t, Fix (\x x1 -> (fsubstEE (j, Var x) . fsu
   where (_, body') = transExpr i (j+2) (f (j, Fun t1 t) (j+1, t1))
         t1' = transType i t1
         t'  = transType i t
+transExpr i j (Let bind body) = (tbody, Let bind' body')
+  where
+    (tbind, bind')          = transExpr i j bind
+    (tbody, headless_body') = transExpr i (j+1) (body (j, tbind))
+    body' = \x -> fsubstEE (j, Var x) headless_body'
 transExpr i j (LetRec ts bs e) = (tbody, LetRec ts' bs' e')
   where
     ts'  = map (transType i) ts
