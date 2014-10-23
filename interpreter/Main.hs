@@ -11,6 +11,7 @@ import Control.Monad.Error
 
 import Data.FileEmbed			(embedFile)
 import qualified Data.ByteString 	(ByteString, writeFile)
+import qualified Data.Map as Map
 
 import Translations
 import JavaUtils
@@ -35,7 +36,9 @@ main = do
      hSetBuffering inP LineBuffering
      hSetBuffering outP LineBuffering
      liftIO printHelp
-     runInputT defaultSettings (Loop.loop (inP, outP) Env.empty False False 0)
+     runInputT defaultSettings 
+	       (Loop.loop (inP, outP) Map.empty Env.empty False False 0)
+     terminateProcess proch
      
 fileExist :: String -> IO ()
 fileExist name = do

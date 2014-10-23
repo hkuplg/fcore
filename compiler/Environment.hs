@@ -1,26 +1,30 @@
 module Environment where
 
-import System.IO
 import Data.List.Split
 
-type Env = [(String, String)]
-    
+import Parser
+import Src
+
+type Env = [(String, Exp)]
+type Exp = (String, Src.Expr Src.Name)    
+
 empty :: Env
 empty = []
 
 insert :: (String, String) -> Env -> Env
-insert (var, exp) env = (var, exp) : env
+insert (var, exp) env = (var, (exp, Parser.reader exp)) : env
 
 createExp :: [String] -> String
 createExp [] = ""
-createExp (x:xs) = x ++ createExp xs
+createExp (x:xs) = x ++ " " ++ createExp xs
 
 -- y is "="
 -- Sample input: ["x", "=", "y" , "+", "2"] 
+-- Sample output: splitOn ["="] xs ~> [["x"], ["y", "+", "2"]]
 -- Sample output: ("x", "y+2")
 createPair :: [String] -> (String, String)
 createPair xs = (var, exp) where
-	var = createExp ((splitOn ["="] xs) !! 0)
+	var = ((splitOn ["="] xs) !! 0) !! 0
 	exp = createExp ((splitOn ["="] xs) !! 1)
 
 reverseEnv :: Env -> Env
@@ -28,7 +32,7 @@ reverseEnv env = reverse env
 
 createBindEnv :: Env -> String
 createBindEnv [] = ""
-createBindEnv ((var,exp) : xs) = "let " ++ var ++ " = " ++ exp 
+createBindEnv ((var,(str,expr)) : xs) = "let " ++ var ++ " = " ++ str 
 			   		++ " in " ++ createBindEnv xs   
 searchEnv :: String -> Env -> Bool
 searchEnv var env = case lookup var env of

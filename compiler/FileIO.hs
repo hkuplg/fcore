@@ -40,11 +40,12 @@ getClassName (x : xs) = (toUpper x) : (takeWhile (/= '.') xs)
 sfToJava :: Handle -> Bool -> FilePath -> IO ()
 sfToJava h flagS f = do 
 	contents <- readFile f
+	--putStrLn contents
 	let className = getClassName f
 	result <- E.try (sf2java 0 False compileAO className contents)
 	case result of 
 	  Left  (_ :: E.SomeException) -> do 
-	  	putStrLn "invalid expression"
+	  	putStrLn "invalid expression sf2Java"
 		removeFile f
 	  Right javaFile	       -> do 
 	  	sendMsg h (className ++ ".java")

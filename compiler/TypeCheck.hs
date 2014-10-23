@@ -7,6 +7,7 @@ module TypeCheck
   -- For REPL
   , typeCheckWithEnv
   , mkInitTcEnvWithEnv
+  , TypeError
   ) where
 
 import Src
