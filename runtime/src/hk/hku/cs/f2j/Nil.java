@@ -1,6 +1,6 @@
 package hk.hku.cs.f2j;
 
-public class Nil implements FunctionalList { 
+public class Nil extends FunctionalList {
     public Integer head() {
         return null;
     }
