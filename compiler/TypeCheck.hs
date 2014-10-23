@@ -1,7 +1,13 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-unused-binds #-}
 
-module TypeCheck (typeCheck) where
+module TypeCheck
+  ( typeCheck
+
+  -- For REPL
+  , typeCheckWithEnv
+  , mkInitTcEnvWithEnv
+  ) where
 
 import Src
 
@@ -30,6 +36,11 @@ typeCheck :: Expr Name -> IO (Either TypeError (Expr TcId, Type))
 typeCheck e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnv type_server) . runErrorT . tcExpr) e)
 
+typeCheckWithEnv :: ValueContext -> Expr Name -> IO (Either TypeError (Expr TcId, Type))
+-- type_server is (Handle, Handle)
+typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
+  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . tcExpr) e)
+
 withTypeServer :: (Connection -> IO a) -> IO a
 withTypeServer do_this =
   do cp <- getClassPath
@@ -55,6 +66,15 @@ mkInitTcEnv type_server
   = TcEnv
   { tceTypeCtxt     = Set.empty
   , tceValueCtxt    = Map.empty
+  , tceTypeserver   = type_server
+  , tceMemoizedJavaClasses = Set.empty
+  }
+
+mkInitTcEnvWithEnv :: ValueContext -> Connection -> TcEnv
+mkInitTcEnvWithEnv value_ctxt type_server
+  = TcEnv
+  { tceTypeCtxt     = Set.empty
+  , tceValueCtxt    = value_ctxt
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
