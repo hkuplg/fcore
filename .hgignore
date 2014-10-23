@@ -39,6 +39,17 @@ Session.vim
 .netrwhist
 *~
 
+### Emacs ###
+# -*- mode: gitignore; -*-
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
 .hdevtools.sock
 
 *.log
