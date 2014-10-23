@@ -6,6 +6,7 @@ module Core
   , Expr(..)
   , TypeContext
   , ValueContext
+  , Index
   , alphaEquiv
   , fsubstTT, fsubstTE, fsubstEE
   , prettyType, prettyExpr

@@ -18,18 +18,13 @@ import Unsafe.Coerce
 import Control.Monad.Identity
 import Control.Monad.State
 
-import Prelude hiding (pred, id, const)
-
 simplify :: Expr t e -> Expr t e
-simplify e = unsafeCoerce $ snd (evalState (transExpr (unsafeCoerce e)) 0)
+simplify = unsafeCoerce . snd . transExpr 0 0 . unsafeCoerce
 
 infer :: Expr t e -> Type t
-infer e = unsafeCoerce $ fst (evalState (transExpr e') 0)
-  where e' = unsafeCoerce e
+infer = unsafeCoerce . fst . transExpr 0 0 . unsafeCoerce
 
--- Type translation
-
-transType :: Int -> Type Int -> Type Int
+transType :: Index -> Type Index -> Type Index
 transType _ (TyVar a)        = TyVar a
 transType _ (JClass c)       = JClass c
 transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
@@ -52,7 +47,7 @@ appC :: Coercion t e -> Expr t e -> Expr t e
 appC Id e      = e
 appC (C e1) e2 = App e1 e2
 
-coerce :: Int -> Type Int -> Type Int -> Maybe (Coercion Int Int)
+coerce :: Index -> Type Index -> Type Index -> Maybe (Coercion Index Index)
 coerce i (TyVar a) (TyVar b) | a == b    = return Id -- TODO: How about alpha equivalence?
                              | otherwise = Nothing
 coerce i (JClass c) (JClass d) | c == d    = return Id
@@ -102,145 +97,99 @@ coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
 coerce  i _ _ = Nothing
 
--- Typing
-
-transExpr:: Expr Int (Int, Type Int) -> State Int (Type Int, Expr Int Int)
-
-transExpr (Var (x, t)) = return (t, Var x)
-
-transExpr (Lit (S.Integer n)) = return (JClass "java.lang.Integer", Lit (S.Integer n))
-transExpr (Lit (S.String s))  = return (JClass "java.lang.String", Lit (S.String s))
-transExpr (Lit (S.Boolean b)) = return (JClass "java.lang.Boolean", Lit (S.Boolean b))
-transExpr (Lit (S.Char c))    = return (JClass "java.lang.Character", Lit (S.Char c))
-
-transExpr (Lam t f) =
-  do i <- takeFreshIndex
-     (t1, m) <- transExpr (f (i, t))
-     return (Fun t t1, Lam (transType i t) (\x -> fsubstEE (i, Var x) m))
-
-transExpr (Fix f t1 t) =
-  do i <- takeFreshIndex
-     return ( t1 `Fun` t
-            , Fix (\x x1 -> snd (evalState (transExpr (f (x, t1 `Fun` t) (x1, t1))) i))
-                  (transType i t1)
-                  (transType i t))
-
-transExpr (LetRec sigs binds body) =
-  do i <- get; fs <- replicateM num_of_binds takeFreshIndex
-     let fs_with_sigs = zip fs sigs
-     (_type_of_binds, opened_binds') <- mapAndUnzipM transExpr (binds fs_with_sigs)
-     (type_of_body,   opened_body')  <- transExpr (body fs_with_sigs)
-     let sigs'  = map (transType i) sigs
-         binds' = (\fs' -> map (subst fs fs') opened_binds')
-         body'  = (\fs' -> subst fs fs' opened_body')
-     return (type_of_body, LetRec sigs' binds' body')
-   where
-     num_of_binds = length sigs
-
-     subst :: [Int] -> [Int] -> Expr Int Int -> Expr Int Int
-     subst xs rs  = foldl (.) (\x->x) [fsubstEE (x, Var (rs !! i)) | (x,i) <- (zip xs [0..num_of_binds-1])]
-
-transExpr (BLam f) =
-  do i <- get
-     (t, m) <- transExpr (f i)
-     return (Forall (\a -> fsubstTT (i, TyVar a) t), BLam (\a -> fsubstEE (i, Var a) m))
-
-transExpr (App e1 e2)  =
-  do (t1, e1') <- transExpr e1
-     case t1 of
-        Fun t11 t12  ->
-          do (t2, e2') <- transExpr e2
-             i <- get
-             case coerce i t2 t11 of
-               Just c  -> return (t12, e1' `App` (c `appC` e2'))
-               Nothing -> panic ("Simplify.transExpr: App: Cannot coerce " ++
-                                 show (prettyType basePrec i t2) ++ " to " ++
-                                 show (prettyType basePrec i t11))
-        _            -> panic "Simplify.transExpr: App: Not a function"
-
-transExpr (TApp e t) =
-  do i <- takeFreshIndex
-     (t1, m) <- transExpr e
-     case t1 of
-       Forall f -> return (fsubstTT (i, t) (f i), TApp m (transType i t))
-       _        -> panic "Simplify.transExpr: TApp"
-
-transExpr (If pred b1 b2) =
-  do (predTy, pred') <- transExpr pred
-     (b1Ty, b1')     <- transExpr b1
-     (b2Ty, b2')     <- transExpr b2
-     return (b1Ty, If pred' b1' b2')
-
-transExpr (PrimOp e1 op e2) =
- do (t1, e1') <- transExpr e1
-    (t2, e2') <- transExpr e2
-    return (t, PrimOp e1' op e2')
+transExpr:: Index -> Index -> Expr Index (Index, Type Index) -> (Type Index, Expr Index Index)
+transExpr _ _ (Var (x, t))        = (t, Var x)
+transExpr _ _ (Lit (S.Integer n)) = (JClass "java.lang.Integer",   Lit (S.Integer n))
+transExpr _ _ (Lit (S.String s))  = (JClass "java.lang.String",    Lit (S.String s))
+transExpr _ _ (Lit (S.Boolean b)) = (JClass "java.lang.Boolean",   Lit (S.Boolean b))
+transExpr _ _ (Lit (S.Char c))    = (JClass "java.lang.Character", Lit (S.Char c))
+transExpr i j (Lam t f) = (Fun t tbody, Lam t' (\x -> fsubstEE (j, Var x) body'))
+  where (tbody, body') = transExpr i (j+1) (f (j, t))
+        t'             = transType i t
+transExpr i j (Fix f t1 t) = (Fun t1 t, Fix (\x x1 -> (fsubstEE (j, Var x) . fsubstEE (j+1, Var x1)) body') t1' t')
+  where (_, body') = transExpr i (j+2) (f (j, Fun t1 t) (j+1, t1))
+        t1' = transType i t1
+        t'  = transType i t
+transExpr i j (LetRec ts bs e) = (tbody, LetRec ts' bs' e')
   where
-    t = case op of
-          S.Arith _   -> JClass "java.lang.Integer"
-          S.Compare _ -> JClass "java.lang.Boolean"
-          S.Logic _   -> JClass "java.lang.Boolean"
+    ts'  = map (transType i) ts
+    bs' = (\fs' -> map (subst fs fs') opened_binds')
+    e'  = (\fs' -> subst fs fs' opened_body')
 
-transExpr (Tuple es) =
-  do (ts, es') <- mapAndUnzipM transExpr es
-     return (Product ts, Tuple es')
+    (_, opened_binds')     = unzip (map (transExpr i (j+n)) (bs fs_with_sigs))
+    (tbody, opened_body')  = transExpr i (j+n) (e fs_with_sigs)
 
-transExpr (Proj i e) =
-  do (Product ts, e') <- transExpr e
-     return (ts !! (i - 1), Proj i e')
+    n            = length ts
+    fs           = [j..j+n-1]
+    fs_with_sigs = zip fs ts
 
-transExpr (JNewObj c es) =
-  do (ts, es') <- mapAndUnzipM transExpr es
-     return (JClass c, JNewObj c es')
+    subst :: [Index] -> [Index] -> Expr Index Index -> Expr Index Index
+    subst xs rs  = foldl (.) id [fsubstEE (x, Var (rs !! i)) | (x,i) <- (zip xs [0..n-1])]
+transExpr i j (BLam f) = (Forall (\a -> fsubstTT (i, TyVar a) tbody), BLam (\a -> fsubstTE (i, TyVar a) body'))
+  where (tbody, body') = transExpr (i+1) j (f i)
+transExpr i j (App e1 e2) = (t12, App e1' (c `appC` e2'))
+  where
+    (Fun t11 t12, e1') = transExpr i j e1
+    (t2, e2')          = transExpr i j e2
+    Just c             = coerce i t2 t11
+transExpr i j (TApp e t1) = (fsubstTT (i, t1) (f i), TApp e' t1')
+  where
+    (Forall f, e') = transExpr i j e
+    t1'            = transType i t1
+transExpr i j (If p b1 b2) = (tb1, If p' b1' b2')
+  where
+    (_,   p')  = transExpr i j p
+    (tb1, b1') = transExpr i j b1
+    (_,   b2') = transExpr i j b2
+transExpr i j (PrimOp e1 op e2) = (t, PrimOp e1' op e2')
+  where
+    (_, e1') = transExpr i j e1
+    (_, e2') = transExpr i j e2
+    t        = case op of
+                 S.Arith _   -> JClass "java.lang.Integer"
+                 S.Compare _ -> JClass "java.lang.Boolean"
+                 S.Logic _   -> JClass "java.lang.Boolean"
+transExpr i j (Tuple es) = (Product ts, Tuple es')
+  where
+    (ts, es') = unzip (map (transExpr i j) es)
+transExpr i j (Proj index e) = (ts !! (index-1), Proj index e')
+  where
+    (Product ts, e') = transExpr i j e
+transExpr i j (JNewObj c es) = (JClass c, JNewObj c es')
+  where
+    (_, es') = unzip (map (transExpr i j) es)
+transExpr i j (JMethod obj m args ret) = (JClass ret, JMethod obj' m args' ret)
+  where
+    obj' = case obj of
+             Left c  -> Left c
+             Right e -> Right e' where (_, e') = transExpr i j e
+    (_, args') = unzip (map (transExpr i j) args)
+transExpr i j (JField obj m ret) = (JClass ret, JField obj' m ret)
+  where
+    obj' = case obj of
+             Left c  -> Left c
+             Right e -> Right e' where (_, e') = transExpr i j e
+transExpr i j (Seq es) = (last ts, Seq es')
+  where
+    (ts, es') = unzip (map (transExpr i j) es)
+transExpr i j (Merge e1 e2) = (And t1 t2, Tuple [e1', e2'])
+  where
+    (t1, e1') = transExpr i j e1
+    (t2, e2') = transExpr i j e2
+transExpr i j (Record (l,e)) = (RecordTy (l,t), e')
+  where
+    (t, e') = transExpr i j e
+transExpr i j (RecordAccess e l1) = (t1, appC c e')
+  where
+    (t, e')      = transExpr i j e
+    Just (c, t1) = getter i t l1
+transExpr i j (RecordUpdate e (l1,e1)) = (t, appC c e')
+  where
+    (t,  e')    = transExpr i j e
+    (_, e1')    = transExpr i j e1
+    Just (c, _) = putter i t l1 e1'
 
-transExpr (JMethod (Right e) m args retC) =
-  do (t, e') <- transExpr e
-     (argsTys, args') <- mapAndUnzipM transExpr args
-     return (JClass retC, JMethod (Right e') m args' retC)
-
-transExpr (JMethod (Left c) m args retC) =
-  do (argsTys, args') <- mapAndUnzipM transExpr args
-     return (JClass retC, JMethod (Left c) m args' retC)
-
-transExpr (JField (Right e) m retC) =
-  do (t, e') <- transExpr e
-     return (JClass retC, JField (Right e') m retC)
-
-transExpr (JField (Left c) m retC) =
-  return (JClass retC, JField (Left c) m retC)
-
-transExpr (Seq es) =
-  do (ts, es') <- mapAndUnzipM transExpr es
-     return (last ts, Seq es')
-
-transExpr (Merge e1 e2) =
-  do (t1, e1') <- transExpr e1
-     (t2, e2') <- transExpr e2
-     return (And t1 t2, Tuple [e1', e2'])
-
-transExpr (Record (l,e)) =
-  do (t, e') <- transExpr e
-     return (RecordTy (l,t), e')
-
-transExpr (RecordAccess e l) =
-  do (t, e') <- transExpr e
-     i <- get
-     case getter i t l of
-       Nothing     -> panic "Simplify.transExpr:RecordAccess"
-       Just (c,t1) -> return (t1, appC c e')
-
-transExpr (RecordUpdate e (l1,e1)) =
-  do (t,  e')  <- transExpr e
-     (t1, e1') <- transExpr e1
-     i <- get
-     case putter i t l1 e1' of
-       Nothing -> panic "Simplify.transExpr:RecordUpdate"
-       Just (c,t2) ->
-         -- Since the simplifier assumes everything passed in typechecks,
-         -- the subtyping condition t1 <: t2 is not checked here.
-         return (t, appC c e')
-
-getter :: Int -> Type Int -> S.Label -> Maybe (Coercion Int Int, Type Int)
+getter :: Index -> Type Index -> S.Label -> Maybe (Coercion Index Index, Type Index)
 getter i (RecordTy (l,t)) l1
   | l1 == l   = Just (Id, t)
   | otherwise = Nothing
@@ -257,9 +206,9 @@ getter i (And t1 t2) l
                  ,t)
 getter _ _ _ = Nothing
 
-putter :: Int -> Type Int -> S.Label -> Expr Int Int -> Maybe (Coercion Int Int, Type Int)
+putter :: Index -> Type Index -> S.Label -> Expr Index Index -> Maybe (Coercion Index Index, Type Index)
 putter i (RecordTy (l,t)) l1 e
-  | l1 == l   = Just (C $ const (transType i $ RecordTy (l,t)) e, t)
+  | l1 == l   = Just (C $ coreConst (transType i $ RecordTy (l,t)) e, t)
   | otherwise = Nothing
 putter i (And t1 t2) l e
   = case putter i t2 l e of
@@ -281,15 +230,9 @@ putter i (And t1 t2) l e
 putter _ _ _ _ = Nothing
 
 -- id_t: the identity function in the Core world, specialised to type t.
-id :: Type Int -> Expr Int Int
-id t = Lam t (\x -> Var x)
+coreId :: Type Index -> Expr Index Index
+coreId t = Lam t (\x -> Var x)
 
 -- const_t: the const function in the Core world, specialised to type t.
-const :: Type Int -> Expr Int Int -> Expr Int Int
-const t e = Lam t (\_ -> e)
-
-takeFreshIndex :: State Int Int
-takeFreshIndex =
-  do i <- get
-     put (i + 1)
-     return i
+coreConst :: Type Index -> Expr Index Index -> Expr Index Index
+coreConst t e = Lam t (\_ -> e)
