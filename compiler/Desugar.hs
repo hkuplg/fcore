@@ -12,6 +12,7 @@ import qualified Core as C
 import Panic
 
 import Data.Maybe       (fromMaybe)
+import StringPrefixes
 
 import qualified Data.Map as Map
 
@@ -138,8 +139,8 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     -- Primitive List to java class
 
     go (PrimList l)              = case l of     -- translate to java new obj
-                                     []   -> C.JNewObj "f2j.FunctionalList" []
-                                     x:xs -> C.JNewObj "f2j.FunctionalList" [go x, go (PrimList xs)]
+                                     []   -> C.JNewObj (namespace ++ "FunctionalList") []
+                                     x:xs -> C.JNewObj (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
 
     go (Seq es) = C.Seq (map go es)
 
