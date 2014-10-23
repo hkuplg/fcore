@@ -36,6 +36,7 @@ typeCheck :: Expr Name -> IO (Either TypeError (Expr TcId, Type))
 typeCheck e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnv type_server) . runErrorT . tcExpr) e)
 
+-- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> Expr Name -> IO (Either TypeError (Expr TcId, Type))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
@@ -70,6 +71,7 @@ mkInitTcEnv type_server
   , tceMemoizedJavaClasses = Set.empty
   }
 
+-- Temporary hack for REPL
 mkInitTcEnvWithEnv :: ValueContext -> Connection -> TcEnv
 mkInitTcEnvWithEnv value_ctxt type_server
   = TcEnv
