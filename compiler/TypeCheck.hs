@@ -15,7 +15,7 @@ import IOEnv
 import JavaUtils
 import JvmTypeQuery
 import Panic
-
+import StringPrefixes
 
 
 import System.IO
@@ -45,7 +45,7 @@ typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
 withTypeServer :: (Connection -> IO a) -> IO a
 withTypeServer do_this =
   do cp <- getClassPath
-     let p = (proc "java" ["-cp", cp, "hk.hku.cs.f2j.TypeServer"])
+     let p = (proc "java" ["-cp", cp, (namespace ++ "TypeServer")])
                { std_in = CreatePipe, std_out = CreatePipe }
      (Just inp, Just out, _, proch) <- createProcess p
      hSetBuffering inp NoBuffering
@@ -271,9 +271,9 @@ tcExpr (Merge e1 e2) =
 
 tcExpr (PrimList l) =
       do (es, ts) <- mapAndUnzipM tcExpr l
-         case ts of [] -> return (PrimList es, (JClass "hk.hku.cs.f2j.FunctionalList"))
+         case ts of [] -> return (PrimList es, (JClass (namespace ++ "FunctionalList")))
                     _  -> if (all (`alphaEquiv` (ts !! 0)) ts)
-                            then return (PrimList es, (JClass "hk.hku.cs.f2j.FunctionalList"))
+                            then return (PrimList es, (JClass (namespace ++ "FunctionalList")))
                             else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
 
 tcExpr (Record fs) =

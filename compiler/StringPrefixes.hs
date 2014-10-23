@@ -2,6 +2,7 @@ module StringPrefixes where
 
 import Data.List
 
+namespace = "f2j."
 listlast = Data.List.last
 -- field and closures
 localvarstr = "x"
