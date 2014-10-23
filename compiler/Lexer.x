@@ -54,7 +54,7 @@ tokens :-
     Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
     Char        { \_ _ -> Tjavaclass "java.lang.Character" }
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
-    List        { \_ _ -> Tjavaclass "hk.hku.cs.f2j.FunctionalList" }
+    List        { \_ _ -> Tjavaclass "f2j.FunctionalList" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }

@@ -155,7 +155,7 @@ transUnbox this super =
                                                         (Body t2) -> liftM classTy (getClassType (up this) t1 t2)
                                                         _ -> liftM classTy (getClassType (up this) t1 CFInteger)
                               x -> javaType super x
-              ,getPrefix = return "hk.hku.cs.f2j.unbox."
+              ,getPrefix = return (namespace ++ "unbox.")
               ,chooseCastBox = \typ ->
                                  case typ of
                                    CFInt -> return (\s n e -> localFinalVar (J.PrimType J.IntT)

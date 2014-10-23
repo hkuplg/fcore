@@ -68,7 +68,7 @@ data Translate m =
 getTupleClassName :: [a] -> String
 getTupleClassName tuple = if lengthOfTuple > 50
                              then panic "The length of tuple is too long (>50)!"
-                             else "hk.hku.cs.f2j.tuples.Tuple" ++ show lengthOfTuple
+                             else namespace ++ "tuples.Tuple" ++ show lengthOfTuple
   where lengthOfTuple = length tuple
 
 getS3 :: MonadState Int m
@@ -443,7 +443,7 @@ trans self =
                                                          _ -> do let tupleClassName = getTupleClassName tuple
                                                                  return (initClass tupleClassName, classTy tupleClassName)
                                   _ -> return (initClass "Object", objClassTy)
-       ,getPrefix = return "hk.hku.cs.f2j."
+       ,getPrefix = return namespace
        ,genClone = return False -- do not generate clone method
        ,genTest = return False -- do not generate test method
        ,getBox = \_ -> return ""
