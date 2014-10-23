@@ -35,6 +35,9 @@ import JavaUtils
   "&"      { Tandtype }
   ",,"     { Tmerge }
   "with"   { Twith }
+  "(+)"    { Tcombine }
+  "this"   { Tthis }
+  "super"  { Tsuper }
   "let"    { Tlet }
   "rec"    { Trec }
   "="      { Teq }
@@ -171,6 +174,7 @@ infixexpr :: { Expr Name }
     | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
+    | infixexpr "(+)" infixexpr { Combine $1 $3 }
 
 expr10 :: { Expr Name }
     : "/\\" tyvar "." expr                { BLam $2 $4  }
