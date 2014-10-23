@@ -41,7 +41,7 @@ appC :: Coercion t e -> Expr t e -> Expr t e
 appC Id e      = e
 appC (C e1) e2 = App e1 e2
 
-subtype' :: Base (Index -> Type Index -> Type Index -> Bool)
+subtype' :: Class (Index -> Type Index -> Type Index -> Bool)
 subtype' _    _ (TyVar a)    (TyVar b)   = a == b
 subtype' _    _ (JClass c)   (JClass d)  = c == d
 subtype' this i (Fun t1 t2)  (Fun t3 t4) = this i t3 t1 && this i t2 t4
@@ -105,6 +105,35 @@ coerce i (And t1 t2) t3 =
 coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
 coerce _ _ _ = Nothing
+
+infer':: Index -> Index -> Expr Index (Index, Type Index) -> Type Index
+infer' _ _ (Var (_,t))         = t
+infer' _ _ (Lit (S.Integer _)) = JClass "java.lang.Integer"
+infer' _ _ (Lit (S.String _))  = JClass "java.lang.String"
+infer' _ _ (Lit (S.Boolean _)) = JClass "java.lang.Boolean"
+infer' _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
+infer' _ _ (Lit  S.Unit)       = JClass "java.lang.Integer"
+infer' i j (Lam t f)           = Fun t (infer' i (j+1) (f (j,t)))
+infer' i j (BLam f)            = Forall (\a -> fsubstTT (i, TyVar a) (infer' (i+1) j (f i)))
+infer' _ _ (Fix _ t1 t)        = Fun t1 t
+infer' i j (Let bind body)     = infer' i (j+1) (body (j, infer' i j bind))
+infer' i j (LetRec ts _ e)     = infer' i (j+n) (e (zip [j..j+n-1] ts)) where n = length ts
+infer' i j (App e1 _)          = t12                    where Fun _ t12 = infer' i j e1
+infer' i j (TApp e t1)         = fsubstTT (i, t1) (f i) where Forall f  = infer' i j e
+infer' i j (If _ b1 _)         = infer' i j b1
+infer' _ _ (PrimOp _ op _)     = case op of S.Arith _   -> JClass "java.lang.Integer"
+                                            S.Compare _ -> JClass "java.lang.Boolean"
+                                            S.Logic _   -> JClass "java.lang.Boolean"
+infer' i j (Tuple es)          = Product (map (infer' i j) es)
+infer' i j (Proj index e)      = ts !! (index-1) where Product ts = infer' i j e
+infer' _ _ (JNewObj c _)       = JClass c
+infer' _ _ (JMethod _ _ _ c)   = JClass c
+infer' _ _ (JField _ _ c)      = JClass c
+infer' i j (Seq es)            = infer' i j (last es)
+infer' i j (Merge e1 e2)       = And (infer' i j e1) (infer' i j e2)
+infer' i j (Record (l,e))      = RecordTy (l, infer' i j e)
+infer' i j (RecordAccess e l1) = t1 where Just (_,t1) = getter i (infer' i j e) l1
+infer' i j (RecordUpdate e _)  = infer' i j e
 
 transExpr:: Index -> Index -> Expr Index (Index, Type Index) -> (Type Index, Expr Index Index)
 transExpr _ _ (Var (x, t))        = (t, Var x)
