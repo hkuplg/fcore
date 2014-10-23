@@ -1,4 +1,4 @@
-module Mixins where
+module Mixin where
 
 
 type Base a = a -> a

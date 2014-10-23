@@ -7,7 +7,7 @@ module Simplify where
 import Core
 import qualified Src as S
 
-import Mixins
+import Mixin
 
 import Control.Monad (zipWithM)
 import Unsafe.Coerce (unsafeCoerce)
