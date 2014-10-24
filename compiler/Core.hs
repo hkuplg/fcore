@@ -241,7 +241,7 @@ fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
 fsubstTT (x,r) (JClass c)  = JClass c
 fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
-fsubstTT _ _ = sorry "Core.fsubstTT: no idea how to do"
+fsubstTT (x,r) t           = sorry ("Core.fsubstTT:\n" ++ show (prettyType basePrec 0 t))
 
 fsubstTE :: (Index, Type Index) -> Expr Index Index -> Expr Index Index
 fsubstTE (x,r) (Var a)       = Var a
@@ -250,8 +250,12 @@ fsubstTE (x,r) (BLam g)      = BLam (fsubstTE (x,r) . g)
 fsubstTE (x,r) (Lam t f)     = Lam (fsubstTT (x,r) t) (fsubstTE (x,r) . f)
 fsubstTE (x,r) (TApp e t)    = TApp (fsubstTE (x,r) e) (fsubstTT (x,r) t)
 fsubstTE (x,r) (App e1 e2)   = App (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
+fsubstTE (x,r) (If p b1 b2)  = If (fsubstTE (x,r) p) (fsubstTE (x,r) b1) (fsubstTE (x,r) b2)
 fsubstTE (x,r) (Merge e1 e2) = Merge (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
-fsubstTE _ _ = sorry "Core.fsubstTE: no idea how to do"
+fsubstTE (x,r) (JNewObj c args)          = JNewObj c (map (fsubstTE (x,r)) args)
+fsubstTE (x,r) (JMethod callee m args c) = JMethod (fmap (fsubstTE (x,r)) callee) m (map (fsubstTE (x,r)) args) c
+fsubstTE (x,r) (JField  callee f c)      = JField  (fmap (fsubstTE (x,r)) callee) f c
+fsubstTE (x,r) e                         = sorry ("Core.fsubstTE:\n" ++ show (prettyExpr basePrec (0,0) e))
 
 fsubstEE :: (Index, Expr Index Index) -> Expr Index Index -> Expr Index Index
 fsubstEE (x,r)
