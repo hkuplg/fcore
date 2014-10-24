@@ -106,11 +106,11 @@ fexp2cexp (C.Fix f t1 t2) =
   in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g
 fexp2cexp (C.JNewObj cName args)     = JNewObj cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
-  case c of (Right ce)  -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
-            (Left cn) -> JMethod (Left cn) mName (map fexp2cexp args) r
+  case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
+            (S.Static cn)    -> JMethod (Left cn) mName (map fexp2cexp args) r
 fexp2cexp (C.JField c fName r) =
-  case c of (Right ce)  -> JField (Right $ fexp2cexp ce) fName r
-            (Left cn) -> JField (Left cn) fName r
+  case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName r
+            (S.Static cn)    -> JField (Left cn) fName r
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp e                         = Lam (groupLambda e)
 

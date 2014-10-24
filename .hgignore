@@ -30,6 +30,7 @@ cabal.config
 ### Java ###
 /*.java
 testsuite/*.java
+Main.java
 *.class
 
 ### vim ###

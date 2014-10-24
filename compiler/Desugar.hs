@@ -123,15 +123,9 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec [(f,t@(Fun _ _),e)] body) = dsLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec [(f,t,e)] body)           = dsLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = dsLetRecToLetRec (d,g) (LetOut Rec bs body)
-    go (JNewObj cName args)    = C.JNewObj cName (map go args)
-    go (JMethod c mName args r) =
-      case c of
-        (Left cName)  -> C.JMethod (Left cName) mName (map go args) r
-        (Right cExpr) -> C.JMethod (Right (go cExpr)) mName (map go args) r
-    go (JField c fName r) =
-      case c of
-        (Left cName)  -> C.JField (Left cName) fName r
-        (Right cExpr) -> C.JField (Right (go cExpr)) fName r
+    go (JNewObj c args)          = C.JNewObj c (map go args)
+    go (JMethod callee m args r) = C.JMethod (fmap go callee) m (map go args) r
+    go (JField  callee f r)      = C.JField  (fmap go callee) f r
 
     -- Non Java Class translation
     -- go (PrimList l)              = FPrimList (map go l)
