@@ -10,17 +10,16 @@
 
 module StackTransCFJava where
 
-import Prelude hiding (init, last)
-
+import           Prelude hiding (init, last)
 import qualified Language.Java.Syntax as J
-import ClosureF
-import Inheritance
-import BaseTransCFJava
-import ApplyTransCFJava (last)
-import MonadLib
--- import StringPrefixes
-import Panic
-import JavaEDSL
+
+import           ApplyTransCFJava (last)
+import           BaseTransCFJava
+import           ClosureF
+import           Inheritance
+import           JavaEDSL
+import           MonadLib
+import           Panic
 
 data TranslateStack m = TS {
   toTS :: Translate m -- supertype is a subtype of Translate (later on at least)
@@ -51,6 +50,24 @@ whileApplyLoop this ctemp tempOut outType ctempCastTyp = do
                   J.NotEq
                   (J.Lit J.Null))),
           assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) "out")))]
+
+
+whileApplyLoopMain :: (Monad m) => Translate m -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
+whileApplyLoopMain this ctemp tempOut outType ctempCastTyp = do
+  closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+  let closureType' = classTy closureClass
+  nextName <- nextClass (up this)
+  let nextNEqNull = (J.BinOp (J.ExpName $ name [nextName, "next"])
+                     J.NotEq
+                     (J.Lit J.Null))
+  let loop = [bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
+                                          ,assign (name [nextName, "next"]) (J.Lit J.Null)
+                                          ,bStmt (methodCall [ctemp, "apply"] [])]))
+                    nextNEqNull),
+              assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) "out")))]
+  return [localVar closureType' (varDeclNoInit ctemp),
+          localVar outType (varDecl tempOut (J.MethodInv (J.MethodCall (name ["apply"]) []))),
+          bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop)))]
 
 containsNext :: [J.BlockStmt] -> Bool
 containsNext l = foldr (||) False $ map (\x -> case x of (J.BlockStmt (J.ExpStmt (J.Assign (
@@ -118,19 +135,34 @@ transS this super = TS {toTS = super {
 
   stackMainBody = \t -> do
     closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
-    loop <- whileApplyLoop (up this) "c" "result" (case t of
-                                                    CFInt -> J.PrimType J.IntT
-                                                    JClass "java.lang.Integer" -> classTy "java.lang.Integer"
-                                                    _ -> objClassTy) (classTy closureClass)
-    return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])]),
+    loop <- whileApplyLoopMain (up this) "c" "result"
+            (case t of
+              CFInt -> classTy "java.lang.Integer"
+              JClass "java.lang.Integer" -> classTy "java.lang.Integer"
+              _ -> objClassTy)
+            (classTy closureClass)
+
+    return (loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])]),
 
   createWrap = \nam expr ->
         do (bs,e,t) <- translateM (up this) expr
+           let returnType = case t of
+                                  JClass "java.lang.Integer" -> Just $ classTy "java.lang.Integer"
+                                  JClass "java.lang.Boolean" -> Just $ classTy "java.lang.Boolean"
+                                  CFInt -> Just $ classTy "java.lang.Integer"
+                                  _ -> Just objClassTy
+           let returnStmt = [bStmt $ J.Return $ Just e]
            box <- getBox (up this) t
            empyClosure' <- empyClosure (up this) e box
            mainbody <- stackMainBody (up this) t
            isTest <- genTest super
-           let stackDecl = wrapperClass nam (bs ++ (if (containsNext bs) then [] else [empyClosure'])) Nothing (Just $ J.Block mainbody) [] Nothing isTest
+           let stackDecl = wrapperClass nam
+                           (bs ++ (if (containsNext bs) then [] else [empyClosure']) ++ returnStmt)
+                           returnType
+                           (Just $ J.Block mainbody)
+                           []
+                           Nothing
+                           isTest
            return (createCUB  (up this :: Translate m) [stackDecl], t)
 
   }}

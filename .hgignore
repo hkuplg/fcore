@@ -60,3 +60,4 @@ formalization/*.pdf
 *.aux
 
 TAGS
+Main.java

@@ -3,13 +3,14 @@
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 
+import           Prelude hiding (init)
+import qualified Language.Java.Syntax as J
+
 import           ClosureF
 import           Inheritance
 import           JavaEDSL
-import qualified Language.Java.Syntax as J
 import           MonadLib
 import           Panic
-import           Prelude hiding (init)
 import qualified Src
 import           StringPrefixes
 
@@ -19,13 +20,6 @@ instance (:<) (Translate m) (Translate m) where
 type InitVars = [J.BlockStmt]
 
 -- Closure F to Java
-
-newIdent :: Int -> J.Ident
-newIdent n = J.Ident $ localvarstr ++ show n
-
-identDecl :: Monad m => Translate m -> J.Ident -> Type Int -> J.Exp -> m [J.BlockStmt]
-identDecl this idn t j = do aType <- javaType this t
-                            return $ [J.LocalVars [J.Final] aType [J.VarDecl (J.VarId idn) (Just $ J.InitExp j)]]
 
 createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
 createCUB _ compDef = cu
@@ -66,9 +60,10 @@ data Translate m =
 
 -- needed
 getTupleClassName :: [a] -> String
-getTupleClassName tuple = if lengthOfTuple > 50
-                             then panic "The length of tuple is too long (>50)!"
-                             else namespace ++ "tuples.Tuple" ++ show lengthOfTuple
+getTupleClassName tuple =
+  if lengthOfTuple > 50
+     then panic "The length of tuple is too long (>50)!"
+     else namespace ++ "tuples.Tuple" ++ show lengthOfTuple
   where lengthOfTuple = length tuple
 
 getS3 :: MonadState Int m
@@ -151,6 +146,7 @@ trans self =
                   (Src.String s) -> return ([] ,J.Lit (J.String s) ,JClass "java.lang.String")
                   (Src.Boolean b) -> return ([] ,J.Lit (J.Boolean b) ,JClass "java.lang.Boolean")
                   (Src.Char c) -> return ([] ,J.Lit (J.Char c) ,JClass "java.lang.Character")
+                  _ -> sorry "BaseTransCFJava.Lit: no idea what to do"
               PrimOp e1 op e2 ->
                 do (s1,j1,_) <- translateM this e1
                    (s2,j2,_) <- translateM this e2
@@ -208,13 +204,15 @@ trans self =
                    (s1, j1, t1) <- translateM this expr
                    (s2, j2, t2) <- translateM this (body (n,t1))
 
-                   let x = newIdent n
-                   let xf = newIdent (n + 1)
+                   let x = localvarstr ++ show n
+                   let xf = localvarstr ++ show (n+1)
+                   jt1 <- javaType this t1
+                   jt2 <- javaType this t2
 
-                   xDecl <- identDecl this x t1 j1
-                   xfDecl <- identDecl this xf t2 j2
+                   let xDecl = localFinalVar jt1 (varDecl x j1)
+                   let xfDecl = localFinalVar jt2 (varDecl xf j2)
 
-                   return (s1 ++ xDecl ++ s2 ++ xfDecl, J.ExpName (J.Name [xf]), t2)
+                   return (s1 ++ [xDecl] ++ s2 ++ [xfDecl], var xf, t2)
 
               LetRec t xs body ->
                 do (n :: Int) <- get
@@ -413,9 +411,7 @@ trans self =
                                                        (classTy closureClass))
                        ,localVar (classTy closureClass) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                       ,t1)
-       ,genApply =
-          \f _ _ _ _ ->
-            return [applyMethodCall f]
+       ,genApply = \f _ _ _ _ -> return [applyMethodCall f]
        ,genRes = \_ -> return
        ,setClosureVars =
           \_ fname j1 j2 -> do

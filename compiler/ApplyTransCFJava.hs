@@ -2,18 +2,16 @@
 
 module ApplyTransCFJava where
 
-import Prelude hiding (init, last)
-
 import qualified Data.Set as Set
-
 import qualified Language.Java.Syntax as J
-import ClosureF
-import Inheritance
-import BaseTransCFJava
-import StringPrefixes
-import MonadLib
+import           Prelude hiding (init, last)
 
-import JavaEDSL
+import           BaseTransCFJava
+import           ClosureF
+import           Inheritance
+import           JavaEDSL
+import           MonadLib
+import           StringPrefixes
 
 data ApplyOptTranslate m = NT {toT :: Translate m}
 
@@ -29,7 +27,12 @@ last (Kind f)   = last (f 0)
 last (Body _)   = True
 
 -- main translation function
-transApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
+transApply :: (MonadState Int m,
+               MonadState (Set.Set J.Exp) m,
+               MonadReader InitVars m,
+               selfType :< ApplyOptTranslate m,
+               selfType :< Translate m)
+              => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transApply _ super = NT {toT = super {
   translateScopeTyp = \currentId nextId initVars nextInClosure m closureClass ->
     case last nextInClosure of
