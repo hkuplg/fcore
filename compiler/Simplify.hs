@@ -170,25 +170,17 @@ transExpr' _ this i j (App e1 e2) = App e1' (appC c e2')
     (Fun t11 _, e1') = this i j e1
     (t2, e2')        = this i j e2
     Just c           = coerce i t2 t11
-transExpr' _ this i j (TApp e t1)              = TApp (snd (this i j e)) (transType i t1)
-transExpr' _ this i j (If p b1 b2)             = If (snd (this i j p)) (snd (this i j b1)) (snd (this i j b2))
-transExpr' _ this i j (PrimOp e1 op e2)        = PrimOp (snd (this i j e1)) op (snd (this i j e2))
-transExpr' _ this i j (Tuple es)               = Tuple (snd (unzip (map (this i j) es)))
-transExpr' _ this i j (Proj index e)           = Proj index (snd (this i j e))
-transExpr' _ this i j (JNewObj c es)           = JNewObj c (snd (unzip (map (this i j) es)))
-transExpr' _ this i j (JMethod obj m args ret) = JMethod obj' m (snd (unzip (map (this i j) args))) ret
-  where
-    obj' = case obj of
-             Left c  -> Left c
-             Right e -> Right e' where (_, e') = this i j e
-transExpr' _ this i j (JField obj m ret) = JField obj' m ret
-  where
-    obj' = case obj of
-             Left c  -> Left c
-             Right e -> Right e' where (_, e') = this i j e
-transExpr' _     this i j (Seq es)                 = Seq (snd (unzip (map (this i j) es)))
-transExpr' _     this i j (Merge e1 e2)            = Tuple [snd (this i j e1), snd (this i j e2)]
-transExpr' _     this i j (Record (_,e))           = snd (this i j e)
+transExpr' _ this i j (TApp e t1)                  = TApp (snd (this i j e)) (transType i t1)
+transExpr' _ this i j (If p b1 b2)                 = If (snd (this i j p)) (snd (this i j b1)) (snd (this i j b2))
+transExpr' _ this i j (PrimOp e1 op e2)            = PrimOp (snd (this i j e1)) op (snd (this i j e2))
+transExpr' _ this i j (Tuple es)                   = Tuple (snd (unzip (map (this i j) es)))
+transExpr' _ this i j (Proj index e)               = Proj index (snd (this i j e))
+transExpr' _ this i j (JNewObj c es)               = JNewObj c (snd (unzip (map (this i j) es)))
+transExpr' _ this i j (JMethod callee m args ret)  = JMethod (fmap (snd . this i j) callee) m (snd (unzip (map (this i j) args))) ret
+transExpr' _ this i j (JField callee m ret)        = JField (fmap (snd . this i j) callee) m ret
+transExpr' _ this i j (Seq es)                     = Seq (snd (unzip (map (this i j) es)))
+transExpr' _ this i j (Merge e1 e2)                = Tuple [snd (this i j e1), snd (this i j e2)]
+transExpr' _ this i j (Record (_,e))               = snd (this i j e)
 transExpr' super this i j (RecordAccess e l1)      = appC c (snd (this i j e)) where Just (c, _) = getter i (super i j e) l1
 transExpr' super this i j (RecordUpdate e (l1,e1)) = appC c (snd (this i j e)) where Just (c, _) = putter i (super i j e) l1 (snd (this i j e1))
 
