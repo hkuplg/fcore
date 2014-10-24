@@ -117,7 +117,6 @@ transS this super = TS {toTS = super {
        Lam _       -> local (&& False) $ translateM super e
        Fix _ _     -> local (&& False) $ translateM super e
        TApp _ _    -> local (|| False) $ translateM super e
-       Let _ _ -> local (&& False) $ translateM super e
        If e1 e2 e3 -> translateIf (up this) (local (|| True) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
        App e1 e2   -> translateApply (up this) (local (|| True) $ translateM (up this) e1) (local (|| True) $ translateM (up this) e2)
        _   -> local (|| True) $ translateM super e,
