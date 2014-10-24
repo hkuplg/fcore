@@ -10,17 +10,16 @@
 
 module StackTransCFJava where
 
-import Prelude hiding (init, last)
-
+import           Prelude hiding (init, last)
 import qualified Language.Java.Syntax as J
-import ClosureF
-import Inheritance
-import BaseTransCFJava
-import ApplyTransCFJava (last)
-import MonadLib
--- import StringPrefixes
-import Panic
-import JavaEDSL
+
+import           ApplyTransCFJava (last)
+import           BaseTransCFJava
+import           ClosureF
+import           Inheritance
+import           JavaEDSL
+import           MonadLib
+import           Panic
 
 data TranslateStack m = TS {
   toTS :: Translate m -- supertype is a subtype of Translate (later on at least)

@@ -3,13 +3,14 @@
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 
+import           Prelude hiding (init)
+import qualified Language.Java.Syntax as J
+
 import           ClosureF
 import           Inheritance
 import           JavaEDSL
-import qualified Language.Java.Syntax as J
 import           MonadLib
 import           Panic
-import           Prelude hiding (init)
 import qualified Src
 import           StringPrefixes
 
@@ -59,9 +60,10 @@ data Translate m =
 
 -- needed
 getTupleClassName :: [a] -> String
-getTupleClassName tuple = if lengthOfTuple > 50
-                             then panic "The length of tuple is too long (>50)!"
-                             else namespace ++ "tuples.Tuple" ++ show lengthOfTuple
+getTupleClassName tuple =
+  if lengthOfTuple > 50
+     then panic "The length of tuple is too long (>50)!"
+     else namespace ++ "tuples.Tuple" ++ show lengthOfTuple
   where lengthOfTuple = length tuple
 
 getS3 :: MonadState Int m
@@ -144,6 +146,7 @@ trans self =
                   (Src.String s) -> return ([] ,J.Lit (J.String s) ,JClass "java.lang.String")
                   (Src.Boolean b) -> return ([] ,J.Lit (J.Boolean b) ,JClass "java.lang.Boolean")
                   (Src.Char c) -> return ([] ,J.Lit (J.Char c) ,JClass "java.lang.Character")
+                  _ -> sorry "BaseTransCFJava.Lit: no idea what to do"
               PrimOp e1 op e2 ->
                 do (s1,j1,_) <- translateM this e1
                    (s2,j2,_) <- translateM this e2
@@ -408,9 +411,7 @@ trans self =
                                                        (classTy closureClass))
                        ,localVar (classTy closureClass) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                       ,t1)
-       ,genApply =
-          \f _ _ _ _ ->
-            return [applyMethodCall f]
+       ,genApply = \f _ _ _ _ -> return [applyMethodCall f]
        ,genRes = \_ -> return
        ,setClosureVars =
           \_ fname j1 j2 -> do

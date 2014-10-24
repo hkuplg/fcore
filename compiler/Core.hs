@@ -19,7 +19,6 @@ import PrettyUtils
 import Panic
 
 import Text.PrettyPrint.Leijen
-import qualified Language.Java.Syntax as J (Op(..))
 import qualified Language.Java.Pretty      (prettyPrint)
 
 import           Data.List (intersperse)
