@@ -71,8 +71,8 @@ data Expr t e
 
   -- Java
   | JNewObj ClassName [Expr t e]
-  | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
-  | JField  (Either ClassName (Expr t e)) FieldName ClassName
+  | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
+  | JField  (Src.JCallee (Expr t e)) FieldName ClassName
 
   | Seq [Expr t e]
 
@@ -192,13 +192,13 @@ prettyExpr p (i,j) (JNewObj c args) =
 
 prettyExpr p i (JMethod name m args r) = methodStr name <> dot <> text m <> tupled (map (prettyExpr basePrec i) args)
   where
-    methodStr (Left x) = text x
-    methodStr (Right x) = prettyExpr (6,PrecMinus) i x
+    methodStr (Src.Static x) = text x
+    methodStr (Src.NonStatic x) = prettyExpr (6,PrecMinus) i x
 
 prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
   where
-    fieldStr (Left x) = text x
-    fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
+    fieldStr (Src.Static x) = text x
+    fieldStr (Src.NonStatic x) = prettyExpr (6,PrecMinus) i x
 
 prettyExpr p (i,j) (Seq es) = semiBraces (map (prettyExpr p (i,j)) es)
 
@@ -258,24 +258,22 @@ fsubstEE (x,r)
   = go
   where
     go (Var a)
-      | a == x                        = r
-      | otherwise                     = Var a
-    go (Lam t f)                      = Lam t (go . f)
-    go (App e1 e2)                    = App (go e1) (go e2)
-    go (BLam f)                       = BLam (go . f )
-    go (TApp e t)                     = TApp (go e) t
-    go (Lit n)                        = Lit n
-    go (If prd b1 b2)                 = If (go prd) (go b1) (go b2)
-    go (PrimOp e1 op e2)              = PrimOp (go e1) op (go e2)
-    go (Tuple es)                     = Tuple (map go es)
-    go (Proj i e)                     = Proj i (go e)
-    go (Fix f t1 t)                   = Fix (\x' x1 -> go (f x' x1)) t1 t
-    go (JNewObj s args)               = JNewObj s (map go args)
-    go (JMethod (Right e)  m args ret) = JMethod (Right (go e)) m (map go args) ret
-    go (JMethod (Left c) m args ret)  = JMethod (Left c)     m (map go args) ret
-    go (JField (Right e) f ret)       = JField (Right (go e)) f ret
-    go (JField (Left c) f ret)        = JField (Left c)     f ret
-    go (Seq es)                       = Seq (map go es)
-    go (Merge e1 e2)                  = Merge (go e1) (go e2)
-    go (Let bind body)                = Let (go bind) (\e -> go (body e))
-    go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))
+      | a == x                     = r
+      | otherwise                  = Var a
+    go (Lam t f)                   = Lam t (go . f)
+    go (App e1 e2)                 = App (go e1) (go e2)
+    go (BLam f)                    = BLam (go . f )
+    go (TApp e t)                  = TApp (go e) t
+    go (Lit n)                     = Lit n
+    go (If prd b1 b2)              = If (go prd) (go b1) (go b2)
+    go (PrimOp e1 op e2)           = PrimOp (go e1) op (go e2)
+    go (Tuple es)                  = Tuple (map go es)
+    go (Proj i e)                  = Proj i (go e)
+    go (Fix f t1 t)                = Fix (\x' x1 -> go (f x' x1)) t1 t
+    go (JNewObj s args)            = JNewObj s (map go args)
+    go (JMethod callee m args ret) = JMethod (fmap go callee) m (map go args) ret
+    go (JField  callee f ret)      = JField (fmap go callee) f ret
+    go (Seq es)                    = Seq (map go es)
+    go (Merge e1 e2)               = Merge (go e1) (go e2)
+    go (Let bind body)             = Let (go bind) (\e -> go (body e))
+    go (LetRec sigs binds body)    = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))

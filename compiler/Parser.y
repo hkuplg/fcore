@@ -203,10 +203,10 @@ aexp :: { Expr Name }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" expr ")"              { $2 }
     -- Java
-    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Left $1) $3 $5 undefined }
-    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Right $1) $3 $5 undefined }
-    | JAVACLASS "." field { JField (Left $1) $3 undefined }
-    | aexp "." field      { JField (Right $1) $3 undefined }
+    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Static $1) $3 $5 undefined }
+    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (NonStatic $1) $3 $5 undefined }
+    | JAVACLASS "." field { JField (Static $1) $3 undefined }
+    | aexp "." field      { JField (NonStatic $1) $3 undefined }
     | module_name "." var  { ModuleAccess $1 $3 }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs

@@ -126,12 +126,12 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (JNewObj cName args)    = C.JNewObj cName (map go args)
     go (JMethod c mName args r) =
       case c of
-        (Left cName)  -> C.JMethod (Left cName) mName (map go args) r
-        (Right cExpr) -> C.JMethod (Right (go cExpr)) mName (map go args) r
+        (Static cName)  -> C.JMethod (Static cName) mName (map go args) r
+        (NonStatic cExpr) -> C.JMethod (NonStatic (go cExpr)) mName (map go args) r
     go (JField c fName r) =
       case c of
-        (Left cName)  -> C.JField (Left cName) fName r
-        (Right cExpr) -> C.JField (Right (go cExpr)) fName r
+        (Static cName)  -> C.JField (Static cName) fName r
+        (NonStatic cExpr) -> C.JField (NonStatic (go cExpr)) fName r
 
     -- Non Java Class translation
     -- go (PrimList l)              = FPrimList (map go l)
