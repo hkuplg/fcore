@@ -20,10 +20,10 @@ infer :: Expr t e -> Type t
 infer = unsafeCoerce . fst . transExpr 0 0 . unsafeCoerce
 
 transType :: Index -> Type Index -> Type Index
-transType _ (TyVar a)        = TyVar a
+transType _ (TVar a)        = TVar a
 transType _ (JClass c)       = JClass c
 transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
-transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT (i, TyVar a) (f i))
+transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVar a) (f i))
 transType i (Product ts)     = Product (map (transType i) ts)
 transType i (And a1 a2)      = Product [transType i a1, transType i a2]
 transType i (RecordTy (_,t)) = transType i t
@@ -43,7 +43,7 @@ appC Id e      = e
 appC (C e1) e2 = App e1 e2
 
 subtype' :: Class (Index -> Type Index -> Type Index -> Bool)
-subtype' _    _ (TyVar a)    (TyVar b)   = a == b
+subtype' _    _ (TVar a)    (TVar b)   = a == b
 subtype' _    _ (JClass c)   (JClass d)  = c == d
 subtype' this i (Fun t1 t2)  (Fun t3 t4) = this i t3 t1 && this i t2 t4
 subtype' this i (Forall f)   (Forall g)  = this (i+1) (f i) (g i)
@@ -58,7 +58,7 @@ subtype' this i (RecordTy (l1,t1)) (RecordTy (l2,t2))
 subtype' _    _ _ _                      = False
 
 coerce :: Index -> Type Index -> Type Index -> Maybe (Coercion Index Index)
-coerce _ (TyVar a) (TyVar b) | a == b    = return Id -- TODO: How about alpha equivalence?
+coerce _ (TVar a) (TVar b) | a == b    = return Id -- TODO: How about alpha equivalence?
                              | otherwise = Nothing
 coerce _ (JClass c) (JClass d) | c == d    = return Id
                                | otherwise = Nothing
@@ -70,13 +70,13 @@ coerce i (Fun t1 t2) (Fun t3 t4) =
        (_,_)   ->
          return (C (Lam (transType i (Fun t1 t2))
                       (\f -> Lam (transType i t3)
-                               (\x -> (appC c2 .  App (Var f) . appC c1) (Var x)))))
+                               ((appC c2 .  App (Var f) . appC c1) . Var))))
 coerce i (Forall f) (Forall g) =
   do c <- coerce (i + 1) (f i) (g i)
      case c of
        Id -> return Id
        _  -> return (C (Lam (transType i (Forall f))
-                         (\f' -> BLam (\a -> (appC c . TApp (Var f')) (TyVar a)))))
+                         (\f' -> BLam ((appC c . TApp (Var f')) . TVar))))
 coerce i (Product ss) (Product ts)
   | length ss /= length ts = Nothing
   | otherwise =
@@ -87,7 +87,7 @@ coerce i (Product ss) (Product ts)
             let f x = Tuple (zipWith (\c idx -> appC c (Proj idx x))
                                      cs [1.. (length ss)])
             in
-            return (C (Lam (transType i (Product ss)) (\tuple -> f (Var tuple))))
+            return (C (Lam (transType i (Product ss)) (f . Var)))
 coerce i t1 (And t2 t3) =
   do c1 <- coerce i t1 t2
      c2 <- coerce i t1 t3
@@ -115,12 +115,12 @@ infer' _    _ _ (Lit (S.Boolean _)) = JClass "java.lang.Boolean"
 infer' _    _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
 infer' _    _ _ (Lit  S.Unit)       = JClass "java.lang.Integer"
 infer' this i j (Lam t f)           = Fun t (this i (j+1) (f (j,t)))
-infer' this i j (BLam f)            = Forall (\a -> fsubstTT (i, TyVar a) (this (i+1) j (f i)))
+infer' this i j (BLam f)            = Forall (\a -> fsubstTT i (TVar a) (this (i+1) j (f i)))
 infer' _    _ _ (Fix _ t1 t)        = Fun t1 t
 infer' this i j (Let bind body)     = this i (j+1) (body (j, this i j bind))
 infer' this i j (LetRec ts _ e)     = this i (j+n) (e (zip [j..j+n-1] ts)) where n = length ts
 infer' this i j (App e1 _)          = t12                    where Fun _ t12 = this i j e1
-infer' this i j (TApp e t1)         = fsubstTT (i, t1) (f i) where Forall f  = this i j e
+infer' this i j (TApp e t1)         = fsubstTT i t1 (f i) where Forall f  = this i j e
 infer' this i j (If _ b1 _)         = this i j b1
 infer' _    _ _ (PrimOp _ op _)     = case op of S.Arith _   -> JClass "java.lang.Integer"
                                                  S.Compare _ -> JClass "java.lang.Boolean"
@@ -132,8 +132,8 @@ infer' _    _ _ (JMethod _ _ _ c)   = JClass c
 infer' _    _ _ (JField _ _ c)      = JClass c
 infer' this i j (Seq es)            = this i j (last es)
 infer' this i j (Merge e1 e2)       = And (this i j e1) (this i j e2)
-infer' this i j (Record (l,e))      = RecordTy (l, this i j e)
-infer' this i j (RecordAccess e l1) = t1 where Just (_,t1) = getter i (this i j e) l1
+infer' this i j (RecordIntro (l,e)) = RecordTy (l, this i j e)
+infer' this i j (RecordElim e l1)   = t1 where Just (_,t1) = getter i (this i j e) l1
 infer' this i j (RecordUpdate e _)  = this i j e
 
 instance (Type Index, Expr Index Index) <: Type Index where
@@ -145,14 +145,14 @@ transExpr'
   -> Index  -> Index -> Expr Index (Index, Type Index) -> Expr Index Index
 transExpr' _ _    _ _ (Var (x,_))  = Var x
 transExpr' _ _    _ _ (Lit l)      = Lit l
-transExpr' _ this i j (Lam t f)    = Lam (transType i t) (\x -> fsubstEE (j, Var x) body') where (_, body') = this i (j+1) (f (j, t))
-transExpr' _ this i j (BLam f)     = BLam (\a -> fsubstTE (i, TyVar a) body') where (_, body') = this (i+1) j (f i)
-transExpr' _ this i j (Fix f t1 t) = Fix (\x x1 -> (fsubstEE (j, Var x) . fsubstEE (j+1, Var x1)) body') t1' t'
+transExpr' _ this i j (Lam t f)    = Lam (transType i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i (j+1) (f (j, t))
+transExpr' _ this i j (BLam f)     = BLam (\a -> fsubstTE i (TVar a) body') where (_, body') = this (i+1) j (f i)
+transExpr' _ this i j (Fix f t1 t) = Fix (\x x1 -> (fsubstEE j (Var x) . fsubstEE (j+1) (Var x1)) body') t1' t'
   where
     (_, body') = this i (j+2) (f (j, Fun t1 t) (j+1, t1))
     t1'        = transType i t1
     t'         = transType i t
-transExpr' super this i j (Let bind e)     = Let (snd (this i j bind)) (\x -> fsubstEE (j, Var x) (snd (this i (j+1) (e (j, super i j bind)))))
+transExpr' super this i j (Let bind e)     = Let (snd (this i j bind)) (\x -> fsubstEE j (Var x) (snd (this i (j+1) (e (j, super i j bind)))))
 transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
   where
     ts'           = map (transType i) ts
@@ -164,7 +164,7 @@ transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
     fs_with_ts    = zip fs ts
     n             = length ts
     subst :: [Index] -> [Index] -> Expr Index Index -> Expr Index Index
-    subst xs rs   = foldl (.) id [fsubstEE (x, Var (rs !! k)) | (x,k) <- zip xs [0..n-1]]
+    subst xs rs   = foldl (.) id [fsubstEE x (Var (rs !! k)) | (x,k) <- zip xs [0..n-1]]
 transExpr' _ this i j (App e1 e2) = App e1' (appC c e2')
   where
     (Fun t11 _, e1') = this i j e1
@@ -180,8 +180,8 @@ transExpr' _ this i j (JMethod callee m args ret)  = JMethod (fmap (snd . this i
 transExpr' _ this i j (JField callee m ret)        = JField (fmap (snd . this i j) callee) m ret
 transExpr' _ this i j (Seq es)                     = Seq (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (Merge e1 e2)                = Tuple [snd (this i j e1), snd (this i j e2)]
-transExpr' _ this i j (Record (_,e))               = snd (this i j e)
-transExpr' super this i j (RecordAccess e l1)      = appC c (snd (this i j e)) where Just (c, _) = getter i (super i j e) l1
+transExpr' _ this i j (RecordIntro (_,e))          = snd (this i j e)
+transExpr' super this i j (RecordElim e l1)        = appC c (snd (this i j e)) where Just (c, _) = getter i (super i j e) l1
 transExpr' super this i j (RecordUpdate e (l1,e1)) = appC c (snd (this i j e)) where Just (c, _) = putter i (super i j e) l1 (snd (this i j e1))
 
 transExpr :: Index -> Index -> Expr Index (Index, Type Index) -> (Type Index, Expr Index Index)
@@ -199,13 +199,13 @@ getter _ (RecordTy (l,t)) l1
 getter i (And t1 t2) l
   = case getter i t2 l of
       Just (c,t) ->
-        Just (C $ Lam (transType i (And t1 t2)) (\x -> appC c (Proj 2 (Var x)))
+        Just (C $ Lam (transType i (And t1 t2)) (appC c . Proj 2 . Var)
              ,t)
       Nothing    ->
         case getter i t1 l of
           Nothing    -> Nothing
           Just (c,t) ->
-            Just (C $ Lam (transType i (And t1 t2)) (\x -> appC c (Proj 1 (Var x)))
+            Just (C $ Lam (transType i (And t1 t2)) (appC c . Proj 1 . Var)
                  ,t)
 getter _ _ _ = Nothing
 
@@ -234,7 +234,7 @@ putter _ _ _ _ = Nothing
 
 -- Core's id, specialized to type t.
 coreId :: Type Index -> Expr Index Index
-coreId t = Lam t (\x -> Var x)
+coreId t = Lam t Var
 
 -- Core's const, specialized to type t.
 coreConst :: Type Index -> Expr Index Index -> Expr Index Index

@@ -65,11 +65,11 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 -}
 
 ftyp2ctyp :: C.Type t -> Type t
-ftyp2ctyp (C.TyVar x) = TVar x
+ftyp2ctyp (C.TVar x)                     = TVar x
 ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
-ftyp2ctyp (C.JClass c) = JClass c
-ftyp2ctyp (C.Product ts) = TupleType (map ftyp2ctyp ts)
-ftyp2ctyp t         = Forall (ftyp2scope t)
+ftyp2ctyp (C.JClass c)                   = JClass c
+ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
+ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-
 fexp2cexp2 :: C.Expr Int (Int,F.Type Int) -> [t] -> [e] -> Expr t e

@@ -27,7 +27,7 @@ type DsMap t e = (DsTyVarMap t, DsVarMap t e)
 transType :: DsTyVarMap t -> Type -> C.Type t
 transType d = go
   where
-    go (TyVar a)    = C.TyVar (fromMaybe (panic "Desugar.transType: TyVar") (Map.lookup a d))
+    go (TyVar a)    = C.TVar (fromMaybe (panic "Desugar.transType: TyVar") (Map.lookup a d))
     go (JClass c)   = C.JClass c
     go (Fun t1 t2)  = C.Fun (go t1) (go t2)
     go (Product ts) = C.Product (map go ts)
@@ -62,9 +62,9 @@ dsTcExpr (d, g) = go
     go (Record fs)       =
       case fs of
         []       -> panic "Desugar.dsTcExpr: Record"
-        [(l,e)]  -> C.Record (l, go e)
-        _        -> go (Record (take (length fs - 1) fs)) `C.Merge` (C.Record (let (l,e) = last fs in (l,go e)))
-    go (RecordAccess e l) = C.RecordAccess (go e) l
+        [(l,e)]  -> C.RecordIntro (l, go e)
+        _        -> go (Record (take (length fs - 1) fs)) `C.Merge` (C.RecordIntro (let (l,e) = last fs in (l,go e)))
+    go (RecordAccess e l) = C.RecordElim (go e) l
     go (RecordUpdate e fs) =
       case fs of
         [] -> go e
