@@ -12,6 +12,7 @@ import qualified Core as C
 import Panic
 
 import Data.Maybe       (fromMaybe)
+import StringPrefixes
 
 import qualified Data.Map as Map
 
@@ -26,7 +27,7 @@ type DsMap t e = (DsTyVarMap t, DsVarMap t e)
 transType :: DsTyVarMap t -> Type -> C.Type t
 transType d = go
   where
-    go (TyVar a)    = C.TyVar (fromMaybe (panic "Desugar.transType: TyVar") (Map.lookup a d))
+    go (TyVar a)    = C.TVar (fromMaybe (panic "Desugar.transType: TyVar") (Map.lookup a d))
     go (JClass c)   = C.JClass c
     go (Fun t1 t2)  = C.Fun (go t1) (go t2)
     go (Product ts) = C.Product (map go ts)
@@ -61,22 +62,19 @@ dsTcExpr (d, g) = go
     go (Record fs)       =
       case fs of
         []       -> panic "Desugar.dsTcExpr: Record"
-        [(l,e)]  -> C.Record (l, go e)
-        _        -> go (Record (take (length fs - 1) fs)) `C.Merge` (C.Record (let (l,e) = last fs in (l,go e)))
-    go (RecordAccess e l) = C.RecordAccess (go e) l
+        [(l,e)]  -> C.RecordIntro (l, go e)
+        _        -> go (Record (take (length fs - 1) fs)) `C.Merge` (C.RecordIntro (let (l,e) = last fs in (l,go e)))
+    go (RecordAccess e l) = C.RecordElim (go e) l
     go (RecordUpdate e fs) =
       case fs of
         [] -> go e
         _  -> C.RecordUpdate (go (RecordUpdate e (take (length fs - 1) fs))) (let (l1,e1) = last fs in (l1, go e1))
 
-{-
-   let f1 : t1 = e1 in e
-~> (\(f1 : t1. e)) e1
--}
     go (LetOut NonRec [(f1, t1, e1)] e) =
-      C.App
-        (C.Lam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e))
-        (go e1)
+      -- C.App
+      --   (C.Lam (transType d t1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e))
+      --   (go e1)
+      C.Let (go e1) (\f1' -> dsTcExpr (d, Map.insert f1 (C.Var f1') g) e)
 
 {-
 Note that rewriting simultaneous let expressions by nesting is wrong unless we do
@@ -90,19 +88,15 @@ variable renaming. An example:
 
    let f1 = e1, ..., fn = en in e
 ~> let y = (t1, ..., tn). (e1, ..., en) in e[*]
-~> (\(y : (t1, ..., tn)). e[*]) (e1, ..., en)
 -}
     go (LetOut NonRec bs@(_:_) e) =
-      C.App
-        (C.Lam
-          (transType d tupled_ts)
-          (\y -> dsTcExpr (d, g' y `Map.union` g) e))
+      C.Let
         (go tupled_es)
+        (\y -> dsTcExpr (d, g' y `Map.union` g) e)
         where
-          (fs, ts, es)  = unzip3 bs
+          (fs, _, es)  = unzip3 bs
 
           tupled_es = Tuple es
-          tupled_ts = Product ts
 
           -- Substitution: fi -> y._(i-1)
           g' y = Map.fromList $
@@ -129,15 +123,9 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec [(f,t@(Fun _ _),e)] body) = dsLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec [(f,t,e)] body)           = dsLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = dsLetRecToLetRec (d,g) (LetOut Rec bs body)
-    go (JNewObj cName args)    = C.JNewObj cName (map go args)
-    go (JMethod c mName args r) =
-      case c of
-        (Left cName)  -> C.JMethod (Left cName) mName (map go args) r
-        (Right cExpr) -> C.JMethod (Right (go cExpr)) mName (map go args) r
-    go (JField c fName r) =
-      case c of
-        (Left cName)  -> C.JField (Left cName) fName r
-        (Right cExpr) -> C.JField (Right (go cExpr)) fName r
+    go (JNewObj c args)          = C.JNew c (map go args)
+    go (JMethod callee m args r) = C.JMethod (fmap go callee) m (map go args) r
+    go (JField  callee f r)      = C.JField  (fmap go callee) f r
 
     -- Non Java Class translation
     -- go (PrimList l)              = FPrimList (map go l)
@@ -145,8 +133,8 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     -- Primitive List to java class
 
     go (PrimList l)              = case l of     -- translate to java new obj
-                                     []   -> C.JNewObj "hk.hku.cs.f2j.Nil" []
-                                     x:xs -> C.JNewObj "hk.hku.cs.f2j.Cons" [go x, go (PrimList xs)]
+                                     []   -> C.JNew (namespace ++ "FunctionalList") []
+                                     x:xs -> C.JNew (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
 
     go (Seq es) = C.Seq (map go es)
 

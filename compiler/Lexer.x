@@ -41,6 +41,9 @@ tokens :-
     \&          { \_ _ -> Tandtype }
     \,\,        { \_ _ -> Tmerge }
     with        { \_ _ -> Twith }
+    \(\+\)      { \_ _ -> Tcombine }
+    this        { \_ _ -> Tthis }
+    super       { \_ _ -> Tsuper }
     let         { \_ _ -> Tlet }
     rec         { \_ _ -> Trec }
     \=          { \_ _ -> Teq }
@@ -51,6 +54,7 @@ tokens :-
     Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
     Char        { \_ _ -> Tjavaclass "java.lang.Character" }
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
+    List        { \_ _ -> Tjavaclass "f2j.FunctionalList" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
@@ -93,7 +97,7 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tcombine | Tthis | Tsuper
            | Tlet | Trec | Teq | Tand | Tin
            | Tjavaclass String
            | Tnew

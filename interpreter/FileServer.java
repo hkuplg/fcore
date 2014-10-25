@@ -1,4 +1,4 @@
-//package hk.hku.cs.f2j; 
+//package f2j; 
 
 import java.util.*;
 import java.lang.*;

@@ -35,6 +35,9 @@ import JavaUtils
   "&"      { Tandtype }
   ",,"     { Tmerge }
   "with"   { Twith }
+  "(+)"    { Tcombine }
+  "this"   { Tthis }
+  "super"  { Tsuper }
   "let"    { Tlet }
   "rec"    { Trec }
   "="      { Teq }
@@ -128,7 +131,6 @@ atype :: { Type }
   | JAVACLASS                { JClass $1 }
   | "(" product_body ")"     { Product $2 }
   | "{" recordty_body "}"    { RecordTy $2 }
-  | "[" type "]"             { ListOf $2 }
   | "(" type ")"             { $2 }
   | "unit"                   { UnitType }
 
@@ -172,6 +174,7 @@ infixexpr :: { Expr Name }
     | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
+    | infixexpr "(+)" infixexpr { Combine $1 $3 }
 
 expr10 :: { Expr Name }
     : "/\\" tyvar "." expr                { BLam $2 $4  }
@@ -200,10 +203,10 @@ aexp :: { Expr Name }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" expr ")"              { $2 }
     -- Java
-    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Left $1) $3 $5 undefined }
-    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (Right $1) $3 $5 undefined }
-    | JAVACLASS "." field { JField (Left $1) $3 undefined }
-    | aexp "." field      { JField (Right $1) $3 undefined }
+    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Static $1) $3 $5 undefined }
+    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (NonStatic $1) $3 $5 undefined }
+    | JAVACLASS "." field { JField (Static $1) $3 undefined }
+    | aexp "." field      { JField (NonStatic $1) $3 undefined }
     | module_name "." var  { ModuleAccess $1 $3 }
     | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
     -- Sequence of exprs
@@ -261,7 +264,7 @@ and_binds :: { [Bind Name] }
 
 semi_binds :: { [Bind Name] }
     : bind                      { [$1]  }
-    | bind ";" and_binds      { $1:$3 }
+    | bind ";" semi_binds      { $1:$3 }
 
 recflag :: { RecFlag }
   : "rec"       { Rec }

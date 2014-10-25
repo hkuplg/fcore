@@ -21,7 +21,7 @@ type FieldName  = String
 getRuntimeJarPath :: IO FilePath
 getRuntimeJarPath
   = do home <- getHomeDirectory
-       return $ home </> ".cabal/share/systemfcompiler-0.1.0.0/runtime/runtime.jar"
+       return $ home </> ".cabal/share/systemfcompiler-0.1.0.1/runtime/runtime.jar"
 
 getClassPath :: IO FilePath
 getClassPath = do r <- getRuntimeJarPath

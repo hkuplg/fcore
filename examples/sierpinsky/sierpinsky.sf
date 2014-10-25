@@ -62,6 +62,6 @@ in
     lib.DrawFrame.lineTo(0 - dist, 0 - dist);
     sierpD(level);
     lib.DrawFrame.lineTo(dist, 0 - dist);
-    lib.DrawFrame.refresh();
+    lib.DrawFrame.refresh( );
     True
 }

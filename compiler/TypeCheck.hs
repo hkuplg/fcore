@@ -16,7 +16,7 @@ import IOEnv
 import JavaUtils
 import JvmTypeQuery
 import Panic
-
+import StringPrefixes
 
 
 import System.IO
@@ -46,7 +46,7 @@ typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
 withTypeServer :: (Connection -> IO a) -> IO a
 withTypeServer do_this =
   do cp <- getClassPath
-     let p = (proc "java" ["-cp", cp, "hk.hku.cs.f2j.TypeServer"])
+     let p = (proc "java" ["-cp", cp, (namespace ++ "TypeServer")])
                { std_in = CreatePipe, std_out = CreatePipe }
      (Just inp, Just out, _, proch) <- createProcess p
      hSetBuffering inp NoBuffering
@@ -238,28 +238,28 @@ tcExpr (JNewObj c args)
 
 tcExpr (JMethod object m args _)
   = case object of
-      Left c ->
+      Static c ->
         do (args', arg_cs) <- mapAndUnzipM tcExprAgainstAnyJClass args
            ret_c <- checkStaticMethodCall c m arg_cs
-           return (JMethod (Left c) m args' ret_c, JClass ret_c)
-      Right e ->
+           return (JMethod (Static c) m args' ret_c, JClass ret_c)
+      NonStatic e ->
         do (e', c)         <- tcExprAgainstAnyJClass e
            (args', arg_cs) <- mapAndUnzipM tcExprAgainstAnyJClass args
            ret_c <- checkMethodCall c m arg_cs
-           return (JMethod (Right e') m args' ret_c, JClass ret_c)
+           return (JMethod (NonStatic e') m args' ret_c, JClass ret_c)
 
 tcExpr (JField object f _)
   = case object of
-      Left c ->
+      Static c ->
         do ret_c <- checkStaticFieldAccess c f
-           return (JField (Left c) f ret_c, JClass ret_c)
-      Right e ->
+           return (JField (Static c) f ret_c, JClass ret_c)
+      NonStatic e ->
         do (e', t) <- tcExpr e
            case t of
              RecordTy _ -> tcExpr (RecordAccess e f) -- Then the typechecker realized!
              JClass c   ->
                do ret_c   <- checkFieldAccess c f
-                  return (JField (Right e') f ret_c, JClass ret_c)
+                  return (JField (NonStatic e') f ret_c, JClass ret_c)
              _          -> throwError $ General "The thing before dot is neither a record nor a JVM object"
 
 tcExpr (Seq es) = do (es', ts) <- mapAndUnzipM tcExpr es
@@ -272,9 +272,9 @@ tcExpr (Merge e1 e2) =
 
 tcExpr (PrimList l) =
       do (es, ts) <- mapAndUnzipM tcExpr l
-         case ts of [] -> return (PrimList es, (JClass "hk.hku.cs.f2j.Nil"))
+         case ts of [] -> return (PrimList es, (JClass (namespace ++ "FunctionalList")))
                     _  -> if (all (`alphaEquiv` (ts !! 0)) ts)
-                            then return (PrimList es, (JClass "hk.hku.cs.f2j.Cons"))
+                            then return (PrimList es, (JClass (namespace ++ "FunctionalList")))
                             else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
 
 tcExpr (Record fs) =

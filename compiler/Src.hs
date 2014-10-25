@@ -7,7 +7,7 @@
 module Src
   ( Module(..)
   , Type(..)
-  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..)
+  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..)
   , Label
   , TypeContext, ValueContext
   , Name, TcId
@@ -81,8 +81,8 @@ data Expr id
   | Let RecFlag [Bind id] (Expr id)     -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId) -- Post typecheck only
   | JNewObj ClassName [Expr id]
-  | JMethod (Either ClassName (Expr id)) MethodName [Expr id] ClassName
-  | JField  (Either ClassName (Expr id)) FieldName            ClassName
+  | JMethod (JCallee (Expr id)) MethodName [Expr id] ClassName
+  | JField  (JCallee (Expr id)) FieldName            ClassName
   | Seq [Expr id]
   | PrimList [Expr id]           -- New List
   | Merge (Expr id) (Expr id)
@@ -91,6 +91,7 @@ data Expr id
   | RecordUpdate (Expr id) [(Label, Expr id)]
   | LetModule (Module id) (Expr id)
   | ModuleAccess ModuleName Name
+  | Combine (Expr id) (Expr id)
   deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
@@ -106,6 +107,12 @@ data Bind id = Bind
   } deriving (Eq, Show)
 
 data RecFlag = Rec | NonRec deriving (Eq, Show)
+
+data JCallee e = Static ClassName | NonStatic e deriving (Eq, Show)
+
+instance Functor JCallee where
+  fmap _ (Static c)    = Static c
+  fmap f (NonStatic e) = NonStatic (f e)
 
 type TypeContext  = Set.Set Name
 type ValueContext = Map.Map Name Type
@@ -203,6 +210,7 @@ instance Pretty Type where
   pretty (JClass c)   = text c
   pretty (ListOf a)   = brackets $ pretty a
   pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
+  pretty _ = sorry "Core.pretty: no idea how to do"
 
 instance Pretty id => Pretty (Expr id) where
   pretty (Var x) = pretty x
@@ -240,10 +248,11 @@ instance Pretty id => Pretty (Expr id) where
     text "in" <+>
     pretty e
   pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
-  pretty (JMethod e m args _) = case e of (Left e')  -> pretty e' <> dot <> text m <> tupled (map pretty args)
-                                          (Right e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
+  pretty (JMethod e m args _) = case e of (Static c)     -> pretty c  <> dot <> text m <> tupled (map pretty args)
+                                          (NonStatic e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
+  pretty _ = sorry "Src.pretty: no idea how to do"
 
 instance Pretty id => Pretty (Bind id) where
   pretty Bind{..} =
