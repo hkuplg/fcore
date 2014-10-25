@@ -26,7 +26,7 @@ joinExpr (LetRec s b1 b2) =
   LetRec s
           (\es -> map joinExpr (b1 (map Var es)))
           (\es -> joinExpr (b2 (map Var es)))
-joinExpr (JNewObj name es) = JNewObj name (map joinExpr es)
+joinExpr (JNew name es) = JNew name (map joinExpr es)
 joinExpr (JMethod jc m es cn) =
   JMethod (fmap joinExpr jc) m (map joinExpr es) cn
 joinExpr (JField jc fn cn) = JField (fmap joinExpr jc) fn cn
@@ -52,7 +52,7 @@ mapExpr f e =
       PrimOp e1 op e2 -> PrimOp (f e1) op (f e2)
       Tuple es -> Tuple $ map f es
       Proj i e -> Proj i (f e)
-      JNewObj cname es -> JNewObj cname (map f es)
+      JNew cname es -> JNew cname (map f es)
       JMethod cnameOrE mname es cname -> JMethod (fmap f cnameOrE) mname (map f es) cname
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Seq es -> Seq $ map f es

@@ -1,8 +1,8 @@
 module PrettyUtils
   ( -- Type classes
-    Outputable(..)
+    -- Outputable(..)
 
-  , PrecLevel
+    PrecLevel
   , PrecDelta(..)
   , Prec
   , basePrec
@@ -18,12 +18,12 @@ module PrettyUtils
 import Text.PrettyPrint.Leijen
 import Data.Char (ord, chr)
 
-class Outputable a where
-  pretty :: a -> Doc
-  pretty = prettyPrec basePrec
+-- class Outputable a where
+--   pretty :: a -> Doc
+--   pretty = prettyPrec basePrec
 
-  prettyPrec   :: Prec -> a -> Doc
-  prettyPrec _ = PrettyUtils.pretty
+--   prettyPrec   :: Prec -> a -> Doc
+--   prettyPrec _ = PrettyUtils.pretty
 
 arrow, forall, ampersand, lambda, biglambda, dcomma :: Doc
 arrow     = text "->"

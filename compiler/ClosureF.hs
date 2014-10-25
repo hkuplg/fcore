@@ -104,7 +104,7 @@ fexp2cexp (C.LetRec ts f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp
 fexp2cexp (C.Fix f t1 t2) =
   let  g e = groupLambda (C.Lam t1 (f e)) -- is this right???? (BUG)
   in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g
-fexp2cexp (C.JNewObj cName args)     = JNewObj cName (map fexp2cexp args)
+fexp2cexp (C.JNew cName args)     = JNewObj cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
             (S.Static cn)    -> JMethod (Left cn) mName (map fexp2cexp args) r

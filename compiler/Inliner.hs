@@ -21,7 +21,7 @@ inliner (LetRec f es1 es2) =
   LetRec f
          (\es -> map joinExpr . es1 . map joinExpr . es1 $ map Var es)
          (\es -> joinExpr . es2 $ map Var es)
-inliner (JNewObj name es) = JNewObj name (map inliner es)
+inliner (JNew name es) = JNew name (map inliner es)
 inliner (JMethod jc m es cn) =
   JMethod (fmap inliner jc) m (map inliner es) cn
 inliner (JField jc fn cn) = JField (fmap inliner jc) fn cn

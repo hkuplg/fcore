@@ -3,24 +3,34 @@
 {-# LANGUAGE TypeOperators, FlexibleInstances, MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Simplify where
+module Simplify
+  ( simplify
+  , transType
+  , subtype'
+  , subtype
+  , coerce
+  , infer'
+  , infer
+  , transExpr'
+  , transExpr
+  , getter
+  , putter
+  ) where
 
 import Core
 import qualified Src as S
 
 import Mixin
 
+import Data.Maybe    (fromMaybe)
 import Control.Monad (zipWithM)
 import Unsafe.Coerce (unsafeCoerce)
 
 simplify :: Expr t e -> Expr t e
 simplify = unsafeCoerce . snd . transExpr 0 0 . unsafeCoerce
 
-infer :: Expr t e -> Type t
-infer = unsafeCoerce . fst . transExpr 0 0 . unsafeCoerce
-
 transType :: Index -> Type Index -> Type Index
-transType _ (TVar a)        = TVar a
+transType _ (TVar a)         = TVar a
 transType _ (JClass c)       = JClass c
 transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
 transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVar a) (f i))
@@ -57,9 +67,12 @@ subtype' this i (RecordTy (l1,t1)) (RecordTy (l2,t2))
   | otherwise                            = False
 subtype' _    _ _ _                      = False
 
+subtype :: Index -> Type Index -> Type Index -> Bool
+subtype = new subtype'
+
 coerce :: Index -> Type Index -> Type Index -> Maybe (Coercion Index Index)
-coerce _ (TVar a) (TVar b) | a == b    = return Id -- TODO: How about alpha equivalence?
-                             | otherwise = Nothing
+coerce _ (TVar a) (TVar b) | a == b        = return Id
+                           | otherwise     = Nothing
 coerce _ (JClass c) (JClass d) | c == d    = return Id
                                | otherwise = Nothing
 coerce i (Fun t1 t2) (Fun t3 t4) =
@@ -115,19 +128,19 @@ infer' _    _ _ (Lit (S.Boolean _)) = JClass "java.lang.Boolean"
 infer' _    _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
 infer' _    _ _ (Lit  S.Unit)       = JClass "java.lang.Integer"
 infer' this i j (Lam t f)           = Fun t (this i (j+1) (f (j,t)))
-infer' this i j (BLam f)            = Forall (\a -> fsubstTT i (TVar a) (this (i+1) j (f i)))
+infer' this i j (BLam f)            = Forall (\a -> fsubstTT i (TVar a) $ this (i+1) j (f i))
 infer' _    _ _ (Fix _ t1 t)        = Fun t1 t
-infer' this i j (Let bind body)     = this i (j+1) (body (j, this i j bind))
+infer' this i j (Let b e)           = this i (j+1) (e (j, this i j b))
 infer' this i j (LetRec ts _ e)     = this i (j+n) (e (zip [j..j+n-1] ts)) where n = length ts
-infer' this i j (App e1 _)          = t12                    where Fun _ t12 = this i j e1
-infer' this i j (TApp e t1)         = fsubstTT i t1 (f i) where Forall f  = this i j e
+infer' this i j (App f _)           = t12                where Fun _ t12 = this i j f
+infer' this i j (TApp f t)          = joinType ((unsafeCoerce g :: t -> Type t) t) where Forall g  = this i j f
 infer' this i j (If _ b1 _)         = this i j b1
 infer' _    _ _ (PrimOp _ op _)     = case op of S.Arith _   -> JClass "java.lang.Integer"
                                                  S.Compare _ -> JClass "java.lang.Boolean"
                                                  S.Logic _   -> JClass "java.lang.Boolean"
 infer' this i j (Tuple es)          = Product (map (this i j) es)
 infer' this i j (Proj index e)      = ts !! (index-1) where Product ts = this i j e
-infer' _    _ _ (JNewObj c _)       = JClass c
+infer' _    _ _ (JNew c _)          = JClass c
 infer' _    _ _ (JMethod _ _ _ c)   = JClass c
 infer' _    _ _ (JField _ _ c)      = JClass c
 infer' this i j (Seq es)            = this i j (last es)
@@ -135,6 +148,9 @@ infer' this i j (Merge e1 e2)       = And (this i j e1) (this i j e2)
 infer' this i j (RecordIntro (l,e)) = RecordTy (l, this i j e)
 infer' this i j (RecordElim e l1)   = t1 where Just (_,t1) = getter i (this i j e) l1
 infer' this i j (RecordUpdate e _)  = this i j e
+
+infer :: Index -> Index -> Expr Index (Index, Type Index) -> Type Index
+infer = new infer'
 
 instance (Type Index, Expr Index Index) <: Type Index where
   up = fst
@@ -145,14 +161,16 @@ transExpr'
   -> Index  -> Index -> Expr Index (Index, Type Index) -> Expr Index Index
 transExpr' _ _    _ _ (Var (x,_))  = Var x
 transExpr' _ _    _ _ (Lit l)      = Lit l
-transExpr' _ this i j (Lam t f)    = Lam (transType i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i (j+1) (f (j, t))
-transExpr' _ this i j (BLam f)     = BLam (\a -> fsubstTE i (TVar a) body') where (_, body') = this (i+1) j (f i)
+transExpr' _ this i j (Lam t f)    = Lam (transType i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i     (j+1) (f (j, t))
+transExpr' _ this i j (BLam f)     = BLam (\a -> fsubstTE i (TVar a) body')               where (_, body') = this (i+1) j     (f i)
 transExpr' _ this i j (Fix f t1 t) = Fix (\x x1 -> (fsubstEE j (Var x) . fsubstEE (j+1) (Var x1)) body') t1' t'
   where
     (_, body') = this i (j+2) (f (j, Fun t1 t) (j+1, t1))
     t1'        = transType i t1
     t'         = transType i t
-transExpr' super this i j (Let bind e)     = Let (snd (this i j bind)) (\x -> fsubstEE j (Var x) (snd (this i (j+1) (e (j, super i j bind)))))
+transExpr' super this i j (Let b e) = Let b' (\x -> fsubstEE j (Var x) (snd (this i (j+1) (e (j, super i j b)))))
+  where
+    (_,b') = this i j b
 transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
   where
     ts'           = map (transType i) ts
@@ -167,15 +185,16 @@ transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
     subst xs rs   = foldl (.) id [fsubstEE x (Var (rs !! k)) | (x,k) <- zip xs [0..n-1]]
 transExpr' _ this i j (App e1 e2) = App e1' (appC c e2')
   where
-    (Fun t11 _, e1') = this i j e1
+    (t1@(Fun t11 _), e1') = this i j e1
     (t2, e2')        = this i j e2
-    Just c           = coerce i t2 t11
-transExpr' _ this i j (TApp e t1)                  = TApp (snd (this i j e)) (transType i t1)
+    c                = fromMaybe (error $ "\n" ++ show (unsafeCoerce e1 :: Expr Index Index) ++ " :: " ++ show t1  ++ "\n"
+                                            ++ show (unsafeCoerce e2 :: Expr Index Index) ++ " :: " ++ show t2) $ coerce i t2 t11
+transExpr' _ this i j (TApp e t)                   = TApp (snd (this i j e)) (transType i t)
 transExpr' _ this i j (If p b1 b2)                 = If (snd (this i j p)) (snd (this i j b1)) (snd (this i j b2))
 transExpr' _ this i j (PrimOp e1 op e2)            = PrimOp (snd (this i j e1)) op (snd (this i j e2))
 transExpr' _ this i j (Tuple es)                   = Tuple (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (Proj index e)               = Proj index (snd (this i j e))
-transExpr' _ this i j (JNewObj c es)               = JNewObj c (snd (unzip (map (this i j) es)))
+transExpr' _ this i j (JNew c es)                  = JNew c (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (JMethod callee m args ret)  = JMethod (fmap (snd . this i j) callee) m (snd (unzip (map (this i j) args))) ret
 transExpr' _ this i j (JField callee m ret)        = JField (fmap (snd . this i j) callee) m ret
 transExpr' _ this i j (Seq es)                     = Seq (snd (unzip (map (this i j) es)))

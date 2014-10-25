@@ -123,7 +123,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec [(f,t@(Fun _ _),e)] body) = dsLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec [(f,t,e)] body)           = dsLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = dsLetRecToLetRec (d,g) (LetOut Rec bs body)
-    go (JNewObj c args)          = C.JNewObj c (map go args)
+    go (JNewObj c args)          = C.JNew c (map go args)
     go (JMethod callee m args r) = C.JMethod (fmap go callee) m (map go args) r
     go (JField  callee f r)      = C.JField  (fmap go callee) f r
 
@@ -133,8 +133,8 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     -- Primitive List to java class
 
     go (PrimList l)              = case l of     -- translate to java new obj
-                                     []   -> C.JNewObj (namespace ++ "FunctionalList") []
-                                     x:xs -> C.JNewObj (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
+                                     []   -> C.JNew (namespace ++ "FunctionalList") []
+                                     x:xs -> C.JNew (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
 
     go (Seq es) = C.Seq (map go es)
 

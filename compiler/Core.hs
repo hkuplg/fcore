@@ -72,7 +72,7 @@ data Expr t e
   | Proj Int (Expr t e)  -- Tuple elimination
 
   -- Java
-  | JNewObj ClassName [Expr t e]
+  | JNew ClassName [Expr t e]
   | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
   | JField  (Src.JCallee (Expr t e)) FieldName ClassName
 
@@ -127,7 +127,7 @@ mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar
 mapVar g h (PrimOp e1 op e2)         = PrimOp (mapVar g h e1) op (mapVar g h e2)
 mapVar g h (Tuple es)                = Tuple (map (mapVar g h) es)
 mapVar g h (Proj i e)                = Proj i (mapVar g h e)
-mapVar g h (JNewObj c args)          = JNewObj c (map (mapVar g h) args)
+mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
 mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
@@ -153,6 +153,13 @@ joinType (Forall g)       = Forall (joinType . g . TVar)
 joinType (Product ts)     = Product (map joinType ts)
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (RecordTy (l,t)) = RecordTy (l, joinType t)
+
+
+instance Show (Type Index) where
+  show = show . pretty
+
+instance Pretty (Type Index) where
+  pretty = prettyType basePrec 0
 
 prettyType :: Prec -> Index -> Type Index -> Doc
 
@@ -183,8 +190,9 @@ prettyType p i (And t1 t2) =
 
 prettyType _ i (RecordTy (l,t)) = lbrace <> text l <> colon <> prettyType basePrec i t <> rbrace
 
--- instance Show (Expr Index Index) where
---   show = show . pretty
+
+instance Show (Expr Index Index) where
+  show = show . pretty
 
 instance Pretty (Expr Index Index) where
   pretty = prettyExpr basePrec (0, 0)
@@ -238,7 +246,7 @@ prettyExpr p i (Proj n e) =
   parensIf p 5
     (prettyExpr (5,PrecMinus) i e <> dot <> char '_' <> int n)
 
-prettyExpr _ (i,j) (JNewObj c args) =
+prettyExpr _ (i,j) (JNew c args) =
   parens (text "new" <+> text c <> tupled (map (prettyExpr basePrec (i,j)) args))
 
 prettyExpr _ i (JMethod name m args _) = methodStr name <> dot <> text m <> tupled (map (prettyExpr basePrec i) args)
