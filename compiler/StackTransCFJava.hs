@@ -207,11 +207,11 @@ transSU this super =
                              JClass "java.lang.Integer" -> classTy "java.lang.Integer"
                              _ -> objClassTy
 
-           let loop = [localVar closureType' (varDeclNoInit "c"),
-                       localVar resultType (varDecl "result" (case resultType of
-                                                               J.PrimType J.IntT -> J.Lit (J.Int 0)
-                                                               _ -> (J.Lit J.Null))),
-                       bStmt (J.Do (J.StmtBlock (block [assign (name ["c"]) (J.ExpName $ name [nextName, "next"])
+           let nextNEqNull = (J.BinOp (J.ExpName $ name [nextName, "next"])
+                     J.NotEq
+                     (J.Lit J.Null))
+
+           let loop = [bStmt (J.Do (J.StmtBlock (block [assign (name ["c"]) (J.ExpName $ name [nextName, "next"])
                                                        ,assign (name [nextName, "next"]) (J.Lit J.Null)
                                                        ,bStmt (methodCall ["c", "apply"] [])]))
                               (J.BinOp (J.ExpName $ name [nextName, "next"])
@@ -232,7 +232,10 @@ transSU this super =
                                                 (cast (classTy (closureClass ++ "Box" ++ finalType)) (var "c"))
                                                 "out")))))]
 
-           return (applyCall : loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
+           return ((localVar closureType' (varDeclNoInit "c")) :
+                   (localVar resultType (varDecl "result" (J.MethodInv (J.MethodCall (name ["apply"]) [])))) :
+                    bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop))) :
+                    [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
          }}
 
 

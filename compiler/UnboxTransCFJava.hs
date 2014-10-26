@@ -2,20 +2,18 @@
 
 module UnboxTransCFJava where
 
-import Prelude hiding (init, last)
-
--- import qualified Data.Set as Set
-
+import           Prelude hiding (init, last)
 import qualified Language.Java.Syntax as J
-import ClosureF
-import Inheritance
-import BaseTransCFJava
-import StringPrefixes
-import MonadLib
-import JavaUtils
-import JavaEDSL
-import Panic
+
+import           BaseTransCFJava
+import           ClosureF
+import           Inheritance
+import           JavaEDSL
+import           JavaUtils
+import           MonadLib
+import           Panic
 import qualified Src
+import           StringPrefixes
 
 data UnboxTranslate m = UT {toUT :: Translate m}
 
@@ -52,8 +50,6 @@ transUnbox this super =
                        do n <- get
                           (s,je,Forall (Kind f)) <- translateM (up this) expr
                           return (s,je,scope2ctyp (substScope n CFInteger (f n)))
-                     App e1 e2 ->
-                       translateApply (up this) (translateM (up this) e1) (translateM (up this) e2)
                      Lit lit ->
                        case lit of
                          (Src.Integer i) -> return ([] ,J.Lit $ J.Int i ,CFInt)
