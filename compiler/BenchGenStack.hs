@@ -87,15 +87,19 @@ transBenchStack this super = TBS {
 
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
-                                      _ -> Just objClassTy
+           let returnType = case t of
+                             JClass "java.lang.Integer" -> Just $ classTy "java.lang.Integer"
+                             JClass "java.lang.Boolean" -> Just $ classTy "java.lang.Boolean"
+                             CFInt -> Just $ classTy "java.lang.Integer"
+                             _ -> Just objClassTy
+           let returnStmt = [bStmt $ J.Return $ Just e]
            let paraType = getParaType t
            --let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just maybeCastedReturnExp)]) paraType BenchGenStack.testfuncBody returnType mainbody
            empyClosure' <- empyClosure (up this) e ""
            stackbody' <- stackMainBody (up this) t
            testBody <- BenchGenStack.testfuncBody (up this) paraType
            isTest <- genTest (up this)
-           let stackDecl = wrapperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure'])) Nothing (Just $ J.Block $ stackbody') (genParams paraType) (Just (J.Block testBody)) isTest
+           let stackDecl = wrapperClass name (bs ++ (if (containsNext bs) then [] else [empyClosure']) ++ returnStmt) returnType (Just $ J.Block $ stackbody') (genParams paraType) (Just (J.Block testBody)) isTest
            return (BenchGenStack.createCUB super [stackDecl], t)
    }
 }
@@ -118,7 +122,7 @@ wrapperClassB className stmts returnType mainbodyDef testArgType testBodyDef gen
                className
                (classBody (applyMethod : mainMethod : if genTest then [testMethod] else [])))
   where body = Just (block stmts)
-        applyMethod = memberDecl $ methodDecl [J.Static] Nothing "apply" [] body
+        applyMethod = memberDecl $ methodDecl [J.Static] returnType "apply" [] body
         testMethod = memberDecl $ methodDecl [J.Public,J.Static] returnType "test" testArgType testBodyDef
         mainMethod  = memberDecl $ methodDecl [J.Public,J.Static] Nothing "main" mainArgType mainbodyDef
 
@@ -128,14 +132,18 @@ transBenchStackOpt this super = TBSA {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
            box <- getBox (up this) t
-           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
-                                      _ -> Just objClassTy
+           let returnType = case t of
+                             JClass "java.lang.Integer" -> Just $ classTy "java.lang.Integer"
+                             JClass "java.lang.Boolean" -> Just $ classTy "java.lang.Boolean"
+                             CFInt -> Just $ classTy "java.lang.Integer"
+                             _ -> Just objClassTy
+           let returnStmt = [bStmt $ J.Return $ Just e]
            let paraType = getParaType t
            empyClosure' <- empyClosure (super) e box
            stackbody' <- stackMainBody (super) t
            testBody <- BenchGenStack.testfuncBody (up this) paraType
            isTest <- genTest (up this)
-           let stackDecl = wrapperClassB name (bs ++ (if (containsNext bs) then [] else [empyClosure'])) returnType (Just $ J.Block $ stackbody') (genParams paraType) (Just (J.Block testBody)) isTest
+           let stackDecl = wrapperClassB name (bs ++ (if (containsNext bs) then [] else [empyClosure']) ++ returnStmt) returnType (Just $ J.Block $ stackbody') (genParams paraType) (Just (J.Block testBody)) isTest
            return (BenchGenStack.createCUB super [stackDecl], t)
   ,genTest = return True
    }
