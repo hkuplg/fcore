@@ -339,7 +339,7 @@ translateSN :: String -> Expr Int (Var, Type Int) -> StackNaiveType (J.Compilati
 translateSN = createWrap (up stackNaiveinst)
 
 compileSN :: Compilation
-compileSN name e = evalState (runReaderT (translateSN name (fexp2cexp e)) False) 0
+compileSN name e = evalState (runReaderT (translateSN name (fexp2cexp e)) True) 0
 
 -- Setting for unbox + naive
 unboxinst :: UnboxTranslate NType  -- instantiation; all coinstraints resolved
@@ -375,7 +375,7 @@ translateSU :: String -> Expr Int (Var, Type Int) -> StackUnboxType (J.Compilati
 translateSU = createWrap (up stackUnboxInst)
 
 compileSU :: Compilation
-compileSU name e =  evalState (runReaderT (translateSU name (fexp2cexp e)) False) 0
+compileSU name e =  evalState (runReaderT (translateSU name (fexp2cexp e)) True) 0
 
 -- Setting for apply + stack + naive
 type StackType = ReaderT Bool (ReaderT InitVars (StateT (Set.Set J.Exp) (State Int)))
@@ -390,7 +390,7 @@ translateS :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit
 translateS = createWrap (up stackinst)
 
 compileS :: Compilation
-compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) False) []) Set.empty) 0
+compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) True) []) Set.empty) 0
 
 -- Setting for apply + stack + unbox + naive
 stackau :: ApplyOptTranslate StackType
@@ -400,7 +400,7 @@ translateSAU :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUn
 translateSAU = createWrap (up stackau)
 
 compileSAU :: Compilation
-compileSAU name e = evalState (evalStateT (runReaderT (runReaderT (translateSAU name (fexp2cexp e)) False) []) Set.empty) 0
+compileSAU name e = evalState (evalStateT (runReaderT (runReaderT (translateSAU name (fexp2cexp e)) True) []) Set.empty) 0
 
 -- | Setting for benchmark
 
@@ -451,8 +451,8 @@ translateBenchStackOpt = createWrap (up benchstackoptinst)
 
 
 compileBS :: Bool -> Compilation
-compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) False) []) Set.empty) 0
-compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) False) []) Set.empty) 0
+compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) True) []) Set.empty) 0
+compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) True) []) Set.empty) 0
 
 -- Bench stack + apply + unbox
 
@@ -463,4 +463,4 @@ translateBenchStackOptUnbox :: String -> Expr Int (Var, Type Int) -> StackType (
 translateBenchStackOptUnbox = createWrap (up benchstackoptunboxinst)
 
 compileBSAU :: Compilation
-compileBSAU = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOptUnbox name (fexp2cexp e)) False) []) Set.empty) 0
+compileBSAU = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOptUnbox name (fexp2cexp e)) True) []) Set.empty) 0

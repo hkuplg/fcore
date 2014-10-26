@@ -44,6 +44,7 @@ data Translate m =
     ,translateScopeM :: Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> Maybe (Int,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int)
     ,translateApply :: m TransType -> m TransType -> m TransType
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
+    ,translateLet :: TransType -> TransType -> Int -> m TransType
     ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
     ,genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
@@ -204,15 +205,7 @@ trans self =
                    (s1, j1, t1) <- translateM this expr
                    (s2, j2, t2) <- translateM this (body (n,t1))
 
-                   let x = localvarstr ++ show n
-                   let xf = localvarstr ++ show (n+1)
-                   jt1 <- javaType this t1
-                   jt2 <- javaType this t2
-
-                   let xDecl = localFinalVar jt1 (varDecl x j1)
-                   let xfDecl = localFinalVar jt2 (varDecl xf j2)
-
-                   return (s1 ++ [xDecl] ++ s2 ++ [xfDecl], var xf, t2)
+                   translateLet this (s1,j1,t1) (s2,j2,t2) n
 
               LetRec t xs body ->
                 do (n :: Int) <- get
@@ -397,6 +390,15 @@ trans self =
                put (n + 1)
                (s1,j1,_) <- m1 {- translateM this e1 -}
                genIfBody this m2 m3 (s1, j1) n
+       ,translateLet =
+            \(s1,j1,t1) (s2,j2,t2) n ->
+               do let x = localvarstr ++ show n
+                  let xf = localvarstr ++ show (n+1)
+                  jt1 <- javaType this t1
+                  jt2 <- javaType this t2
+                  let xDecl = localFinalVar jt1 (varDecl x j1)
+                  let xfDecl = localFinalVar jt2 (varDecl xf j2)
+                  return (s1 ++ [xDecl] ++ s2 ++ [xfDecl], var xf, t2)
        ,translateScopeTyp =
           \currentId oldId initVars _ otherStmts closureClass ->
             do b <- genClone this

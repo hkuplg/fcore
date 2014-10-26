@@ -114,21 +114,33 @@ nextApply this cl tempOut outType = do
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {toTS = super {
   translateM = \e -> case e of
-       Lam _       -> local (&& False) $ translateM super e
-       Fix _ _     -> local (&& False) $ translateM super e
-       TApp _ _    -> local (|| False) $ translateM super e
-       If e1 e2 e3 -> translateIf (up this) (local (|| True) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
-       App e1 e2   -> translateApply (up this) (local (|| True) $ translateM (up this) e1) (local (|| True) $ translateM (up this) e2)
-       _   -> local (|| True) $ translateM super e,
+       -- count abstraction as in tail position
+       Lam _       -> local (True ||) $ translateM super e
+       Fix _ _     -> local (True ||) $ translateM super e
+       -- type application just inherits existing flag
+       TApp _ _    -> translateM super e
+       If e1 e2 e3 -> translateIf (up this) (local (False &&) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
+       App e1 e2   -> translateApply (up this) (local (False &&) $ translateM (up this) e1) (local (False &&) $ translateM (up this) e2)
+       Let expr body ->
+         do (n :: Int) <- get
+            put (n + 2)
+            (s1, j1, t1) <- local (False &&) $ translateM (up this) expr
+            (s2, j2, t2) <- translateM (up this) (body (n,t1))
+
+            translateLet super (s1,j1,t1) (s2,j2,t2) n
+
+       -- count other expressions as not in tail position
+       _   -> local (False && ) $ translateM super e,
 
   genApply = \f _ x jType ctempCastTyp ->
-      do (genApplys :: Bool) <- ask
+      do (tailPosition :: Bool) <- ask
          (n :: Int) <- get
          put (n+1)
          case x of
-            J.ExpName (J.Name [J.Ident h]) -> if genApplys then -- relies on translated code!
-                                        (whileApply (up this) (J.ExpName (J.Name [f])) ("c" ++ show n) h jType ctempCastTyp)
-                                      else nextApply (up this) (J.ExpName (J.Name [f])) h jType
+            J.ExpName (J.Name [J.Ident h]) ->
+              if tailPosition
+              then nextApply (up this) (J.ExpName (J.Name [f])) h jType
+              else (whileApply (up this) (J.ExpName (J.Name [f])) ("c" ++ show n) h jType ctempCastTyp)
             _ -> panic "expected temporary variable name" ,
 
   genRes = \_ _ -> return [],
