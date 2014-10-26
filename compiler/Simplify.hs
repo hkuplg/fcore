@@ -37,6 +37,7 @@ transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVa
 transType i (Product ts)     = Product (map (transType i) ts)
 transType i (And a1 a2)      = Product [transType i a1, transType i a2]
 transType i (RecordTy (_,t)) = transType i t
+transType i (Thunk t)        = Fun (JClass "java.lang.Integer") (transType i t)
 
 -- Subtyping
 
@@ -159,11 +160,12 @@ transExpr'
   :: (Index -> Index -> Expr Index (Index, Type Index) -> Type Index)
   -> (Index -> Index -> Expr Index (Index, Type Index) -> (Type Int, Expr Index Index))
   -> Index  -> Index -> Expr Index (Index, Type Index) -> Expr Index Index
-transExpr' _ _    _ _ (Var (x,_))  = Var x
-transExpr' _ _    _ _ (Lit l)      = Lit l
-transExpr' _ this i j (Lam t f)    = Lam (transType i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i     (j+1) (f (j, t))
-transExpr' _ this i j (BLam f)     = BLam (\a -> fsubstTE i (TVar a) body')               where (_, body') = this (i+1) j     (f i)
-transExpr' _ this i j (Fix f t1 t) = Fix (\x x1 -> (fsubstEE j (Var x) . fsubstEE (j+1) (Var x1)) body') t1' t'
+transExpr' _ _    _ _ (Var (x,Thunk _)) = App (Var x) (Lit S.Unit) -- TODO: What to do with nested thunk?
+transExpr' _ _    _ _ (Var (x,_))       = Var x
+transExpr' _ _    _ _ (Lit l)           = Lit l
+transExpr' _ this i j (Lam t f)         = Lam (transType i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i     (j+1) (f (j, t))
+transExpr' _ this i j (BLam f)          = BLam (\a -> fsubstTE i (TVar a) body')               where (_, body') = this (i+1) j     (f i)
+transExpr' _ this i j (Fix f t1 t)      = Fix (\x x1 -> (fsubstEE j (Var x) . fsubstEE (j+1) (Var x1)) body') t1' t'
   where
     (_, body') = this i (j+2) (f (j, Fun t1 t) (j+1, t1))
     t1'        = transType i t1
@@ -185,10 +187,9 @@ transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
     subst xs rs   = foldl (.) id [fsubstEE x (Var (rs !! k)) | (x,k) <- zip xs [0..n-1]]
 transExpr' _ this i j (App e1 e2) = App e1' (appC c e2')
   where
-    (t1@(Fun t11 _), e1') = this i j e1
+    (Fun t11 _, e1') = this i j e1
     (t2, e2')        = this i j e2
-    c                = fromMaybe (error $ "\n" ++ show (unsafeCoerce e1 :: Expr Index Index) ++ " :: " ++ show t1  ++ "\n"
-                                            ++ show (unsafeCoerce e2 :: Expr Index Index) ++ " :: " ++ show t2) $ coerce i t2 t11
+    Just c           = coerce i t2 t11
 transExpr' _ this i j (TApp e t)                   = TApp (snd (this i j e)) (transType i t)
 transExpr' _ this i j (If p b1 b2)                 = If (snd (this i j p)) (snd (this i j b1)) (snd (this i j b2))
 transExpr' _ this i j (PrimOp e1 op e2)            = PrimOp (snd (this i j e1)) op (snd (this i j e2))
