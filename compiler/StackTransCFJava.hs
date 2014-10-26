@@ -119,8 +119,10 @@ transS this super = TS {toTS = super {
        Fix _ _     -> local (True ||) $ translateM super e
        -- type application just inherits existing flag
        TApp _ _    -> translateM super e
+       -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherits flag
        If e1 e2 e3 -> translateIf (up this) (local (False &&) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
        App e1 e2   -> translateApply (up this) (local (False &&) $ translateM (up this) e1) (local (False &&) $ translateM (up this) e2)
+       -- let e1 e2: e1 can't be in tail position, e2 inherits flag
        Let expr body ->
          do (n :: Int) <- get
             put (n + 2)
