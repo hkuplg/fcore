@@ -22,6 +22,8 @@ import qualified Src as S
 
 import Mixin
 
+import Text.PrettyPrint.Leijen
+
 import Data.Maybe    (fromMaybe)
 import Control.Monad (zipWithM)
 import Unsafe.Coerce (unsafeCoerce)
@@ -35,6 +37,7 @@ transType _ (JClass c)       = JClass c
 transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
 transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVar a) (f i))
 transType i (Product ts)     = Product (map (transType i) ts)
+transType _  UnitType        = UnitType
 transType i (And a1 a2)      = Product [transType i a1, transType i a2]
 transType i (RecordTy (_,t)) = transType i t
 transType i (Thunk t)        = Fun UnitType (transType i t)
@@ -61,6 +64,7 @@ subtype' this i (Forall f)   (Forall g)  = this (i+1) (f i) (g i)
 subtype' this i (Product ss) (Product ts)
   | length ss /= length ts               = False
   | otherwise                            = uncurry (this i) `all` zip ss ts
+subtype' _    _ UnitType     UnitType    = True
 subtype' this i t1 (And t2 t3)           = this i t1 t2 || this i t1 t3
 subtype' this i (And t1 t2) t3           = this i t1 t3 && this i t2 t3
 subtype' this i (RecordTy (l1,t1)) (RecordTy (l2,t2))
@@ -102,6 +106,7 @@ coerce i (Product ss) (Product ts)
                                      cs [1.. (length ss)])
             in
             return (C (Lam (transType i (Product ss)) (f . Var)))
+coerce _ UnitType UnitType = return Id
 coerce i t1 (And t2 t3) =
   do c1 <- coerce i t1 t2
      c2 <- coerce i t1 t3
@@ -187,9 +192,13 @@ transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
     subst xs rs   = foldl (.) id [fsubstEE x (Var (rs !! k)) | (x,k) <- zip xs [0..n-1]]
 transExpr' _ this i j (App e1 e2) = App e1' (appC c e2')
   where
-    (Fun t11 _, e1') = this i j e1
+    (t1@(Fun t11 _), e1') = this i j e1
     (t2, e2')        = this i j e2
-    Just c           = coerce i t2 t11
+    c                = fromMaybe (error $ show $
+                                  pretty (unsafeCoerce e1 :: Expr Index Index) <+> colon <+> pretty (unsafeCoerce t1 :: Type Index) <$$>
+                                  pretty (unsafeCoerce e2 :: Expr Index Index) <+> colon <+> pretty (unsafeCoerce t2 :: Type Index)
+                                  ) $
+                       coerce i t2 t11
 transExpr' _ this i j (TApp e t)                   = TApp (snd (this i j e)) (transType i t)
 transExpr' _ this i j (If p b1 b2)                 = If (snd (this i j p)) (snd (this i j b1)) (snd (this i j b2))
 transExpr' _ this i j (PrimOp e1 op e2)            = PrimOp (snd (this i j e1)) op (snd (this i j e2))
