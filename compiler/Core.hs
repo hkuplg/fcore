@@ -36,6 +36,7 @@ data Type t
   | Fun (Type t) (Type t)  -- t1 -> t2
   | Forall (t -> Type t)   -- forall a. t
   | Product [Type t]       -- (t1, ..., tn)
+  | UnitType
 
   | And (Type t) (Type t)  -- t1 & t2
   | RecordTy (Src.Label, Type t)
@@ -101,6 +102,7 @@ alphaEq _ (JClass c)   (JClass d)   = c == d
 alphaEq i (Fun s1 s2)  (Fun t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
 alphaEq i (Forall f)   (Forall g)   = alphaEq (succ i) (f i) (g i)
 alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq i) `all` zip ss ts
+alphaEq _  UnitType     UnitType    = True
 alphaEq i (And s1 s2)  (And t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
 alphaEq i (Thunk t1)   (Thunk t2)   = alphaEq i t1 t2
 alphaEq _ _            _            = False
@@ -111,6 +113,7 @@ mapTVar _ (JClass c)       = JClass c
 mapTVar g (Fun t1 t2)      = Fun (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Forall f)       = Forall (mapTVar g . f)
 mapTVar g (Product ts)     = Product (map (mapTVar g) ts)
+mapTVar _  UnitType        = UnitType
 mapTVar g (And t1 t2)      = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (RecordTy (l,t)) = RecordTy (l, mapTVar g t)
 mapTVar g (Thunk t)        = Thunk (mapTVar g t)
@@ -154,6 +157,7 @@ joinType (JClass c)       = JClass c
 joinType (Fun t1 t2)      = Fun (joinType t1) (joinType t2)
 joinType (Forall g)       = Forall (joinType . g . TVar)
 joinType (Product ts)     = Product (map joinType ts)
+joinType  UnitType        = UnitType
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (RecordTy (l,t)) = RecordTy (l, joinType t)
 joinType (Thunk t)        = Thunk (joinType t)
@@ -179,6 +183,8 @@ prettyType p i (Forall f)   =
      prettyType (1,PrecMinus) (succ i) (f i))
 
 prettyType _ i (Product ts) = parens $ hcat (intersperse comma (map (prettyType basePrec i) ts))
+
+prettyType _ _  UnitType = text "Unit"
 
 prettyType _ _ (JClass "java.lang.Integer")   = text "Int"
 prettyType _ _ (JClass "java.lang.String")    = text "String"

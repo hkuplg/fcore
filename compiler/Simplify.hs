@@ -37,7 +37,7 @@ transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVa
 transType i (Product ts)     = Product (map (transType i) ts)
 transType i (And a1 a2)      = Product [transType i a1, transType i a2]
 transType i (RecordTy (_,t)) = transType i t
-transType i (Thunk t)        = Fun (JClass "java.lang.Integer") (transType i t)
+transType i (Thunk t)        = Fun UnitType (transType i t)
 
 -- Subtyping
 
@@ -54,7 +54,7 @@ appC Id e      = e
 appC (C e1) e2 = App e1 e2
 
 subtype' :: Class (Index -> Type Index -> Type Index -> Bool)
-subtype' _    _ (TVar a)    (TVar b)   = a == b
+subtype' _    _ (TVar a)     (TVar b)    = a == b
 subtype' _    _ (JClass c)   (JClass d)  = c == d
 subtype' this i (Fun t1 t2)  (Fun t3 t4) = this i t3 t1 && this i t2 t4
 subtype' this i (Forall f)   (Forall g)  = this (i+1) (f i) (g i)
@@ -127,7 +127,7 @@ infer' _    _ _ (Lit (S.Integer _)) = JClass "java.lang.Integer"
 infer' _    _ _ (Lit (S.String _))  = JClass "java.lang.String"
 infer' _    _ _ (Lit (S.Boolean _)) = JClass "java.lang.Boolean"
 infer' _    _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
-infer' _    _ _ (Lit  S.Unit)       = JClass "java.lang.Integer"
+infer' _    _ _ (Lit  S.Unit)       = UnitType
 infer' this i j (Lam t f)           = Fun t (this i (j+1) (f (j,t)))
 infer' this i j (BLam f)            = Forall (\a -> fsubstTT i (TVar a) $ this (i+1) j (f i))
 infer' _    _ _ (Fix _ t1 t)        = Fun t1 t

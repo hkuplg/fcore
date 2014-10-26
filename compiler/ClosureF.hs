@@ -69,6 +69,7 @@ ftyp2ctyp (C.TVar x)                     = TVar x
 ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
+ftyp2ctyp (C.UnitType)                   = JClass "java.lang.Integer"
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-

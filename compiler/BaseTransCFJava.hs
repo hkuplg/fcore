@@ -142,11 +142,11 @@ trans self =
                 return ([],var (localvarstr ++ show i),t)
               Lit lit ->
                 case lit of
-                  (Src.Integer i) -> return ([] ,J.Lit (J.Int i) ,JClass "java.lang.Integer")
-                  (Src.String s) -> return ([] ,J.Lit (J.String s) ,JClass "java.lang.String")
-                  (Src.Boolean b) -> return ([] ,J.Lit (J.Boolean b) ,JClass "java.lang.Boolean")
-                  (Src.Char c) -> return ([] ,J.Lit (J.Char c) ,JClass "java.lang.Character")
-                  _ -> sorry "BaseTransCFJava.Lit: no idea what to do"
+                  (Src.Integer i) -> return ([], J.Lit (J.Int i),     JClass "java.lang.Integer")
+                  (Src.Unit)      -> return ([], J.Lit (J.Int 0),     JClass "java.lang.Integer")
+                  (Src.String s)  -> return ([], J.Lit (J.String s),  JClass "java.lang.String")
+                  (Src.Boolean b) -> return ([], J.Lit (J.Boolean b), JClass "java.lang.Boolean")
+                  (Src.Char c)    -> return ([], J.Lit (J.Char c),    JClass "java.lang.Character")
               PrimOp e1 op e2 ->
                 do (s1,j1,_) <- translateM this e1
                    (s2,j2,_) <- translateM this e2
