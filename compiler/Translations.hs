@@ -272,7 +272,7 @@ prettyJ = putStrLn . prettyPrint
 sf2java :: Int -> Bool -> Compilation -> ClassName -> String -> IO String
 sf2java num optDump compilation className src =
   do let readSrc = Parser.reader src
-     result <- typeCheck readSrc
+     result <- readSrc `seq` (typeCheck readSrc)
      case result of
        Left typeError -> error $ show ({- Text.PrettyPrint.Leijen.pretty-} typeError)
        Right (tcheckedSrc, _t)   ->
