@@ -2,7 +2,8 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module Core
-  ( Type(..)
+  ( Strictness(..)
+  , Type(..)
   , Expr(..)
   , TypeContext
   , ValueContext
@@ -23,17 +24,19 @@ import qualified Src
 import JavaUtils
 import PrettyUtils
 
-import Text.PrettyPrint.Leijen
+import           Text.PrettyPrint.Leijen
 import qualified Language.Java.Pretty      (prettyPrint)
 
 import           Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+data Strictness = Strict | Lazy
+
 data Type t
-  = TVar t                -- a
+  = TVar t                 -- a
   | JClass ClassName       -- C
-  | Fun (Type t) (Type t)  -- t1 -> t2
+  | Fun Strictness (Type t) (Type t)  -- t1 -> t2
   | Forall (t -> Type t)   -- forall a. t
   | Product [Type t]       -- (t1, ..., tn)
   | And (Type t) (Type t)  -- t1 & t2
@@ -95,19 +98,18 @@ type Index = Int
 alphaEquiv :: Type Index -> Type Index -> Bool
 alphaEquiv = go 0
   where
-    go _ (TVar a)     (TVar b)     = a == b
-    go _ (JClass c)   (JClass d)   = c == d
-    go i (Fun s1 s2)  (Fun t1 t2)  = go i s1 t1 && go i s2 t2
-    go i (Forall f)   (Forall g)   = go (succ i) (f i) (g i)
-    go i (Product ss) (Product ts) = length ss == length ts
-                                     && uncurry (go i) `all` zip ss ts
-    go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
-    go _ _            _            = False
+    go _ (TVar a)      (TVar b)      = a == b
+    go _ (JClass c)    (JClass d)    = c == d
+    go i (Fun _ s1 s2) (Fun _ t1 t2) = go i s1 t1 && go i s2 t2
+    go i (Forall f)    (Forall g)    = go (succ i) (f i) (g i)
+    go i (Product ss)  (Product ts)  = length ss == length ts && uncurry (go i) `all` zip ss ts
+    go i (And s1 s2)   (And t1 t2)   = go i s1 t1 && go i s2 t2
+    go _ _             _             = False
 
 mapTVar :: (t -> Type t) -> Type t -> Type t
 mapTVar g (TVar a)         = g a
 mapTVar _ (JClass c)       = JClass c
-mapTVar g (Fun t1 t2)      = Fun (mapTVar g t1) (mapTVar g t2)
+mapTVar g (Fun s t1 t2)    = Fun s (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Forall f)       = Forall (mapTVar g . f)
 mapTVar g (Product ts)     = Product (map (mapTVar g) ts)
 mapTVar g (And t1 t2)      = And (mapTVar g t1) (mapTVar g t2)
@@ -145,10 +147,11 @@ fsubstTE x r = mapVar Var (fsubstTT x r)
 fsubstEE :: Eq a => a -> Expr t a -> Expr t a -> Expr t a
 fsubstEE x r = mapVar (\a -> if a == x then r else Var a) id
 
+
 joinType :: Type (Type t) -> Type t
 joinType (TVar a)         = a
 joinType (JClass c)       = JClass c
-joinType (Fun t1 t2)      = Fun (joinType t1) (joinType t2)
+joinType (Fun s t1 t2)    = Fun s (joinType t1) (joinType t2)
 joinType (Forall g)       = Forall (joinType . g . TVar)
 joinType (Product ts)     = Product (map joinType ts)
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
@@ -165,9 +168,12 @@ prettyType :: Prec -> Index -> Type Index -> Doc
 
 prettyType _ _ (TVar a)     = prettyTVar a
 
-prettyType p i (Fun t1 t2)  =
+prettyType p i (Fun s t1 t2)  =
   parensIf p 2
-    (prettyType (2,PrecPlus) i t1 <+> arrow <+> prettyType (2,PrecMinus) i t2)
+    (prettyStrictness s (prettyType (2,PrecPlus) i t1) <+> arrow <+> prettyType (2,PrecMinus) i t2)
+  where
+    prettyStrictness Strict doc = doc
+    prettyStrictness Lazy   doc = char '\'' <> parens doc
 
 prettyType p i (Forall f)   =
   parensIf p 1
