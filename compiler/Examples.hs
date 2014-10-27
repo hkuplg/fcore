@@ -15,6 +15,8 @@ import OptiUtils
 
 import PrettyUtils
 
+import Text.PrettyPrint.Leijen
+
 import Unsafe.Coerce
 
 import qualified Language.Java.Syntax as J (Op(..))
@@ -89,7 +91,13 @@ evenOddEncodedTy :: Type t
 evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` javaBool]
 
 konstTy :: Type t
-konstTy = Forall (\a -> Forall (\b -> Fun (TyVar a) (Fun (TyVar b) (TyVar a))))
+konstTy = Forall (\a -> Forall (\b -> Fun (TVar a) (Fun (TVar b) (TVar a))))
+
+lazySucc :: Expr t e
+lazySucc = App f thunk
+  where
+    f     = Lam (Thunk javaInt) (\x -> add (Var x) one)
+    thunk = Lam javaInt (\_ -> zero)
 
 -----------------------
 -- peval tests
@@ -130,7 +138,6 @@ complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
                   zero
                   one
 
-javaInt      = JClass "java.lang.Integer"
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (Src.Integer 0)
 one          = Lit (Src.Integer 1)
@@ -138,5 +145,6 @@ magicNumber  = Lit (Src.Integer 42)
 true         = Lit (Src.Boolean True)
 false        = Lit (Src.Boolean False)
 x `eq` y     = PrimOp x (Src.Compare J.Equal) y
+x `add` y    = PrimOp x (Src.Arith J.Add) y
 x `sub` y    = PrimOp x (Src.Arith J.Sub) y
 x `mult` y   = PrimOp x (Src.Arith J.Mult) y

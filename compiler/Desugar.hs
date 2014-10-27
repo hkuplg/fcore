@@ -37,15 +37,13 @@ transType d = go
       case fs  of
         [(l,t)]  -> C.RecordTy (l, go t)
         _        -> go (RecordTy (take (length fs - 1) fs)) `C.And` (C.RecordTy (let (l,t) = last fs in (l,go t)))
-    go UnitType     = C.JClass "java.lang.Integer"
+    go UnitType     = C.UnitType
 
 dsTcExpr :: DsMap t e -> Expr TcId -> C.Expr t e
 dsTcExpr (d, g) = go
   where
     go (Var (x,_t))      = fromMaybe (panic "Desugar.dsTcExpr: Var") (Map.lookup x g)
-    go (Lit lit)         = C.Lit
-                             (case lit of Unit -> Integer 0
-                                          _    -> lit)
+    go (Lit lit)         = C.Lit lit
     go (App e1 e2)       = C.App (go e1) (go e2)
     go (TApp e t)        = C.TApp (go e) (transType d t)
     go (Tuple es)        = C.Tuple (map go es)

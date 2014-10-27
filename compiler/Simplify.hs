@@ -22,6 +22,8 @@ import qualified Src as S
 
 import Mixin
 
+import Text.PrettyPrint.Leijen
+
 import Data.Maybe    (fromMaybe)
 import Control.Monad (zipWithM)
 import Unsafe.Coerce (unsafeCoerce)
@@ -35,8 +37,10 @@ transType _ (JClass c)       = JClass c
 transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
 transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVar a) (f i))
 transType i (Product ts)     = Product (map (transType i) ts)
+transType _  UnitType        = UnitType
 transType i (And a1 a2)      = Product [transType i a1, transType i a2]
 transType i (RecordTy (_,t)) = transType i t
+transType i (Thunk t)        = Fun UnitType (transType i t)
 
 -- Subtyping
 
@@ -53,18 +57,21 @@ appC Id e      = e
 appC (C e1) e2 = App e1 e2
 
 subtype' :: Class (Index -> Type Index -> Type Index -> Bool)
-subtype' _    _ (TVar a)    (TVar b)   = a == b
+subtype' _    _ (TVar a)     (TVar b)    = a == b
 subtype' _    _ (JClass c)   (JClass d)  = c == d
 subtype' this i (Fun t1 t2)  (Fun t3 t4) = this i t3 t1 && this i t2 t4
 subtype' this i (Forall f)   (Forall g)  = this (i+1) (f i) (g i)
 subtype' this i (Product ss) (Product ts)
   | length ss /= length ts               = False
   | otherwise                            = uncurry (this i) `all` zip ss ts
+subtype' _    _ UnitType     UnitType    = True
 subtype' this i t1 (And t2 t3)           = this i t1 t2 || this i t1 t3
 subtype' this i (And t1 t2) t3           = this i t1 t3 && this i t2 t3
 subtype' this i (RecordTy (l1,t1)) (RecordTy (l2,t2))
   | l1 == l2                             = this i t1 t2
   | otherwise                            = False
+subtype' this i t1           (Thunk t2)  = this i t1 t2
+subtype' this i (Thunk t1)   t2          = this i t1 t2
 subtype' _    _ _ _                      = False
 
 subtype :: Index -> Type Index -> Type Index -> Bool
@@ -101,6 +108,7 @@ coerce i (Product ss) (Product ts)
                                      cs [1.. (length ss)])
             in
             return (C (Lam (transType i (Product ss)) (f . Var)))
+coerce _ UnitType UnitType = return Id
 coerce i t1 (And t2 t3) =
   do c1 <- coerce i t1 t2
      c2 <- coerce i t1 t3
@@ -126,7 +134,7 @@ infer' _    _ _ (Lit (S.Integer _)) = JClass "java.lang.Integer"
 infer' _    _ _ (Lit (S.String _))  = JClass "java.lang.String"
 infer' _    _ _ (Lit (S.Boolean _)) = JClass "java.lang.Boolean"
 infer' _    _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
-infer' _    _ _ (Lit  S.Unit)       = JClass "java.lang.Integer"
+infer' _    _ _ (Lit  S.Unit)       = UnitType
 infer' this i j (Lam t f)           = Fun t (this i (j+1) (f (j,t)))
 infer' this i j (BLam f)            = Forall (\a -> fsubstTT i (TVar a) $ this (i+1) j (f i))
 infer' _    _ _ (Fix _ t1 t)        = Fun t1 t
@@ -159,11 +167,12 @@ transExpr'
   :: (Index -> Index -> Expr Index (Index, Type Index) -> Type Index)
   -> (Index -> Index -> Expr Index (Index, Type Index) -> (Type Int, Expr Index Index))
   -> Index  -> Index -> Expr Index (Index, Type Index) -> Expr Index Index
-transExpr' _ _    _ _ (Var (x,_))  = Var x
-transExpr' _ _    _ _ (Lit l)      = Lit l
-transExpr' _ this i j (Lam t f)    = Lam (transType i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i     (j+1) (f (j, t))
-transExpr' _ this i j (BLam f)     = BLam (\a -> fsubstTE i (TVar a) body')               where (_, body') = this (i+1) j     (f i)
-transExpr' _ this i j (Fix f t1 t) = Fix (\x x1 -> (fsubstEE j (Var x) . fsubstEE (j+1) (Var x1)) body') t1' t'
+transExpr' _ _    _ _ (Var (x,Thunk _)) = App (Var x) (Lit S.Unit) -- TODO: What to do with nested thunk?
+transExpr' _ _    _ _ (Var (x,_))       = Var x
+transExpr' _ _    _ _ (Lit l)           = Lit l
+transExpr' _ this i j (Lam t f)         = Lam (transType i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i     (j+1) (f (j, t))
+transExpr' _ this i j (BLam f)          = BLam (\a -> fsubstTE i (TVar a) body')               where (_, body') = this (i+1) j     (f i)
+transExpr' _ this i j (Fix f t1 t)      = Fix (\x x1 -> (fsubstEE j (Var x) . fsubstEE (j+1) (Var x1)) body') t1' t'
   where
     (_, body') = this i (j+2) (f (j, Fun t1 t) (j+1, t1))
     t1'        = transType i t1
@@ -187,8 +196,11 @@ transExpr' _ this i j (App e1 e2) = App e1' (appC c e2')
   where
     (t1@(Fun t11 _), e1') = this i j e1
     (t2, e2')        = this i j e2
-    c                = fromMaybe (error $ "\n" ++ show (unsafeCoerce e1 :: Expr Index Index) ++ " :: " ++ show t1  ++ "\n"
-                                            ++ show (unsafeCoerce e2 :: Expr Index Index) ++ " :: " ++ show t2) $ coerce i t2 t11
+    c                = fromMaybe (error $ show $
+                                  pretty (unsafeCoerce e1 :: Expr Index Index) <+> colon <+> pretty (unsafeCoerce t1 :: Type Index) <$$>
+                                  pretty (unsafeCoerce e2 :: Expr Index Index) <+> colon <+> pretty (unsafeCoerce t2 :: Type Index)
+                                  ) $
+                       coerce i t2 t11
 transExpr' _ this i j (TApp e t)                   = TApp (snd (this i j e)) (transType i t)
 transExpr' _ this i j (If p b1 b2)                 = If (snd (this i j p)) (snd (this i j b1)) (snd (this i j b2))
 transExpr' _ this i j (PrimOp e1 op e2)            = PrimOp (snd (this i j e1)) op (snd (this i j e2))
@@ -226,11 +238,15 @@ getter i (And t1 t2) l
           Just (c,t) ->
             Just (C $ Lam (transType i (And t1 t2)) (appC c . Proj 1 . Var)
                  ,t)
+getter i (Thunk t1) l
+  = case getter i t1 l of
+      Nothing    -> Nothing
+      Just (c,t) -> Just (C (Lam (transType i (Thunk t1)) (appC c . force . Var)), t)
 getter _ _ _ = Nothing
 
 putter :: Index -> Type Index -> S.Label -> Expr Index Index -> Maybe (Coercion Index Index, Type Index)
 putter i (RecordTy (l,t)) l1 e
-  | l1 == l   = Just (C $ coreConst (transType i $ RecordTy (l,t)) e, t)
+  | l1 == l   = Just (C $ Simplify.const (transType i $ RecordTy (l,t)) e, t)
   | otherwise = Nothing
 putter i (And t1 t2) l e
   = case putter i t2 l e of
@@ -249,12 +265,16 @@ putter i (And t1 t2) l e
               C _  -> Just (C $ Lam (transType i (And t1 t2))
                                   (\x -> Tuple [appC c (Proj 1 (Var x)), Proj 2 (Var x)])
                            ,t)
+
+putter i (Thunk t1) l e
+  = case putter i t1 l e of
+      Nothing    -> Nothing
+      Just (c,t) -> Just (C (Lam (transType i (Thunk t1)) (appC c . force . Var)), t)
 putter _ _ _ _ = Nothing
 
--- Core's id, specialized to type t.
-coreId :: Type Index -> Expr Index Index
-coreId t = Lam t Var
+force :: Expr t e -> Expr t e
+force = App (Lit (S.Integer 0))
 
 -- Core's const, specialized to type t.
-coreConst :: Type Index -> Expr Index Index -> Expr Index Index
-coreConst t e = Lam t (const e)
+const :: Type Index -> Expr Index Index -> Expr Index Index
+const t e = Lam t (Prelude.const e)
