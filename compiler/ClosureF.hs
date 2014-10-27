@@ -9,6 +9,11 @@ import qualified Core as C
 import JavaUtils
 import Panic
 
+import PrettyUtils
+import Text.PrettyPrint.Leijen
+import qualified Language.Java.Pretty (prettyPrint)
+import Data.List (intersperse)
+
 -- Closure F syntax
 
 data Scope b t e =
@@ -176,42 +181,120 @@ instance Subst t => Subst (Type t) where
 
 -- Pretty Printing
 
-showType :: Type Int -> Int -> String
-showType (TVar i) n = "a" ++ show i
-showType (Forall s) n = "(forall " ++ showTScope s n ++ ")"
-showType (CFInt) n = "Int"
-showType (CFInteger) n = "Int"
--- showType (CJClass "java.lang.Integer") n = "Int"
-showType (JClass c) n                   = c
+type Index = Int
 
-showType (TupleType ts) n = sorry "ClosureF.showType: TupleType"
+prettyTScope :: Prec -> Index -> TScope Index -> Doc
 
-showTScope :: Scope (Type Int) Int () -> Int -> String
-showTScope (Body t) n = ". " ++ showType t n
-showTScope (Kind f) n = "a" ++ show n ++ " " ++ showTScope (f n) (n+1)
-showTScope (Type t f) n = "(_ : " ++ showType t n ++ ") " ++ showTScope (f ()) n
+prettyTScope p i (Body t) = prettyType p i t
 
-showEScope :: EScope Int Int -> Int -> String
-showEScope (Body t) n = ". " ++ showExpr t n
-showEScope (Kind f) n = "a" ++ show n ++ " " ++ showEScope (f n) (n+1)
-showEScope (Type t f) n = "(x" ++ show n ++ " : " ++ showType t n ++ ") " ++ showEScope (f n) (n+1)
 
-showExpr :: Expr Int Int -> Int -> String
-showExpr (Var x) n      = "x" ++ show x
-showExpr (Lam s) n      = "(\\" ++ showEScope s n ++ ")"
-showExpr (App e1 e2) n  = showExpr e1 n ++ " " ++ showExpr e2 n
-showExpr (TApp e t) n   = showExpr e n ++ " " ++ showType t n
-showExpr (Fix t f) n    = sorry "ClosureF.showExpr: Fix"
-showExpr _ _   = sorry "ClosureF.showExpr: no idea how to do"
+prettyTScope p i (Kind f) = nest 4 (text "TScope_Kind(" <$> text "\\_ -> " <> prettyTScope p i (f 0)) <$> text ")"
 
-instance Show (Type Int) where
-   show e = showType e 0
+prettyTScope p i (Type t f) = prettyType p i t <> text " -> " <> prettyTScope p i (f ())
 
-instance Show (TScope Int) where
-   show e = showTScope e 0
+prettyEScope :: Prec -> Index -> EScope Index Index -> Doc
 
-instance Show (EScope Int Int) where
-   show e = showEScope e 0
+prettyEScope p i (Body t) = nest 4 (text "EScope_Body(" <$> prettyExpr p (0, 0) t) <$> text ")"
 
-instance Show (Expr Int Int) where
-   show e = showExpr e 0
+prettyEScope p i (Kind f) = nest 4 (text "EScope_Kind(" <$> text "\\_ -> " <> prettyEScope p i (f 0)) <$> text ")"
+
+prettyEScope p i (Type t f) = backslash <> prettyVar i <> dot <+> prettyType p i t <$> prettyEScope p (succ i) (f i)
+
+prettyType :: Prec -> Index -> Type Index -> Doc
+
+prettyType _ _ (TVar t) = prettyTVar t
+
+prettyType p i (Forall f) = text "Forall(" <> prettyTScope p i f <> text ")"
+
+prettyType _ _ (JClass "java.lang.Integer") = text "Int"
+prettyType _ _ (JClass "java.lang.String") = text "String"
+prettyType _ _ (JClass "java.lang.Boolean") = text "Bool"
+prettyType _ _ (JClass "java.lang.Character") = text "Char"
+prettyType _ _ (JClass c) = text c
+
+prettyType _ _ CFInt = text "CFInt"
+prettyType _ _ CFInteger = text "CFInteger"
+
+prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
+
+prettyExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
+
+prettyExpr _ _ (Var x) = prettyVar x
+
+prettyExpr _ _ (FVar x) = text "FVar()"
+
+prettyExpr p (i, j) (Lam e) = nest 4 (text "Lam(" <$> prettyEScope p j e) <$> text ")"
+
+prettyExpr p i (App (Var x) y) = 
+  parens (prettyExpr p i (Var x) <+> parens(prettyExpr p i y))
+prettyExpr p i (App e1 e2) = 
+  nest 4 (text "App(" <$> 
+  prettyExpr p i e1 <> comma <$> 
+  prettyExpr p i e2) <$> 
+  text ")"
+
+prettyExpr p (i, j) (TApp e t) = nest 4 (text "TApp(" <$> prettyExpr p (i, j) e <> comma <$> prettyType p i t) <$> text ")"
+
+prettyExpr p i (PrimOp e1 op e2) 
+  = prettyExpr p i e1 <+> pretty_op <+> prettyExpr p i e2
+  where
+    pretty_op = text (Language.Java.Pretty.prettyPrint java_op)
+    java_op   = case op of
+                  S.Arith   op' -> op'
+                  S.Compare op' -> op'
+                  S.Logic   op' -> op'
+
+
+prettyExpr _ _ (Lit (S.Integer n)) = integer n
+prettyExpr _ _ (Lit (S.String s))  = string s
+prettyExpr _ _ (Lit (S.Boolean b)) = bool b
+prettyExpr _ _ (Lit (S.Char c))    = char c
+
+prettyExpr p i (If e1 e2 e3) = nest 4 (text "if (" <$> prettyExpr p i e1) <$> nest 4 (text ") then (" <$> prettyExpr p i e2) <$> nest 4 (text ") else (" <$> prettyExpr p i e3) <$> text ")"
+
+prettyExpr p i (Tuple l) = tupled (map (prettyExpr p i) l)
+
+prettyExpr p i (Proj n e) = parens (prettyExpr p i e) <> text "._" <> int n
+
+
+prettyExpr p (i, j) (LetRec sigs binds body)
+  = text "let" <+> text "rec" <$$>
+    vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$$>
+    text "in" <$$>
+    pretty_body
+  where
+    n   = length sigs
+    ids = [i..(i+n-1)]
+    pretty_ids   = map prettyVar ids
+    pretty_sigs  = map (prettyType p i) sigs
+    pretty_defs  = map (prettyExpr p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->
+                  pretty_id <+> colon <+> pretty_sig <$$> indent 2 (equals <+> pretty_def))
+                  pretty_ids pretty_sigs pretty_defs
+    pretty_body  = prettyExpr p (i, j + n) (body ids)
+
+
+prettyExpr p (i, j) (Let _ _) = text "Let()"
+prettyExpr p (i, j) (LetRec _ _ _) = text "LetRec()"
+
+prettyExpr p (i, j) (Fix t f) = 
+  nest 4 (text "Fix(" <$> 
+  backslash <> prettyVar j <> dot <+> prettyType p i t <> comma <$> 
+  prettyEScope p (succ j) (f j)) <$> 
+  text ")"
+
+prettyExpr p i (JNewObj name l) = parens (text "new" <+> text name <> tupled (map (prettyExpr p i) l))
+
+prettyExpr p i (JMethod name m args r) = methodStr name <> dot <> text m <> tupled (map (prettyExpr basePrec i) args)
+  where
+    methodStr (Left x) = text x
+    methodStr (Right x) = prettyExpr (6,PrecMinus) i x
+
+prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
+  where
+    fieldStr (Left x) = text x
+    fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
+
+prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
+
+
