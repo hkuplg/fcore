@@ -7,7 +7,7 @@ module Core
   , TypeContext
   , ValueContext
   , Index
-  , alphaEquiv
+  , alphaEq
   , mapTVar
   , mapVar
   , fsubstTT
@@ -32,17 +32,20 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 data Type t
-  = TVar t                -- a
+  = TVar t                 -- a
   | JClass ClassName       -- C
   | Fun (Type t) (Type t)  -- t1 -> t2
   | Forall (t -> Type t)   -- forall a. t
   | Product [Type t]       -- (t1, ..., tn)
+  | UnitType
+
   | And (Type t) (Type t)  -- t1 & t2
   | RecordTy (Src.Label, Type t)
   | Thunk (Type t)
-    -- Warning: If you ever add a case to this, you MUST also define the binary
-    -- relations on your new case. Namely, add cases for your data constructor
-    -- in `alphaEquiv' and `coerce' below. Consult George if you're not sure.
+    -- Warning: If you ever add a case to this, you *must* also define the
+    -- binary relations on your new case. Namely, add cases for your data
+    -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
+    -- George if you're not sure.
 
 data Expr t e
   = Var e
@@ -94,19 +97,16 @@ type ValueContext t e = Map.Map e (Type t)
 
 type Index = Int
 
-alphaEquiv :: Type Index -> Type Index -> Bool
-alphaEquiv = go 0
-  where
-    go _ (TVar a)     (TVar b)     = a == b
-    go _ (JClass c)   (JClass d)   = c == d
-    go i (Fun s1 s2)  (Fun t1 t2)  = go i s1 t1 && go i s2 t2
-    go i (Forall f)   (Forall g)   = go (succ i) (f i) (g i)
-    go i (Product ss) (Product ts) = length ss == length ts
-                                     && uncurry (go i) `all` zip ss ts
-    go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
-    go i t1           (Thunk t2)   = go i t1 t2
-    go i (Thunk t1)   t2           = go i t1 t2
-    go _ _            _            = False
+alphaEq :: Int -> Type Index -> Type Index -> Bool
+alphaEq _ (TVar a)     (TVar b)     = a == b
+alphaEq _ (JClass c)   (JClass d)   = c == d
+alphaEq i (Fun s1 s2)  (Fun t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
+alphaEq i (Forall f)   (Forall g)   = alphaEq (succ i) (f i) (g i)
+alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq i) `all` zip ss ts
+alphaEq _  UnitType     UnitType    = True
+alphaEq i (And s1 s2)  (And t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
+alphaEq i (Thunk t1)   (Thunk t2)   = alphaEq i t1 t2
+alphaEq _ _            _            = False
 
 mapTVar :: (t -> Type t) -> Type t -> Type t
 mapTVar g (TVar a)         = g a
@@ -114,9 +114,10 @@ mapTVar _ (JClass c)       = JClass c
 mapTVar g (Fun t1 t2)      = Fun (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Forall f)       = Forall (mapTVar g . f)
 mapTVar g (Product ts)     = Product (map (mapTVar g) ts)
+mapTVar _  UnitType        = UnitType
 mapTVar g (And t1 t2)      = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (RecordTy (l,t)) = RecordTy (l, mapTVar g t)
-mapTVar g (Thunk t)        = mapTVar g t
+mapTVar g (Thunk t)        = Thunk (mapTVar g t)
 
 mapVar :: (e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var a)                   = g a
@@ -150,12 +151,14 @@ fsubstTE x r = mapVar Var (fsubstTT x r)
 fsubstEE :: Eq a => a -> Expr t a -> Expr t a -> Expr t a
 fsubstEE x r = mapVar (\a -> if a == x then r else Var a) id
 
+
 joinType :: Type (Type t) -> Type t
 joinType (TVar a)         = a
 joinType (JClass c)       = JClass c
 joinType (Fun t1 t2)      = Fun (joinType t1) (joinType t2)
 joinType (Forall g)       = Forall (joinType . g . TVar)
 joinType (Product ts)     = Product (map joinType ts)
+joinType  UnitType        = UnitType
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (RecordTy (l,t)) = RecordTy (l, joinType t)
 joinType (Thunk t)        = Thunk (joinType t)
@@ -181,6 +184,8 @@ prettyType p i (Forall f)   =
      prettyType (1,PrecMinus) (succ i) (f i))
 
 prettyType _ i (Product ts) = parens $ hcat (intersperse comma (map (prettyType basePrec i) ts))
+
+prettyType _ _  UnitType = text "Unit"
 
 prettyType _ _ (JClass "java.lang.Integer")   = text "Int"
 prettyType _ _ (JClass "java.lang.String")    = text "String"
@@ -231,6 +236,7 @@ prettyExpr _ _ (Lit (Src.Integer n)) = integer n
 prettyExpr _ _ (Lit (Src.String s))  = dquotes (string s)
 prettyExpr _ _ (Lit (Src.Boolean b)) = bool b
 prettyExpr _ _ (Lit (Src.Char c))    = char c
+prettyExpr _ _ (Lit Src.Unit)        = text "()"
 
 prettyExpr p (i,j) (If e1 e2 e3)
   = parensIf p prec

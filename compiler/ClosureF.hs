@@ -74,6 +74,7 @@ ftyp2ctyp (C.TVar x)                     = TVar x
 ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
+ftyp2ctyp (C.UnitType)                   = JClass "java.lang.Integer"
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-
@@ -100,7 +101,8 @@ fexp2cexp (C.Var x)                  = Var x
 fexp2cexp (C.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (C.TApp e t)               = TApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (C.PrimOp e1 op e2)        = PrimOp (fexp2cexp e1) op (fexp2cexp e2)
-fexp2cexp (C.Lit e) = Lit e
+fexp2cexp (C.Lit S.Unit) = Lit (S.Integer 0)
+fexp2cexp (C.Lit e)      = Lit e
 fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
