@@ -37,6 +37,7 @@ transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVa
 transType i (Product ts)     = Product (map (transType i) ts)
 transType i (And a1 a2)      = Product [transType i a1, transType i a2]
 transType i (RecordTy (_,t)) = transType i t
+transType i (Thunk t)        = Fun javaInt (transType i t)
 
 -- Subtyping
 
@@ -53,18 +54,20 @@ appC Id e      = e
 appC (C e1) e2 = App e1 e2
 
 subtype' :: Class (Index -> Type Index -> Type Index -> Bool)
-subtype' _    _ (TVar a)    (TVar b)   = a == b
+subtype' _    _ (TVar a)     (TVar b)    = a == b
 subtype' _    _ (JClass c)   (JClass d)  = c == d
 subtype' this i (Fun t1 t2)  (Fun t3 t4) = this i t3 t1 && this i t2 t4
 subtype' this i (Forall f)   (Forall g)  = this (i+1) (f i) (g i)
 subtype' this i (Product ss) (Product ts)
   | length ss /= length ts               = False
   | otherwise                            = uncurry (this i) `all` zip ss ts
-subtype' this i t1 (And t2 t3)           = this i t1 t2 || this i t1 t3
-subtype' this i (And t1 t2) t3           = this i t1 t3 && this i t2 t3
+subtype' this i t1           (And t2 t3) = this i t1 t2 || this i t1 t3
+subtype' this i (And t1 t2)  t3          = this i t1 t3 && this i t2 t3
 subtype' this i (RecordTy (l1,t1)) (RecordTy (l2,t2))
   | l1 == l2                             = this i t1 t2
   | otherwise                            = False
+subtype' this i t1           (Thunk t2)  = this i t1 t2
+subtype' this i (Thunk t1)   t2          = this i t1 t2
 subtype' _    _ _ _                      = False
 
 subtype :: Index -> Type Index -> Type Index -> Bool
@@ -226,11 +229,15 @@ getter i (And t1 t2) l
           Just (c,t) ->
             Just (C $ Lam (transType i (And t1 t2)) (appC c . Proj 1 . Var)
                  ,t)
+getter i (Thunk t1) l
+  = case getter i t1 l of
+      Nothing    -> Nothing
+      Just (c,t) -> Just (C (Lam (transType i (Thunk t1)) (appC c . force . Var)), t)
 getter _ _ _ = Nothing
 
 putter :: Index -> Type Index -> S.Label -> Expr Index Index -> Maybe (Coercion Index Index, Type Index)
 putter i (RecordTy (l,t)) l1 e
-  | l1 == l   = Just (C $ coreConst (transType i $ RecordTy (l,t)) e, t)
+  | l1 == l   = Just (C $ Simplify.const (transType i $ RecordTy (l,t)) e, t)
   | otherwise = Nothing
 putter i (And t1 t2) l e
   = case putter i t2 l e of
@@ -249,12 +256,16 @@ putter i (And t1 t2) l e
               C _  -> Just (C $ Lam (transType i (And t1 t2))
                                   (\x -> Tuple [appC c (Proj 1 (Var x)), Proj 2 (Var x)])
                            ,t)
+
+putter i (Thunk t1) l e
+  = case putter i t1 l e of
+      Nothing    -> Nothing
+      Just (c,t) -> Just (C (Lam (transType i (Thunk t1)) (appC c . force . Var)), t)
 putter _ _ _ _ = Nothing
 
--- Core's id, specialized to type t.
-coreId :: Type Index -> Expr Index Index
-coreId t = Lam t Var
+force :: Expr t e -> Expr t e
+force = App (Lit (S.Integer 0))
 
 -- Core's const, specialized to type t.
-coreConst :: Type Index -> Expr Index Index -> Expr Index Index
-coreConst t e = Lam t (const e)
+const :: Type Index -> Expr Index Index -> Expr Index Index
+const t e = Lam t (Prelude.const e)

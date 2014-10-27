@@ -16,6 +16,7 @@ module Core
   , joinType
   , prettyType
   , prettyExpr
+  , javaInt
   ) where
 
 import qualified Src
@@ -38,6 +39,7 @@ data Type t
   | Product [Type t]       -- (t1, ..., tn)
   | And (Type t) (Type t)  -- t1 & t2
   | RecordTy (Src.Label, Type t)
+  | Thunk (Type t)
     -- Warning: If you ever add a case to this, you MUST also define the binary
     -- relations on your new case. Namely, add cases for your data constructor
     -- in `alphaEquiv' and `coerce' below. Consult George if you're not sure.
@@ -102,6 +104,8 @@ alphaEquiv = go 0
     go i (Product ss) (Product ts) = length ss == length ts
                                      && uncurry (go i) `all` zip ss ts
     go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
+    go i t1           (Thunk t2)   = go i t1 t2
+    go i (Thunk t1)   t2           = go i t1 t2
     go _ _            _            = False
 
 mapTVar :: (t -> Type t) -> Type t -> Type t
@@ -112,6 +116,7 @@ mapTVar g (Forall f)       = Forall (mapTVar g . f)
 mapTVar g (Product ts)     = Product (map (mapTVar g) ts)
 mapTVar g (And t1 t2)      = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (RecordTy (l,t)) = RecordTy (l, mapTVar g t)
+mapTVar g (Thunk t)        = mapTVar g t
 
 mapVar :: (e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var a)                   = g a
@@ -153,6 +158,7 @@ joinType (Forall g)       = Forall (joinType . g . TVar)
 joinType (Product ts)     = Product (map joinType ts)
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (RecordTy (l,t)) = RecordTy (l, joinType t)
+joinType (Thunk t)        = Thunk (joinType t)
 
 
 instance Show (Type Index) where
@@ -189,6 +195,8 @@ prettyType p i (And t1 t2) =
      prettyType (2,PrecPlus) i t2)
 
 prettyType _ i (RecordTy (l,t)) = lbrace <> text l <> colon <> prettyType basePrec i t <> rbrace
+
+prettyType _ i (Thunk t) = char '\'' <> parens (prettyType basePrec i t)
 
 
 instance Show (Expr Index Index) where
@@ -269,11 +277,11 @@ prettyExpr p (i,j) (Fix f t1 t) =
      prettyType p i t <> dot <$$>
      indent 2 (prettyExpr p (i, j + 2) (f j (j + 1))))
 
-prettyExpr _ (i,j) (Let x f) = 
-  text "let" <$$> 
-  indent 2 (prettyVar j <> text " = " <> 
-    prettyExpr basePrec (i, succ j) x) <$$> 
-  text "in" <$$> 
+prettyExpr _ (i,j) (Let x f) =
+  text "let" <$$>
+  indent 2 (prettyVar j <> text " = " <>
+    prettyExpr basePrec (i, succ j) x) <$$>
+  text "in" <$$>
   indent 2 (prettyExpr basePrec (i, succ j) (f j))
 
 prettyExpr p (i,j) (LetRec sigs binds body)
@@ -298,3 +306,7 @@ prettyExpr p (i,j) (Merge e1 e2) =
 prettyExpr _ (i,j) (RecordIntro (l, e))     = lbrace <> text l <> equals <> prettyExpr basePrec (i,j) e <> rbrace
 prettyExpr p (i,j) (RecordElim e l)         = prettyExpr p (i,j) e <> dot <> text l
 prettyExpr p (i,j) (RecordUpdate e (l, e1)) = prettyExpr p (i,j) e <+> text "with" <+> prettyExpr p (i,j) (RecordIntro (l, e1))
+
+
+javaInt :: Type t
+javaInt = JClass "java.lang.Integer"
