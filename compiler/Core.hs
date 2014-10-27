@@ -164,11 +164,11 @@ joinType (RecordTy (l,t)) = RecordTy (l, joinType t)
 joinType (Thunk t)        = Thunk (joinType t)
 
 
-instance Show (Type Index) where
-  show = show . pretty
+-- instance Show (Type Index) where
+--   show = show . pretty
 
-instance Pretty (Type Index) where
-  pretty = prettyType
+-- instance Pretty (Type Index) where
+--   pretty = prettyType
 
 prettyType :: Type Index -> Doc
 prettyType = prettyType' basePrec 0
@@ -207,11 +207,11 @@ prettyType' _ i (RecordTy (l,t)) = lbrace <> text l <> colon <> prettyType' base
 prettyType' _ i (Thunk t) = char '\'' <> parens (prettyType' basePrec i t)
 
 
-instance Show (Expr Index Index) where
-  show = show . pretty
+-- instance Show (Expr Index Index) where
+--   show = show . pretty
 
-instance Pretty (Expr Index Index) where
-  pretty = prettyExpr
+-- instance Pretty (Expr Index Index) where
+--   pretty = prettyExpr
 
 prettyExpr :: Expr Index Index -> Doc
 prettyExpr = prettyExpr' basePrec (0, 0)

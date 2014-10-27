@@ -197,8 +197,8 @@ transExpr' _ this i j (App e1 e2) = App e1' (appC c e2')
     (t1@(Fun t11 _), e1') = this i j e1
     (t2, e2')        = this i j e2
     c                = fromMaybe (error $ show $
-                                  pretty (unsafeCoerce e1 :: Expr Index Index) <+> colon <+> pretty (unsafeCoerce t1 :: Type Index) <$$>
-                                  pretty (unsafeCoerce e2 :: Expr Index Index) <+> colon <+> pretty (unsafeCoerce t2 :: Type Index)
+                                  prettyExpr (unsafeCoerce e1 :: Expr Index Index) <+> colon <+> prettyType (unsafeCoerce t1 :: Type Index) <$$>
+                                  prettyExpr (unsafeCoerce e2 :: Expr Index Index) <+> colon <+> prettyType (unsafeCoerce t2 :: Type Index)
                                   ) $
                        coerce i t2 t11
 transExpr' _ this i j (TApp e t)                   = TApp (snd (this i j e)) (transType i t)
