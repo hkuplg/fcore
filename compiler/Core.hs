@@ -269,7 +269,12 @@ prettyExpr p (i,j) (Fix f t1 t) =
      prettyType p i t <> dot <$$>
      indent 2 (prettyExpr p (i, j + 2) (f j (j + 1))))
 
-prettyExpr _ (i,j) (Let x f) = parens (text "let [" <> prettyVar j <> text " = " <> prettyExpr basePrec (i, succ j) x <> text "] in [" <> prettyExpr basePrec (i, succ j) (f j) <> text "]")
+prettyExpr _ (i,j) (Let x f) = 
+  text "let" <$$> 
+  indent 2 (prettyVar j <> text " = " <> 
+    prettyExpr basePrec (i, succ j) x) <$$> 
+  text "in" <$$> 
+  indent 2 (prettyExpr basePrec (i, succ j) (f j))
 
 prettyExpr p (i,j) (LetRec sigs binds body)
   = text "let" <+> text "rec" <$$>
