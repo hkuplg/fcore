@@ -106,7 +106,7 @@ genIfBody this m2 m3 (s1,j1) n =
 -- needed
 assignVar :: Monad m => Translate m -> Type Int -> String -> J.Exp -> m J.BlockStmt
 assignVar this t varId e = do aType <- javaType this t
-                              return $ localVar aType (varDecl varId e)
+                              return $ localFinalVar aType (varDecl varId e)
 
 
 pairUp :: [Var] -> [(J.Exp, Type Int)] -> [(Var, Type Int)]
@@ -239,7 +239,7 @@ trans self =
                          ,localVar (classTy ("Let" ++ show n))
                                    (varDecl (localvarstr ++ show n)
                                             (instCreat (classTyp ("Let" ++ show n)) []))
-                         ,localVar typ (varDecl (localvarstr ++ show (n + 1))
+                         ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
                                                 (cast typ (J.ExpName (name [(localvarstr ++ show n), "out"]))))]
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
               App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
