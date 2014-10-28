@@ -74,7 +74,7 @@ ftyp2ctyp (C.TVar x)                     = TVar x
 ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
-ftyp2ctyp (C.UnitType)                   = JClass "java.lang.Integer"
+ftyp2ctyp (C.Unit)                       = JClass "java.lang.Integer"
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-
@@ -101,8 +101,8 @@ fexp2cexp (C.Var x)                  = Var x
 fexp2cexp (C.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (C.TApp e t)               = TApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (C.PrimOp e1 op e2)        = PrimOp (fexp2cexp e1) op (fexp2cexp e2)
-fexp2cexp (C.Lit S.Unit) = Lit (S.Integer 0)
-fexp2cexp (C.Lit e)      = Lit e
+fexp2cexp (C.Lit S.UnitLit) = Lit (S.Int 0)
+fexp2cexp (C.Lit e)         = Lit e
 fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
@@ -227,17 +227,17 @@ prettyExpr _ _ (FVar x) = text "FVar()"
 
 prettyExpr p (i, j) (Lam e) = nest 4 (text "Lam(" <$> prettyEScope p j e) <$> text ")"
 
-prettyExpr p i (App (Var x) y) = 
+prettyExpr p i (App (Var x) y) =
   parens (prettyExpr p i (Var x) <+> parens(prettyExpr p i y))
-prettyExpr p i (App e1 e2) = 
-  nest 4 (text "App(" <$> 
-  prettyExpr p i e1 <> comma <$> 
-  prettyExpr p i e2) <$> 
+prettyExpr p i (App e1 e2) =
+  nest 4 (text "App(" <$>
+  prettyExpr p i e1 <> comma <$>
+  prettyExpr p i e2) <$>
   text ")"
 
 prettyExpr p (i, j) (TApp e t) = nest 4 (text "TApp(" <$> prettyExpr p (i, j) e <> comma <$> prettyType p i t) <$> text ")"
 
-prettyExpr p i (PrimOp e1 op e2) 
+prettyExpr p i (PrimOp e1 op e2)
   = prettyExpr p i e1 <+> pretty_op <+> prettyExpr p i e2
   where
     pretty_op = text (Language.Java.Pretty.prettyPrint java_op)
@@ -247,10 +247,10 @@ prettyExpr p i (PrimOp e1 op e2)
                   S.Logic   op' -> op'
 
 
-prettyExpr _ _ (Lit (S.Integer n)) = integer n
-prettyExpr _ _ (Lit (S.String s))  = string s
-prettyExpr _ _ (Lit (S.Boolean b)) = bool b
-prettyExpr _ _ (Lit (S.Char c))    = char c
+prettyExpr _ _ (Lit (S.Int n))    = integer n
+prettyExpr _ _ (Lit (S.String s)) = string s
+prettyExpr _ _ (Lit (S.Bool b))   = bool b
+prettyExpr _ _ (Lit (S.Char c))   = char c
 
 prettyExpr p i (If e1 e2 e3) = nest 4 (text "if (" <$> prettyExpr p i e1) <$> nest 4 (text ") then (" <$> prettyExpr p i e2) <$> nest 4 (text ") else (" <$> prettyExpr p i e3) <$> text ")"
 
@@ -279,10 +279,10 @@ prettyExpr p (i, j) (LetRec sigs binds body)
 prettyExpr p (i, j) (Let _ _) = text "Let()"
 prettyExpr p (i, j) (LetRec _ _ _) = text "LetRec()"
 
-prettyExpr p (i, j) (Fix t f) = 
-  nest 4 (text "Fix(" <$> 
-  backslash <> prettyVar j <> dot <+> prettyType p i t <> comma <$> 
-  prettyEScope p (succ j) (f j)) <$> 
+prettyExpr p (i, j) (Fix t f) =
+  nest 4 (text "Fix(" <$>
+  backslash <> prettyVar j <> dot <+> prettyType p i t <> comma <$>
+  prettyEScope p (succ j) (f j)) <$>
   text ")"
 
 prettyExpr p i (JNewObj name l) = parens (text "new" <+> text name <> tupled (map (prettyExpr p i) l))
@@ -298,5 +298,3 @@ prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
     fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
-
-

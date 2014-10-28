@@ -37,10 +37,10 @@ transType _ (JClass c)       = JClass c
 transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
 transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVar a) (f i))
 transType i (Product ts)     = Product (map (transType i) ts)
-transType _  UnitType        = UnitType
+transType _  Unit        = Unit
 transType i (And a1 a2)      = Product [transType i a1, transType i a2]
-transType i (RecordTy (_,t)) = transType i t
-transType i (Thunk t)        = Fun UnitType (transType i t)
+transType i (Record (_,t)) = transType i t
+transType i (Thunk t)        = Fun Unit (transType i t)
 
 -- Subtyping
 
@@ -64,10 +64,10 @@ subtype' this i (Forall f)   (Forall g)  = this (i+1) (f i) (g i)
 subtype' this i (Product ss) (Product ts)
   | length ss /= length ts               = False
   | otherwise                            = uncurry (this i) `all` zip ss ts
-subtype' _    _ UnitType     UnitType    = True
+subtype' _    _ Unit     Unit    = True
 subtype' this i t1 (And t2 t3)           = this i t1 t2 || this i t1 t3
 subtype' this i (And t1 t2) t3           = this i t1 t3 && this i t2 t3
-subtype' this i (RecordTy (l1,t1)) (RecordTy (l2,t2))
+subtype' this i (Record (l1,t1)) (Record (l2,t2))
   | l1 == l2                             = this i t1 t2
   | otherwise                            = False
 subtype' this i t1           (Thunk t2)  = this i t1 t2
@@ -108,7 +108,7 @@ coerce i (Product ss) (Product ts)
                                      cs [1.. (length ss)])
             in
             return (C (Lam (transType i (Product ss)) (f . Var)))
-coerce _ UnitType UnitType = return Id
+coerce _ Unit Unit = return Id
 coerce i t1 (And t2 t3) =
   do c1 <- coerce i t1 t2
      c2 <- coerce i t1 t3
@@ -124,17 +124,17 @@ coerce i (And t1 t2) t3 =
         Nothing -> Nothing
         Just c  -> return (C (Lam (transType i (And t1 t2))
                                (\x -> c `appC` Proj 2 (Var x))))
-coerce i (RecordTy (l1,t1)) (RecordTy (l2,t2)) | l1 == l2  = coerce i t1 t2
+coerce i (Record (l1,t1)) (Record (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
 coerce _ _ _ = Nothing
 
 infer':: Class (Index -> Index -> Expr Index (Index, Type Index) -> Type Index)
 infer' _    _ _ (Var (_,t))         = t
-infer' _    _ _ (Lit (S.Integer _)) = JClass "java.lang.Integer"
+infer' _    _ _ (Lit (S.Int _))     = JClass "java.lang.Integer"
 infer' _    _ _ (Lit (S.String _))  = JClass "java.lang.String"
-infer' _    _ _ (Lit (S.Boolean _)) = JClass "java.lang.Boolean"
+infer' _    _ _ (Lit (S.Bool _))    = JClass "java.lang.Boolean"
 infer' _    _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
-infer' _    _ _ (Lit  S.Unit)       = UnitType
+infer' _    _ _ (Lit  S.UnitLit)    = Unit
 infer' this i j (Lam t f)           = Fun t (this i (j+1) (f (j,t)))
 infer' this i j (BLam f)            = Forall (\a -> fsubstTT i (TVar a) $ this (i+1) j (f i))
 infer' _    _ _ (Fix _ t1 t)        = Fun t1 t
@@ -153,7 +153,7 @@ infer' _    _ _ (JMethod _ _ _ c)   = JClass c
 infer' _    _ _ (JField _ _ c)      = JClass c
 infer' this i j (Seq es)            = this i j (last es)
 infer' this i j (Merge e1 e2)       = And (this i j e1) (this i j e2)
-infer' this i j (RecordIntro (l,e)) = RecordTy (l, this i j e)
+infer' this i j (RecordLit (l,e))   = Record (l, this i j e)
 infer' this i j (RecordElim e l1)   = t1 where Just (_,t1) = getter i (this i j e) l1
 infer' this i j (RecordUpdate e _)  = this i j e
 
@@ -167,7 +167,7 @@ transExpr'
   :: (Index -> Index -> Expr Index (Index, Type Index) -> Type Index)
   -> (Index -> Index -> Expr Index (Index, Type Index) -> (Type Int, Expr Index Index))
   -> Index  -> Index -> Expr Index (Index, Type Index) -> Expr Index Index
-transExpr' _ _    _ _ (Var (x,Thunk _)) = App (Var x) (Lit S.Unit) -- TODO: What to do with nested thunk?
+transExpr' _ _    _ _ (Var (x,Thunk _)) = App (Var x) (Lit S.UnitLit) -- TODO: What to do with nested thunk?
 transExpr' _ _    _ _ (Var (x,_))       = Var x
 transExpr' _ _    _ _ (Lit l)           = Lit l
 transExpr' _ this i j (Lam t f)         = Lam (transType i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i     (j+1) (f (j, t))
@@ -211,7 +211,7 @@ transExpr' _ this i j (JMethod callee m args ret)  = JMethod (fmap (snd . this i
 transExpr' _ this i j (JField callee m ret)        = JField (fmap (snd . this i j) callee) m ret
 transExpr' _ this i j (Seq es)                     = Seq (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (Merge e1 e2)                = Tuple [snd (this i j e1), snd (this i j e2)]
-transExpr' _ this i j (RecordIntro (_,e))          = snd (this i j e)
+transExpr' _ this i j (RecordLit (_,e))            = snd (this i j e)
 transExpr' super this i j (RecordElim e l1)        = appC c (snd (this i j e)) where Just (c, _) = getter i (super i j e) l1
 transExpr' super this i j (RecordUpdate e (l1,e1)) = appC c (snd (this i j e)) where Just (c, _) = putter i (super i j e) l1 (snd (this i j e1))
 
@@ -224,7 +224,7 @@ transExpr = new (infer' `with` transExpr'')
     transExpr'' super this i j e  = (super i j e, transExpr' super this i j e)
 
 getter :: Index -> Type Index -> S.Label -> Maybe (Coercion Index Index, Type Index)
-getter _ (RecordTy (l,t)) l1
+getter _ (Record (l,t)) l1
   | l1 == l   = Just (Id, t)
   | otherwise = Nothing
 getter i (And t1 t2) l
@@ -245,16 +245,16 @@ getter i (Thunk t1) l
 getter _ _ _ = Nothing
 
 putter :: Index -> Type Index -> S.Label -> Expr Index Index -> Maybe (Coercion Index Index, Type Index)
-putter i (RecordTy (l,t)) l1 e
-  | l1 == l   = Just (C $ Simplify.const (transType i $ RecordTy (l,t)) e, t)
+putter i (Record (l,t)) l1 e
+  | l1 == l   = Just (C (Simplify.const (transType i (Record (l,t))) e), t)
   | otherwise = Nothing
 putter i (And t1 t2) l e
   = case putter i t2 l e of
       Just (c,t) ->
         case c of
           Id   -> Just (Id,t)
-          C _  -> Just (C $ Lam (transType i (And t1 t2))
-                              (\x -> Tuple [Proj 1 (Var x), appC c (Proj 2 (Var x))])
+          C _  -> Just (C (Lam (transType i (And t1 t2))
+                                 (\x -> Tuple [Proj 1 (Var x), appC c (Proj 2 (Var x))]))
                        ,t)
       Nothing    ->
         case putter i t1 l e of
@@ -273,7 +273,7 @@ putter i (Thunk t1) l e
 putter _ _ _ _ = Nothing
 
 force :: Expr t e -> Expr t e
-force = App (Lit (S.Integer 0))
+force = App (Lit S.UnitLit)
 
 -- Core's const, specialized to type t.
 const :: Type Index -> Expr Index Index -> Expr Index Index

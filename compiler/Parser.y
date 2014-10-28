@@ -64,7 +64,7 @@ import JavaUtils
   BOOLEAN  { Tboolean $$ }
   CHAR     { Tchar $$ }
   "()"     { Tunit }
-  "unit"   { Tunittype }
+  "Unit"   { Tunit }
 
   "*"      { Tprimop J.Mult   }
   "/"      { Tprimop J.Div    }
@@ -118,38 +118,38 @@ module_name :: { Name }
 -- Since we would like:  forall A. [A] -> Even  &  forall A. [A] -> Odd
 -- to be parsed as:      (forall A. [A] -> Even) & (forall A. [A] -> Odd)
 type :: { Type }
-  : ftype "&" type             { And $1 $3 }
+  : ftype "&" type            { And $1 $3 }
   | ftype                     { $1 }
 
 ftype :: { Type }
-  : atype "->" ftype           { Fun $1 $3 }
-  | "forall" tyvar "." ftype  { Forall $2 $4 }
+  : atype "->" ftype          { Fun $1 $3 }
+  | "forall" tvar "." ftype  { Forall $2 $4 }
   | atype                     { $1 }
 
 atype :: { Type }
-  : tyvar                    { TyVar $1 }
+  : tvar                     { TVar $1 }
   | JAVACLASS                { JClass $1 }
   | "(" product_body ")"     { Product $2 }
-  | "{" recordty_body "}"    { RecordTy $2 }
+  | "{" record_body "}"      { Record $2 }
   | "(" type ")"             { $2 }
-  | "unit"                   { UnitType }
+  | "Unit"                   { Unit }
 
 product_body :: { [Type] }
-  : type "," type              { $1:[$3] }
+  : type "," type             { $1:[$3] }
   | type "," product_body     { $1:$3   }
 
-recordty_body :: { [(Label, Type)] }
-  : label ":" type                    { [($1, $3)]  }
-  | label ":" type "," recordty_body  { ($1, $3):$5 }
+record_body :: { [(Label, Type)] }
+  : label ":" type                  { [($1, $3)]  }
+  | label ":" type "," record_body  { ($1, $3):$5 }
 
 label :: { Label }
   : LOWERID                  { $1 }
 
-tyvars :: { [Name] }
+tvars :: { [Name] }
   : {- empty -}              { []    }
-  | tyvar tyvars             { $1:$2 }
+  | tvar tvars               { $1:$2 }
 
-tyvar :: { Name }
+tvar :: { Name }
   : UPPERID                  { $1 }
 
 -- Expressions
@@ -177,11 +177,11 @@ infixexpr :: { Expr Name }
     | infixexpr "(+)" infixexpr { Combine $1 $3 }
 
 expr10 :: { Expr Name }
-    : "/\\" tyvar "." expr                { BLam $2 $4  }
+    : "/\\" tvar "." expr                { BLam $2 $4  }
     | "\\" var_with_annot "." expr        { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
-    | "-" INTEGER %prec UMINUS            { Lit (Integer (-$2)) }
+    | "-" INTEGER %prec UMINUS            { Lit (Int (-$2)) }
     | fexpr                                { $1 }
 
 fexpr :: { Expr Name }
@@ -193,31 +193,31 @@ aexp :: { Expr Name }
     : var                       { Var $1 }
 
     -- Literals
-    | INTEGER                   { Lit (Integer $1) }
+    | INTEGER                   { Lit (Int $1) }
     | STRING                    { Lit (String $1) }
-    | BOOLEAN                   { Lit (Boolean $1) }
+    | BOOLEAN                   { Lit (Bool $1) }
     | CHAR                      { Lit (Char $1) }
-    | "()"                      { Lit Unit }
+    | "()"                      { Lit UnitLit }
 
     | "(" comma_exprs ")"       { Tuple $2 }
     | aexp "." UNDERID          { Proj $1 $3 }
     | "(" expr ")"              { $2 }
     -- Java
-    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")" { JMethod (Static $1) $3 $5 undefined }
-    | aexp "." LOWERID "(" comma_exprs_emp ")"      { JMethod (NonStatic $1) $3 $5 undefined }
+    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")"  { JMethod (Static $1) $3 $5 undefined }
+    | aexp "." LOWERID "(" comma_exprs_emp ")"       { JMethod (NonStatic $1) $3 $5 undefined }
     | JAVACLASS "." field { JField (Static $1) $3 undefined }
     | aexp "." field      { JField (NonStatic $1) $3 undefined }
     | module_name "." var  { ModuleAccess $1 $3 }
-    | "new" JAVACLASS "(" comma_exprs_emp ")"       { JNewObj $2 $4 }
+    | "new" JAVACLASS "(" comma_exprs_emp ")"        { JNewObj $2 $4 }
     -- Sequence of exprs
     | "{" semi_exprs "}"        { Seq $2 }
-    | "{" record_body "}"       { Record $2 }
-    | aexp "with" "{" record_body "}" { RecordUpdate $1 $4 }
+    | "{" recordlit_body "}"    { RecordLit $2 }
+    | aexp "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }
 
-record_body :: { [(Label, Expr Name)] }
-  : label "=" expr                  { [($1, $3)]  }
-  | label "=" expr "," record_body  { ($1, $3):$5 }
+recordlit_body :: { [(Label, Expr Name)] }
+  : label "=" expr                     { [($1, $3)]  }
+  | label "=" expr "," recordlit_body  { ($1, $3):$5 }
 
 list_body :: { [Expr Name] }
     : "(" expr "::" list_body ")"  { $2:$4 }
@@ -245,7 +245,7 @@ var_with_annot :: { (Name, Type) }
   | "(" var_with_annot ")"      { $2       }
 
 bind :: { Bind Name }
-    : var tyvars var_annots_emp maybe_sig "=" expr
+    : var tvars var_annots_emp maybe_sig "=" expr
         { Bind { bindId       = $1
                , bindTargs    = $2
                , bindArgs     = $3

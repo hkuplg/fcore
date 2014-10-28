@@ -6,7 +6,7 @@ module Panic
   , throwF2jException, throwF2jExceptionIO
 
   , panic, sorry
-  , falseIfDataConsDiffer
+  , trueIffSameDataCons
   ) where
 
 import Control.Exception
@@ -52,7 +52,7 @@ panic, sorry :: String -> a
 panic s = throwF2jException (Panic s)
 sorry s = throwF2jException (Sorry s)
 
-falseIfDataConsDiffer :: (Data a, Data b) => String -> a -> b -> Bool
-falseIfDataConsDiffer panic_msg t1 t2
+trueIffSameDataCons :: (Data a, Data b) => String -> a -> b -> Bool
+trueIffSameDataCons panic_msg t1 t2
   | toConstr t1 == toConstr t2 = panic panic_msg
   | otherwise                  = False

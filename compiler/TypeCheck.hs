@@ -181,7 +181,7 @@ tcExpr (TApp e targ)
   = do (e', t) <- tcExpr e
        checkType targ
        case t of
-         Forall a t1 -> return (TApp e' targ, substFreeTyVars (a, targ) t1)
+         Forall a t1 -> return (TApp e' targ, fsubstTT (a, targ) t1)
          _           -> sorry "Src.TypeCheck.tcExpr: TApp"
 
 tcExpr (Tuple es)
@@ -255,7 +255,7 @@ tcExpr (JField object f _)
       NonStatic e ->
         do (e', t) <- tcExpr e
            case t of
-             RecordTy _ -> tcExpr (RecordAccess e f) -- Then the typechecker realized!
+             Record _ -> tcExpr (RecordAccess e f) -- Then the typechecker realized!
              JClass c   ->
                do ret_c   <- checkFieldAccess c f
                   return (JField (NonStatic e') f ret_c, JClass ret_c)
@@ -271,14 +271,14 @@ tcExpr (Merge e1 e2) =
 
 tcExpr (PrimList l) =
       do (es, ts) <- mapAndUnzipM tcExpr l
-         case ts of [] -> return (PrimList es, (JClass (namespace ++ "FunctionalList")))
-                    _  -> if (all (`alphaEquiv` (ts !! 0)) ts)
-                            then return (PrimList es, (JClass (namespace ++ "FunctionalList")))
+         case ts of [] -> return (PrimList es, JClass (namespace ++ "FunctionalList"))
+                    _  -> if all (`alphaEq` (ts !! 0)) ts
+                            then return (PrimList es, JClass (namespace ++ "FunctionalList"))
                             else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
 
-tcExpr (Record fs) =
+tcExpr (RecordLit fs) =
   do (es', ts) <- mapAndUnzipM tcExpr (map snd fs)
-     return (Record (zip (map fst fs) es'), RecordTy (zip (map fst fs) ts))
+     return (RecordLit (zip (map fst fs) es'), Record (zip (map fst fs) ts))
 
 tcExpr (RecordAccess e l) =
   do (e', t) <- tcExpr e
@@ -292,14 +292,14 @@ tcExpr (RecordUpdate e fs) =
 -- Well, I know the desugaring is too early to happen here...
 tcExpr (LetModule (Module m binds) e) =
   do let fs = map bindId binds
-     let letrec = Let Rec binds (Record (map (\f -> (f, Var f)) fs))
+     let letrec = Let Rec binds (RecordLit (map (\f -> (f, Var f)) fs))
      tcExpr $ Let NonRec [Bind m [] [] letrec Nothing] e
 tcExpr (ModuleAccess m f) = tcExpr (RecordAccess (Var m) f)
 
 tcExprAgainst :: Expr Name -> Type -> TcM (Expr TcId, Type)
 tcExprAgainst expr expected_ty
   = do (expr', actual_ty) <- tcExpr expr
-       if actual_ty `alphaEquiv` expected_ty
+       if actual_ty `alphaEq` expected_ty
           then return (expr', actual_ty)
           else throwError (Mismatch expected_ty actual_ty)
 
@@ -356,7 +356,7 @@ checkType t
       JClass c -> checkClassName c
       _        ->
         do type_ctxt <- getTypeCtxt
-           let free_ty_vars = freeTyVars t `Set.difference` type_ctxt
+           let free_ty_vars = freeTVars t `Set.difference` type_ctxt
            unless (Set.null free_ty_vars) $
              throwError (NotInScopeTyVar (head (Set.toList free_ty_vars)))
 
@@ -414,11 +414,11 @@ checkStaticFieldAccess c f
          Just ret_c -> return ret_c
 
 srcLitType :: Lit -> Type
-srcLitType (Integer _) = JClass "java.lang.Integer"
-srcLitType (String _)  = JClass "java.lang.String"
-srcLitType (Boolean _) = JClass "java.lang.Boolean"
-srcLitType (Char _)    = JClass "java.lang.Character"
-srcLitType Unit        = UnitType
+srcLitType (Int _)    = JClass "java.lang.Integer"
+srcLitType (String _) = JClass "java.lang.String"
+srcLitType (Bool _)   = JClass "java.lang.Boolean"
+srcLitType (Char _)   = JClass "java.lang.Character"
+srcLitType UnitLit    = Unit
 
 checkDupNames :: [Name] -> TcM ()
 checkDupNames names
