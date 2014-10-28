@@ -63,7 +63,7 @@ import JavaUtils
   STRING   { Tstring $$ }
   BOOLEAN  { Tboolean $$ }
   CHAR     { Tchar $$ }
-  "()"     { Tunit }
+  "()"     { Tunitlit }
   "Unit"   { Tunit }
 
   "*"      { Tprimop J.Mult   }

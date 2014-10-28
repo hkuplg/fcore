@@ -69,8 +69,8 @@ tokens :-
     \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
     True                   { \_ s -> Tboolean True}
     False                  { \_ s -> Tboolean False}
-    \(\)                   { \_ _ -> Tunit }
-    Unit                   { \_ _ -> Tunittype }
+    \(\)                   { \_ _ -> Tunitlit }
+    Unit                   { \_ _ -> Tunit }
 
     -- java.package.path.Classname
     ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavaclass s }
@@ -104,7 +104,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tif | Tthen | Telse
            | Tcomma | Tsemi
            | Tupperid String | Tlowerid String | Tunderid Int
-           | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char | Tunit | Tunittype
+           | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule | Tend
