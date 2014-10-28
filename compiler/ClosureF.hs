@@ -185,28 +185,36 @@ instance Subst t => Subst (Type t) where
 
 type Index = Int
 
+isSimpleExpr :: Expr Index Index -> Bool
+isSimpleExpr (Var _)         = True
+isSimpleExpr (PrimOp _ _ _)  = True
+isSimpleExpr (App (Var _) _) = True
+isSimpleExpr (Lit _)         = True
+isSimpleExpr _               = False
+ 
 prettyTScope :: Prec -> Index -> TScope Index -> Doc
 
 prettyTScope p i (Body t) = prettyType p i t
 
+--To be modified.
+prettyTScope p i (Kind f) = nest 2 (text "TScope_Kind(" <$> text "\\_ -> " <> prettyTScope p i (f 0)) <$> text ")"
 
-prettyTScope p i (Kind f) = nest 4 (text "TScope_Kind(" <$> text "\\_ -> " <> prettyTScope p i (f 0)) <$> text ")"
+prettyTScope p i (Type t f) = prettyType p i t <+> text "->" <+> prettyTScope p i (f ())
 
-prettyTScope p i (Type t f) = prettyType p i t <> text " -> " <> prettyTScope p i (f ())
+prettyEScope :: Prec -> (Index, Index) -> EScope Index Index -> Doc
 
-prettyEScope :: Prec -> Index -> EScope Index Index -> Doc
+prettyEScope p i (Body t) = prettyExpr p i t
 
-prettyEScope p i (Body t) = nest 4 (text "EScope_Body(" <$> prettyExpr p (0, 0) t) <$> text ")"
+--To be modified. Lack of necessary parens. (Int -> Int) -> Int -> Int.
+prettyEScope p (i, j) (Kind f) = text "/\\" <+> prettyTVar i <> dot <$> prettyEScope p (succ i, j) (f i)
 
-prettyEScope p i (Kind f) = nest 4 (text "EScope_Kind(" <$> text "\\_ -> " <> prettyEScope p i (f 0)) <$> text ")"
-
-prettyEScope p i (Type t f) = backslash <> prettyVar i <> dot <+> prettyType p i t <$> prettyEScope p (succ i) (f i)
+prettyEScope p (i, j) (Type t f) = backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$> prettyEScope p (i, succ j) (f j)
 
 prettyType :: Prec -> Index -> Type Index -> Doc
 
 prettyType _ _ (TVar t) = prettyTVar t
 
-prettyType p i (Forall f) = text "Forall(" <> prettyTScope p i f <> text ")"
+prettyType p i (Forall f) = prettyTScope p i f
 
 prettyType _ _ (JClass "java.lang.Integer") = text "Int"
 prettyType _ _ (JClass "java.lang.String") = text "String"
@@ -214,8 +222,8 @@ prettyType _ _ (JClass "java.lang.Boolean") = text "Bool"
 prettyType _ _ (JClass "java.lang.Character") = text "Char"
 prettyType _ _ (JClass c) = text c
 
-prettyType _ _ CFInt = text "CFInt"
-prettyType _ _ CFInteger = text "CFInteger"
+prettyType _ _ CFInt = text "Int"
+prettyType _ _ CFInteger = text "Integer"
 
 prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
 
@@ -225,17 +233,18 @@ prettyExpr _ _ (Var x) = prettyVar x
 
 prettyExpr _ _ (FVar x) = text "FVar()"
 
-prettyExpr p (i, j) (Lam e) = nest 4 (text "Lam(" <$> prettyEScope p j e) <$> text ")"
+prettyExpr p i (Lam e) = nest 2 (text "Lam(" <$> prettyEScope p i e) <$> text ")"
 
-prettyExpr p i (App (Var x) y) =
-  parens (prettyExpr p i (Var x) <+> parens(prettyExpr p i y))
-prettyExpr p i (App e1 e2) =
-  nest 4 (text "App(" <$>
-  prettyExpr p i e1 <> comma <$>
+prettyExpr p i (App (Lam e1) e2) =
+  nest 2 (text "App(" <$>
+  prettyExpr p i (Lam e1) <> comma <$>
   prettyExpr p i e2) <$>
   text ")"
 
-prettyExpr p (i, j) (TApp e t) = nest 4 (text "TApp(" <$> prettyExpr p (i, j) e <> comma <$> prettyType p i t) <$> text ")"
+-- To be modified. Remove useless parens.
+prettyExpr p i (App e1 e2) = parens (prettyExpr p i e1) <+> parens (prettyExpr p i e2)
+
+prettyExpr p (i, j) (TApp e t) = prettyExpr p (i, j) e <+> prettyType p i t
 
 prettyExpr p i (PrimOp e1 op e2)
   = prettyExpr p i e1 <+> pretty_op <+> prettyExpr p i e2
@@ -248,22 +257,30 @@ prettyExpr p i (PrimOp e1 op e2)
 
 
 prettyExpr _ _ (Lit (S.Int n))    = integer n
-prettyExpr _ _ (Lit (S.String s)) = string s
+prettyExpr _ _ (Lit (S.String s)) = dquotes (string s)
 prettyExpr _ _ (Lit (S.Bool b))   = bool b
 prettyExpr _ _ (Lit (S.Char c))   = char c
 
-prettyExpr p i (If e1 e2 e3) = nest 4 (text "if (" <$> prettyExpr p i e1) <$> nest 4 (text ") then (" <$> prettyExpr p i e2) <$> nest 4 (text ") else (" <$> prettyExpr p i e3) <$> text ")"
+prettyExpr p i (If e1 e2 e3) 
+  = ifPart <$> thenPart <$> elsePart
+  where
+    ifPart   = text "if" <+> parens (prettyExpr p i e1)
+    thenPart = if   (isSimpleExpr e2)
+               then (text "then" <+> parens (prettyExpr p i e2))
+               else (nest 2 (text "then" <$> prettyExpr p i e2))
+    elsePart = if   (isSimpleExpr e3)
+               then (text "else" <+> parens (prettyExpr p i e3))
+               else (nest 2 (text "else" <$> prettyExpr p i e3))
 
 prettyExpr p i (Tuple l) = tupled (map (prettyExpr p i) l)
 
+--To be modified. Remove useless parens.
 prettyExpr p i (Proj n e) = parens (prettyExpr p i e) <> text "._" <> int n
-
 
 prettyExpr p (i, j) (LetRec sigs binds body)
   = text "let" <+> text "rec" <$$>
     vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$$>
-    text "in" <$$>
-    pretty_body
+    nest 2 (text "in" <$> pretty_body)
   where
     n   = length sigs
     ids = [i..(i+n-1)]
@@ -276,25 +293,28 @@ prettyExpr p (i, j) (LetRec sigs binds body)
     pretty_body  = prettyExpr p (i, j + n) (body ids)
 
 
-prettyExpr p (i, j) (Let _ _) = text "Let()"
-prettyExpr p (i, j) (LetRec _ _ _) = text "LetRec()"
+prettyExpr p (i, j) (Let x f) =
+  text "let" <$$>
+  indent 2 (prettyVar j <+> text "=" <+> prettyExpr basePrec (i, succ j) x) <$$>
+  text "in" <$$>
+  indent 2 (prettyExpr basePrec (i, succ j) (f j))
 
 prettyExpr p (i, j) (Fix t f) =
-  nest 4 (text "Fix(" <$>
-  backslash <> prettyVar j <> dot <+> prettyType p i t <> comma <$>
-  prettyEScope p (succ j) (f j)) <$>
+  nest 2 (text "Fix(" <$>
+  backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$>
+  prettyEScope p (i, succ j) (f j)) <$>
   text ")"
 
 prettyExpr p i (JNewObj name l) = parens (text "new" <+> text name <> tupled (map (prettyExpr p i) l))
 
 prettyExpr p i (JMethod name m args r) = methodStr name <> dot <> text m <> tupled (map (prettyExpr basePrec i) args)
   where
-    methodStr (Left x) = text x
+    methodStr (Left x)  = text x
     methodStr (Right x) = prettyExpr (6,PrecMinus) i x
 
 prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
   where
-    fieldStr (Left x) = text x
+    fieldStr (Left x)  = text x
     fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
