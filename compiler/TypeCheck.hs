@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-unused-binds #-}
 
 module TypeCheck
   ( typeCheck
@@ -17,6 +17,7 @@ import JvmTypeQuery
 import Panic
 import StringPrefixes
 
+
 import System.IO
 import System.Process
 
@@ -25,6 +26,8 @@ import Control.Monad.Error
 import Data.Maybe (fromJust)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
+
+import Prelude hiding (pred)
 
 type Connection = (Handle, Handle)
 
@@ -83,10 +86,10 @@ data TypeError
   | ConflictingDefinitions Name
   | ExpectJClass
   | IndexTooLarge
-  | Mismatch { expected_type :: Type, actual_type :: Type }
+  | Mismatch { expectedTy :: Type, actualTy :: Type }
   | ExpectedSubtype
   | MissingRHSAnnot
-  | NotInScopeTVar Name
+  | NotInScopeTyVar Name
   | NotInScopeVar   Name
   | ProjectionOfNonProduct
 
@@ -126,8 +129,8 @@ memoizeJavaClass c
        memoized_java_classes <- getMemoizedJavaClasses
        setTcEnv TcEnv{ tceMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
 
-withLocalTVars :: [Name] -> TcM a -> TcM a
-withLocalTVars tyvars do_this
+withLocalTyVars :: [Name] -> TcM a -> TcM a
+withLocalTyVars tyvars do_this
   = do delta <- getTypeCtxt
        let delta' = Set.fromList tyvars `Set.union` delta
        TcEnv {..} <- getTcEnv
@@ -155,14 +158,7 @@ inferExpr (Var name)
          Just t  -> return (Var (name,t), t)
          Nothing -> throwError (NotInScopeVar name)
 
-inferExpr (Lit lit) = return (Lit lit, t)
-  where
-    t = case lit of
-          Int _    -> JClass "java.lang.Integer"
-          String _ -> JClass "java.lang.String"
-          Bool _   -> JClass "java.lang.Boolean"
-          Char _   -> JClass "java.lang.Character"
-          UnitLit  -> Unit
+inferExpr (Lit lit) = return (Lit lit, srcLitType lit)
 
 inferExpr (Lam (x1,t1) e)
   = do checkType t1
@@ -170,7 +166,6 @@ inferExpr (Lam (x1,t1) e)
        return (Lam (x1,t1) e', Fun t1 t)
 
 -- Recover method calls with zero arguments
--- TODO: This is not enough.
 inferExpr (App (JField callee f c) (Lit UnitLit)) = inferExpr (JMethod callee f [] c)
 
 inferExpr (App e1 e2)
@@ -182,7 +177,7 @@ inferExpr (App e1 e2)
          _         -> throwError (General (show e1 ++ "::" ++ show t1))
 
 inferExpr (BLam a e)
-  = do (e', t) <- withLocalTVars [a] (inferExpr e)
+  = do (e', t) <- withLocalTyVars [a] (inferExpr e)
        return (BLam a e', Forall a t)
 
 inferExpr (TApp e targ)
@@ -220,11 +215,11 @@ inferExpr (PrimOp e1 op e2)
            (e2', _t2) <- inferExprAgainst e2 (JClass "java.lang.Boolean")
            return (PrimOp e1' op e2', JClass "java.lang.Boolean")
 
-inferExpr (If p b1 b2)
-  = do (p', _)    <- inferExprAgainst p (JClass "java.lang.Boolean")
-       (b1', t1)  <- inferExpr b1
-       (b2', _t2) <- inferExprAgainst b2 t1
-       return (If p' b1' b2', t1)
+inferExpr (If pred b1 b2)
+  = do (pred', _pred_ty) <- inferExprAgainst pred (JClass "java.lang.Boolean")
+       (b1', t1)         <- inferExpr b1
+       (b2', _t2)        <- inferExprAgainst b2 t1
+       return (If pred' b1' b2', t1)
 
 inferExpr (Let rec_flag binds e) =
   do checkBindNames binds
@@ -305,7 +300,6 @@ inferExpr (LetModule (Module m binds) e) =
      inferExpr $ Let NonRec [Bind m [] [] letrec Nothing] e
 inferExpr (ModuleAccess m f) = inferExpr (RecordAccess (Var m) f)
 
-
 inferExprAgainst :: Expr Name -> Type -> TcM (Expr TcId, Type)
 inferExprAgainst expr expected_ty
   = do (expr', actual_ty) <- inferExpr expr
@@ -320,11 +314,15 @@ inferExprAgainstAnyJClass expr
          JClass c -> return (expr', c)
          _        -> sorry "inferExprAgainstAnyJClass"
 
+inferExprAgainstMaybe :: Expr Name -> Maybe Type -> TcM (Expr TcId, Type)
+inferExprAgainstMaybe e Nothing  = inferExpr e
+inferExprAgainstMaybe e (Just t) = inferExprAgainst e t
+
 -- f A1 ... An (x1:T1) ... (xn:Tn) = e
 inferBind :: Bind Name -> TcM (Name, Type, Expr TcId)
 inferBind Bind{..}
   = do checkBindLHS Bind{..}
-       (bindRhs', bindRhsTy) <- withLocalTVars bindTargs
+       (bindRhs', bindRhsTy) <- withLocalTyVars bindTargs
                                   (withLocalVars bindArgs
                                      (inferExpr bindRhs))
        return ( bindId
@@ -335,7 +333,7 @@ checkBindLHS :: Bind Name -> TcM ()
 checkBindLHS Bind{..}
   = do checkDupNames bindTargs
        checkDupNames [arg_name | (arg_name, _) <- bindArgs]
-       withLocalTVars bindTargs $
+       withLocalTyVars bindTargs $
          mapM_ (\(_, arg_ty) -> checkType arg_ty) bindArgs
 
 collectBindNameSigs :: [Bind Name] -> TcM [(Name, Type)]
@@ -364,7 +362,7 @@ checkType t
         do type_ctxt <- getTypeCtxt
            let free_ty_vars = freeTVars t `Set.difference` type_ctxt
            unless (Set.null free_ty_vars) $
-             throwError (NotInScopeTVar (head (Set.toList free_ty_vars)))
+             throwError (NotInScopeTyVar (head (Set.toList free_ty_vars)))
 
 unlessIO :: (Monad m, MonadIO m) => IO Bool -> m () -> m ()
 unlessIO test do_this
@@ -410,6 +408,13 @@ checkFieldAccess callee f
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)
 unwrapJCallee (Static    c) = (True, c)
+
+srcLitType :: Lit -> Type
+srcLitType (Int _)    = JClass "java.lang.Integer"
+srcLitType (String _) = JClass "java.lang.String"
+srcLitType (Bool _)   = JClass "java.lang.Boolean"
+srcLitType (Char _)   = JClass "java.lang.Character"
+srcLitType UnitLit    = Unit
 
 checkDupNames :: [Name] -> TcM ()
 checkDupNames names

@@ -35,6 +35,7 @@ import JavaUtils
   "&"      { Tandtype }
   ",,"     { Tmerge }
   "with"   { Twith }
+  "(+)"    { Tcombine }
   "this"   { Tthis }
   "super"  { Tsuper }
   "let"    { Tlet }
@@ -42,7 +43,6 @@ import JavaUtils
   "="      { Teq }
   "and"    { Tand }
   "in"     { Tin }
-  "type"   { Ttype }
   "if"     { Tif }
   "then"   { Tthen }
   "else"   { Telse }
@@ -155,8 +155,8 @@ tvar :: { Name }
 -- Expressions
 
 expr :: { Expr Name }
-  : infixexpr %prec EOF            { $1 }
-  | module expr                    { LetModule $1 $2 }
+     : infixexpr %prec EOF      { $1 }
+     | module expr              { LetModule $1 $2 }
 
 infixexpr :: { Expr Name }
     : expr10                    { $1 }
@@ -174,14 +174,15 @@ infixexpr :: { Expr Name }
     | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
+    | infixexpr "(+)" infixexpr { Combine $1 $3 }
 
 expr10 :: { Expr Name }
-    : "/\\" tvar "." expr                 { BLam $2 $4  }
+    : "/\\" tvar "." expr                { BLam $2 $4  }
     | "\\" var_with_annot "." expr        { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INTEGER %prec UMINUS            { Lit (Int (-$2)) }
-    | fexpr                               { $1 }
+    | fexpr                                { $1 }
 
 fexpr :: { Expr Name }
     : fexpr aexp         { App  $1 $2 }

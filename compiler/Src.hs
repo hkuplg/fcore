@@ -91,7 +91,7 @@ data Expr id
   | RecordUpdate (Expr id) [(Label, Expr id)]
   | LetModule (Module id) (Expr id)
   | ModuleAccess ModuleName Name
-  | TypeSynonym Name [Name] Type (Expr id)
+  | Combine (Expr id) (Expr id)
   deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
