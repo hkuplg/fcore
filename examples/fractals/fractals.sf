@@ -4,8 +4,8 @@ let rec mandelbrot (c : lib.Complex) (z : lib.Complex) (i : Int) : Int =
      then 0
      else
      {
-       let zz = z.sqr( ).add(c) in
-       if zz.magnitude( ) > java.lang.Double.valueOf("2")
+       let zz = z.sqr().add(c) in
+       if zz.magnitude() > java.lang.Double.valueOf("2")
           then i
           else mandelbrot c zz (i + 1)
      }
@@ -14,8 +14,8 @@ and ship (c : lib.Complex) (z : lib.Complex) (i : Int) : Int =
      then 0
      else
      {
-       let zz = z.abs( ).sqr( ).add(c) in
-       if zz.magnitude( ) > java.lang.Double.valueOf("2")
+       let zz = z.abs().sqr().add(c) in
+       if zz.magnitude() > java.lang.Double.valueOf("2")
           then i
           else ship c zz (i + 1)
      }
