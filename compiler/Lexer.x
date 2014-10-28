@@ -41,7 +41,6 @@ tokens :-
     \&          { \_ _ -> Tandtype }
     \,\,        { \_ _ -> Tmerge }
     with        { \_ _ -> Twith }
-    \(\+\)      { \_ _ -> Tcombine }
     this        { \_ _ -> Tthis }
     super       { \_ _ -> Tsuper }
     let         { \_ _ -> Tlet }
@@ -49,6 +48,7 @@ tokens :-
     \=          { \_ _ -> Teq }
     and         { \_ _ -> Tand }
     in          { \_ _ -> Tin }
+    type        { \_ _ -> Ttype }
     Int         { \_ _ -> Tjavaclass "java.lang.Integer" }
     String      { \_ _ -> Tjavaclass "java.lang.String" }
     Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
@@ -97,8 +97,8 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tcombine | Tthis | Tsuper
-           | Tlet | Trec | Teq | Tand | Tin
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tthis | Tsuper
+           | Tlet | Trec | Teq | Tand | Tin | Ttype
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
