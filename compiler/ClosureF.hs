@@ -242,12 +242,12 @@ prettyExpr p i (App (Lam e1) e2) =
   text ")"
 
 -- To be modified. Remove useless parens.
-prettyExpr p i (App e1 e2) = parens (prettyExpr p i e1) <+> parens (prettyExpr p i e2)
+prettyExpr p i (App e1 e2) = parensIf p 4 (prettyExpr (4, PrecMinus) i e1 <+> prettyExpr (4, PrecPlus) i e2)
 
 prettyExpr p (i, j) (TApp e t) = prettyExpr p (i, j) e <+> prettyType p i t
 
 prettyExpr p i (PrimOp e1 op e2)
-  = prettyExpr p i e1 <+> pretty_op <+> prettyExpr p i e2
+  = parens (prettyExpr p i e1 <+> pretty_op <+> prettyExpr p i e2)
   where
     pretty_op = text (Language.Java.Pretty.prettyPrint java_op)
     java_op   = case op of
@@ -264,18 +264,18 @@ prettyExpr _ _ (Lit (S.Char c))   = char c
 prettyExpr p i (If e1 e2 e3) 
   = ifPart <$> thenPart <$> elsePart
   where
-    ifPart   = text "if" <+> parens (prettyExpr p i e1)
+    ifPart   = text "if" <+> prettyExpr (3, PrecMinus) i e1
     thenPart = if   (isSimpleExpr e2)
-               then (text "then" <+> parens (prettyExpr p i e2))
-               else (nest 2 (text "then" <$> prettyExpr p i e2))
+               then (text "then" <+> prettyExpr (3, PrecMinus) i e2)
+               else (nest 2 (text "then" <$> prettyExpr (3, PrecMinus) i e2))
     elsePart = if   (isSimpleExpr e3)
-               then (text "else" <+> parens (prettyExpr p i e3))
-               else (nest 2 (text "else" <$> prettyExpr p i e3))
+               then (text "else" <+> prettyExpr (3, PrecMinus) i e3)
+               else (nest 2 (text "else" <$> prettyExpr (3, PrecMinus) i e3))
 
 prettyExpr p i (Tuple l) = tupled (map (prettyExpr p i) l)
 
 --To be modified. Remove useless parens.
-prettyExpr p i (Proj n e) = parens (prettyExpr p i e) <> text "._" <> int n
+prettyExpr p i (Proj n e) = parensIf p 5 (prettyExpr (5, PrecMinus) i e <> text "._" <> int n)
 
 prettyExpr p (i, j) (LetRec sigs binds body)
   = text "let" <+> text "rec" <$$>
