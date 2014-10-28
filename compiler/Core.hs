@@ -41,7 +41,7 @@ data Type t
 
   | And (Type t) (Type t)  -- t1 & t2
   | RecordTy (Src.Label, Type t)
-  | Thunk (Type t)
+  | ThunkType (Type t)
     -- Warning: If you ever add a case to this, you *must* also define the
     -- binary relations on your new case. Namely, add cases for your data
     -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
@@ -87,6 +87,7 @@ data Expr t e
   | RecordIntro  (Src.Label, Expr t e)
   | RecordElim   (Expr t e) Src.Label
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
+  | Thunk (Expr t e)
 
 -- newtype Typ = HideTyp { revealTyp :: forall t. Type t } -- type of closed types
 
@@ -105,7 +106,7 @@ alphaEq i (Forall f)   (Forall g)   = alphaEq (succ i) (f i) (g i)
 alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq i) `all` zip ss ts
 alphaEq _  UnitType     UnitType    = True
 alphaEq i (And s1 s2)  (And t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
-alphaEq i (Thunk t1)   (Thunk t2)   = alphaEq i t1 t2
+alphaEq i (ThunkType t1) (ThunkType t2) = alphaEq i t1 t2
 alphaEq _ _            _            = False
 
 mapTVar :: (t -> Type t) -> Type t -> Type t
@@ -117,7 +118,7 @@ mapTVar g (Product ts)     = Product (map (mapTVar g) ts)
 mapTVar _  UnitType        = UnitType
 mapTVar g (And t1 t2)      = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (RecordTy (l,t)) = RecordTy (l, mapTVar g t)
-mapTVar g (Thunk t)        = Thunk (mapTVar g t)
+mapTVar g (ThunkType t)    = ThunkType (mapTVar g t)
 
 mapVar :: (e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var a)                   = g a
@@ -161,7 +162,7 @@ joinType (Product ts)     = Product (map joinType ts)
 joinType  UnitType        = UnitType
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (RecordTy (l,t)) = RecordTy (l, joinType t)
-joinType (Thunk t)        = Thunk (joinType t)
+joinType (ThunkType t)    = ThunkType (joinType t)
 
 
 -- instance Show (Type Index) where
@@ -204,8 +205,12 @@ prettyType' p i (And t1 t2) =
 
 prettyType' _ i (RecordTy (l,t)) = lbrace <> text l <> colon <> prettyType' basePrec i t <> rbrace
 
-prettyType' _ i (Thunk t) = char '\'' <> parens (prettyType' basePrec i t)
-
+prettyType' p i (ThunkType t) = char '\'' <>
+                                case t of
+                                  Fun _ _  -> parens (prettyType' basePrec i t)
+                                  Forall _ -> parens (prettyType' basePrec i t)
+                                  And _ _  -> parens (prettyType' basePrec i t)
+                                  _        -> prettyType' p i t
 
 -- instance Show (Expr Index Index) where
 --   show = show . pretty
@@ -318,6 +323,7 @@ prettyExpr' p (i,j) (Merge e1 e2) =
 prettyExpr' _ (i,j) (RecordIntro (l, e))     = lbrace <> text l <> equals <> prettyExpr' basePrec (i,j) e <> rbrace
 prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> text l
 prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordIntro (l, e1))
+prettyExpr' _ (i,j) (Thunk e)                = char '\'' <> parens (prettyExpr' basePrec (i,j) e)
 
 
 javaInt :: Type t
