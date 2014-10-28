@@ -165,6 +165,9 @@ tcExpr (Lam (x1,t1) e)
        (e', t) <- withLocalVars [(x1,t1)] (tcExpr e)
        return (Lam (x1,t1) e', Fun t1 t)
 
+-- Recover method calls with zero arguments
+tcExpr (App (JField callee f c) (Lit UnitLit)) = tcExpr (JMethod callee f [] c)
+
 tcExpr (App e1 e2)
   = do (e1', t1) <- tcExpr e1
        (e2', t2) <- tcExpr e2
