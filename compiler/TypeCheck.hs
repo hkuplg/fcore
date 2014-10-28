@@ -96,8 +96,8 @@ data TypeError
   -- Java-specific type errors
   | NoSuchClass       ClassName
   | NoSuchConstructor ClassName [ClassName]
-  | NoSuchMethod      ClassName MethodName Bool [ClassName]
-  | NoSuchField       ClassName FieldName  Bool
+  | NoSuchMethod      (JCallee ClassName) MethodName [ClassName]
+  | NoSuchField       (JCallee ClassName) FieldName
   deriving (Show)
 
 instance Error TypeError where
@@ -238,31 +238,31 @@ inferExpr (JNewObj c args)
        checkNew c arg_cs
        return (JNewObj c args', JClass c)
 
-inferExpr (JMethod object m args _)
-  = case object of
+inferExpr (JMethod callee m args _)
+  = case callee of
       Static c ->
         do (args', arg_cs) <- mapAndUnzipM inferExprAgainstAnyJClass args
-           ret_c <- checkStaticMethodCall c m arg_cs
+           ret_c <- checkMethodCall (Static c) m arg_cs
            return (JMethod (Static c) m args' ret_c, JClass ret_c)
       NonStatic e ->
         do (e', c)         <- inferExprAgainstAnyJClass e
            (args', arg_cs) <- mapAndUnzipM inferExprAgainstAnyJClass args
-           ret_c <- checkMethodCall c m arg_cs
+           ret_c <- checkMethodCall (NonStatic c) m arg_cs
            return (JMethod (NonStatic e') m args' ret_c, JClass ret_c)
 
-inferExpr (JField object f _)
-  = case object of
+inferExpr (JField callee f _)
+  = case callee of
       Static c ->
-        do ret_c <- checkStaticFieldAccess c f
+        do ret_c <- checkFieldAccess (Static c) f
            return (JField (Static c) f ret_c, JClass ret_c)
       NonStatic e ->
         do (e', t) <- inferExpr e
            case t of
              Record _ -> inferExpr (RecordAccess e f) -- Then the typechecker realized!
              JClass c   ->
-               do ret_c   <- checkFieldAccess c f
+               do ret_c   <- checkFieldAccess (NonStatic c) f
                   return (JField (NonStatic e') f ret_c, JClass ret_c)
-             _          -> throwError $ General "The thing before dot is neither a record nor a JVM object"
+             _          -> throwError (General "The thing before dot is neither a record nor a JVM object")
 
 inferExpr (Seq es) = do
   (es', ts) <- mapAndUnzipM inferExpr es
@@ -385,37 +385,29 @@ checkNew c args
        unlessIO (hasConstructor h c args) $
          throwError (NoSuchConstructor c args)
 
-checkMethodCall :: ClassName -> MethodName -> [ClassName] -> TcM ClassName
-checkMethodCall c m args
-  = do h <- getTypeServer
-       res <- liftIO $ methodTypeOf h c (m, False) args
+checkMethodCall :: JCallee ClassName -> MethodName -> [ClassName] -> TcM ClassName
+checkMethodCall callee m args
+  = do typeserver <- getTypeServer
+       res <- liftIO (methodTypeOf typeserver c (m, static_flag) args)
        case res of
-         Nothing -> throwError (NoSuchMethod c m False args)
-         Just ret_c -> return ret_c
+         Nothing           -> throwError (NoSuchMethod callee m args)
+         Just return_class -> return return_class
+    where
+       (static_flag, c) = unwrapJCallee callee
 
-checkStaticMethodCall :: ClassName -> MethodName -> [ClassName] -> TcM ClassName
-checkStaticMethodCall c m args
-  = do h <- getTypeServer
-       res <- liftIO $ methodTypeOf h c (m, True) args
+checkFieldAccess :: JCallee ClassName -> FieldName -> TcM ClassName
+checkFieldAccess callee f
+  = do typeserver <- getTypeServer
+       res <- liftIO (fieldTypeOf typeserver c (f, static_flag))
        case res of
-         Nothing -> throwError (NoSuchMethod c m True args)
-         Just ret_c -> return ret_c
+         Nothing           -> throwError (NoSuchField callee f)
+         Just return_class -> return return_class
+    where
+       (static_flag, c) = unwrapJCallee callee
 
-checkFieldAccess :: ClassName -> FieldName -> TcM ClassName
-checkFieldAccess c f
-  = do h <- getTypeServer
-       res <- liftIO $ fieldTypeOf h c (f, False)
-       case res of
-         Nothing -> throwError (NoSuchField c f False)
-         Just ret_c -> return ret_c
-
-checkStaticFieldAccess :: ClassName -> FieldName -> TcM ClassName
-checkStaticFieldAccess c f
-  = do h <- getTypeServer
-       res <- liftIO $ fieldTypeOf h c (f, True)
-       case res of
-         Nothing -> throwError (NoSuchField c f True)
-         Just ret_c -> return ret_c
+unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
+unwrapJCallee (NonStatic c) = (False, c)
+unwrapJCallee (Static    c) = (True, c)
 
 srcLitType :: Lit -> Type
 srcLitType (Int _)    = JClass "java.lang.Integer"
