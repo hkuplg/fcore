@@ -46,7 +46,7 @@ testfuncArgType (x:xs) = case x of
                             (n::Int) <- get
                             put (n+1)
                             r <- testfuncArgType xs
-                            return $ (J.FormalParam [] (J.PrimType J.IntT) False (J.VarId (J.Ident $ ("x" ++ show n)))) : r
+                            return $ (J.FormalParam [] (J.PrimType J.LongT) False (J.VarId (J.Ident $ ("x" ++ show n)))) : r
                           a -> do
                             (n :: Int) <- get
                             put (n+1)
@@ -127,7 +127,7 @@ transBench this super = TB {
   -- here, I guess, you will mainly do the changes: have a look at BaseTransCFJava (and StackTransCFJava) how it's done currently
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.LongT
                                       _ -> Just objClassTy
            let paraType = getParaType t
            let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) paraType testfuncBody returnType mainBody
@@ -153,7 +153,7 @@ transBenchOpt this super = TBA {
   toTBA = super {
   createWrap = \name exp ->
         do (bs,e,t) <- translateM super exp
-           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
+           let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.LongT
                                       _ -> Just objClassTy
            let paraType = getParaType t
            let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) paraType testfuncBody returnType mainBody

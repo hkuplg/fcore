@@ -48,6 +48,7 @@ data Translate m =
     ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
     ,genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
+    ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
     ,genTest :: m Bool
     ,getPrefix :: m String
@@ -254,6 +255,8 @@ trans self =
                                          JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
                                          CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                          CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          _ -> sorry "BaseTransCFJava.trans.JNewObj: no idea how to do")
                                 types)
                            (J.ClassType [(J.Ident c,[])])
@@ -275,59 +278,34 @@ trans self =
                                        JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
                                        CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                        CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                       CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                       CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                        _ -> sorry "BaseTransCFJava.trans.JNewObj: no idea how to do")
                               types)
                    (classStatement,rhs) <- case c of
                                              Right ce ->
                                                do (classS,classE,_) <- translateM this ce
-                                                  return (classS
-                                                         ,J.MethodInv $
-                                                          J.PrimaryMethodCall classE
-                                                                              refTypes
-                                                                              (J.Ident m)
-                                                                              exprs)
+                                                  return (classS ,J.MethodInv $ J.PrimaryMethodCall classE refTypes (J.Ident m) exprs)
                                              Left cn ->
-                                               return ([]
-                                                      ,J.MethodInv $
-                                                       J.TypeMethodCall (J.Name [J.Ident cn])
-                                                                        refTypes
-                                                                        (J.Ident m)
-                                                                        exprs)
+                                               return ([] ,J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs)
                    let typ = JClass r
                    if r /= "java.lang.Void"
                       then do newVarName <- getNewVarName this
                               assignExpr <- assignVar this typ newVarName rhs
-                              return (statements ++ classStatement ++
-                                      [assignExpr]
-                                     ,var newVarName
-                                     ,typ)
-                      else return (statements ++ classStatement ++
-                                   [J.BlockStmt $
-                                     J.ExpStmt rhs]
-                                  ,rhs
-                                  ,typ)
+                              return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,typ)
+                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs] ,rhs ,typ)
               JField c fName r ->
                 do (classStatement,classExpr,_) <- case c of
                                                      Right ce ->
                                                        translateM this ce
                                                      Left cn ->
-                                                       return ([]
-                                                              ,J.ExpName $
-                                                               J.Name [J.Ident cn]
-                                                              ,undefined)
+                                                       return ([],J.ExpName $ J.Name [J.Ident cn] ,undefined)
                    newVarName <- getNewVarName this
                    let typ = JClass r
                    aType <- javaType this typ
-                   let rhs =
-                         J.Cast aType $
-                         J.FieldAccess $
-                         J.PrimaryFieldAccess classExpr
-                                              (J.Ident fName)
+                   let rhs = J.Cast aType $ J.FieldAccess $ J.PrimaryFieldAccess classExpr (J.Ident fName)
                    assignExpr <- assignVar this typ newVarName rhs
-                   return (classStatement ++
-                           [assignExpr]
-                          ,var newVarName
-                          ,typ)
+                   return (classStatement ++ [assignExpr],var newVarName,typ)
               SeqExprs es ->
                 do es' <- mapM (translateM this) es
                    let (_,lastExp,lastType) = last es'
@@ -427,11 +405,15 @@ trans self =
                                                     _ -> return $ classTy $ getTupleClassName tuple
                              CFInt -> return $ classTy "java.lang.Integer"
                              CFInteger -> return $ classTy "java.lang.Integer"
+                             CFChar -> return $ classTy "java.lang.Character"
+                             CFCharacter -> return $ classTy "java.lang.Character"
                              _ -> return objClassTy
        ,chooseCastBox = \typ -> case typ of
                                   (JClass c) -> return (initClass c, classTy c)
                                   CFInt -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
                                   CFInteger -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
+                                  CFChar -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
+                                  CFCharacter -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
                                   (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                                                    return (initClass closureClass, classTy closureClass)
                                   (TupleType tuple) -> case tuple of
@@ -444,14 +426,16 @@ trans self =
        ,genTest = return False -- do not generate test method
        ,getBox = \_ -> return ""
        ,stackMainBody = \_ -> return []
+       ,applyRetType = \t -> (case t of
+                               JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
+                               JClass "java.lang.Boolean" -> return $ Just $ J.PrimType J.BooleanT
+                               CFInt -> return $ Just $ J.PrimType J.IntT
+                               CFChar -> return $ Just $ J.PrimType J.CharT
+                               _ -> return $ Just objClassTy)
        ,createWrap =
           \nam expr ->
             do (bs,e,t) <- translateM this expr
-               let returnType = case t of
-                                  JClass "java.lang.Integer" -> Just $ J.PrimType J.IntT
-                                  JClass "java.lang.Boolean" -> Just $ J.PrimType J.BooleanT
-                                  CFInt -> Just $ J.PrimType J.IntT
-                                  _ -> Just objClassTy
+               returnType <- applyRetType this t
                let returnStmt = [bStmt $ J.Return $ Just e]
                isTest <- genTest this
                let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody [] Nothing isTest

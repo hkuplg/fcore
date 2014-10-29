@@ -53,6 +53,7 @@ transUnbox this super =
                      Lit lit ->
                        case lit of
                          (S.Int i) -> return ([] ,J.Lit $ J.Int i ,CFInt)
+                         (S.Char i) -> return ([] ,J.Lit $ J.Char i ,CFChar)
                          _ -> translateM super e
                      PrimOp e1 op e2 ->
                        do (s1,j1,_) <- translateM (up this) e1
@@ -146,7 +147,8 @@ transUnbox this super =
                       genIfBody (up this) m2 m3 (s1,j1) n
               ,javaType = \typ ->
                             case typ of
-                              CFInt -> return $ J.PrimType J.IntT
+                              CFInt -> return $ J.PrimType J.LongT
+                              CFChar -> return $ J.PrimType J.CharT
                               (Forall (Type t1 f)) -> case f () of
                                                         Body t2 -> liftM classTy (getClassType (up this) t1 t2)
                                                         _ -> liftM classTy (getClassType (up this) t1 CFInteger)
@@ -154,9 +156,12 @@ transUnbox this super =
               ,getPrefix = return (namespace ++ "unbox.")
               ,chooseCastBox = \typ ->
                                  case typ of
-                                   CFInt -> return (\s n e -> localFinalVar (J.PrimType J.IntT)
-                                                                            (varDecl (s ++ show n) (cast (J.PrimType J.IntT) e))
-                                                   ,J.PrimType J.IntT)
+                                   CFInt -> return (\s n e -> localFinalVar (J.PrimType J.LongT)
+                                                                            (varDecl (s ++ show n) (cast (J.PrimType J.LongT) e))
+                                                   ,J.PrimType J.LongT)
+                                   CFChar -> return (\s n e -> localFinalVar (J.PrimType J.CharT)
+                                                                            (varDecl (s ++ show n) (cast (J.PrimType J.CharT) e))
+                                                   ,J.PrimType J.CharT)
                                    (Forall (Type t1 f)) ->
                                      case f () of
                                        (Body t2) -> do

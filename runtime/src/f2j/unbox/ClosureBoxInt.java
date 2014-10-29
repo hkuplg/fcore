@@ -3,7 +3,7 @@ package f2j.unbox;
 public abstract class ClosureBoxInt implements Closure
 {
   public Object x;
-  public int out;
+  public long out;
   public abstract void apply ()
   ;
   public ClosureBoxInt clone () {

@@ -31,6 +31,8 @@ data Type t =
     | JClass ClassName
     | CFInt
     | CFInteger
+    | CFChar
+    | CFCharacter
     | TupleType [Type t]
 
 data Expr t e =
@@ -72,6 +74,7 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 ftyp2ctyp :: C.Type t -> Type t
 ftyp2ctyp (C.TVar x)                     = TVar x
 ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
+ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp (C.Unit)                       = JClass "java.lang.Integer"
@@ -149,6 +152,8 @@ joinType :: Type (Type t) -> Type t
 joinType (TVar t)   = t
 joinType CFInt = CFInt
 joinType CFInteger = CFInteger
+joinType CFChar = CFChar
+joinType CFCharacter = CFCharacter
 joinType (Forall s) = Forall (joinTScope s)
 joinType (JClass c) = JClass c
 joinType (TupleType ts) = TupleType (map joinType ts)
@@ -224,6 +229,9 @@ prettyType _ _ (JClass c) = text c
 
 prettyType _ _ CFInt = text "Int"
 prettyType _ _ CFInteger = text "Integer"
+
+prettyType _ _ CFChar = text "Char"
+prettyType _ _ CFCharacter = text "Character"
 
 prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
 

@@ -129,13 +129,13 @@ wrapperClassB className stmts returnType mainbodyDef testArgType testBodyDef gen
 transBenchStackOpt :: (MonadState Int m, selfType :< BenchGenTranslateStackOpt m, selfType :< Translate m) => Mixin selfType (Translate m) (BenchGenTranslateStackOpt m)
 transBenchStackOpt this super = TBSA {
   toTBSA = super {
-  createWrap = \name exp ->
-        do (bs,e,t) <- translateM super exp
+  createWrap = \nam expr ->
+        do (bs,e,t) <- translateM super expr
            box <- getBox (up this) t
            let returnType = case t of
                              JClass "java.lang.Integer" -> Just $ classTy "java.lang.Integer"
                              JClass "java.lang.Boolean" -> Just $ classTy "java.lang.Boolean"
-                             CFInt -> Just $ classTy "java.lang.Integer"
+                             CFInt -> Just $ classTy "java.lang.Long"
                              _ -> Just objClassTy
            let returnStmt = [bStmt $ J.Return $ Just e]
            let paraType = getParaType t
@@ -143,7 +143,7 @@ transBenchStackOpt this super = TBSA {
            stackbody' <- stackMainBody (super) t
            testBody <- BenchGenStack.testfuncBody (up this) paraType
            isTest <- genTest (up this)
-           let stackDecl = wrapperClassB name (bs ++ (if (containsNext bs) then [] else [empyClosure']) ++ returnStmt) returnType (Just $ J.Block $ stackbody') (genParams paraType) (Just (J.Block testBody)) isTest
+           let stackDecl = wrapperClassB nam (bs ++ (if (containsNext bs) then [] else [empyClosure']) ++ returnStmt) returnType (Just $ J.Block $ stackbody') (genParams paraType) (Just (J.Block testBody)) isTest
            return (BenchGenStack.createCUB super [stackDecl], t)
   ,genTest = return True
    }
