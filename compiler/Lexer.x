@@ -41,7 +41,6 @@ tokens :-
     \&          { \_ _ -> Tandtype }
     \,\,        { \_ _ -> Tmerge }
     with        { \_ _ -> Twith }
-    \(\+\)      { \_ _ -> Tcombine }
     this        { \_ _ -> Tthis }
     super       { \_ _ -> Tsuper }
     let         { \_ _ -> Tlet }
@@ -64,11 +63,11 @@ tokens :-
     end         { \_ _ -> Tend }
 
     -- Literals
-    $digit+                { \_ s -> Tinteger (read s) }
+    $digit+                { \_ s -> Tint (read s) }
     \"($printable # \")*\" { \_ s -> Tstring (init $ tail s) }
     \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
-    True                   { \_ s -> Tboolean True}
-    False                  { \_ s -> Tboolean False}
+    True                   { \_ s -> Tbool True}
+    False                  { \_ s -> Tbool False}
     \(\)                   { \_ _ -> Tunitlit }
     Unit                   { \_ _ -> Tunit }
 
@@ -104,7 +103,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tif | Tthen | Telse
            | Tcomma | Tsemi
            | Tupperid String | Tlowerid String | Tunderid Int
-           | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char | Tunitlit | Tunit
+           | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule | Tend

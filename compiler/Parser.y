@@ -35,7 +35,6 @@ import JavaUtils
   "&"      { Tandtype }
   ",,"     { Tmerge }
   "with"   { Twith }
-  "(+)"    { Tcombine }
   "this"   { Tthis }
   "super"  { Tsuper }
   "let"    { Tlet }
@@ -59,9 +58,9 @@ import JavaUtils
   "module"  { Tmodule }
   "end"     { Tend }
 
-  INTEGER  { Tinteger $$ }
+  INT      { Tint $$ }
   STRING   { Tstring $$ }
-  BOOLEAN  { Tboolean $$ }
+  BOOL     { Tbool $$ }
   CHAR     { Tchar $$ }
   "()"     { Tunitlit }
   "Unit"   { Tunit }
@@ -155,12 +154,15 @@ tvar :: { Name }
 -- Expressions
 
 expr :: { Expr Name }
-     : infixexpr %prec EOF      { $1 }
-     | module expr              { LetModule $1 $2 }
+    : "/\\" tvar "." expr                 { BLam $2 $4  }
+    | "\\" var_with_annot "." expr        { Lam $2 $4 }
+    | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
+    | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
+    | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
+    | infixexpr                           { $1 }
 
 infixexpr :: { Expr Name }
-    : expr10                    { $1 }
-    | infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
+    : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
     | infixexpr "/"  infixexpr  { PrimOp $1 (Arith J.Div)    $3 }
     | infixexpr "%"  infixexpr  { PrimOp $1 (Arith J.Rem)    $3 }
     | infixexpr "+"  infixexpr  { PrimOp $1 (Arith J.Add)    $3 }
@@ -174,46 +176,41 @@ infixexpr :: { Expr Name }
     | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
-    | infixexpr "(+)" infixexpr { Combine $1 $3 }
-
-expr10 :: { Expr Name }
-    : "/\\" tvar "." expr                { BLam $2 $4  }
-    | "\\" var_with_annot "." expr        { Lam $2 $4 }
-    | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
-    | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
-    | "-" INTEGER %prec UMINUS            { Lit (Int (-$2)) }
-    | fexpr                                { $1 }
+    | fexpr                     { $1 }
 
 fexpr :: { Expr Name }
-    : fexpr aexp         { App  $1 $2 }
-    | fexpr type          { TApp $1 $2 }
-    | aexp              { $1 }
+    : fexpr aexpr        { App  $1 $2 }
+    | fexpr atype        { TApp $1 $2 }
+    | aexpr              { $1 }
 
-aexp :: { Expr Name }
+aexpr :: { Expr Name }
     : var                       { Var $1 }
-
-    -- Literals
-    | INTEGER                   { Lit (Int $1) }
-    | STRING                    { Lit (String $1) }
-    | BOOLEAN                   { Lit (Bool $1) }
-    | CHAR                      { Lit (Char $1) }
-    | "()"                      { Lit UnitLit }
-
-    | "(" comma_exprs ")"       { Tuple $2 }
-    | aexp "." UNDERID          { Proj $1 $3 }
-    | "(" expr ")"              { $2 }
-    -- Java
-    | JAVACLASS "." LOWERID "(" comma_exprs_emp ")"  { JMethod (Static $1) $3 $5 undefined }
-    | aexp "." LOWERID "(" comma_exprs_emp ")"       { JMethod (NonStatic $1) $3 $5 undefined }
-    | JAVACLASS "." field { JField (Static $1) $3 undefined }
-    | aexp "." field      { JField (NonStatic $1) $3 undefined }
-    | module_name "." var  { ModuleAccess $1 $3 }
-    | "new" JAVACLASS "(" comma_exprs_emp ")"        { JNewObj $2 $4 }
-    -- Sequence of exprs
+    | lit                       { $1 }
+    | "(" comma_exprs2 ")"      { Tuple $2 }
+    | aexpr "." UNDERID         { Proj $1 $3 }
+    | module_name "." var       { ModuleAccess $1 $3 }
+    | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 }
     | "{" recordlit_body "}"    { RecordLit $2 }
-    | aexp "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
+    | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }
+    | "(" expr ")"              { $2 }
+
+lit :: { Expr Name }
+    : INT                       { Lit (Int $1)    }
+    | STRING                    { Lit (String $1) }
+    | BOOL                      { Lit (Bool $1)   }
+    | CHAR                      { Lit (Char $1)   }
+    | "()"                      { Lit UnitLit     }
+
+javaexpr :: { Expr Name }
+    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNewObj $2 $4 }
+    | JAVACLASS "." LOWERID "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
+    | JAVACLASS "." LOWERID "()"                  { JMethod (Static $1) $3 [] undefined }
+    | JAVACLASS "." field                         { JField  (Static $1) $3 undefined }
+    | aexpr "." LOWERID "(" comma_exprs0 ")"      { JMethod (NonStatic $1) $3 $5 undefined }
+    | aexpr "." LOWERID "()"                      { JMethod (NonStatic $1) $3 [] undefined }
+    | aexpr "." field                             { JField  (NonStatic $1) $3 undefined }
 
 recordlit_body :: { [(Label, Expr Name)] }
   : label "=" expr                     { [($1, $3)]  }
@@ -221,7 +218,7 @@ recordlit_body :: { [(Label, Expr Name)] }
 
 list_body :: { [Expr Name] }
     : "(" expr "::" list_body ")"  { $2:$4 }
-    | "[" comma_exprs_emp "]"      { $2 }
+    | "[" comma_exprs0 "]"         { $2 }
 
 field :: { Name }
    : LOWERID { $1 }
@@ -231,14 +228,17 @@ semi_exprs :: { [Expr Name] }
            : expr                { [$1] }
            | expr ";" semi_exprs { $1:$3 }
 
-comma_exprs :: { [Expr Name] }
-    : expr "," expr             { [$1, $3] }
-    | expr "," comma_exprs      { $1:$3    }
+comma_exprs0 :: { [Expr Name] }
+    : {- empty -}             { []    }
+    | comma_exprs1            { $1    }
 
-comma_exprs_emp :: { [Expr Name] }
-    : {- empty -}   { []   }
-    | expr          { [$1] }
-    | comma_exprs   { $1   }
+comma_exprs1 :: { [Expr Name] }
+    : expr                    { [$1]  }
+    | expr "," comma_exprs1   { $1:$3 }
+
+comma_exprs2 :: { [Expr Name] }
+    : expr "," expr           { [$1,$3]  }
+    | expr "," comma_exprs2   { $1:$3     }
 
 var_with_annot :: { (Name, Type) }
   : "(" var ":" type ")"         { ($2, $4) }

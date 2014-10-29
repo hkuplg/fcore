@@ -16,7 +16,7 @@ let maxValue (values : List) (weights : List) (totalWeight : Int) : Int = (
         (i - 1)
         w
   in
-  maxValue' (\(x : Int) . x) values.length( ) totalWeight
+  maxValue' (\(x : Int) . x) values.length() totalWeight
 )
 in
 maxValue [9,3,4] [2,5,8] 10

@@ -165,9 +165,6 @@ inferExpr (Lam (x1,t1) e)
        (e', t) <- withLocalVars [(x1,t1)] (inferExpr e)
        return (Lam (x1,t1) e', Fun t1 t)
 
--- Recover method calls with zero arguments
-inferExpr (App (JField callee f c) (Lit UnitLit)) = inferExpr (JMethod callee f [] c)
-
 inferExpr (App e1 e2)
   = do (e1', t1) <- inferExpr e1
        (e2', t2) <- inferExpr e2
