@@ -174,7 +174,7 @@ benchGenStackOpt = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptS
 
 -- bench for stack + apply + unbox opt
 benchGenStackOptUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
-benchGenStackOptUnbox = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptStack transSU <.> adaptUnbox transUnbox) $> trans)
+benchGenStackOptUnbox = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptStack transSAU <.> adaptUnbox transUnbox) $> trans)
 
 
 instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
