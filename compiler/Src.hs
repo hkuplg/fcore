@@ -7,6 +7,7 @@
 
 module Src
   ( Module(..)
+  , Kind(..)
   , Type(..)
   , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..)
   , Label
@@ -44,6 +45,8 @@ type TcId       = (Name, Type)
 
 data Module id = Module id [Bind id] deriving (Eq, Show)
 
+data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
+
 data Type
   = TVar Name
   | JClass ClassName
@@ -55,6 +58,7 @@ data Type
   | And Type Type
   | Unit
   | Thunk Type
+  | TypeLevelApp Type Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `alphaEq` and `subtype` below.
@@ -116,7 +120,7 @@ instance Functor JCallee where
   fmap _ (Static c)    = Static c
   fmap f (NonStatic e) = NonStatic (f e)
 
-type TypeContext  = Set.Set Name
+type TypeContext  = Map.Map Name Kind
 type ValueContext = Map.Map Name Type
 
 -- Type equivalence(s) and subtyping
