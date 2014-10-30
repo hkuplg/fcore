@@ -42,9 +42,11 @@ type TcId       = (Name, Type)
 
 data Module id = Module id [Bind id] deriving (Eq, Show)
 
+-- data JVMType = JClass ClassName | JPrim String
+
 data Type
   = TVar Name
-  | JClass ClassName
+  | JClass ClassName -- JType JVMType
   | Fun Type Type
   | Forall Name Type
   | Product [Type]
