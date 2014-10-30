@@ -1,4 +1,4 @@
-{-# OPTIONS -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures -XScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts, TypeOperators, MultiParamTypeClasses, ScopedTypeVariables #-}
 
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
@@ -11,7 +11,7 @@ import           Inheritance
 import           JavaEDSL
 import           MonadLib
 import           Panic
-import qualified Src
+import qualified Src as S
 import           StringPrefixes
 
 instance (:<) (Translate m) (Translate m) where
@@ -94,12 +94,12 @@ genIfBody :: MonadState Int m
 genIfBody this m2 m3 (s1,j1) n =
   do (s2,j2,t2) <- m2 {-translateM this e2-}
      (s3,j3,_) <- m3 {-translateM this e3-}
-     let ifvarname = (ifresultstr ++ show n)
+     let ifvarname = ifresultstr ++ show n
      aType <- javaType this t2
      let ifresdecl = localVar aType (varDeclNoInit ifvarname)
-     let thenPart = (J.StmtBlock $ block (s2 ++ [assign (name [ifvarname]) j2]))
-     let elsePart = (J.StmtBlock $ block (s3 ++ [assign (name [ifvarname]) j3]))
-     let ifstmt  = bStmt $ J.IfThenElse j1 thenPart elsePart
+     let thenPart  = J.StmtBlock $ block (s2 ++ [assign (name [ifvarname]) j2])
+     let elsePart  = J.StmtBlock $ block (s3 ++ [assign (name [ifvarname]) j3])
+     let ifstmt    = bStmt $ J.IfThenElse j1 thenPart elsePart
 
      return (s1 ++ [ifresdecl,ifstmt],var ifvarname ,t2) -- need to check t2 == t3
 
@@ -143,18 +143,18 @@ trans self =
                 return ([],var (localvarstr ++ show i),t)
               Lit lit ->
                 case lit of
-                  (Src.Integer i) -> return ([], J.Lit (J.Int i),     JClass "java.lang.Integer")
-                  (Src.Unit)      -> return ([], J.Lit (J.Int 0),     JClass "java.lang.Integer")
-                  (Src.String s)  -> return ([], J.Lit (J.String s),  JClass "java.lang.String")
-                  (Src.Boolean b) -> return ([], J.Lit (J.Boolean b), JClass "java.lang.Boolean")
-                  (Src.Char c)    -> return ([], J.Lit (J.Char c),    JClass "java.lang.Character")
+                  (S.Int i)    -> return ([], J.Lit (J.Int i),     JClass "java.lang.Integer")
+                  (S.UnitLit)  -> return ([], J.Lit (J.Int 0),     JClass "java.lang.Integer")
+                  (S.String s) -> return ([], J.Lit (J.String s),  JClass "java.lang.String")
+                  (S.Bool b)   -> return ([], J.Lit (J.Boolean b), JClass "java.lang.Boolean")
+                  (S.Char c)   -> return ([], J.Lit (J.Char c),    JClass "java.lang.Character")
               PrimOp e1 op e2 ->
                 do (s1,j1,_) <- translateM this e1
                    (s2,j2,_) <- translateM this e2
                    let (jexpr,typ) = case op of
-                                       (Src.Arith realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Integer")
-                                       (Src.Compare realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
-                                       (Src.Logic realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
+                                       (S.Arith realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Integer")
+                                       (S.Compare realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
+                                       (S.Logic realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
                    newVarName <- getNewVarName this
                    assignExpr <- assignVar this typ newVarName jexpr
                    return (s1 ++ s2 ++ [assignExpr],var newVarName,typ)
@@ -178,9 +178,9 @@ trans self =
                      TupleType [_] -> return ret
                      TupleType types ->
                        do newVarName <- getNewVarName this
-                          let typ = (types !! (index - 1))
+                          let typ = types !! (index - 1)
                           aType <- javaType this typ
-                          let rhs = cast (aType) (fieldAccess javaExpr ("_" ++ show index))
+                          let rhs = cast aType (fieldAccess javaExpr ("_" ++ show index))
                           assignExpr <- assignVar this typ newVarName rhs
                           return (statement ++ [assignExpr] ,var newVarName ,typ)
                      _ ->
@@ -212,9 +212,9 @@ trans self =
                    let needed = length (xs (zip [n ..] t))
                    put (n + 2 + needed)
                    mfuns <- return (\defs -> forM (xs defs) (translateM this))
-                   let vars = (liftM (map (\(_,b,c) -> (b,c)))) (mfuns (zip [n ..] t))
+                   let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
                    let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
-                   newvars <- ((liftM (pairUp bindings)) vars)
+                   newvars <- liftM (pairUp bindings) vars
                    closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                    let mDecls = map (\x -> memberDecl (fieldDecl (classTy closureClass)
                                                                  (varDeclNoInit (localvarstr ++ show x))))
@@ -223,14 +223,14 @@ trans self =
                    let finalFuns = mfuns newvars
                    let appliedBody = body newvars
                    let varnums = map fst newvars
-                   (bindStmts,bindExprs,_) <- (liftM unzip3 finalFuns)
+                   (bindStmts,bindExprs,_) <- liftM unzip3 finalFuns
                    (bodyStmts,bodyExpr,t') <- translateM this appliedBody
                    typ <- javaType this t'
                    -- assign new created closures bindings to variables
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
                                   (varnums `zip` bindExprs)
 
-                   let stasm = (concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm)) ++ bodyStmts ++ [assign (name ["out"]) bodyExpr]
+                   let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name ["out"]) bodyExpr]
                    let letClass =
                          [localClass ("Let" ++ show n)
                                       (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit "out")) :
@@ -240,7 +240,7 @@ trans self =
                                    (varDecl (localvarstr ++ show n)
                                             (instCreat (classTyp ("Let" ++ show n)) []))
                          ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
-                                                (cast typ (J.ExpName (name [(localvarstr ++ show n), "out"]))))]
+                                                (cast typ (J.ExpName (name [localvarstr ++ show n, "out"]))))]
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
               App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
@@ -278,7 +278,7 @@ trans self =
                                        _ -> sorry "BaseTransCFJava.trans.JNewObj: no idea how to do")
                               types)
                    (classStatement,rhs) <- case c of
-                                             (Right ce) ->
+                                             Right ce ->
                                                do (classS,classE,_) <- translateM this ce
                                                   return (classS
                                                          ,J.MethodInv $
@@ -286,7 +286,7 @@ trans self =
                                                                               refTypes
                                                                               (J.Ident m)
                                                                               exprs)
-                                             (Left cn) ->
+                                             Left cn ->
                                                return ([]
                                                       ,J.MethodInv $
                                                        J.TypeMethodCall (J.Name [J.Ident cn])
@@ -302,15 +302,15 @@ trans self =
                                      ,var newVarName
                                      ,typ)
                       else return (statements ++ classStatement ++
-                                   [(J.BlockStmt $
-                                     J.ExpStmt rhs)]
+                                   [J.BlockStmt $
+                                     J.ExpStmt rhs]
                                   ,rhs
                                   ,typ)
               JField c fName r ->
                 do (classStatement,classExpr,_) <- case c of
-                                                     (Right ce) ->
+                                                     Right ce ->
                                                        translateM this ce
-                                                     (Left cn) ->
+                                                     Left cn ->
                                                        return ([]
                                                               ,J.ExpName $
                                                                J.Name [J.Ident cn]
@@ -331,9 +331,7 @@ trans self =
               SeqExprs es ->
                 do es' <- mapM (translateM this) es
                    let (_,lastExp,lastType) = last es'
-                   let statements =
-                         concat $
-                         map (\(x,_,_) -> x) es'
+                   let statements = concatMap (\(x,_,_) -> x) es'
                    return (statements,lastExp,lastType)
               FVar _ -> sorry "BaseTransCFJava.trans.FVar: no idea how to do"
        ,translateScopeM =
@@ -429,7 +427,7 @@ trans self =
                                                     _ -> return $ classTy $ getTupleClassName tuple
                              CFInt -> return $ classTy "java.lang.Integer"
                              CFInteger -> return $ classTy "java.lang.Integer"
-                             _ -> return $ objClassTy
+                             _ -> return objClassTy
        ,chooseCastBox = \typ -> case typ of
                                   (JClass c) -> return (initClass c, classTy c)
                                   CFInt -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
@@ -450,9 +448,9 @@ trans self =
           \nam expr ->
             do (bs,e,t) <- translateM this expr
                let returnType = case t of
-                                  JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
-                                  JClass "java.lang.Boolean" -> Just $ J.PrimType $ J.BooleanT
-                                  CFInt -> Just $ J.PrimType $ J.IntT
+                                  JClass "java.lang.Integer" -> Just $ J.PrimType J.IntT
+                                  JClass "java.lang.Boolean" -> Just $ J.PrimType J.BooleanT
+                                  CFInt -> Just $ J.PrimType J.IntT
                                   _ -> Just objClassTy
                let returnStmt = [bStmt $ J.Return $ Just e]
                isTest <- genTest this

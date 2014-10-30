@@ -10,7 +10,7 @@ module PrettyUtils
   , parensIf
 
     -- Pretty printing combinators
-  , arrow, forall, ampersand, lambda, biglambda, dcomma
+  , arrow, forall, ampersand, lambda, biglambda, dcomma, unit
 
   , prettyTVar, prettyVar
   ) where
@@ -25,13 +25,14 @@ import Data.Char (ord, chr)
 --   prettyPrec   :: Prec -> a -> Doc
 --   prettyPrec _ = PrettyUtils.pretty
 
-arrow, forall, ampersand, lambda, biglambda, dcomma :: Doc
+arrow, forall, ampersand, lambda, biglambda, dcomma, unit :: Doc
 arrow     = text "->"
 forall    = text "forall"
 ampersand = text "&"
 lambda    = text "\\"
 biglambda = text "/\\"
 dcomma    = text ",,"
+unit      = text "()"
 
 type PrecLevel = Int
 data PrecDelta = PrecMinus | PrecPlus

@@ -14,16 +14,17 @@ module Src
   -- , RdrExpr
   -- , TcBinds
   -- , TcExpr
-  , alphaEquiv
+  , alphaEq
   , subtype
   , fields
-  , freeTyVars
-  , substFreeTyVars
+  , freeTVars
+  , fsubstTT
   , wrap
   , opPrec
   ) where
 
 import JavaUtils
+import PrettyUtils
 import Panic
 
 import qualified Language.Java.Syntax as J (Op(..))
@@ -42,30 +43,29 @@ type TcId       = (Name, Type)
 data Module id = Module id [Bind id] deriving (Eq, Show)
 
 data Type
-  = TyVar Name
+  = TVar Name
   | JClass ClassName
   | Fun Type Type
   | Forall Name Type
   | Product [Type]
-  | RecordTy [(Label, Type)]
+  | Record [(Label, Type)]
   | ListOf Type
   | And Type Type
-  | UnitType
+  | Unit
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
-  -- `alphaEquiv` and `subtype` below.
+  -- `alphaEq` and `subtype` below.
   deriving (Eq, Show, Data, Typeable)
 
-data Lit
-    = Integer Integer
-    | String String
-    | Boolean Bool
-    | Char Char
-    | Unit
-    deriving (Eq, Show)
+data Lit -- Data constructor names match Haskell types
+  = Int Integer
+  | String String
+  | Bool Bool
+  | Char Char
+  | UnitLit
+  deriving (Eq, Show)
 
-data Operator = Arith J.Op | Compare J.Op | Logic J.Op
-    deriving (Eq, Show)
+data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
 
 data Expr id
   = Var id                              -- Variable
@@ -86,7 +86,7 @@ data Expr id
   | Seq [Expr id]
   | PrimList [Expr id]           -- New List
   | Merge (Expr id) (Expr id)
-  | Record [(Label, Expr id)]
+  | RecordLit [(Label, Expr id)]
   | RecordAccess (Expr id) Label
   | RecordUpdate (Expr id) [(Label, Expr id)]
   | LetModule (Module id) (Expr id)
@@ -119,91 +119,89 @@ type ValueContext = Map.Map Name Type
 
 -- Type equivalence(s) and subtyping
 
-alphaEquiv :: Type -> Type -> Bool
-alphaEquiv (TyVar a)      (TyVar b)      = a == b
-alphaEquiv (JClass c)     (JClass d)     = c == d
-alphaEquiv (Fun t1 t2)    (Fun t3 t4)    = t1 `alphaEquiv` t3 && t2 `alphaEquiv` t4
-alphaEquiv (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a2, TyVar a1) t2 `alphaEquiv` t1
-alphaEquiv (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEquiv `all` zip ts1 ts2
-alphaEquiv (RecordTy fs1) (RecordTy fs2) = length fs1 == length fs2
-                                          && (\((l1,t1),(l2,t2)) -> l1 == l2 && t1 `alphaEquiv` t2) `all` zip fs1 fs2
-alphaEquiv (ListOf t1)    (ListOf t2)    = t1 `alphaEquiv` t2
-alphaEquiv (And t1 t2)    (And t3 t4)    = t1 `alphaEquiv` t3 && t2 `alphaEquiv` t4
-alphaEquiv UnitType       UnitType       = True
-alphaEquiv t1             t2             = falseIfDataConsDiffer "Src.alphaEquiv" t1 t2
+alphaEq :: Type -> Type -> Bool
+alphaEq (TVar a)       (TVar b)       = a == b
+alphaEq (JClass c)     (JClass d)     = c == d
+alphaEq (Fun t1 t2)    (Fun t3 t4)    = t1 `alphaEq` t3 && t2 `alphaEq` t4
+alphaEq (Forall a1 t1) (Forall a2 t2) = fsubstTT (a2, TVar a1) t2 `alphaEq` t1
+alphaEq (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEq `all` zip ts1 ts2
+alphaEq (Record fs1)   (Record fs2)   = length fs1 == length fs2
+                                                && (\((l1,t1),(l2,t2)) -> l1 == l2 && t1 `alphaEq` t2) `all` zip fs1 fs2
+alphaEq (ListOf t1)    (ListOf t2)    = t1 `alphaEq` t2
+alphaEq (And t1 t2)    (And t3 t4)    = t1 `alphaEq` t3 && t2 `alphaEq` t4
+alphaEq Unit       Unit               = True
+alphaEq t1             t2             = trueIffSameDataCons "Src.alphaEq" t1 t2
 
 subtype :: Type -> Type -> Bool
-subtype (TyVar a)      (TyVar b)      = a == b
+subtype (TVar a)       (TVar b)       = a == b
 subtype (JClass c)     (JClass d)     = c == d
   -- TODO: Should the subtype here be aware of the subtyping relations in the
   -- Java world?
 subtype (Fun t1 t2)    (Fun t3 t4)    = t3 `subtype` t1 && t2 `subtype` t4
-subtype (Forall a1 t1) (Forall a2 t2) = substFreeTyVars (a1, TyVar a2) t1 `subtype` t2
+subtype (Forall a1 t1) (Forall a2 t2) = fsubstTT (a1,TVar a2) t1 `subtype` t2
 subtype (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry subtype `all` zip ts1 ts2
-subtype (RecordTy [(l1,t1)]) (RecordTy [(l2,t2)]) = l1 == l2 && t1 `subtype` t2
-subtype (RecordTy fs1)       (RecordTy fs2)       = desugarMultiRecordTy fs1 `subtype` desugarMultiRecordTy fs2
+subtype (Record [(l1,t1)]) (Record [(l2,t2)]) = l1 == l2 && t1 `subtype` t2
+subtype (Record fs1)   (Record fs2)   = desugarMultiRecord fs1 `subtype` desugarMultiRecord fs2
 subtype (ListOf t1)    (ListOf t2)    = t1 `subtype` t2  -- List :: * -> * is covariant
 subtype (And t1 t2)    t3             = t1 `subtype` t3 || t2 `subtype` t3
 subtype t1             (And t2 t3)    = t1 `subtype` t2 && t1 `subtype` t3
-subtype UnitType       UnitType       = True
-subtype t1             t2             = falseIfDataConsDiffer "Src.subtype" t1 t2
+subtype Unit           Unit           = True
+subtype t1             t2             = trueIffSameDataCons "Src.subtype" t1 t2
 
 -- Records
 
-desugarMultiRecordTy :: [(Label,Type)] -> Type
-desugarMultiRecordTy []         = panic "Src.desugarMultiRecordTy"
-desugarMultiRecordTy [(l,t)]    = RecordTy [(l,t)]
-desugarMultiRecordTy ((l,t):fs) = RecordTy [(l,t)] `And` desugarMultiRecordTy fs
+desugarMultiRecord :: [(Label,Type)] -> Type
+desugarMultiRecord []         = panic "Src.desugarMultiRecordTy"
+desugarMultiRecord [(l,t)]    = Record [(l,t)]
+desugarMultiRecord ((l,t):fs) = Record [(l,t)] `And` desugarMultiRecord fs
 
 fields :: Type -> [(Maybe Label, Type)]
 fields t
   = case t of
-      TyVar _             -> unlabeledField
-      JClass _            -> unlabeledField
-      Fun _ _             -> unlabeledField
-      Forall _ _          -> unlabeledField
-      Product _           -> unlabeledField
-      RecordTy []         -> panic "Src.fields"
-      RecordTy [(l1,t1)]  -> [(Just l1, t1)]
-      RecordTy fs@(_:_:_) -> fields (desugarMultiRecordTy fs)
-      ListOf _            -> unlabeledField
-      (And t1 t2)         -> fields t1 ++ fields t2
+      TVar _            -> unlabeledField
+      JClass _          -> unlabeledField
+      Fun _ _           -> unlabeledField
+      Forall _ _        -> unlabeledField
+      Product _         -> unlabeledField
+      Record []         -> panic "Src.fields"
+      Record [(l1,t1)]  -> [(Just l1, t1)]
+      Record fs@(_:_:_) -> fields (desugarMultiRecord fs)
+      ListOf _          -> unlabeledField
+      (And t1 t2)       -> fields t1 ++ fields t2
 
-      where unlabeledField = [(Nothing, t)]
+    where unlabeledField = [(Nothing, t)]
 
 -- Free variable substitution
 
-substFreeTyVars :: (Name, Type) -> Type -> Type
-substFreeTyVars (x, r) = go
-  where
-    go (TyVar a)
-      | a == x      = r
-      | otherwise   = TyVar a
-    go (JClass c )  = JClass c
-    go (Fun t1 t2)  = Fun (go t1) (go t2)
-    go (Product ts) = Product (map go ts)
-    go (Forall a t)
-      | a == x                      = Forall a t
-      | a `Set.member` freeTyVars r = Forall a t -- The freshness condition, crucial!
-      | otherwise                   = Forall a (go t)
-    go (ListOf a)   = ListOf (go a)
-    go UnitType     = UnitType
+fsubstTT :: (Name, Type) -> Type -> Type
+fsubstTT (x,r) (TVar a)
+  | a == x                     = r
+  | otherwise                  = TVar a
+fsubstTT (x,r) (JClass c )     = JClass c
+fsubstTT (x,r) (Fun t1 t2)     = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
+fsubstTT (x,r) (Product ts)    = Product (map (fsubstTT (x,r)) ts)
+fsubstTT (x,r) (Forall a t)
+  | a == x                     = Forall a t
+  | a `Set.member` freeTVars r = Forall a t -- The freshness condition, crucial!
+  | otherwise                  = Forall a (fsubstTT (x,r) t)
+fsubstTT (x,r) (ListOf a)      = ListOf (fsubstTT (x,r) a)
+fsubstTT (x,r) Unit            = Unit
 
-freeTyVars :: Type -> Set.Set Name
-freeTyVars (TyVar x)     = Set.singleton x
-freeTyVars (JClass _)    = Set.empty
-freeTyVars (Fun t1 t2)   = freeTyVars t1 `Set.union` freeTyVars t2
-freeTyVars (Forall a t)  = Set.delete a (freeTyVars t)
-freeTyVars (Product ts)  = Set.unions (map freeTyVars ts)
-freeTyVars (RecordTy fs) = Set.unions (map (\(_l,t) -> freeTyVars t) fs)
-freeTyVars (ListOf t)    = freeTyVars t
-freeTyVars (And t1 t2)   = Set.union (freeTyVars t1) (freeTyVars t2)
-freeTyVars UnitType      = Set.empty
+freeTVars :: Type -> Set.Set Name
+freeTVars (TVar x)     = Set.singleton x
+freeTVars (JClass _)   = Set.empty
+freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
+freeTVars (Forall a t) = Set.delete a (freeTVars t)
+freeTVars (Product ts) = Set.unions (map freeTVars ts)
+freeTVars (Record fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
+freeTVars (ListOf t)   = freeTVars t
+freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
+freeTVars Unit         = Set.empty
 
 -- Pretty printers
 
 instance Pretty Type where
-  pretty (TyVar a)    = text a
+  pretty (TVar a)     = text a
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
   pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
   pretty (Product ts) = tupled (map pretty ts)
@@ -214,10 +212,11 @@ instance Pretty Type where
 
 instance Pretty id => Pretty (Expr id) where
   pretty (Var x) = pretty x
-  pretty (Lit (Integer n)) = integer n
-  pretty (Lit (String n)) = string n
-  pretty (Lit (Boolean n)) = bool n
-  pretty (Lit (Char n)) = char n
+  pretty (Lit (Int n))     = integer n
+  pretty (Lit (String n))  = string n
+  pretty (Lit (Bool n))    = bool n
+  pretty (Lit (Char n))    = char n
+  pretty (Lit  UnitLit)    = unit
   pretty (BLam a e) = parens $ text "/\\" <> text a <> dot <+> pretty e
   pretty (Lam (x,t) e) =
     parens $

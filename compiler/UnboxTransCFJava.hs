@@ -1,4 +1,4 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures -XConstraintKinds -XScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes, FlexibleInstances, FlexibleContexts, TypeOperators, MultiParamTypeClasses, ConstraintKinds, ScopedTypeVariables #-}
 
 module UnboxTransCFJava where
 
@@ -12,7 +12,7 @@ import           JavaEDSL
 import           JavaUtils
 import           MonadLib
 import           Panic
-import qualified Src
+import qualified Src as S
 import           StringPrefixes
 
 data UnboxTranslate m = UT {toUT :: Translate m}
@@ -52,16 +52,16 @@ transUnbox this super =
                           return (s,je,scope2ctyp (substScope n CFInteger (f n)))
                      Lit lit ->
                        case lit of
-                         (Src.Integer i) -> return ([] ,J.Lit $ J.Int i ,CFInt)
+                         (S.Int i) -> return ([] ,J.Lit $ J.Int i ,CFInt)
                          _ -> translateM super e
                      PrimOp e1 op e2 ->
                        do (s1,j1,_) <- translateM (up this) e1
                           (s2,j2,_) <- translateM (up this) e2
                           let (je,typ) =
                                 case op of
-                                  (Src.Arith realOp) -> (J.BinOp j1 realOp j2,CFInt)
-                                  (Src.Compare realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
-                                  (Src.Logic realOp) -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
+                                  S.Arith realOp -> (J.BinOp j1 realOp j2,CFInt)
+                                  S.Compare realOp -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
+                                  S.Logic realOp -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
                           newVarName <- getNewVarName (up this)
                           aType <- javaType (up this) typ
                           return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
@@ -70,9 +70,9 @@ transUnbox this super =
                           let needed = length (xs (zip [n ..] t))
                           put (n + 2 + needed)
                           mfuns <- return (\defs -> forM (xs defs) (translateM (up this)))
-                          let vars = (liftM (map (\(_,b,c) -> (b,c)))) (mfuns (zip [n ..] t))
+                          let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
                           let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
-                          newvars <- ((liftM (pairUp bindings)) vars)
+                          newvars <- liftM (pairUp bindings) vars
                           cNames <- mapM (\(_, typ) ->
                                            let (t1, t2) = getFunType typ
                                            in getClassType (up this) t1 t2)
@@ -85,13 +85,13 @@ transUnbox this super =
                           let finalFuns = mfuns newvars
                           let appliedBody = body newvars
                           let varnums = map fst newvars
-                          (bindStmts,bindExprs,_) <- (liftM unzip3 finalFuns)
+                          (bindStmts,bindExprs,_) <- liftM unzip3 finalFuns
                           (bodyStmts,bodyExpr,t') <- translateM (up this) appliedBody
                           typ <- javaType (up this) t'
                           -- assign new created closures bindings to variables
                           let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
                                          (varnums `zip` bindExprs)
-                          let stasm = (concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm)) ++ bodyStmts ++ [assign (name ["out"]) bodyExpr]
+                          let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name ["out"]) bodyExpr]
                           let letClass =
                                 [localClass ("Let" ++ show n)
                                              (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit "out")) :
@@ -100,7 +100,7 @@ transUnbox this super =
                                           (varDecl (localvarstr ++ show n)
                                                    (instCreat (classTyp ("Let" ++ show n)) []))
                                 ,localVar typ (varDecl (localvarstr ++ show (n + 1))
-                                                       (cast typ (J.ExpName (name [(localvarstr ++ show n), "out"]))))]
+                                                       (cast typ (J.ExpName (name [localvarstr ++ show n, "out"]))))]
                           return (letClass,var (localvarstr ++ show (n + 1)),t')
                      _ -> translateM super e
               ,translateScopeM = \e m -> case e of
@@ -130,7 +130,7 @@ transUnbox this super =
                         let retTyp = g ()
                         cName <- getClassType (up this) t1 (scope2ctyp retTyp)
                         -- let (wrapS, jS) = wrap j2 t1 t2
-                        let fname = (localvarstr ++ show n) -- use a fresh variable
+                        let fname = localvarstr ++ show n -- use a fresh variable
                         let closureVars = [localVar (classTy cName) (varDecl fname j1)
                                           ,assignField (fieldAccExp (var fname) closureInput) j2]
                         let fout = fieldAccess (var fname) "out"
@@ -147,8 +147,8 @@ transUnbox this super =
               ,javaType = \typ ->
                             case typ of
                               CFInt -> return $ J.PrimType J.IntT
-                              (Forall (Type t1 f)) -> case (f ()) of
-                                                        (Body t2) -> liftM classTy (getClassType (up this) t1 t2)
+                              (Forall (Type t1 f)) -> case f () of
+                                                        Body t2 -> liftM classTy (getClassType (up this) t1 t2)
                                                         _ -> liftM classTy (getClassType (up this) t1 CFInteger)
                               x -> javaType super x
               ,getPrefix = return (namespace ++ "unbox.")
@@ -158,12 +158,12 @@ transUnbox this super =
                                                                             (varDecl (s ++ show n) (cast (J.PrimType J.IntT) e))
                                                    ,J.PrimType J.IntT)
                                    (Forall (Type t1 f)) ->
-                                     case (f ()) of
+                                     case f () of
                                        (Body t2) -> do
-                                         typ1 <- (getClassType (up this) t1 t2)
+                                         typ1 <- getClassType (up this) t1 t2
                                          return (initClass typ1,classTy typ1)
                                        _ -> do
-                                         typ1 <- (getClassType (up this) t1 CFInteger)
+                                         typ1 <- getClassType (up this) t1 CFInteger
                                          return (initClass typ1,classTy typ1)
                                    t -> chooseCastBox super t
              }}

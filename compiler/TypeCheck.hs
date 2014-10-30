@@ -34,13 +34,13 @@ type Connection = (Handle, Handle)
 typeCheck :: Expr Name -> IO (Either TypeError (Expr TcId, Type))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnv type_server) . runErrorT . tcExpr) e)
+  (evalIOEnv (mkInitTcEnv type_server) . runErrorT . inferExpr) e)
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> Expr Name -> IO (Either TypeError (Expr TcId, Type))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . tcExpr) e)
+  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . inferExpr) e)
 
 withTypeServer :: (Connection -> IO a) -> IO a
 withTypeServer do_this =
@@ -96,8 +96,8 @@ data TypeError
   -- Java-specific type errors
   | NoSuchClass       ClassName
   | NoSuchConstructor ClassName [ClassName]
-  | NoSuchMethod      ClassName MethodName Bool [ClassName]
-  | NoSuchField       ClassName FieldName  Bool
+  | NoSuchMethod      (JCallee ClassName) MethodName [ClassName]
+  | NoSuchField       (JCallee ClassName) FieldName
   deriving (Show)
 
 instance Error TypeError where
@@ -151,176 +151,177 @@ withLocalVars vars do_this
        setTcEnv TcEnv { tceValueCtxt = gamma, ..}
        return r
 
-tcExpr :: Expr Name -> TcM (Expr TcId, Type)
-tcExpr (Var name)
+inferExpr :: Expr Name -> TcM (Expr TcId, Type)
+inferExpr (Var name)
   = do value_ctxt <- getValueCtxt
        case Map.lookup name value_ctxt of
          Just t  -> return (Var (name,t), t)
          Nothing -> throwError (NotInScopeVar name)
 
-tcExpr (Lit lit) = return (Lit lit, srcLitType lit)
+inferExpr (Lit lit) = return (Lit lit, srcLitType lit)
 
-tcExpr (Lam (x1,t1) e)
+inferExpr (Lam (x1,t1) e)
   = do checkType t1
-       (e', t) <- withLocalVars [(x1,t1)] (tcExpr e)
+       (e', t) <- withLocalVars [(x1,t1)] (inferExpr e)
        return (Lam (x1,t1) e', Fun t1 t)
 
-tcExpr (App e1 e2)
-  = do (e1', t1) <- tcExpr e1
-       (e2', t2) <- tcExpr e2
+inferExpr (App e1 e2)
+  = do (e1', t1) <- inferExpr e1
+       (e2', t2) <- inferExpr e2
        case t1 of
          Fun t3 t4 -> do checkSubtype t2 t3
                          return (App e1' e2', t4)
          _         -> throwError (General (show e1 ++ "::" ++ show t1))
 
-tcExpr (BLam a e)
-  = do (e', t) <- withLocalTyVars [a] (tcExpr e)
+inferExpr (BLam a e)
+  = do (e', t) <- withLocalTyVars [a] (inferExpr e)
        return (BLam a e', Forall a t)
 
-tcExpr (TApp e targ)
-  = do (e', t) <- tcExpr e
+inferExpr (TApp e targ)
+  = do (e', t) <- inferExpr e
        checkType targ
        case t of
-         Forall a t1 -> return (TApp e' targ, substFreeTyVars (a, targ) t1)
-         _           -> sorry "Src.TypeCheck.tcExpr: TApp"
+         Forall a t1 -> return (TApp e' targ, fsubstTT (a, targ) t1)
+         _           -> sorry "Src.TypeCheck.inferExpr: TApp"
 
-tcExpr (Tuple es)
-  | length es < 2 = panic "Src.TypeCheck.tcExpr: Tuple: fewer than two items"
-  | otherwise     = do (es', ts) <- mapAndUnzipM tcExpr es
+inferExpr (Tuple es)
+  | length es < 2 = panic "Src.TypeCheck.inferExpr: Tuple: fewer than two items"
+  | otherwise     = do (es', ts) <- mapAndUnzipM inferExpr es
                        return (Tuple es', Product ts)
 
-tcExpr (Proj e i)
-  = do (e', t) <- tcExpr e
+inferExpr (Proj e i)
+  = do (e', t) <- inferExpr e
        case t of
          Product ts
            | 1 <= i && i <= length ts -> return (Proj e' i, ts !! (i - 1))
            | otherwise -> throwError IndexTooLarge
          _ -> throwError ProjectionOfNonProduct
 
-tcExpr (PrimOp e1 op e2)
+inferExpr (PrimOp e1 op e2)
   = case op of
       Arith _ ->
-        do (e1', _t1) <- tcExprAgainst e1 (JClass "java.lang.Integer")
-           (e2', _t2) <- tcExprAgainst e2 (JClass "java.lang.Integer")
+        do (e1', _t1) <- inferExprAgainst e1 (JClass "java.lang.Integer")
+           (e2', _t2) <- inferExprAgainst e2 (JClass "java.lang.Integer")
            return (PrimOp e1' op e2', JClass "java.lang.Integer")
       Compare _ ->
-        do (e1', t1)  <- tcExpr e1
-           (e2', _t2) <- tcExprAgainst e2 t1
+        do (e1', t1)  <- inferExpr e1
+           (e2', _t2) <- inferExprAgainst e2 t1
            return (PrimOp e1' op e2', JClass "java.lang.Boolean")
       Logic _ ->
-        do (e1', _t1) <- tcExprAgainst e1 (JClass "java.lang.Boolean")
-           (e2', _t2) <- tcExprAgainst e2 (JClass "java.lang.Boolean")
+        do (e1', _t1) <- inferExprAgainst e1 (JClass "java.lang.Boolean")
+           (e2', _t2) <- inferExprAgainst e2 (JClass "java.lang.Boolean")
            return (PrimOp e1' op e2', JClass "java.lang.Boolean")
 
-tcExpr (If pred b1 b2)
-  = do (pred', _pred_ty) <- tcExprAgainst pred (JClass "java.lang.Boolean")
-       (b1', t1)         <- tcExpr b1
-       (b2', _t2)        <- tcExprAgainst b2 t1
+inferExpr (If pred b1 b2)
+  = do (pred', _pred_ty) <- inferExprAgainst pred (JClass "java.lang.Boolean")
+       (b1', t1)         <- inferExpr b1
+       (b2', _t2)        <- inferExprAgainst b2 t1
        return (If pred' b1' b2', t1)
 
-tcExpr (Let rec_flag binds e) =
+inferExpr (Let rec_flag binds e) =
   do checkBindNames binds
      binds' <- case rec_flag of
-                 NonRec -> mapM tcBind binds
+                 NonRec -> mapM inferBind binds
                  Rec    -> do sigs <- collectBindNameSigs binds
-                              withLocalVars sigs (mapM tcBind binds)
-     (e', t) <- withLocalVars (map (\ (f,t,_e) -> (f,t)) binds') $ tcExpr e
+                              withLocalVars sigs (mapM inferBind binds)
+     (e', t) <- withLocalVars (map (\ (f,t,_e) -> (f,t)) binds') $ inferExpr e
      return (LetOut rec_flag binds' e', t)
 
-tcExpr (LetOut{..}) = panic "Src.TypeCheck.tcExpr: LetOut"
+inferExpr (LetOut{..}) = panic "Src.TypeCheck.inferExpr: LetOut"
 
-tcExpr (JNewObj c args)
+inferExpr (JNewObj c args)
   = do checkClassName c -- ToDo: Needed?
-       (args', arg_cs) <- mapAndUnzipM tcExprAgainstAnyJClass args
+       (args', arg_cs) <- mapAndUnzipM inferExprAgainstAnyJClass args
        checkNew c arg_cs
        return (JNewObj c args', JClass c)
 
-tcExpr (JMethod object m args _)
-  = case object of
+inferExpr (JMethod callee m args _)
+  = case callee of
       Static c ->
-        do (args', arg_cs) <- mapAndUnzipM tcExprAgainstAnyJClass args
-           ret_c <- checkStaticMethodCall c m arg_cs
+        do (args', arg_cs) <- mapAndUnzipM inferExprAgainstAnyJClass args
+           ret_c <- checkMethodCall (Static c) m arg_cs
            return (JMethod (Static c) m args' ret_c, JClass ret_c)
       NonStatic e ->
-        do (e', c)         <- tcExprAgainstAnyJClass e
-           (args', arg_cs) <- mapAndUnzipM tcExprAgainstAnyJClass args
-           ret_c <- checkMethodCall c m arg_cs
+        do (e', c)         <- inferExprAgainstAnyJClass e
+           (args', arg_cs) <- mapAndUnzipM inferExprAgainstAnyJClass args
+           ret_c <- checkMethodCall (NonStatic c) m arg_cs
            return (JMethod (NonStatic e') m args' ret_c, JClass ret_c)
 
-tcExpr (JField object f _)
-  = case object of
+inferExpr (JField callee f _)
+  = case callee of
       Static c ->
-        do ret_c <- checkStaticFieldAccess c f
+        do ret_c <- checkFieldAccess (Static c) f
            return (JField (Static c) f ret_c, JClass ret_c)
       NonStatic e ->
-        do (e', t) <- tcExpr e
+        do (e', t) <- inferExpr e
            case t of
-             RecordTy _ -> tcExpr (RecordAccess e f) -- Then the typechecker realized!
+             Record _ -> inferExpr (RecordAccess e f) -- Then the typechecker realized!
              JClass c   ->
-               do ret_c   <- checkFieldAccess c f
+               do ret_c   <- checkFieldAccess (NonStatic c) f
                   return (JField (NonStatic e') f ret_c, JClass ret_c)
-             _          -> throwError $ General "The thing before dot is neither a record nor a JVM object"
+             _          -> throwError (General "The thing before dot is neither a record nor a JVM object")
 
-tcExpr (Seq es) = do (es', ts) <- mapAndUnzipM tcExpr es
-                     return (Seq es', last ts)
+inferExpr (Seq es) = do
+  (es', ts) <- mapAndUnzipM inferExpr es
+  return (Seq es', last ts)
 
-tcExpr (Merge e1 e2) =
-  do (e1', t1) <- tcExpr e1
-     (e2', t2) <- tcExpr e2
+inferExpr (Merge e1 e2) =
+  do (e1', t1) <- inferExpr e1
+     (e2', t2) <- inferExpr e2
      return (Merge e1' e2', And t1 t2)
 
-tcExpr (PrimList l) =
-      do (es, ts) <- mapAndUnzipM tcExpr l
-         case ts of [] -> return (PrimList es, (JClass (namespace ++ "FunctionalList")))
-                    _  -> if (all (`alphaEquiv` (ts !! 0)) ts)
-                            then return (PrimList es, (JClass (namespace ++ "FunctionalList")))
+inferExpr (PrimList l) =
+      do (es, ts) <- mapAndUnzipM inferExpr l
+         case ts of [] -> return (PrimList es, JClass (namespace ++ "FunctionalList"))
+                    _  -> if all (`alphaEq` (ts !! 0)) ts
+                            then return (PrimList es, JClass (namespace ++ "FunctionalList"))
                             else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
 
-tcExpr (Record fs) =
-  do (es', ts) <- mapAndUnzipM tcExpr (map snd fs)
-     return (Record (zip (map fst fs) es'), RecordTy (zip (map fst fs) ts))
+inferExpr (RecordLit fs) =
+  do (es', ts) <- mapAndUnzipM inferExpr (map snd fs)
+     return (RecordLit (zip (map fst fs) es'), Record (zip (map fst fs) ts))
 
-tcExpr (RecordAccess e l) =
-  do (e', t) <- tcExpr e
+inferExpr (RecordAccess e l) =
+  do (e', t) <- inferExpr e
      return (RecordAccess e' l, fromJust (lookup (Just l) (fields t)))
 
-tcExpr (RecordUpdate e fs) =
-  do (es', ts) <- mapAndUnzipM tcExpr (map snd fs)
-     (e', t) <- tcExpr e
+inferExpr (RecordUpdate e fs) =
+  do (es', ts) <- mapAndUnzipM inferExpr (map snd fs)
+     (e', t) <- inferExpr e
      return (RecordUpdate e' (zip (map fst fs) es'), t)
 
 -- Well, I know the desugaring is too early to happen here...
-tcExpr (LetModule (Module m binds) e) =
+inferExpr (LetModule (Module m binds) e) =
   do let fs = map bindId binds
-     let letrec = Let Rec binds (Record (map (\f -> (f, Var f)) fs))
-     tcExpr $ Let NonRec [Bind m [] [] letrec Nothing] e
-tcExpr (ModuleAccess m f) = tcExpr (RecordAccess (Var m) f)
+     let letrec = Let Rec binds (RecordLit (map (\f -> (f, Var f)) fs))
+     inferExpr $ Let NonRec [Bind m [] [] letrec Nothing] e
+inferExpr (ModuleAccess m f) = inferExpr (RecordAccess (Var m) f)
 
-tcExprAgainst :: Expr Name -> Type -> TcM (Expr TcId, Type)
-tcExprAgainst expr expected_ty
-  = do (expr', actual_ty) <- tcExpr expr
-       if actual_ty `alphaEquiv` expected_ty
+inferExprAgainst :: Expr Name -> Type -> TcM (Expr TcId, Type)
+inferExprAgainst expr expected_ty
+  = do (expr', actual_ty) <- inferExpr expr
+       if actual_ty `alphaEq` expected_ty
           then return (expr', actual_ty)
           else throwError (Mismatch expected_ty actual_ty)
 
-tcExprAgainstAnyJClass :: Expr Name -> TcM (Expr TcId, ClassName)
-tcExprAgainstAnyJClass expr
-  = do (expr', ty) <- tcExpr expr
+inferExprAgainstAnyJClass :: Expr Name -> TcM (Expr TcId, ClassName)
+inferExprAgainstAnyJClass expr
+  = do (expr', ty) <- inferExpr expr
        case ty of
          JClass c -> return (expr', c)
-         _        -> sorry "tcExprAgainstAnyJClass"
+         _        -> sorry "inferExprAgainstAnyJClass"
 
-tcExprAgainstMaybe :: Expr Name -> Maybe Type -> TcM (Expr TcId, Type)
-tcExprAgainstMaybe e Nothing  = tcExpr e
-tcExprAgainstMaybe e (Just t) = tcExprAgainst e t
+inferExprAgainstMaybe :: Expr Name -> Maybe Type -> TcM (Expr TcId, Type)
+inferExprAgainstMaybe e Nothing  = inferExpr e
+inferExprAgainstMaybe e (Just t) = inferExprAgainst e t
 
 -- f A1 ... An (x1:T1) ... (xn:Tn) = e
-tcBind :: Bind Name -> TcM (Name, Type, Expr TcId)
-tcBind Bind{..}
+inferBind :: Bind Name -> TcM (Name, Type, Expr TcId)
+inferBind Bind{..}
   = do checkBindLHS Bind{..}
        (bindRhs', bindRhsTy) <- withLocalTyVars bindTargs
                                   (withLocalVars bindArgs
-                                     (tcExpr bindRhs))
+                                     (inferExpr bindRhs))
        return ( bindId
               , wrap Forall bindTargs (wrap Fun (map snd bindArgs) bindRhsTy)
               , wrap BLam bindTargs (wrap Lam bindArgs bindRhs'))
@@ -356,7 +357,7 @@ checkType t
       JClass c -> checkClassName c
       _        ->
         do type_ctxt <- getTypeCtxt
-           let free_ty_vars = freeTyVars t `Set.difference` type_ctxt
+           let free_ty_vars = freeTVars t `Set.difference` type_ctxt
            unless (Set.null free_ty_vars) $
              throwError (NotInScopeTyVar (head (Set.toList free_ty_vars)))
 
@@ -381,44 +382,36 @@ checkNew c args
        unlessIO (hasConstructor h c args) $
          throwError (NoSuchConstructor c args)
 
-checkMethodCall :: ClassName -> MethodName -> [ClassName] -> TcM ClassName
-checkMethodCall c m args
-  = do h <- getTypeServer
-       res <- liftIO $ methodTypeOf h c (m, False) args
+checkMethodCall :: JCallee ClassName -> MethodName -> [ClassName] -> TcM ClassName
+checkMethodCall callee m args
+  = do typeserver <- getTypeServer
+       res <- liftIO (methodTypeOf typeserver c (m, static_flag) args)
        case res of
-         Nothing -> throwError (NoSuchMethod c m False args)
-         Just ret_c -> return ret_c
+         Nothing           -> throwError (NoSuchMethod callee m args)
+         Just return_class -> return return_class
+    where
+       (static_flag, c) = unwrapJCallee callee
 
-checkStaticMethodCall :: ClassName -> MethodName -> [ClassName] -> TcM ClassName
-checkStaticMethodCall c m args
-  = do h <- getTypeServer
-       res <- liftIO $ methodTypeOf h c (m, True) args
+checkFieldAccess :: JCallee ClassName -> FieldName -> TcM ClassName
+checkFieldAccess callee f
+  = do typeserver <- getTypeServer
+       res <- liftIO (fieldTypeOf typeserver c (f, static_flag))
        case res of
-         Nothing -> throwError (NoSuchMethod c m True args)
-         Just ret_c -> return ret_c
+         Nothing           -> throwError (NoSuchField callee f)
+         Just return_class -> return return_class
+    where
+       (static_flag, c) = unwrapJCallee callee
 
-checkFieldAccess :: ClassName -> FieldName -> TcM ClassName
-checkFieldAccess c f
-  = do h <- getTypeServer
-       res <- liftIO $ fieldTypeOf h c (f, False)
-       case res of
-         Nothing -> throwError (NoSuchField c f False)
-         Just ret_c -> return ret_c
-
-checkStaticFieldAccess :: ClassName -> FieldName -> TcM ClassName
-checkStaticFieldAccess c f
-  = do h <- getTypeServer
-       res <- liftIO $ fieldTypeOf h c (f, True)
-       case res of
-         Nothing -> throwError (NoSuchField c f True)
-         Just ret_c -> return ret_c
+unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
+unwrapJCallee (NonStatic c) = (False, c)
+unwrapJCallee (Static    c) = (True, c)
 
 srcLitType :: Lit -> Type
-srcLitType (Integer _) = JClass "java.lang.Integer"
-srcLitType (String _)  = JClass "java.lang.String"
-srcLitType (Boolean _) = JClass "java.lang.Boolean"
-srcLitType (Char _)    = JClass "java.lang.Character"
-srcLitType Unit        = UnitType
+srcLitType (Int _)    = JClass "java.lang.Integer"
+srcLitType (String _) = JClass "java.lang.String"
+srcLitType (Bool _)   = JClass "java.lang.Boolean"
+srcLitType (Char _)   = JClass "java.lang.Character"
+srcLitType UnitLit    = Unit
 
 checkDupNames :: [Name] -> TcM ()
 checkDupNames names

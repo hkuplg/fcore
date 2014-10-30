@@ -174,7 +174,7 @@ benchGenStackOpt = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptS
 
 -- bench for stack + apply + unbox opt
 benchGenStackOptUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
-benchGenStackOptUnbox = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptStack transSU <.> adaptUnbox transUnbox) $> trans)
+benchGenStackOptUnbox = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptStack transSAU <.> adaptUnbox transUnbox) $> trans)
 
 
 instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
@@ -284,7 +284,7 @@ sf2java num optDump compilation className src =
                                _ -> simplify core
             -- let simpleCore = simplify core
             when optDump $ do { putStrLn "Simplified Core"; print $ Core.prettyExpr simpleCore }
-	    --when optDump $ do { putStrLn "Closure F"; print $ ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore) }
+	    when optDump $ do { putStrLn "Closure F"; print $ ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore) }
             let (cu, _) = compilation className simpleCore
             return $ prettyPrint cu
 

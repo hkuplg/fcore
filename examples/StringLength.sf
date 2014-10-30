@@ -1,0 +1,4 @@
+let getlength(s : java.lang.String) : java.lang.Integer =
+    s.length()
+in
+getlength "abcd"

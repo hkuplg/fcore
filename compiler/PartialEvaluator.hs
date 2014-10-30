@@ -28,27 +28,27 @@ calc (Let bind body) =
      where bind' = calc bind
 calc (PrimOp e1 op e2) =
     case (e1', e2') of
-      (Lit (S.Integer a), Lit (S.Integer b)) ->
+      (Lit (S.Int a), Lit (S.Int b)) ->
           case op of
             -- arithmetic operations
-            S.Arith J.Sub -> Lit . S.Integer $ a - b
-            S.Arith J.Add -> Lit . S.Integer $ a + b
-            S.Arith J.Mult -> Lit . S.Integer $ a * b
-            S.Arith J.Div -> Lit . S.Integer $ a `div` b
-            S.Arith J.Rem -> Lit . S.Integer $ a `rem` b
+            S.Arith J.Sub -> Lit . S.Int $ a - b
+            S.Arith J.Add -> Lit . S.Int $ a + b
+            S.Arith J.Mult -> Lit . S.Int $ a * b
+            S.Arith J.Div -> Lit . S.Int $ a `div` b
+            S.Arith J.Rem -> Lit . S.Int $ a `rem` b
             -- comparison operations
-            S.Compare J.Equal -> Lit . S.Boolean $ a == b
-            S.Compare J.NotEq -> Lit . S.Boolean $ a /= b
-            S.Compare J.LThan -> Lit . S.Boolean $ a < b
-            S.Compare J.LThanE -> Lit . S.Boolean $ a <= b
-            S.Compare J.GThan -> Lit . S.Boolean $ a > b
-            S.Compare J.GThanE -> Lit . S.Boolean $ a >= b
+            S.Compare J.Equal -> Lit . S.Bool $ a == b
+            S.Compare J.NotEq -> Lit . S.Bool $ a /= b
+            S.Compare J.LThan -> Lit . S.Bool $ a < b
+            S.Compare J.LThanE -> Lit . S.Bool $ a <= b
+            S.Compare J.GThan -> Lit . S.Bool $ a > b
+            S.Compare J.GThanE -> Lit . S.Bool $ a >= b
             _ -> simplified
-      (Lit (S.Boolean a), Lit (S.Boolean b)) ->
+      (Lit (S.Bool a), Lit (S.Bool b)) ->
           case op of
             -- logic operations
-            S.Logic J.And -> Lit . S.Boolean $ a && b
-            S.Logic J.Or -> Lit . S.Boolean $ a || b
+            S.Logic J.And -> Lit . S.Bool $ a && b
+            S.Logic J.Or -> Lit . S.Bool $ a || b
             _ -> simplified
       _ -> simplified
     where e1' = calc e1
@@ -56,8 +56,8 @@ calc (PrimOp e1 op e2) =
           simplified = PrimOp e1' op e2'
 calc (If e1 e2 e3) =
     case e1' of
-      Lit (S.Boolean True) -> calc e2
-      Lit (S.Boolean False) -> calc e3
+      Lit (S.Bool True) -> calc e2
+      Lit (S.Bool False) -> calc e3
       _ -> If e1' (calc e2) (calc e3)
     where e1' = calc e1
 calc e = mapExpr calc e

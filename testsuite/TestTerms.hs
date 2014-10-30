@@ -1,6 +1,6 @@
 module TestTerms where
 
-import qualified Src
+import qualified Src as S
 import Core
 
 import Language.Java.Syntax as J (Op(..))
@@ -13,29 +13,29 @@ loop = Fix (\loop x -> App (Var loop) (Var x)) (JClass "java.lang.Integer") (JCl
 
 factStr = "fix fact. \\(n : Int). if n == 0 then 1 else n * fact (n-1) : Int"
 fact = Fix (\fact n ->
-    If (PrimOp (Var n) (Src.Compare J.Equal) (Lit (Src.Integer 0)))
-        (Lit (Src.Integer 1))
-        (PrimOp (Var n) (Src.Arith J.Mult) (App (Var fact) (PrimOp (Var n) (Src.Arith J.Sub) (Lit (Src.Integer 1))))))
+    If (PrimOp (Var n) (S.Compare J.Equal) (Lit (S.Int 0)))
+        (Lit (S.Int 1))
+        (PrimOp (Var n) (S.Arith J.Mult) (App (Var fact) (PrimOp (Var n) (S.Arith J.Sub) (Lit (S.Int 1))))))
     (JClass "java.lang.Integer") (JClass "java.lang.Integer")
 
 tfact = Fix (\fact n -> Lam (JClass "java.lang.Integer") (\acc ->
-    If (PrimOp (Var n) (Src.Compare J.Equal) (Lit (Src.Integer 0)))
+    If (PrimOp (Var n) (S.Compare J.Equal) (Lit (S.Int 0)))
         (Var acc)
-        (App (App (Var fact) (PrimOp (Var n) (Src.Arith J.Sub) (Lit (Src.Integer 1)))) (PrimOp (Var n) (Src.Arith J.Mult) (Var acc)))))
+        (App (App (Var fact) (PrimOp (Var n) (S.Arith J.Sub) (Lit (S.Int 1)))) (PrimOp (Var n) (S.Arith J.Mult) (Var acc)))))
     (JClass "java.lang.Integer") (Fun (JClass "java.lang.Integer") (JClass "java.lang.Integer"))
 
 fiboStr = "fix fibo. \\(n : Int). if0 n then 1 else (fibo (n-1)) + (fibo (n-2)) : Int"
 fibo = Fix (\fibo n ->
-    If (PrimOp (Var n) (Src.Compare J.Equal) (Lit (Src.Integer 2)))
-        (Lit (Src.Integer 1))
-        (If (PrimOp (Var n) (Src.Compare J.Equal) (Lit (Src.Integer 1)))
-             (Lit (Src.Integer 1))
-             (PrimOp (App (Var fibo) (PrimOp (Var n) (Src.Arith J.Sub) (Lit (Src.Integer 1)))) (Src.Arith J.Add) (App (Var fibo) (PrimOp (Var n) (Src.Arith J.Sub) (Lit (Src.Integer 2)))))))
+    If (PrimOp (Var n) (S.Compare J.Equal) (Lit (S.Int 2)))
+        (Lit (S.Int 1))
+        (If (PrimOp (Var n) (S.Compare J.Equal) (Lit (S.Int 1)))
+             (Lit (S.Int 1))
+             (PrimOp (App (Var fibo) (PrimOp (Var n) (S.Arith J.Sub) (Lit (S.Int 1)))) (S.Arith J.Add) (App (Var fibo) (PrimOp (Var n) (S.Arith J.Sub) (Lit (S.Int 2)))))))
     (JClass "java.lang.Integer") (JClass "java.lang.Integer")
 
-factApp = App fact (Lit (Src.Integer 10))
+factApp = App fact (Lit (S.Int 10))
 
-fiboApp = App fibo (Lit (Src.Integer 10))
+fiboApp = App fibo (Lit (S.Int 10))
 -- /\A. \(x:A) . x
 
 idF1Str = "/\\A. \\(x:A). x"
@@ -78,7 +78,7 @@ program1 =
     )
   )
 
-program1Num = App (TApp program1 (JClass "java.lang.Integer")) (Lit (Src.Integer 5))
+program1Num = App (TApp program1 (JClass "java.lang.Integer")) (Lit (S.Int 5))
 
 -- should infer (forall (x0 : int) . int)
 intapp = TApp idF (JClass "java.lang.Integer")
@@ -93,11 +93,11 @@ notail2 =
           App (App (Var f) (Var x)) (App (App (Var f) (Var y)) (Var y)) ))))
 
 
-program2 = App (App (App (TApp notail2 (JClass "java.lang.Integer")) (TApp const (JClass "java.lang.Integer"))) (Lit (Src.Integer 5))) (Lit (Src.Integer 6))
+program2 = App (App (App (TApp notail2 (JClass "java.lang.Integer")) (TApp const (JClass "java.lang.Integer"))) (Lit (S.Int 5))) (Lit (S.Int 6))
 
-idfNum = App (TApp idF (JClass "java.lang.Integer")) (Lit (Src.Integer 10))
+idfNum = App (TApp idF (JClass "java.lang.Integer")) (Lit (S.Int 10))
 
-constNum = App (App (TApp const (JClass "java.lang.Integer")) (Lit (Src.Integer 10))) (Lit (Src.Integer 20))
+constNum = App (App (TApp const (JClass "java.lang.Integer")) (Lit (S.Int 10))) (Lit (S.Int 20))
 
 notail3Str = "/\\A. \\(f : A -> (A -> A)). \\(g : A -> (A -> A)). \\(x : A). \\(y : A). (f x) ((g y) y)"
 notail3 =
@@ -108,7 +108,7 @@ notail3 =
           Lam (TVar a) (\y ->
             App (App (Var f) (Var x)) (App (App (Var g) (Var y)) (Var y)) )))))
 
-program3 = App (App (App (App (TApp notail3 (JClass "java.lang.Integer")) (TApp const (JClass "java.lang.Integer"))) (TApp const (JClass "java.lang.Integer"))) (Lit (Src.Integer 5))) (Lit (Src.Integer 6))
+program3 = App (App (App (App (TApp notail3 (JClass "java.lang.Integer")) (TApp const (JClass "java.lang.Integer"))) (TApp const (JClass "java.lang.Integer"))) (Lit (S.Int 5))) (Lit (S.Int 6))
 
 notail4Str = "/\\A. \\(g : ((A -> A) -> (A -> A)) -> A). \\(f : A -> (A -> A)). \\(x : A). \\(y : A). (g (f x)) (f y)"
 notail4 =
@@ -123,11 +123,11 @@ summaStr= "\\(x : Int -> Int). \\(y : Int -> Int). (x 0) + (y 0)"
 summa =
     Lam (Fun (JClass "java.lang.Integer") (JClass "java.lang.Integer")) (\x ->
        Lam (Fun (JClass "java.lang.Integer") (JClass "java.lang.Integer")) (\y ->
-          PrimOp (App (Var x) (Lit (Src.Integer 0))) (Src.Arith J.Add) (App (Var y) (Lit (Src.Integer 0)))
+          PrimOp (App (Var x) (Lit (S.Int 0))) (S.Arith J.Add) (App (Var y) (Lit (S.Int 0)))
        )
     )
 
-program4 = App (App (App (App (TApp notail4 (JClass "java.lang.Integer")) summa) (TApp const (JClass "java.lang.Integer"))) (Lit (Src.Integer 5))) (Lit (Src.Integer 6))
+program4 = App (App (App (App (TApp notail4 (JClass "java.lang.Integer")) summa) (TApp const (JClass "java.lang.Integer"))) (Lit (S.Int 5))) (Lit (S.Int 6))
 
 evenOdd :: String
 evenOdd = "let rec even = \\n -> n == 0 || odd (n-1) and odd = \\n -> if n == 0 then 0 else even (n-1) in odd"
