@@ -1,7 +1,7 @@
 # General project-wide tasks
 
-srcdir="compiler"
-testdir="testsuite"
+srcdir=compiler
+testdir=testsuite
 
 .PHONY : compiler
 compiler :
@@ -25,6 +25,7 @@ guard :
 
 .PHONY : clean
 clean :
-	rm -f *.class *.jar
+	rm -f *.class *.jar Main.java
+	rm -f $(testdir)/tests/pipeline/*.java
 	cd compiler; make clean
 	cd runtime; ant clean
