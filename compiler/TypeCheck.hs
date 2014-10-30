@@ -65,7 +65,7 @@ data TcEnv
 mkInitTcEnv :: Connection -> TcEnv
 mkInitTcEnv type_server
   = TcEnv
-  { tceTypeCtxt     = Set.empty
+  { tceTypeCtxt     = Map.empty
   , tceValueCtxt    = Map.empty
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
@@ -75,7 +75,7 @@ mkInitTcEnv type_server
 mkInitTcEnvWithEnv :: ValueContext -> Connection -> TcEnv
 mkInitTcEnvWithEnv value_ctxt type_server
   = TcEnv
-  { tceTypeCtxt     = Set.empty
+  { tceTypeCtxt     = Map.empty
   , tceValueCtxt    = value_ctxt
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
@@ -89,7 +89,7 @@ data TypeError
   | Mismatch { expectedTy :: Type, actualTy :: Type }
   | ExpectedSubtype
   | MissingRHSAnnot
-  | NotInScopeTyVar Name
+  | NotInScopeTVar Name
   | NotInScopeVar   Name
   | ProjectionOfNonProduct
 
@@ -129,10 +129,10 @@ memoizeJavaClass c
        memoized_java_classes <- getMemoizedJavaClasses
        setTcEnv TcEnv{ tceMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
 
-withLocalTyVars :: [Name] -> TcM a -> TcM a
-withLocalTyVars tyvars do_this
+withLocalTVars :: [(Name, Kind)] -> TcM a -> TcM a
+withLocalTVars tvars do_this
   = do delta <- getTypeCtxt
-       let delta' = Set.fromList tyvars `Set.union` delta
+       let delta' = Map.fromList tvars `Map.union` delta
        TcEnv {..} <- getTcEnv
        setTcEnv TcEnv { tceTypeCtxt = delta', ..}
        r <- do_this
@@ -174,7 +174,7 @@ inferExpr (App e1 e2)
          _         -> throwError (General (show e1 ++ "::" ++ show t1))
 
 inferExpr (BLam a e)
-  = do (e', t) <- withLocalTyVars [a] (inferExpr e)
+  = do (e', t) <- withLocalTVars [(a, Star)] (inferExpr e)
        return (BLam a e', Forall a t)
 
 inferExpr (TApp e targ)
@@ -229,11 +229,11 @@ inferExpr (Let rec_flag binds e) =
 
 inferExpr (LetOut{..}) = panic "Src.TypeCheck.inferExpr: LetOut"
 
-inferExpr (JNewObj c args)
+inferExpr (JNew c args)
   = do checkClassName c -- ToDo: Needed?
        (args', arg_cs) <- mapAndUnzipM inferExprAgainstAnyJClass args
        checkNew c arg_cs
-       return (JNewObj c args', JClass c)
+       return (JNew c args', JClass c)
 
 inferExpr (JMethod callee m args _)
   = case callee of
@@ -319,7 +319,7 @@ inferExprAgainstMaybe e (Just t) = inferExprAgainst e t
 inferBind :: Bind Name -> TcM (Name, Type, Expr TcId)
 inferBind Bind{..}
   = do checkBindLHS Bind{..}
-       (bindRhs', bindRhsTy) <- withLocalTyVars bindTargs
+       (bindRhs', bindRhsTy) <- withLocalTVars (zip bindTargs (repeat Star))
                                   (withLocalVars bindArgs
                                      (inferExpr bindRhs))
        return ( bindId
@@ -330,7 +330,7 @@ checkBindLHS :: Bind Name -> TcM ()
 checkBindLHS Bind{..}
   = do checkDupNames bindTargs
        checkDupNames [arg_name | (arg_name, _) <- bindArgs]
-       withLocalTyVars bindTargs $
+       withLocalTVars (zip bindTargs (repeat Star)) $
          mapM_ (\(_, arg_ty) -> checkType arg_ty) bindArgs
 
 collectBindNameSigs :: [Bind Name] -> TcM [(Name, Type)]
@@ -348,8 +348,8 @@ checkBindNames bnds = checkDupNames (map bindId bnds)
 
 checkSubtype :: Type -> Type -> TcM ()
 checkSubtype t1 t2
-  | t1 `subtype` t2 = return ()
-  | otherwise       = throwError ExpectedSubtype
+  | deThunk t1 `subtype` deThunk t2 = return ()
+  | otherwise                       = throwError ExpectedSubtype
 
 checkType :: Type -> TcM ()
 checkType t
@@ -357,9 +357,9 @@ checkType t
       JClass c -> checkClassName c
       _        ->
         do type_ctxt <- getTypeCtxt
-           let free_ty_vars = freeTVars t `Set.difference` type_ctxt
+           let free_ty_vars = freeTVars t `Set.difference` Set.fromList (map fst (filter (\(_,k) -> k == Star) (Map.toList type_ctxt)))
            unless (Set.null free_ty_vars) $
-             throwError (NotInScopeTyVar (head (Set.toList free_ty_vars)))
+             throwError (NotInScopeTVar (head (Set.toList free_ty_vars)))
 
 unlessIO :: (Monad m, MonadIO m) => IO Bool -> m () -> m ()
 unlessIO test do_this

@@ -3,9 +3,11 @@
    http://caml.inria.fr/pub/docs/manual-ocaml/expr.html -}
 
 {-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module Src
   ( Module(..)
+  , Kind(..)
   , Type(..)
   , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..)
   , Label
@@ -14,6 +16,7 @@ module Src
   -- , RdrExpr
   -- , TcBinds
   -- , TcExpr
+  , deThunk
   , alphaEq
   , subtype
   , fields
@@ -42,6 +45,8 @@ type TcId       = (Name, Type)
 
 data Module id = Module id [Bind id] deriving (Eq, Show)
 
+data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
+
 -- data JVMType = JClass ClassName | JPrim String
 
 data Type
@@ -54,6 +59,8 @@ data Type
   | ListOf Type
   | And Type Type
   | Unit
+  | Thunk Type
+  | TypeLevelApp Type Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `alphaEq` and `subtype` below.
@@ -82,7 +89,7 @@ data Expr id
   | If (Expr id) (Expr id) (Expr id)    -- If expression
   | Let RecFlag [Bind id] (Expr id)     -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId) -- Post typecheck only
-  | JNewObj ClassName [Expr id]
+  | JNew ClassName [Expr id]
   | JMethod (JCallee (Expr id)) MethodName [Expr id] ClassName
   | JField  (JCallee (Expr id)) FieldName            ClassName
   | Seq [Expr id]
@@ -93,7 +100,6 @@ data Expr id
   | RecordUpdate (Expr id) [(Label, Expr id)]
   | LetModule (Module id) (Expr id)
   | ModuleAccess ModuleName Name
-  | Combine (Expr id) (Expr id)
   deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
@@ -116,10 +122,14 @@ instance Functor JCallee where
   fmap _ (Static c)    = Static c
   fmap f (NonStatic e) = NonStatic (f e)
 
-type TypeContext  = Set.Set Name
+type TypeContext  = Map.Map Name Kind
 type ValueContext = Map.Map Name Type
 
 -- Type equivalence(s) and subtyping
+
+deThunk :: Type -> Type
+deThunk (Thunk t) = deThunk t
+deThunk t         = t
 
 alphaEq :: Type -> Type -> Bool
 alphaEq (TVar a)       (TVar b)       = a == b
@@ -131,8 +141,10 @@ alphaEq (Record fs1)   (Record fs2)   = length fs1 == length fs2
                                                 && (\((l1,t1),(l2,t2)) -> l1 == l2 && t1 `alphaEq` t2) `all` zip fs1 fs2
 alphaEq (ListOf t1)    (ListOf t2)    = t1 `alphaEq` t2
 alphaEq (And t1 t2)    (And t3 t4)    = t1 `alphaEq` t3 && t2 `alphaEq` t4
-alphaEq Unit       Unit               = True
-alphaEq t1             t2             = trueIffSameDataCons "Src.alphaEq" t1 t2
+alphaEq Unit           Unit           = True
+alphaEq (Thunk t1)     t2             = t1 `alphaEq` t2
+alphaEq t1             (Thunk t2)     = t1 `alphaEq` t2
+alphaEq t1             t2             = False `panicOnSameDataCons` ("Src.alphaEq", t1, t2)
 
 subtype :: Type -> Type -> Bool
 subtype (TVar a)       (TVar b)       = a == b
@@ -145,10 +157,11 @@ subtype (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry subt
 subtype (Record [(l1,t1)]) (Record [(l2,t2)]) = l1 == l2 && t1 `subtype` t2
 subtype (Record fs1)   (Record fs2)   = desugarMultiRecord fs1 `subtype` desugarMultiRecord fs2
 subtype (ListOf t1)    (ListOf t2)    = t1 `subtype` t2  -- List :: * -> * is covariant
-subtype (And t1 t2)    t3             = t1 `subtype` t3 || t2 `subtype` t3
+-- The order is significant for the two `And` cases below.
 subtype t1             (And t2 t3)    = t1 `subtype` t2 && t1 `subtype` t3
+subtype (And t1 t2)    t3             = t1 `subtype` t3 || t2 `subtype` t3
 subtype Unit           Unit           = True
-subtype t1             t2             = trueIffSameDataCons "Src.subtype" t1 t2
+subtype t1             t2             = False `panicOnSameDataCons` ("Src.subtype", t1, t2)
 
 -- Records
 
@@ -165,11 +178,13 @@ fields t
       Fun _ _           -> unlabeledField
       Forall _ _        -> unlabeledField
       Product _         -> unlabeledField
+      Unit              -> unlabeledField
       Record []         -> panic "Src.fields"
       Record [(l1,t1)]  -> [(Just l1, t1)]
       Record fs@(_:_:_) -> fields (desugarMultiRecord fs)
       ListOf _          -> unlabeledField
       (And t1 t2)       -> fields t1 ++ fields t2
+      Thunk t1          -> fields t1
 
     where unlabeledField = [(Nothing, t)]
 
@@ -179,7 +194,7 @@ fsubstTT :: (Name, Type) -> Type -> Type
 fsubstTT (x,r) (TVar a)
   | a == x                     = r
   | otherwise                  = TVar a
-fsubstTT (x,r) (JClass c )     = JClass c
+fsubstTT (_,_) (JClass c )     = JClass c
 fsubstTT (x,r) (Fun t1 t2)     = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Product ts)    = Product (map (fsubstTT (x,r)) ts)
 fsubstTT (x,r) (Forall a t)
@@ -187,7 +202,10 @@ fsubstTT (x,r) (Forall a t)
   | a `Set.member` freeTVars r = Forall a t -- The freshness condition, crucial!
   | otherwise                  = Forall a (fsubstTT (x,r) t)
 fsubstTT (x,r) (ListOf a)      = ListOf (fsubstTT (x,r) a)
-fsubstTT (x,r) Unit            = Unit
+fsubstTT (_,_) Unit            = Unit
+fsubstTT (x,r) (Record fs)     = Record (map (\(l1,t1) -> (l1, fsubstTT (x,r) t1)) fs)
+fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
+fsubstTT (x,r) (Thunk t1)      = Thunk (fsubstTT (x,r) t1)
 
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x
@@ -199,6 +217,7 @@ freeTVars (Record fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
 freeTVars (ListOf t)   = freeTVars t
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
 freeTVars Unit         = Set.empty
+freeTVars (Thunk t)    = freeTVars t
 
 -- Pretty printers
 
@@ -248,7 +267,7 @@ instance Pretty id => Pretty (Expr id) where
       (map (\(f1,t1,e1) -> text f1 <+> colon <+> pretty t1 <+> equals <+> pretty e1) bs) <+>
     text "in" <+>
     pretty e
-  pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
+  pretty (JNew c args)  = text "new" <+> text c <> tupled (map pretty args)
   pretty (JMethod e m args _) = case e of (Static c)     -> pretty c  <> dot <> text m <> tupled (map pretty args)
                                           (NonStatic e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (PrimList l)         = brackets $ tupled (map pretty l)

@@ -35,6 +35,7 @@ import JavaUtils
   "&"      { Tandtype }
   ",,"     { Tmerge }
   "with"   { Twith }
+  "'"      { Tquote }
   "this"   { Tthis }
   "super"  { Tsuper }
   "let"    { Tlet }
@@ -132,6 +133,7 @@ atype :: { Type }
   | "{" record_body "}"      { Record $2 }
   | "(" type ")"             { $2 }
   | "Unit"                   { Unit }
+  | "'" atype                { Thunk $2 }
 
 product_body :: { [Type] }
   : type "," type             { $1:[$3] }
@@ -157,6 +159,7 @@ expr :: { Expr Name }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
     | "\\" var_with_annot "." expr        { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
+    | "let" recflag and_binds ";"  expr   { Let $2 $3 $5 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | infixexpr                           { $1 }
@@ -204,7 +207,7 @@ lit :: { Expr Name }
     | "()"                      { Lit UnitLit     }
 
 javaexpr :: { Expr Name }
-    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNewObj $2 $4 }
+    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
     | JAVACLASS "." LOWERID "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
     | JAVACLASS "." LOWERID "()"                  { JMethod (Static $1) $3 [] undefined }
     | JAVACLASS "." field                         { JField  (Static $1) $3 undefined }
