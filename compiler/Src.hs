@@ -138,7 +138,7 @@ alphaEq (And t1 t2)    (And t3 t4)    = t1 `alphaEq` t3 && t2 `alphaEq` t4
 alphaEq Unit           Unit           = True
 alphaEq (Thunk t1)     t2             = t1 `alphaEq` t2
 alphaEq t1             (Thunk t2)     = t1 `alphaEq` t2
-alphaEq t1             t2             = trueIffSameDataCons "Src.alphaEq" t1 t2
+alphaEq t1             t2             = False `panicOnSameDataCons` ("Src.alphaEq", t1, t2)
 
 subtype :: Type -> Type -> Bool
 subtype (TVar a)       (TVar b)       = a == b
@@ -155,7 +155,7 @@ subtype (ListOf t1)    (ListOf t2)    = t1 `subtype` t2  -- List :: * -> * is co
 subtype t1             (And t2 t3)    = t1 `subtype` t2 && t1 `subtype` t3
 subtype (And t1 t2)    t3             = t1 `subtype` t3 || t2 `subtype` t3
 subtype Unit           Unit           = True
-subtype t1             t2             = trueIffSameDataCons "Src.subtype" t1 t2
+subtype t1             t2             = False `panicOnSameDataCons` ("Src.subtype", t1, t2)
 
 -- Records
 
