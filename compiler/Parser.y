@@ -207,7 +207,7 @@ lit :: { Expr Name }
     | "()"                      { Lit UnitLit     }
 
 javaexpr :: { Expr Name }
-    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNewObj $2 $4 }
+    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
     | JAVACLASS "." LOWERID "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
     | JAVACLASS "." LOWERID "()"                  { JMethod (Static $1) $3 [] undefined }
     | JAVACLASS "." field                         { JField  (Static $1) $3 undefined }

@@ -83,7 +83,7 @@ data Expr id
   | If (Expr id) (Expr id) (Expr id)    -- If expression
   | Let RecFlag [Bind id] (Expr id)     -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId) -- Post typecheck only
-  | JNewObj ClassName [Expr id]
+  | JNew ClassName [Expr id]
   | JMethod (JCallee (Expr id)) MethodName [Expr id] ClassName
   | JField  (JCallee (Expr id)) FieldName            ClassName
   | Seq [Expr id]
@@ -261,7 +261,7 @@ instance Pretty id => Pretty (Expr id) where
       (map (\(f1,t1,e1) -> text f1 <+> colon <+> pretty t1 <+> equals <+> pretty e1) bs) <+>
     text "in" <+>
     pretty e
-  pretty (JNewObj c args)  = text "new" <+> text c <> tupled (map pretty args)
+  pretty (JNew c args)  = text "new" <+> text c <> tupled (map pretty args)
   pretty (JMethod e m args _) = case e of (Static c)     -> pretty c  <> dot <> text m <> tupled (map pretty args)
                                           (NonStatic e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (PrimList l)         = brackets $ tupled (map pretty l)

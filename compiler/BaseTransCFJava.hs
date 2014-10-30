@@ -244,7 +244,7 @@ trans self =
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
               App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
-              JNewObj c args ->
+              JNew c args ->
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $
                                                   toTupleOf3Lists args'
@@ -254,7 +254,7 @@ trans self =
                                          JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
                                          CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                          CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         _ -> sorry "BaseTransCFJava.trans.JNewObj: no idea how to do")
+                                         _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                                 types)
                            (J.ClassType [(J.Ident c,[])])
                            exprs
@@ -275,7 +275,7 @@ trans self =
                                        JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
                                        CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                        CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                       _ -> sorry "BaseTransCFJava.trans.JNewObj: no idea how to do")
+                                       _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                               types)
                    (classStatement,rhs) <- case c of
                                              Right ce ->

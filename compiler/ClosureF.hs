@@ -49,7 +49,7 @@ data Expr t e =
    | LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
    | Fix (Type t) (e -> EScope t e)
    -- Java
-   | JNewObj ClassName [Expr t e]
+   | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
    | JField  (Either ClassName (Expr t e)) FieldName ClassName
    | SeqExprs [Expr t e]
@@ -111,7 +111,7 @@ fexp2cexp (C.LetRec ts f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp
 fexp2cexp (C.Fix f t1 t2) =
   let  g e = groupLambda (C.Lam t1 (f e)) -- is this right???? (BUG)
   in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g
-fexp2cexp (C.JNew cName args)     = JNewObj cName (map fexp2cexp args)
+fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
             (S.Static cn)    -> JMethod (Left cn) mName (map fexp2cexp args) r
@@ -191,7 +191,7 @@ isSimpleExpr (PrimOp _ _ _)  = True
 isSimpleExpr (App (Var _) _) = True
 isSimpleExpr (Lit _)         = True
 isSimpleExpr _               = False
- 
+
 prettyTScope :: Prec -> Index -> TScope Index -> Doc
 
 prettyTScope p i (Body t) = prettyType p i t
@@ -261,7 +261,7 @@ prettyExpr _ _ (Lit (S.String s)) = dquotes (string s)
 prettyExpr _ _ (Lit (S.Bool b))   = bool b
 prettyExpr _ _ (Lit (S.Char c))   = char c
 
-prettyExpr p i (If e1 e2 e3) 
+prettyExpr p i (If e1 e2 e3)
   = ifPart <$> thenPart <$> elsePart
   where
     ifPart   = text "if" <+> prettyExpr (3, PrecMinus) i e1
@@ -305,7 +305,7 @@ prettyExpr p (i, j) (Fix t f) =
   prettyEScope p (i, succ j) (f j)) <$>
   text ")"
 
-prettyExpr p i (JNewObj name l) = parens (text "new" <+> text name <> tupled (map (prettyExpr p i) l))
+prettyExpr p i (JNew name l) = parens (text "new" <+> text name <> tupled (map (prettyExpr p i) l))
 
 prettyExpr p i (JMethod name m args r) = methodStr name <> dot <> text m <> tupled (map (prettyExpr basePrec i) args)
   where

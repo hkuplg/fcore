@@ -229,11 +229,11 @@ inferExpr (Let rec_flag binds e) =
 
 inferExpr (LetOut{..}) = panic "Src.TypeCheck.inferExpr: LetOut"
 
-inferExpr (JNewObj c args)
+inferExpr (JNew c args)
   = do checkClassName c -- ToDo: Needed?
        (args', arg_cs) <- mapAndUnzipM inferExprAgainstAnyJClass args
        checkNew c arg_cs
-       return (JNewObj c args', JClass c)
+       return (JNew c args', JClass c)
 
 inferExpr (JMethod callee m args _)
   = case callee of

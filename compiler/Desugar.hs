@@ -118,7 +118,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec [(f,t@(Fun _ _),e)] body) = desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec [(f,t,e)] body)           = desugarLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = desugarLetRecToLetRec (d,g) (LetOut Rec bs body)
-    go (JNewObj c args)          = C.JNew c (map go args)
+    go (JNew c args)          = C.JNew c (map go args)
     go (JMethod callee m args r) = C.JMethod (fmap go callee) m (map go args) r
     go (JField  callee f r)      = C.JField  (fmap go callee) f r
 
