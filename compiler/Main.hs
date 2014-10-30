@@ -32,6 +32,7 @@ data Options = Options
     , optSourceFiles   :: [String]
     , optDump          :: Bool
     , optTransMethod   :: TransMethod
+    , optVerbose       :: Bool
     } deriving (Eq, Show, Data, Typeable)
 
 data TransMethod = Naive
@@ -64,6 +65,7 @@ optionsSpec = Options
                            "Can be either 'naive', 'applyopt', or 'stack'" ++
                            "(use without quotes)." ++
                            "The default is 'applyopt'.")
+  , optVerbose = False &= explicit &= name "v" &= name "verbose" &= help "Verbose"
   }
   &= helpArg [explicit, name "help", name "h"]
   &= program "f2j"
@@ -88,8 +90,9 @@ main = do
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod
-       putStrLn (takeBaseName source_path ++ " using " ++ show translate_method)
-       putStrLn ("  Compiling to Java source code ( " ++ output_path ++ " )")
+       when optVerbose $ do
+         putStrLn (takeBaseName source_path ++ " using " ++ show translate_method)
+         putStrLn ("  Compiling to Java source code ( " ++ output_path ++ " )")
        case translate_method of Naive    -> compilesf2java 0 optDump compileN source_path output_path
                                 ApplyOpt -> compilesf2java 0 optDump compileAO source_path output_path
                                 ApplyU -> compilesf2java 0 optDump compileAoptUnbox source_path output_path
@@ -110,8 +113,8 @@ main = do
 
 
        when (optCompile || optCompileAndRun) $
-         do putStrLn "  Compiling to Java bytecode"
+         do when optVerbose (putStrLn "  Compiling to Java bytecode")
             compileJava output_path
        when optCompileAndRun $
-         do putStr "  Running Java\n  Output: "; hFlush stdout
+         do when optVerbose $ do { putStr "  Running Java\n  Output: "; hFlush stdout }
             runJava output_path)
