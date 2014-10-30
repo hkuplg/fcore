@@ -41,6 +41,7 @@ tokens :-
     \&          { \_ _ -> Tandtype }
     \,\,        { \_ _ -> Tmerge }
     with        { \_ _ -> Twith }
+    \'          { \_ _ -> Tquote }
     this        { \_ _ -> Tthis }
     super       { \_ _ -> Tsuper }
     let         { \_ _ -> Tlet }
@@ -96,7 +97,7 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tcombine | Tthis | Tsuper
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tthis | Tsuper
            | Tlet | Trec | Teq | Tand | Tin
            | Tjavaclass String
            | Tnew

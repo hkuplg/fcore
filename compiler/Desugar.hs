@@ -34,6 +34,7 @@ transType d (Record fs)  =
                   [(l,t)]  -> C.Record (l, transType d t)
                   _        -> transType d (Record (take (length fs - 1) fs)) `C.And` C.Record (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = C.Unit
+transType i (Thunk t)    = C.Thunk (transType i t)
 
 desugarExpr :: (TVarMap t, VarMap t e) -> Expr TcId -> C.Expr t e
 desugarExpr (d, g) = go

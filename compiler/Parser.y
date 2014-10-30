@@ -35,6 +35,7 @@ import JavaUtils
   "&"      { Tandtype }
   ",,"     { Tmerge }
   "with"   { Twith }
+  "'"      { Tquote }
   "this"   { Tthis }
   "super"  { Tsuper }
   "let"    { Tlet }
@@ -132,6 +133,7 @@ atype :: { Type }
   | "{" record_body "}"      { Record $2 }
   | "(" type ")"             { $2 }
   | "Unit"                   { Unit }
+  | "'" atype                { Thunk $2 }
 
 product_body :: { [Type] }
   : type "," type             { $1:[$3] }

@@ -348,8 +348,8 @@ checkBindNames bnds = checkDupNames (map bindId bnds)
 
 checkSubtype :: Type -> Type -> TcM ()
 checkSubtype t1 t2
-  | t1 `subtype` t2 = return ()
-  | otherwise       = throwError ExpectedSubtype
+  | deThunk t1 `subtype` deThunk t2 = return ()
+  | otherwise                       = throwError ExpectedSubtype
 
 checkType :: Type -> TcM ()
 checkType t

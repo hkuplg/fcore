@@ -54,8 +54,8 @@ subtype' this i (Product ss) (Product ts)
   | length ss /= length ts               = False
   | otherwise                            = uncurry (this i) `all` zip ss ts
 subtype' _    _ Unit     Unit    = True
-subtype' this i t1 (And t2 t3)           = this i t1 t2 || this i t1 t3
-subtype' this i (And t1 t2) t3           = this i t1 t3 && this i t2 t3
+subtype' this i t1 (And t2 t3)           = this i t1 t2 && this i t1 t3
+subtype' this i (And t1 t2) t3           = this i t1 t3 || this i t2 t3
 subtype' this i (Record (l1,t1)) (Record (l2,t2))
   | l1 == l2                             = this i t1 t2
   | otherwise                            = False

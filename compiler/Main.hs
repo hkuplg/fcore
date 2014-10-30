@@ -11,6 +11,8 @@
 
 module Main (main, TransMethod) where
 
+import Assertions () -- Import this just to run static assertions at compile time.
+
 import JavaUtils
 import MonadLib
 import Translations
