@@ -10,7 +10,8 @@ compiler :
 	cabal install
 
 .PHONY : test
-test : parsers
+test :
+	make parsers
 	cp runtime/runtime.jar .
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
 
