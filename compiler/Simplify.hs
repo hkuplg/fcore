@@ -45,18 +45,6 @@ transType i (Thunk t)      = Fun Unit (transType i t)
 
 -- Subtyping
 
--- A `Coercion` is either an identity function or some non-trivial function.
--- The purpose is to avoid applying the identity functions to an expression.
-data Coercion t e = Id | C (Expr t e)
-
-isIdC :: Coercion t e -> Bool
-isIdC Id    = True
-isIdC (C _) = False
-
-appC :: Coercion t e -> Expr t e -> Expr t e
-appC Id e      = e
-appC (C e1) e2 = App e1 e2
-
 subtype' :: Class (Index -> Type Index -> Type Index -> Bool)
 subtype' _    _ (TVar a)     (TVar b)    = a == b
 subtype' _    _ (JClass c)   (JClass d)  = c == d
@@ -78,58 +66,40 @@ subtype' _    _ _ _                      = False
 subtype :: Index -> Type Index -> Type Index -> Bool
 subtype = new subtype'
 
-coerce :: Index -> Type Index -> Type Index -> Maybe (Coercion Index Index)
-coerce i t1       (Thunk t2) = -- Ugly
-  do c <- coerce i t1 t2
-     return (C (Lam (Fun Unit (transType i t1)) (\x -> wrap (appC c (Var x)))))
-coerce _ (TVar a) (TVar b) | a == b        = return Id
+coerce :: Index -> Type Index -> Type Index -> Maybe (Expr Index Index)
+coerce i (TVar a) (TVar b) | a == b        = return (Lam (transType i (TVar a)) Var)
                            | otherwise     = Nothing
-coerce _ (JClass c) (JClass d) | c == d    = return Id
+coerce i (JClass c) (JClass d) | c == d    = return (Lam (transType i (JClass c)) Var)
                                | otherwise = Nothing
 coerce i (Fun t1 t2) (Fun t3 t4) =
   do c1 <- coerce i t3 t1
      c2 <- coerce i t2 t4
-     case (c1,c2) of
-       (Id,Id) -> return Id
-       (_,_)   ->
-         return (C (Lam (transType i (Fun t1 t2))
-                      (\f -> Lam (transType i t3)
-                               ((appC c2 .  App (Var f) . appC c1) . Var))))
+     return (Lam (transType i (Fun t1 t2))
+                 (\f -> Lam (transType i t3) ((App c2 .  App (Var f) . App c1) . Var)))
 coerce i (Forall f) (Forall g) =
   do c <- coerce (i + 1) (f i) (g i)
-     case c of
-       Id -> return Id
-       _  -> return (C (Lam (transType i (Forall f))
-                         (\f' -> BLam ((appC c . TApp (Var f')) . TVar))))
+     return (Lam (transType i (Forall f)) (\f' -> BLam ((App c . TApp (Var f')) . TVar)))
 coerce i (Product ss) (Product ts)
   | length ss /= length ts = Nothing
   | otherwise =
     do cs <- zipWithM (coerce i) ss ts
-       if isIdC `all` cs
-          then return Id
-          else
-            let f x = Tuple (zipWith (\c idx -> appC c (Proj idx x))
-                                     cs [1.. (length ss)])
-            in
-            return (C (Lam (transType i (Product ss)) (f . Var)))
-coerce _ Unit Unit = return Id
+       let f x = Tuple (zipWith (\c idx -> App c (Proj idx x))
+                                 cs [1..length ss])
+       return (Lam (transType i (Product ss)) (f . Var))
+coerce i Unit Unit = return (Lam (transType i Unit) Var)
 coerce i t1 (And t2 t3) =
   do c1 <- coerce i t1 t2
      c2 <- coerce i t1 t3
-     case (c1,c2) of
-       (Id,Id) -> return Id
-       (_,_)   -> return (C (Lam (transType i t1)
-                              (\x -> Tuple [c1 `appC` Var x, c2 `appC` Var x])))
+     return (Lam (transType i t1) (\x -> Tuple [App c1 (Var x), App c2 (Var x)]))
 coerce i (And t1 t2) t3 =
   case coerce i t1 t3 of
-    Just c  -> Just (C (Lam (transType i (And t1 t2)) (\x -> c `appC` Proj 1 (Var x))))
+    Just c  -> Just (Lam (transType i (And t1 t2)) (App c . Proj 1 . Var))
     Nothing ->
       case coerce i t2 t3 of
         Nothing -> Nothing
-        Just c  -> return (C (Lam (transType i (And t1 t2))
-                               (\x -> c `appC` Proj 2 (Var x))))
+        Just c  -> return (Lam (transType i (And t1 t2)) (App c . Proj 2 . Var))
 coerce i (Record (l1,t1)) (Record (l2,t2)) | l1 == l2  = coerce i t1 t2
-                                               | otherwise = Nothing
+                                           | otherwise = Nothing
 coerce i (Thunk t1) (Thunk t2) = coerce i t1 t2
 coerce _ _ _ = Nothing
 
@@ -197,7 +167,7 @@ transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
     n             = length ts
     subst :: [Index] -> [Index] -> Expr Index Index -> Expr Index Index
     subst xs rs   = foldl (.) id [fsubstEE x (Var (rs !! k)) | (x,k) <- zip xs [0..n-1]]
-transExpr' _ this i j (App e1 e2) = App e1' (appC c (possible_wrap e2'))
+transExpr' _ this i j (App e1 e2) = App e1' (App c (possible_wrap e2'))
   where
     (t1@(Fun t11 _), e1') = this i j e1
     (t2, e2')             = this i j e2
@@ -225,8 +195,8 @@ transExpr' _ this i j (JField callee m ret)        = JField (fmap (snd . this i 
 transExpr' _ this i j (Seq es)                     = Seq (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (Merge e1 e2)                = Tuple [snd (this i j e1), snd (this i j e2)]
 transExpr' _ this i j (RecordLit (_,e))            = snd (this i j e)
-transExpr' super this i j (RecordElim e l1)        = appC c (snd (this i j e)) where Just (c, _) = getter i (super i j e) l1
-transExpr' super this i j (RecordUpdate e (l1,e1)) = appC c (snd (this i j e)) where Just (c, _) = putter i (super i j e) l1 (snd (this i j e1))
+transExpr' super this i j (RecordElim e l1)        = App c (snd (this i j e)) where Just (c, _) = getter i (super i j e) l1
+transExpr' super this i j (RecordUpdate e (l1,e1)) = App c (snd (this i j e)) where Just (c, _) = putter i (super i j e) l1 (snd (this i j e1))
 transExpr' _ this i j (Lazy e)                     = Lam Unit (\_ -> snd (this i j e))
 
 transExpr :: Index -> Index -> Expr Index (Index, Type Index) -> (Type Index, Expr Index Index)
@@ -237,53 +207,43 @@ transExpr = new (infer' `with` transExpr'')
       (Index -> Index -> Expr Index (Index, Type Index) -> (Type Index, Expr Index Index))
     transExpr'' super this i j e  = (super i j e, transExpr' super this i j e)
 
-getter :: Index -> Type Index -> S.Label -> Maybe (Coercion Index Index, Type Index)
-getter _ (Record (l,t)) l1
-  | l1 == l   = Just (Id, t)
+getter :: Index -> Type Index -> S.Label -> Maybe (Expr Index Index, Type Index)
+getter i (Record (l,t)) l1
+  | l1 == l   = Just (Lam (transType i (Record (l,t))) Var, t)
   | otherwise = Nothing
 getter i (And t1 t2) l
   = case getter i t2 l of
       Just (c,t) ->
-        Just (C $ Lam (transType i (And t1 t2)) (appC c . Proj 2 . Var)
-             ,t)
+        Just (Lam (transType i (And t1 t2)) (App c . Proj 2 . Var), t)
       Nothing    ->
         case getter i t1 l of
           Nothing    -> Nothing
           Just (c,t) ->
-            Just (C $ Lam (transType i (And t1 t2)) (appC c . Proj 1 . Var)
-                 ,t)
+            Just (Lam (transType i (And t1 t2)) (App c . Proj 1 . Var), t)
 getter i (Thunk t1) l
   = case getter i t1 l of
       Nothing    -> Nothing
-      Just (c,t) -> Just (C (Lam (transType i (Thunk t1)) (appC c . force . Var)), t)
+      Just (c,t) -> Just (Lam (transType i (Thunk t1)) (App c . force . Var), t)
 getter _ _ _ = Nothing
 
-putter :: Index -> Type Index -> S.Label -> Expr Index Index -> Maybe (Coercion Index Index, Type Index)
+putter :: Index -> Type Index -> S.Label -> Expr Index Index -> Maybe (Expr Index Index, Type Index)
 putter i (Record (l,t)) l1 e
-  | l1 == l   = Just (C (Simplify.const (transType i (Record (l,t))) e), t)
+  | l1 == l   = Just (Simplify.const (transType i (Record (l,t))) e, t)
   | otherwise = Nothing
 putter i (And t1 t2) l e
   = case putter i t2 l e of
       Just (c,t) ->
-        case c of
-          Id   -> Just (Id,t)
-          C _  -> Just (C (Lam (transType i (And t1 t2))
-                                 (\x -> Tuple [Proj 1 (Var x), appC c (Proj 2 (Var x))]))
-                       ,t)
+        Just (Lam (transType i (And t1 t2)) (\x -> Tuple [Proj 1 (Var x), App c (Proj 2 (Var x))]), t)
       Nothing    ->
         case putter i t1 l e of
           Nothing    -> Nothing
           Just (c,t) ->
-            case c of
-              Id   -> Just (Id, t)
-              C _  -> Just (C $ Lam (transType i (And t1 t2))
-                                  (\x -> Tuple [appC c (Proj 1 (Var x)), Proj 2 (Var x)])
-                           ,t)
+            Just (Lam (transType i (And t1 t2)) (\x -> Tuple [App c (Proj 1 (Var x)), Proj 2 (Var x)]), t)
 
 putter i (Thunk t1) l e
   = case putter i t1 l e of
       Nothing    -> Nothing
-      Just (c,t) -> Just (C (Lam (transType i (Thunk t1)) (appC c . force . Var)), t)
+      Just (c,t) -> Just (Lam (transType i (Thunk t1)) (App c . force . Var), t)
 putter _ _ _ _ = Nothing
 
 
