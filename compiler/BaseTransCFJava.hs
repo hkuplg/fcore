@@ -245,7 +245,7 @@ trans self =
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
               App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
-              JNewObj c args ->
+              JNew c args ->
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $
                                                   toTupleOf3Lists args'
@@ -257,7 +257,7 @@ trans self =
                                          CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                          CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                         _ -> sorry "BaseTransCFJava.trans.JNewObj: no idea how to do")
+                                         _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                                 types)
                            (J.ClassType [(J.Ident c,[])])
                            exprs
@@ -280,7 +280,7 @@ trans self =
                                        CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                        CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                        CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                       _ -> sorry "BaseTransCFJava.trans.JNewObj: no idea how to do")
+                                       _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                               types)
                    (classStatement,rhs) <- case c of
                                              Right ce ->

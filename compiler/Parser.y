@@ -35,8 +35,7 @@ import JavaUtils
   "&"      { Tandtype }
   ",,"     { Tmerge }
   "with"   { Twith }
-  "this"   { Tthis }
-  "super"  { Tsuper }
+  "'"      { Tquote }
   "let"    { Tlet }
   "rec"    { Trec }
   "="      { Teq }
@@ -56,7 +55,6 @@ import JavaUtils
   "new"     { Tnew }
 
   "module"  { Tmodule }
-  "end"     { Tend }
 
   INT      { Tint $$ }
   STRING   { Tstring $$ }
@@ -104,25 +102,19 @@ import JavaUtils
 -- The parser rules of GHC may come in handy:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
--- Modules
-module :: { Module Name }
-  : "module" module_name semi_binds "end"  { Module $2 $3 }
-
 module_name :: { Name }
   : UPPERID  { $1 }
 
 -- Types
 
--- "&" have the lowest precedence and is left associative.
--- Since we would like:  forall A. [A] -> Even  &  forall A. [A] -> Odd
--- to be parsed as:      (forall A. [A] -> Even) & (forall A. [A] -> Odd)
 type :: { Type }
-  : ftype "&" type            { And $1 $3 }
+  : "forall" tvar "." type    { Forall $2 $4 }
+  | atype "->" ftype          { Fun $1 $3 }
   | ftype                     { $1 }
 
 ftype :: { Type }
-  : atype "->" ftype          { Fun $1 $3 }
-  | "forall" tvar "." ftype  { Forall $2 $4 }
+  : atype "&" atype           { And $1 $3 }
+  | ftype atype               { OpApp $1 $2 }
   | atype                     { $1 }
 
 atype :: { Type }
@@ -132,6 +124,7 @@ atype :: { Type }
   | "{" record_body "}"      { Record $2 }
   | "(" type ")"             { $2 }
   | "Unit"                   { Unit }
+  | "'" atype                { Thunk $2 }
 
 product_body :: { [Type] }
   : type "," type             { $1:[$3] }
@@ -157,6 +150,9 @@ expr :: { Expr Name }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
     | "\\" var_with_annot "." expr        { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
+    | "let" recflag and_binds ";"  expr   { Let $2 $3 $5 }
+    | "let" tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
+    | "let" tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | infixexpr                           { $1 }
@@ -204,7 +200,7 @@ lit :: { Expr Name }
     | "()"                      { Lit UnitLit     }
 
 javaexpr :: { Expr Name }
-    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNewObj $2 $4 }
+    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
     | JAVACLASS "." LOWERID "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
     | JAVACLASS "." LOWERID "()"                  { JMethod (Static $1) $3 [] undefined }
     | JAVACLASS "." field                         { JField  (Static $1) $3 undefined }
@@ -261,10 +257,6 @@ maybe_sig :: { Maybe Type }
 and_binds :: { [Bind Name] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
-
-semi_binds :: { [Bind Name] }
-    : bind                      { [$1]  }
-    | bind ";" semi_binds      { $1:$3 }
 
 recflag :: { RecFlag }
   : "rec"       { Rec }

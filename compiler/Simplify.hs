@@ -21,6 +21,7 @@ import Core
 import qualified Src as S
 
 import Mixin
+import Panic
 
 import Text.PrettyPrint.Leijen
 
@@ -32,29 +33,17 @@ simplify :: Expr t e -> Expr t e
 simplify = unsafeCoerce . snd . transExpr 0 0 . unsafeCoerce
 
 transType :: Index -> Type Index -> Type Index
-transType _ (TVar a)         = TVar a
-transType _ (JClass c)       = JClass c
-transType i (Fun a1 a2)      = Fun (transType i a1) (transType i a2)
-transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVar a) (f i))
-transType i (Product ts)     = Product (map (transType i) ts)
-transType _  Unit        = Unit
-transType i (And a1 a2)      = Product [transType i a1, transType i a2]
+transType _ (TVar a)       = TVar a
+transType _ (JClass c)     = JClass c
+transType i (Fun a1 a2)    = Fun (transType i a1) (transType i a2)
+transType i (Forall f)     = Forall (\a -> transType (i + 1) $ fsubstTT i (TVar a) (f i))
+transType i (Product ts)   = Product (map (transType i) ts)
+transType _  Unit          = Unit
+transType i (And a1 a2)    = Product [transType i a1, transType i a2]
 transType i (Record (_,t)) = transType i t
-transType i (Thunk t)        = Fun Unit (transType i t)
+transType i (Thunk t)      = Fun Unit (transType i t)
 
 -- Subtyping
-
--- A `Coercion` is either an identity function or some non-trivial function.
--- The purpose is to avoid applying the identity functions to an expression.
-data Coercion t e = Id | C (Expr t e)
-
-isIdC :: Coercion t e -> Bool
-isIdC Id    = True
-isIdC (C _) = False
-
-appC :: Coercion t e -> Expr t e -> Expr t e
-appC Id e      = e
-appC (C e1) e2 = App e1 e2
 
 subtype' :: Class (Index -> Type Index -> Type Index -> Bool)
 subtype' _    _ (TVar a)     (TVar b)    = a == b
@@ -65,8 +54,8 @@ subtype' this i (Product ss) (Product ts)
   | length ss /= length ts               = False
   | otherwise                            = uncurry (this i) `all` zip ss ts
 subtype' _    _ Unit     Unit    = True
-subtype' this i t1 (And t2 t3)           = this i t1 t2 || this i t1 t3
-subtype' this i (And t1 t2) t3           = this i t1 t3 && this i t2 t3
+subtype' this i t1 (And t2 t3)           = this i t1 t2 && this i t1 t3
+subtype' this i (And t1 t2) t3           = this i t1 t3 || this i t2 t3
 subtype' this i (Record (l1,t1)) (Record (l2,t2))
   | l1 == l2                             = this i t1 t2
   | otherwise                            = False
@@ -77,55 +66,41 @@ subtype' _    _ _ _                      = False
 subtype :: Index -> Type Index -> Type Index -> Bool
 subtype = new subtype'
 
-coerce :: Index -> Type Index -> Type Index -> Maybe (Coercion Index Index)
-coerce _ (TVar a) (TVar b) | a == b        = return Id
+coerce :: Index -> Type Index -> Type Index -> Maybe (Expr Index Index)
+coerce i (TVar a) (TVar b) | a == b        = return (Lam (transType i (TVar a)) Var)
                            | otherwise     = Nothing
-coerce _ (JClass c) (JClass d) | c == d    = return Id
+coerce i (JClass c) (JClass d) | c == d    = return (Lam (transType i (JClass c)) Var)
                                | otherwise = Nothing
 coerce i (Fun t1 t2) (Fun t3 t4) =
   do c1 <- coerce i t3 t1
      c2 <- coerce i t2 t4
-     case (c1,c2) of
-       (Id,Id) -> return Id
-       (_,_)   ->
-         return (C (Lam (transType i (Fun t1 t2))
-                      (\f -> Lam (transType i t3)
-                               ((appC c2 .  App (Var f) . appC c1) . Var))))
+     return (Lam (transType i (Fun t1 t2))
+                 (\f -> Lam (transType i t3) ((App c2 .  App (Var f) . App c1) . Var)))
 coerce i (Forall f) (Forall g) =
   do c <- coerce (i + 1) (f i) (g i)
-     case c of
-       Id -> return Id
-       _  -> return (C (Lam (transType i (Forall f))
-                         (\f' -> BLam ((appC c . TApp (Var f')) . TVar))))
+     return (Lam (transType i (Forall f)) (\f' -> BLam ((App c . TApp (Var f')) . TVar)))
 coerce i (Product ss) (Product ts)
   | length ss /= length ts = Nothing
   | otherwise =
     do cs <- zipWithM (coerce i) ss ts
-       if isIdC `all` cs
-          then return Id
-          else
-            let f x = Tuple (zipWith (\c idx -> appC c (Proj idx x))
-                                     cs [1.. (length ss)])
-            in
-            return (C (Lam (transType i (Product ss)) (f . Var)))
-coerce _ Unit Unit = return Id
+       let f x = Tuple (zipWith (\c idx -> App c (Proj idx x))
+                                 cs [1..length ss])
+       return (Lam (transType i (Product ss)) (f . Var))
+coerce i Unit Unit = return (Lam (transType i Unit) Var)
 coerce i t1 (And t2 t3) =
   do c1 <- coerce i t1 t2
      c2 <- coerce i t1 t3
-     case (c1,c2) of
-       (Id,Id) -> return Id
-       (_,_)   -> return (C (Lam (transType i t1)
-                              (\x -> Tuple [c1 `appC` Var x, c2 `appC` Var x])))
+     return (Lam (transType i t1) (\x -> Tuple [App c1 (Var x), App c2 (Var x)]))
 coerce i (And t1 t2) t3 =
   case coerce i t1 t3 of
-    Just c  -> Just (C (Lam (transType i (And t1 t2)) (\x -> c `appC` Proj 1 (Var x))))
+    Just c  -> Just (Lam (transType i (And t1 t2)) (App c . Proj 1 . Var))
     Nothing ->
       case coerce i t2 t3 of
         Nothing -> Nothing
-        Just c  -> return (C (Lam (transType i (And t1 t2))
-                               (\x -> c `appC` Proj 2 (Var x))))
+        Just c  -> return (Lam (transType i (And t1 t2)) (App c . Proj 2 . Var))
 coerce i (Record (l1,t1)) (Record (l2,t2)) | l1 == l2  = coerce i t1 t2
-                                               | otherwise = Nothing
+                                           | otherwise = Nothing
+coerce i (Thunk t1) (Thunk t2) = coerce i t1 t2
 coerce _ _ _ = Nothing
 
 infer':: Class (Index -> Index -> Expr Index (Index, Type Index) -> Type Index)
@@ -156,6 +131,7 @@ infer' this i j (Merge e1 e2)       = And (this i j e1) (this i j e2)
 infer' this i j (RecordLit (l,e))   = Record (l, this i j e)
 infer' this i j (RecordElim e l1)   = t1 where Just (_,t1) = getter i (this i j e) l1
 infer' this i j (RecordUpdate e _)  = this i j e
+infer' this i j (Lazy e)            = Thunk (this i j e)
 
 infer :: Index -> Index -> Expr Index (Index, Type Index) -> Type Index
 infer = new infer'
@@ -167,7 +143,6 @@ transExpr'
   :: (Index -> Index -> Expr Index (Index, Type Index) -> Type Index)
   -> (Index -> Index -> Expr Index (Index, Type Index) -> (Type Int, Expr Index Index))
   -> Index  -> Index -> Expr Index (Index, Type Index) -> Expr Index Index
-transExpr' _ _    _ _ (Var (x,Thunk _)) = App (Var x) (Lit S.UnitLit) -- TODO: What to do with nested thunk?
 transExpr' _ _    _ _ (Var (x,_))       = Var x
 transExpr' _ _    _ _ (Lit l)           = Lit l
 transExpr' _ this i j (Lam t f)         = Lam (transType i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i     (j+1) (f (j, t))
@@ -192,15 +167,23 @@ transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
     n             = length ts
     subst :: [Index] -> [Index] -> Expr Index Index -> Expr Index Index
     subst xs rs   = foldl (.) id [fsubstEE x (Var (rs !! k)) | (x,k) <- zip xs [0..n-1]]
-transExpr' _ this i j (App e1 e2) = App e1' (appC c e2')
+transExpr' _ this i j (App e1 e2) = App e1' (App c (possible_wrap e2'))
   where
     (t1@(Fun t11 _), e1') = this i j e1
-    (t2, e2')        = this i j e2
-    c                = fromMaybe (error $ show $
-                                  prettyExpr (unsafeCoerce e1 :: Expr Index Index) <+> colon <+> prettyType (unsafeCoerce t1 :: Type Index) <$$>
-                                  prettyExpr (unsafeCoerce e2 :: Expr Index Index) <+> colon <+> prettyType (unsafeCoerce t2 :: Type Index)
-                                  ) $
-                       coerce i t2 t11
+    (t2, e2')             = this i j e2
+    c                     = fromMaybe (panic (show panic_doc)) (coerce i t2 t11)
+    possible_wrap         = case t11 of -- Ugly
+                              Thunk _ -> wrap
+                              _           -> id
+    panic_doc             = text "Simplify.transExpr':" <$>
+                            indent 4
+                              (text "Coercion failed in translating `App'" <$>
+                              text "Function:" <+> pretty_typing e1 t1 <$>
+                              text "Argument:" <+> pretty_typing e2 t2 <$>
+                              text "Coercion:" <+> pretty_coercion t2 t11)
+    pretty_typing e t     = prettyExpr (unsafeCoerce e :: Expr Index Index) <+> colon <+>
+                            prettyType (unsafeCoerce t :: Type Index)
+    pretty_coercion s1 s2 = prettyType (unsafeCoerce s1 :: Type Index) <+> text "<:" <+> prettyType (unsafeCoerce s2 :: Type Index)
 transExpr' _ this i j (TApp e t)                   = TApp (snd (this i j e)) (transType i t)
 transExpr' _ this i j (If p b1 b2)                 = If (snd (this i j p)) (snd (this i j b1)) (snd (this i j b2))
 transExpr' _ this i j (PrimOp e1 op e2)            = PrimOp (snd (this i j e1)) op (snd (this i j e2))
@@ -212,8 +195,9 @@ transExpr' _ this i j (JField callee m ret)        = JField (fmap (snd . this i 
 transExpr' _ this i j (Seq es)                     = Seq (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (Merge e1 e2)                = Tuple [snd (this i j e1), snd (this i j e2)]
 transExpr' _ this i j (RecordLit (_,e))            = snd (this i j e)
-transExpr' super this i j (RecordElim e l1)        = appC c (snd (this i j e)) where Just (c, _) = getter i (super i j e) l1
-transExpr' super this i j (RecordUpdate e (l1,e1)) = appC c (snd (this i j e)) where Just (c, _) = putter i (super i j e) l1 (snd (this i j e1))
+transExpr' super this i j (RecordElim e l1)        = App c (snd (this i j e)) where Just (c, _) = getter i (super i j e) l1
+transExpr' super this i j (RecordUpdate e (l1,e1)) = App c (snd (this i j e)) where Just (c, _) = putter i (super i j e) l1 (snd (this i j e1))
+transExpr' _ this i j (Lazy e)                     = Lam Unit (\_ -> snd (this i j e))
 
 transExpr :: Index -> Index -> Expr Index (Index, Type Index) -> (Type Index, Expr Index Index)
 transExpr = new (infer' `with` transExpr'')
@@ -223,58 +207,52 @@ transExpr = new (infer' `with` transExpr'')
       (Index -> Index -> Expr Index (Index, Type Index) -> (Type Index, Expr Index Index))
     transExpr'' super this i j e  = (super i j e, transExpr' super this i j e)
 
-getter :: Index -> Type Index -> S.Label -> Maybe (Coercion Index Index, Type Index)
-getter _ (Record (l,t)) l1
-  | l1 == l   = Just (Id, t)
+getter :: Index -> Type Index -> S.Label -> Maybe (Expr Index Index, Type Index)
+getter i (Record (l,t)) l1
+  | l1 == l   = Just (Lam (transType i (Record (l,t))) Var, t)
   | otherwise = Nothing
 getter i (And t1 t2) l
   = case getter i t2 l of
       Just (c,t) ->
-        Just (C $ Lam (transType i (And t1 t2)) (appC c . Proj 2 . Var)
-             ,t)
+        Just (Lam (transType i (And t1 t2)) (App c . Proj 2 . Var), t)
       Nothing    ->
         case getter i t1 l of
           Nothing    -> Nothing
           Just (c,t) ->
-            Just (C $ Lam (transType i (And t1 t2)) (appC c . Proj 1 . Var)
-                 ,t)
+            Just (Lam (transType i (And t1 t2)) (App c . Proj 1 . Var), t)
 getter i (Thunk t1) l
   = case getter i t1 l of
       Nothing    -> Nothing
-      Just (c,t) -> Just (C (Lam (transType i (Thunk t1)) (appC c . force . Var)), t)
+      Just (c,t) -> Just (Lam (transType i (Thunk t1)) (App c . force . Var), t)
 getter _ _ _ = Nothing
 
-putter :: Index -> Type Index -> S.Label -> Expr Index Index -> Maybe (Coercion Index Index, Type Index)
+putter :: Index -> Type Index -> S.Label -> Expr Index Index -> Maybe (Expr Index Index, Type Index)
 putter i (Record (l,t)) l1 e
-  | l1 == l   = Just (C (Simplify.const (transType i (Record (l,t))) e), t)
+  | l1 == l   = Just (Simplify.const (transType i (Record (l,t))) e, t)
   | otherwise = Nothing
 putter i (And t1 t2) l e
   = case putter i t2 l e of
       Just (c,t) ->
-        case c of
-          Id   -> Just (Id,t)
-          C _  -> Just (C (Lam (transType i (And t1 t2))
-                                 (\x -> Tuple [Proj 1 (Var x), appC c (Proj 2 (Var x))]))
-                       ,t)
+        Just (Lam (transType i (And t1 t2)) (\x -> Tuple [Proj 1 (Var x), App c (Proj 2 (Var x))]), t)
       Nothing    ->
         case putter i t1 l e of
           Nothing    -> Nothing
           Just (c,t) ->
-            case c of
-              Id   -> Just (Id, t)
-              C _  -> Just (C $ Lam (transType i (And t1 t2))
-                                  (\x -> Tuple [appC c (Proj 1 (Var x)), Proj 2 (Var x)])
-                           ,t)
+            Just (Lam (transType i (And t1 t2)) (\x -> Tuple [App c (Proj 1 (Var x)), Proj 2 (Var x)]), t)
 
 putter i (Thunk t1) l e
   = case putter i t1 l e of
       Nothing    -> Nothing
-      Just (c,t) -> Just (C (Lam (transType i (Thunk t1)) (appC c . force . Var)), t)
+      Just (c,t) -> Just (Lam (transType i (Thunk t1)) (App c . force . Var), t)
 putter _ _ _ _ = Nothing
 
+
+wrap :: Expr t e -> Expr t e
+wrap e = Lam Unit (\_ -> e)
+
 force :: Expr t e -> Expr t e
-force = App (Lit S.UnitLit)
+force e = App e (Lit S.UnitLit)
 
 -- Core's const, specialized to type t.
-const :: Type Index -> Expr Index Index -> Expr Index Index
+const :: Type t -> Expr t e -> Expr t e
 const t e = Lam t (Prelude.const e)

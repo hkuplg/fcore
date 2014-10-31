@@ -5,15 +5,16 @@
 
 module Examples where
 
-import qualified Src
+import qualified Src as S
 import Core
 import Simplify
 import PartialEvaluator
 import SymbolicEvaluator
 import Inliner
-import OptiUtils
+import Translations
 
 import PrettyUtils
+import OptiUtils
 
 import Text.PrettyPrint.Leijen
 
@@ -93,11 +94,11 @@ evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` 
 konstTy :: Type t
 konstTy = Forall (\a -> Forall (\b -> Fun (TVar a) (Fun (TVar b) (TVar a))))
 
-lazySucc :: Expr t e
-lazySucc = App f thunk
-  where
-    f     = Lam (Thunk javaInt) (\x -> add (Var x) one)
-    thunk = Lam javaInt (\_ -> zero)
+callByValue = Lam javaInt (\x -> Seq [println (Var x), intLit 0])
+callByName  = Lam (ThunkType javaInt) (\x -> Seq [println (Var x), intLit 0])
+something   = Seq [println (Lit (S.String "called!")), intLit 1]
+println x   = JMethod (S.Static "java.lang.System.out") "println" [x] undefined
+intLit      = Lit . S.Integer
 
 -----------------------
 -- peval tests
@@ -123,7 +124,7 @@ fix = Fix (\f n -> If (((one `sub` zero) `eq` zero))
                    (Var n `mult` (Var f `App` (Var n `sub` one))))
       javaInt
       (javaInt `Fun` javaInt)
-app_fix = App fix (Lit (Src.Integer 10))
+app_fix = App fix (Lit (S.Integer 10))
 
 -- test App e1 e2, where e1 can be partially evaluated to a Lam
 minus = Lam javaInt (\x -> Lam javaInt (\y -> Var x `sub` Var y))
@@ -139,12 +140,12 @@ complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
                   one
 
 javaBool     = JClass "java.lang.Boolean"
-zero         = Lit (Src.Integer 0)
-one          = Lit (Src.Integer 1)
-magicNumber  = Lit (Src.Integer 42)
-true         = Lit (Src.Boolean True)
-false        = Lit (Src.Boolean False)
-x `eq` y     = PrimOp x (Src.Compare J.Equal) y
-x `add` y    = PrimOp x (Src.Arith J.Add) y
-x `sub` y    = PrimOp x (Src.Arith J.Sub) y
-x `mult` y   = PrimOp x (Src.Arith J.Mult) y
+zero         = Lit (S.Integer 0)
+one          = Lit (S.Integer 1)
+magicNumber  = Lit (S.Integer 42)
+true         = Lit (S.Boolean True)
+false        = Lit (S.Boolean False)
+x `eq` y     = PrimOp x (S.Compare J.Equal) y
+x `add` y    = PrimOp x (S.Arith J.Add) y
+x `sub` y    = PrimOp x (S.Arith J.Sub) y
+x `mult` y   = PrimOp x (S.Arith J.Mult) y

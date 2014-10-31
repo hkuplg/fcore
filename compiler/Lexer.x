@@ -41,6 +41,7 @@ tokens :-
     \&          { \_ _ -> Tandtype }
     \,\,        { \_ _ -> Tmerge }
     with        { \_ _ -> Twith }
+    \'          { \_ _ -> Tquote }
     this        { \_ _ -> Tthis }
     super       { \_ _ -> Tsuper }
     let         { \_ _ -> Tlet }
@@ -60,7 +61,6 @@ tokens :-
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
     module      { \_ _ -> Tmodule }
-    end         { \_ _ -> Tend }
 
     -- Literals
     $digit+                { \_ s -> Tint (read s) }
@@ -96,7 +96,7 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tcombine | Tthis | Tsuper
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tthis | Tsuper
            | Tlet | Trec | Teq | Tand | Tin
            | Tjavaclass String
            | Tnew
@@ -106,7 +106,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule | Tend
+           | Tmodule
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

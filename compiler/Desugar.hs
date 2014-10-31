@@ -23,7 +23,7 @@ type TVarMap t  = Map.Map Name t
 type VarMap t e = Map.Map Name (C.Expr t e)
 
 transType :: TVarMap t -> Type -> C.Type t
-transType d (TVar a)     = C.TVar (fromMaybe (panic "Desugar.transType: TVar") (Map.lookup a d))
+transType d (TVar a)     = C.TVar (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
 transType _ (JClass c)   = C.JClass c
 transType d (Fun t1 t2)  = C.Fun (transType d t1) (transType d t2)
 transType d (Product ts) = C.Product (map (transType d) ts)
@@ -34,6 +34,7 @@ transType d (Record fs)  =
                   [(l,t)]  -> C.Record (l, transType d t)
                   _        -> transType d (Record (take (length fs - 1) fs)) `C.And` C.Record (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = C.Unit
+transType i (Thunk t)    = C.Thunk (transType i t)
 
 desugarExpr :: (TVarMap t, VarMap t e) -> Expr TcId -> C.Expr t e
 desugarExpr (d, g) = go
@@ -117,7 +118,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (LetOut Rec [(f,t@(Fun _ _),e)] body) = desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec [(f,t,e)] body)           = desugarLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = desugarLetRecToLetRec (d,g) (LetOut Rec bs body)
-    go (JNewObj c args)          = C.JNew c (map go args)
+    go (JNew c args)          = C.JNew c (map go args)
     go (JMethod callee m args r) = C.JMethod (fmap go callee) m (map go args) r
     go (JField  callee f r)      = C.JField  (fmap go callee) f r
 
