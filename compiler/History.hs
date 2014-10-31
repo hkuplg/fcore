@@ -1,4 +1,5 @@
 module History where
+-- for :replay
 
 type Hist = [String]
 

@@ -4,6 +4,7 @@ import Data.List.Split
 
 import Parser
 import Src
+import Text.PrettyPrint.Leijen
 
 type Env = [(String, Exp)]
 type Exp = (String, Src.Expr Src.Name)    
@@ -39,4 +40,9 @@ searchEnv var env = case lookup var env of
 			Nothing  -> False
 			Just exp -> True
 
+showPrettyEnv :: Env -> String
+showPrettyEnv [] = ""
+showPrettyEnv ((var, (str, expr)) : xs) = "(" ++ show var ++ ", " 
+				              ++ show (pretty expr)
+				   	      ++ "); " ++ showPrettyEnv xs
 

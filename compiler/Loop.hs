@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 
 import TypeCheck
 import Src hiding (wrap)
+import Text.PrettyPrint.Leijen
 import Translations
 import JavaUtils
 import Parser
@@ -57,18 +58,24 @@ runCMD (inP, outP) val_ctx env hist index flagH flagT flagS num msg = do
 		  Right line -> processCMD (inP, outP) val_ctx env hist index
 		  			   flagH flagT flagS num line
 	  Nothing   -> do 
-		let filename = "main_" ++ (show num) ++ ".sf"
-		let bind = Env.reverseEnv env
-		let msgEnv = (Env.createBindEnv bind) ++ msg
-	  	liftIO (writeFile filename msgEnv)
-	  	liftIO (wrapFlag (inP, outP) flagT flagS filename)
-		exist <- liftIO (doesFileExist filename)
-		if exist 
-		  then do liftIO (removeFile filename)
-			  loop (inP, outP) val_ctx env hist index 
-			        flagH flagT flagS (num+1)
-		  else loop (inP, outP) val_ctx env hist index 
-			    flagH flagT flagS (num+1)
+	  	result <- liftIO (checkType val_ctx msg)
+		case result of
+		  Left typeErr 	      -> do
+			outputStrLn (show typeErr)
+			loop (inP, outP) val_ctx env hist index flagH flagT flagS num
+		  Right (tchecked, t) -> do 
+			let filename = "main_" ++ (show num) ++ ".sf"
+			let bind = Env.reverseEnv env
+			let msgEnv = (Env.createBindEnv bind) ++ msg
+	  		liftIO (writeFile filename msgEnv)
+	  		liftIO (wrapFlag (inP, outP) flagT flagS filename)
+			exist <- liftIO (doesFileExist filename)
+			if exist 
+		  	  then do liftIO (removeFile filename)
+			    	  loop (inP, outP) val_ctx env hist index 
+				       flagH flagT flagS (num+1)
+		    	  else loop (inP, outP) val_ctx env hist index 
+			            flagH flagT flagS (num+1)
 
 processCMD :: Connection -> ValueContext -> Env.Env -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Int -> [String] -> InputT IO ()
 processCMD (inP, outP) val_ctx env hist index flagH flagT flagS num (x : xs) = do
@@ -109,6 +116,7 @@ processCMD (inP, outP) val_ctx env hist index flagH flagT flagS num (x : xs) = d
 		    result <- liftIO (checkType val_ctx exp)
 		    case result of
 		      Left  typeErr	  -> do
+		        --outputStrLn "typeCheck error!"
 		        outputStrLn (show typeErr)
 			loop (inP, outP) val_ctx env hist index flagH flagT flagS num
 		      Right (tchecked, t) -> do
@@ -117,9 +125,16 @@ processCMD (inP, outP) val_ctx env hist index flagH flagT flagS num (x : xs) = d
 	  	      	let envNew = Env.insert (var, exp) env
 		        loop (inP, outP) val_ctx_new envNew hist index 
 			     flagH flagT flagS num	
+	  ":type" -> do
+	  	case getCMD xs of
+	  	  Just var -> case Map.lookup var val_ctx of
+		    Just t  -> outputStrLn (show (pretty t))
+		    Nothing -> outputStrLn "variable not found" 
+		  Nothing  ->  outputStrLn "Too few input"
+		loop (inP, outP) val_ctx env hist index flagH flagT flagS num
 	  ":show" -> case getCMD xs of
 	  	Just "env" -> do 
-		  outputStrLn (show env)
+		  outputStrLn ("[" ++ Env.showPrettyEnv env ++ "]")
 		  loop (inP, outP) val_ctx env hist index flagH flagT flagS num
 		Just input -> outputStrLn "Invalid input"
 		Nothing    -> outputStrLn "Too few input"
@@ -158,6 +173,7 @@ printHelp = do
 	putStrLn "  :help               Print help manual"
 	putStrLn "  :send sourceFile    Load sourceFile"
 	putStrLn "  :let var = expr     Bind expr to var"
+	putStrLn "  :type var           Show the type of var"
 	putStrLn "  :replay             Replay all previous user commands"
 	putStrLn "  :showfile on/off    Show/Hide source file and .java file contents"
 	putStrLn "  :time on/off        Show/Hide execution time"
