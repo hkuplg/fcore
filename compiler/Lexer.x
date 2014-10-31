@@ -61,7 +61,6 @@ tokens :-
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
     module      { \_ _ -> Tmodule }
-    end         { \_ _ -> Tend }
 
     -- Literals
     $digit+                { \_ s -> Tint (read s) }
@@ -107,7 +106,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule | Tend
+           | Tmodule
            deriving (Eq, Show)
 
 lexer :: String -> [Token]
