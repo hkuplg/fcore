@@ -35,6 +35,7 @@ import qualified Language.Java.Syntax as J (Op(..))
 import Text.PrettyPrint.Leijen
 
 import Data.Data
+import Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -52,15 +53,17 @@ data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
 data Type
   = TVar Name
   | JClass ClassName -- JType JVMType
+  | Unit
   | Fun Type Type
   | Forall Name Type
   | Product [Type]
-  | Record [(Label, Type)]
-  | ListOf Type
+  -- Extensions
   | And Type Type
-  | Unit
+  | Record [(Label, Type)]
   | Thunk Type
-  | TypeLevelApp Type Type
+  | OpAbs Name Type -- Type level abstraction
+  | OpApp Type Type -- Type level application
+  | ListOf Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `alphaEq` and `subtype` below.
@@ -211,28 +214,33 @@ fsubstTT (x,r) (Thunk t1)      = Thunk (fsubstTT (x,r) t1)
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x
 freeTVars (JClass _)   = Set.empty
+freeTVars Unit         = Set.empty
 freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
 freeTVars (Forall a t) = Set.delete a (freeTVars t)
 freeTVars (Product ts) = Set.unions (map freeTVars ts)
 freeTVars (Record fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
 freeTVars (ListOf t)   = freeTVars t
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
-freeTVars Unit         = Set.empty
 freeTVars (Thunk t)    = freeTVars t
+freeTVars (OpAbs _ t)  = freeTVars t
+freeTVars (OpApp t1 t2) = Set.union (freeTVars t1) (freeTVars t2)
 
 -- Pretty printers
 
 instance Pretty Type where
   pretty (TVar a)     = text a
-  pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
-  pretty (Forall a t) = parens $ text "forall" <+> text a <> dot <+> pretty t
-  pretty (Product ts) = tupled (map pretty ts)
   pretty (JClass c)   = text c
-  pretty (ListOf a)   = brackets $ pretty a
+  pretty Unit         = text "Unit"
+  pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
+  pretty (Forall a t) = parens $ forall <+> text a <> dot <+> pretty t
+  pretty (Product ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
   pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
-  pretty _ = sorry "Core.pretty: no idea how to do"
+  pretty (Record fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
+  pretty (Thunk t)    = squote <> parens (pretty t)
+  pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
+  pretty (ListOf a)   = brackets $ pretty a
 
-instance Pretty id => Pretty (Expr id) where
+instance (Show id, Pretty id) => Pretty (Expr id) where
   pretty (Var x) = pretty x
   pretty (Lit (Int n))     = integer n
   pretty (Lit (String n))  = string n
@@ -246,7 +254,7 @@ instance Pretty id => Pretty (Expr id) where
       pretty e
   pretty (TApp e t) = parens $ pretty e <+> pretty t
   pretty (App e1 e2) = parens $ pretty e1 <+> pretty e2
-  pretty (Tuple es) = tupled (map pretty es)
+  pretty (Tuple es) = lparen <> hcat (intersperse comma (map pretty es)) <> rparen
   pretty (Proj e i) = parens (pretty e) <> text "._" <> int i
   pretty (PrimOp e1 op e2) = parens $
                                parens (pretty e1) <+>
@@ -273,9 +281,9 @@ instance Pretty id => Pretty (Expr id) where
                                           (NonStatic e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
-  pretty _ = sorry "Src.pretty: no idea how to do"
+  pretty (RecordLit fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
 
-instance Pretty id => Pretty (Bind id) where
+instance (Show id, Pretty id) => Pretty (Bind id) where
   pretty Bind{..} =
     pretty bindId <+>
     hsep (map pretty bindTargs) <+>

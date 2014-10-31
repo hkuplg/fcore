@@ -114,7 +114,7 @@ type :: { Type }
 
 ftype :: { Type }
   : atype "&" atype           { And $1 $3 }
-  | ftype atype               { TypeLevelApp $1 $2 }
+  | ftype atype               { OpApp $1 $2 }
   | atype                     { $1 }
 
 atype :: { Type }

@@ -53,6 +53,8 @@ import MonadLib
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 
+import Text.PrettyPrint.Leijen
+
 -- import Text.PrettyPrint.Leijen
 
 import qualified Data.Map as Map
@@ -274,7 +276,7 @@ sf2java num optDump compilation className src =
   do let readSrc = Parser.reader src
      result <- readSrc `seq` (typeCheck readSrc)
      case result of
-       Left typeError -> error $ show ({- Text.PrettyPrint.Leijen.pretty-} typeError)
+       Left typeError -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
        Right (tcheckedSrc, _t)   ->
          do let core = desugar tcheckedSrc
             when optDump $ do { putStrLn "Core"; print $ Core.prettyExpr core }

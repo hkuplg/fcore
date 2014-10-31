@@ -206,12 +206,12 @@ prettyType' p i (And t1 t2) =
 
 prettyType' _ i (Record (l,t)) = lbrace <> text l <> colon <> prettyType' basePrec i t <> rbrace
 
-prettyType' p i (Thunk t) = char '\'' <>
-                               case t of
-                                 Fun _ _  -> parens (prettyType' basePrec i t)
-                                 Forall _ -> parens (prettyType' basePrec i t)
-                                 And _ _  -> parens (prettyType' basePrec i t)
-                                 _        -> prettyType' p i t
+prettyType' p i (Thunk t) = squote <>
+                             case t of
+                               Fun _ _  -> parens (prettyType' basePrec i t)
+                               Forall _ -> parens (prettyType' basePrec i t)
+                               And _ _  -> parens (prettyType' basePrec i t)
+                               _        -> prettyType' p i t
 
 -- instance Show (Expr Index Index) where
 --   show = show . pretty

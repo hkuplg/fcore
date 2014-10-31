@@ -1,5 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -fwarn-incomplete-patterns -fwarn-unused-binds #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module TypeCheck
   ( typeCheck
@@ -13,17 +13,19 @@ import Src
 
 import IOEnv
 import JavaUtils
+import PrettyUtils
 import JvmTypeQuery
 import Panic
 import StringPrefixes
 
+import Text.PrettyPrint.Leijen
 
 import System.IO
 import System.Process
 
 import Control.Monad.Error
 
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, fromMaybe)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
 
@@ -56,8 +58,8 @@ withTypeServer do_this =
 
 data TcEnv
   = TcEnv
-  { tceTypeCtxt     :: TypeContext
-  , tceValueCtxt    :: ValueContext
+  { tceTypeContext     :: Map.Map Name (Kind, Type)
+  , tceValueContext    :: Map.Map Name Type
   , tceTypeserver   :: Connection
   , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
@@ -65,8 +67,8 @@ data TcEnv
 mkInitTcEnv :: Connection -> TcEnv
 mkInitTcEnv type_server
   = TcEnv
-  { tceTypeCtxt     = Map.empty
-  , tceValueCtxt    = Map.empty
+  { tceTypeContext     = Map.empty
+  , tceValueContext    = Map.empty
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -75,19 +77,18 @@ mkInitTcEnv type_server
 mkInitTcEnvWithEnv :: ValueContext -> Connection -> TcEnv
 mkInitTcEnvWithEnv value_ctxt type_server
   = TcEnv
-  { tceTypeCtxt     = Map.empty
-  , tceValueCtxt    = value_ctxt
+  { tceTypeContext     = Map.empty
+  , tceValueContext    = value_ctxt
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
 
 data TypeError
-  = General String
+  = General Doc
   | ConflictingDefinitions Name
   | ExpectJClass
   | IndexTooLarge
   | Mismatch { expectedTy :: Type, actualTy :: Type }
-  | ExpectedSubtype
   | MissingRHSAnnot
   | NotInScopeTVar Name
   | NotInScopeVar   Name
@@ -100,60 +101,105 @@ data TypeError
   | NoSuchField       (JCallee ClassName) FieldName
   deriving (Show)
 
+instance Pretty TypeError where
+  pretty (General doc)      = line <> text "error:" <+> doc
+  pretty (NotInScopeTVar a) = line <> text "error:" <+> text "type" <+> bquotes (text a) <+> text "is not in scope"
+  pretty e                  = line <> text "error:" <+> text (show e)
+
 instance Error TypeError where
   -- strMsg
 
-type TcM a = ErrorT TypeError (IOEnv TcEnv) a
+type Checker a = ErrorT TypeError (IOEnv TcEnv) a
 
-getTcEnv :: TcM TcEnv
+getTcEnv :: Checker TcEnv
 getTcEnv = lift getEnv
 
-setTcEnv :: TcEnv -> TcM ()
+setTcEnv :: TcEnv -> Checker ()
 setTcEnv tc_env = lift $ setEnv tc_env
 
-getTypeCtxt :: TcM TypeContext
-getTypeCtxt = liftM tceTypeCtxt getTcEnv
+getTypeContext = liftM tceTypeContext getTcEnv
 
-getValueCtxt :: TcM ValueContext
-getValueCtxt = liftM tceValueCtxt getTcEnv
+getValueContext = liftM tceValueContext getTcEnv
 
-getTypeServer :: TcM (Handle, Handle)
+getTypeServer :: Checker (Handle, Handle)
 getTypeServer = liftM tceTypeserver getTcEnv
 
-getMemoizedJavaClasses :: TcM (Set.Set ClassName)
+getMemoizedJavaClasses :: Checker (Set.Set ClassName)
 getMemoizedJavaClasses = liftM tceMemoizedJavaClasses getTcEnv
 
-memoizeJavaClass :: ClassName -> TcM ()
+memoizeJavaClass :: ClassName -> Checker ()
 memoizeJavaClass c
   = do TcEnv{..} <- getTcEnv
        memoized_java_classes <- getMemoizedJavaClasses
        setTcEnv TcEnv{ tceMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
 
-withLocalTVars :: [(Name, Kind)] -> TcM a -> TcM a
+withLocalTVars :: [(Name, (Kind, Type))] -> Checker a -> Checker a
 withLocalTVars tvars do_this
-  = do delta <- getTypeCtxt
+  = do delta <- getTypeContext
        let delta' = Map.fromList tvars `Map.union` delta
        TcEnv {..} <- getTcEnv
-       setTcEnv TcEnv { tceTypeCtxt = delta', ..}
+       setTcEnv TcEnv { tceTypeContext = delta', ..}
        r <- do_this
        TcEnv {..} <- getTcEnv
-       setTcEnv TcEnv { tceTypeCtxt = delta, ..}
+       setTcEnv TcEnv { tceTypeContext = delta, ..}
        return r
 
-withLocalVars :: [(Name, Type)]-> TcM a -> TcM a
+withLocalVars :: [(Name, Type)]-> Checker a -> Checker a
 withLocalVars vars do_this
-  = do gamma <- getValueCtxt
+  = do gamma <- getValueContext
        let gamma' = Map.fromList vars `Map.union` gamma
        TcEnv {..} <- getTcEnv
-       setTcEnv TcEnv { tceValueCtxt = gamma', ..}
+       setTcEnv TcEnv { tceValueContext = gamma', ..}
        r <- do_this
        TcEnv {..} <- getTcEnv
-       setTcEnv TcEnv { tceValueCtxt = gamma, ..}
+       setTcEnv TcEnv { tceValueContext = gamma, ..}
        return r
 
-infer :: Expr Name -> TcM (Expr TcId, Type)
+type TypeSubstitution = Map.Map Name Type
+
+applyTSubst :: TypeSubstitution -> Type -> Type
+applyTSubst s (TVar a)     = fromMaybe (TVar a) (Map.lookup a s)
+applyTSubst _ (JClass c)   = JClass c
+applyTSubst s (Fun t1 t2)  = Fun (applyTSubst s t1) (applyTSubst s t2)
+applyTSubst s (Forall a t) = Forall a (applyTSubst s' t) where s' = Map.delete a s
+applyTSubst _ _            = sorry "TypeCheck.applyTSubst"
+
+kind :: TypeContext -> Type -> IO (Maybe Kind)
+kind d (TVar a)     = return (Map.lookup a d)
+kind _ (JClass c)   = undefined
+kind _  Unit        = return (Just Star)
+kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
+kind d (Forall a t) = kind d' t where d' = Map.insert a Star d
+kind d (Product ts) = justStarIffAllHaveKindStar d ts
+kind d (Record fs)  = justStarIffAllHaveKindStar d (map snd fs)
+kind d (ListOf t)   = kind d t
+kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
+kind d (Thunk t)    = kind d t
+kind d (OpApp t1 t2)
+  = do maybe_k1 <- kind d t1
+       case maybe_k1 of
+         Just (KArrow k11 k12) ->
+           do maybe_k2 <- kind d t2
+              case maybe_k2 of
+                Just k2 | k2 == k11 -> return (Just k12)
+                _ -> return Nothing
+         _ -> return Nothing
+
+justStarIffAllHaveKindStar :: TypeContext -> [Type] -> IO (Maybe Kind)
+justStarIffAllHaveKindStar d ts
+  = do ps <- mapM (hasKindStar d) ts
+       if and ps
+          then return (Just Star)
+          else return Nothing
+
+hasKindStar :: TypeContext -> Type -> IO Bool
+hasKindStar d t
+  = do k <- kind d t
+       return (k == Just Star)
+
+infer :: Expr Name -> Checker (Expr TcId, Type)
 infer (Var name)
-  = do value_ctxt <- getValueCtxt
+  = do value_ctxt <- getValueContext
        case Map.lookup name value_ctxt of
          Just t  -> return (Var (name,t), t)
          Nothing -> throwError (NotInScopeVar name)
@@ -169,12 +215,18 @@ infer (App e1 e2)
   = do (e1', t1) <- infer e1
        (e2', t2) <- infer e2
        case t1 of
-         Fun t3 t4 -> do checkSubtype t2 t3
-                         return (App e1' e2', t4)
-         _         -> throwError (General (show e1 ++ "::" ++ show t1))
+         Fun t11 t12 -> do t11' <- evalType t11
+                           t2'  <- evalType t2
+                           unless (deThunk t2' `subtype` deThunk t11') $
+                             throwError
+                               (General
+                                  (bquotes (pretty e1) <+> text "expects an argument of type at least" <+> bquotes (pretty t11) <> comma <+>
+                                   text "but the argument" <+> bquotes (pretty e2) <+> text "has type" <+> pretty t2))
+                           return (App e1' e2', t12)
+         _         -> throwError (General (text (show e1) <+> text "::" <+> text (show t1)))
 
 infer (BLam a e)
-  = do (e', t) <- withLocalTVars [(a, Star)] (infer e)
+  = do (e', t) <- withLocalTVars [(a, (Star, TVar a))] (infer e)
        return (BLam a e', Forall a t)
 
 infer (TApp e targ)
@@ -182,7 +234,7 @@ infer (TApp e targ)
        checkType targ
        case t of
          Forall a t1 -> return (TApp e' targ, fsubstTT (a, targ) t1)
-         _           -> sorry "Src.TypeCheck.infer: TApp"
+         _           -> sorry "TypeCheck.infer: TApp"
 
 infer (Tuple es)
   | length es < 2 = panic "Src.TypeCheck.infer: Tuple: fewer than two items"
@@ -219,15 +271,15 @@ infer (If pred b1 b2)
        return (If pred' b1' b2', t1)
 
 infer (Let rec_flag binds e) =
-  do checkBindNames binds
+  do checkDupNames (map bindId binds)
      binds' <- case rec_flag of
                  NonRec -> mapM inferBind binds
                  Rec    -> do sigs <- collectBindNameSigs binds
                               withLocalVars sigs (mapM inferBind binds)
-     (e', t) <- withLocalVars (map (\ (f,t,_e) -> (f,t)) binds') $ infer e
+     (e', t) <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (infer e)
      return (LetOut rec_flag binds' e', t)
 
-infer (LetOut{..}) = panic "Src.TypeCheck.infer: LetOut"
+infer (LetOut{..}) = panic "TypeCheck.infer: LetOut"
 
 infer (JNew c args)
   = do checkClassName c -- ToDo: Needed?
@@ -259,7 +311,10 @@ infer (JField callee f _)
              JClass c   ->
                do ret_c   <- checkFieldAccess (NonStatic c) f
                   return (JField (NonStatic e') f ret_c, JClass ret_c)
-             _          -> throwError (General "The thing before dot is neither a record nor a JVM object")
+             _          -> throwError
+                           (General
+                            (bquotes (pretty e) <+> text "has type" <+> bquotes (pretty t) <>
+                             text ", which does not support the dot notation"))
 
 infer (Seq es) = do
   (es', ts) <- mapAndUnzipM infer es
@@ -275,7 +330,7 @@ infer (PrimList l) =
          case ts of [] -> return (PrimList es, JClass (namespace ++ "FunctionalList"))
                     _  -> if all (`alphaEq` (ts !! 0)) ts
                             then return (PrimList es, JClass (namespace ++ "FunctionalList"))
-                            else throwError $ General ("Primitive List Type Mismatch" ++ show (PrimList l))
+                            else throwError $ General (text "Primitive List Type Mismatch" <+> text (show (PrimList l)))
 
 infer (RecordLit fs) =
   do (es', ts) <- mapAndUnzipM infer (map snd fs)
@@ -297,43 +352,54 @@ infer (LetModule (Module m binds) e) =
      infer $ Let NonRec [Bind m [] [] letrec Nothing] e
 infer (ModuleAccess m f) = infer (RecordAccess (Var m) f)
 
-inferAgainst :: Expr Name -> Type -> TcM (Expr TcId, Type)
+infer (Type tid params rhs e)
+  = do checkDupNames params
+       withLocalTVars [(tid, (k params, pullRight params rhs))] (infer e)
+  where k []     = Star
+        k (_:as) = KArrow Star (k as)
+        pullRight as t = foldr OpAbs t as
+
+inferAgainst :: Expr Name -> Type -> Checker (Expr TcId, Type)
 inferAgainst expr expected_ty
   = do (expr', actual_ty) <- infer expr
        if actual_ty `alphaEq` expected_ty
           then return (expr', actual_ty)
           else throwError (Mismatch expected_ty actual_ty)
 
-inferAgainstAnyJClass :: Expr Name -> TcM (Expr TcId, ClassName)
+inferAgainstAnyJClass :: Expr Name -> Checker (Expr TcId, ClassName)
 inferAgainstAnyJClass expr
   = do (expr', ty) <- infer expr
        case ty of
          JClass c -> return (expr', c)
-         _        -> sorry "inferAgainstAnyJClass"
+         _        -> sorry "TypeCheck.inferAgainstAnyJClass"
 
-inferAgainstMaybe :: Expr Name -> Maybe Type -> TcM (Expr TcId, Type)
+inferAgainstMaybe :: Expr Name -> Maybe Type -> Checker (Expr TcId, Type)
 inferAgainstMaybe e Nothing  = infer e
 inferAgainstMaybe e (Just t) = inferAgainst e t
 
 -- f A1 ... An (x1:T1) ... (xn:Tn) = e
-inferBind :: Bind Name -> TcM (Name, Type, Expr TcId)
-inferBind Bind{..}
-  = do checkBindLHS Bind{..}
-       (bindRhs', bindRhsTy) <- withLocalTVars (zip bindTargs (repeat Star))
-                                  (withLocalVars bindArgs
-                                     (infer bindRhs))
-       return ( bindId
-              , wrap Forall bindTargs (wrap Fun (map snd bindArgs) bindRhsTy)
-              , wrap BLam bindTargs (wrap Lam bindArgs bindRhs'))
+inferBind :: Bind Name -> Checker (Name, Type, Expr TcId)
+inferBind bind
+  = do bind' <- checkBindLHS bind
+       (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, TVar a))) (bindTargs bind')) $
+                                  do expandedBindArgs <- mapM (\(x,t) -> do { t' <- evalType t; return (x,t') }) (bindArgs bind')
+                                     withLocalVars expandedBindArgs (infer (bindRhs bind'))
+       return ( (bindId bind')
+              , wrap Forall (bindTargs bind') (wrap Fun (map snd (bindArgs bind')) bindRhsTy)
+              , wrap BLam (bindTargs bind') (wrap Lam (bindArgs bind') bindRhs'))
 
-checkBindLHS :: Bind Name -> TcM ()
-checkBindLHS Bind{..}
+checkBindLHS :: Bind Name -> Checker (Bind Name)
+checkBindLHS bind@Bind{..}
   = do checkDupNames bindTargs
-       checkDupNames [arg_name | (arg_name, _) <- bindArgs]
-       withLocalTVars (zip bindTargs (repeat Star)) $
-         mapM_ (\(_, arg_ty) -> checkType arg_ty) bindArgs
+       checkDupNames [x | (x, _) <- bindArgs]
+       bindArgs' <- withLocalTVars (map (\a -> (a, (Star, TVar a))) bindTargs) $
+         forM bindArgs (\(x, t) ->
+          do --checkType t
+             t' <- evalType t
+             return (x,t'))
+       return bind { bindArgs = bindArgs' }
 
-collectBindNameSigs :: [Bind Name] -> TcM [(Name, Type)]
+collectBindNameSigs :: [Bind Name] -> Checker [(Name, Type)]
 collectBindNameSigs
   = mapM (\ Bind{..} ->
             case bindRhsAnnot of
@@ -343,21 +409,13 @@ collectBindNameSigs
                                     wrap Fun [ty |  (_,ty) <- bindArgs]
                                     rhsTy))
 
-checkBindNames :: [Bind Name] -> TcM ()
-checkBindNames bnds = checkDupNames (map bindId bnds)
-
-checkSubtype :: Type -> Type -> TcM ()
-checkSubtype t1 t2
-  | deThunk t1 `subtype` deThunk t2 = return ()
-  | otherwise                       = throwError ExpectedSubtype
-
-checkType :: Type -> TcM ()
+checkType :: Type -> Checker ()
 checkType t
   = case t of
       JClass c -> checkClassName c
       _        ->
-        do type_ctxt <- getTypeCtxt
-           let free_ty_vars = freeTVars t `Set.difference` Set.fromList (map fst (filter (\(_,k) -> k == Star) (Map.toList type_ctxt)))
+        do type_ctxt <- getTypeContext
+           let free_ty_vars = freeTVars t `Set.difference` Set.fromList (map fst (filter (\(_,(k,_)) -> k == Star) (Map.toList type_ctxt)))
            unless (Set.null free_ty_vars) $
              throwError (NotInScopeTVar (head (Set.toList free_ty_vars)))
 
@@ -366,7 +424,7 @@ unlessIO test do_this
   = do ok <- liftIO test
        unless ok do_this
 
-checkClassName :: ClassName -> TcM ()
+checkClassName :: ClassName -> Checker ()
 checkClassName c
   = do memoized_java_classes <- getMemoizedJavaClasses
        unless (c `Set.member` memoized_java_classes) $
@@ -376,13 +434,13 @@ checkClassName c
                then memoizeJavaClass c
                else throwError (NoSuchClass c)
 
-checkNew :: ClassName -> [ClassName] -> TcM ()
+checkNew :: ClassName -> [ClassName] -> Checker ()
 checkNew c args
   = do h <- getTypeServer
        unlessIO (hasConstructor h c args) $
          throwError (NoSuchConstructor c args)
 
-checkMethodCall :: JCallee ClassName -> MethodName -> [ClassName] -> TcM ClassName
+checkMethodCall :: JCallee ClassName -> MethodName -> [ClassName] -> Checker ClassName
 checkMethodCall callee m args
   = do typeserver <- getTypeServer
        res <- liftIO (methodTypeOf typeserver c (m, static_flag) args)
@@ -392,7 +450,7 @@ checkMethodCall callee m args
     where
        (static_flag, c) = unwrapJCallee callee
 
-checkFieldAccess :: JCallee ClassName -> FieldName -> TcM ClassName
+checkFieldAccess :: JCallee ClassName -> FieldName -> Checker ClassName
 checkFieldAccess callee f
   = do typeserver <- getTypeServer
        res <- liftIO (fieldTypeOf typeserver c (f, static_flag))
@@ -401,6 +459,42 @@ checkFieldAccess callee f
          Just return_class -> return return_class
     where
        (static_flag, c) = unwrapJCallee callee
+
+evalType :: Type -> Checker Type
+evalType (TVar a)
+  = do typeContext <- getTypeContext
+       case Map.lookup a typeContext of
+         Nothing      -> return (TVar a)
+         Just (_, t') -> evalType t'
+evalType (JClass c) = return (JClass c)
+evalType Unit       = return Unit
+evalType (Fun t1 t2)
+  = do t1' <- evalType t1
+       t2' <- evalType t2
+       return (Fun t1' t2')
+evalType (Forall a t)
+  = do t' <- withLocalTVars [(a, (Star, TVar a))] (evalType t)
+       return (Forall a t')
+evalType (Product ts)
+  = do ts' <- mapM evalType ts
+       return (Product ts')
+evalType (Record fs)
+  = do ts' <- mapM (evalType . snd) fs
+       return (Record (zip (map fst fs) ts'))
+evalType (ListOf t)
+  = do t' <- evalType t
+       return (ListOf t')
+evalType (And t1 t2)
+  = do t1' <- evalType t1
+       t2' <- evalType t2
+       return (And t1' t2')
+evalType (Thunk t)
+  = do t' <- evalType t
+       return (Thunk t')
+evalType (OpApp (TVar t1) t2)
+  = do typeContext <- getTypeContext
+       case Map.lookup t1 typeContext of
+         Just (_, OpAbs param t) -> return (fsubstTT (param, t2) t)
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)
@@ -413,7 +507,7 @@ srcLitType (Bool _)   = JClass "java.lang.Boolean"
 srcLitType (Char _)   = JClass "java.lang.Character"
 srcLitType UnitLit    = Unit
 
-checkDupNames :: [Name] -> TcM ()
+checkDupNames :: [Name] -> Checker ()
 checkDupNames names
   = case findDup names of
       Nothing   -> return ()

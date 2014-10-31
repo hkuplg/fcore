@@ -1,19 +1,6 @@
-module PrettyUtils
-  ( -- Type classes
-    -- Outputable(..)
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-    PrecLevel
-  , PrecDelta(..)
-  , Prec
-  , basePrec
-
-  , parensIf
-
-    -- Pretty printing combinators
-  , arrow, forall, ampersand, lambda, biglambda, dcomma, unit
-
-  , prettyTVar, prettyVar
-  ) where
+module PrettyUtils where
 
 import Text.PrettyPrint.Leijen
 import Data.Char (ord, chr)
@@ -25,7 +12,6 @@ import Data.Char (ord, chr)
 --   prettyPrec   :: Prec -> a -> Doc
 --   prettyPrec _ = PrettyUtils.pretty
 
-arrow, forall, ampersand, lambda, biglambda, dcomma, unit :: Doc
 arrow     = text "->"
 forall    = text "forall"
 ampersand = text "&"
@@ -33,6 +19,12 @@ lambda    = text "\\"
 biglambda = text "/\\"
 dcomma    = text ",,"
 unit      = text "()"
+
+bquote :: Doc
+bquote = char '`'
+
+bquotes :: Doc -> Doc
+bquotes = enclose bquote bquote
 
 type PrecLevel = Int
 data PrecDelta = PrecMinus | PrecPlus
