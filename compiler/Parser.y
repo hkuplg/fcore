@@ -108,23 +108,29 @@ module_name :: { Name }
 -- Types
 
 type :: { Type }
-  : "forall" tvar "." type    { Forall $2 $4 }
-  | atype "->" ftype          { Fun $1 $3 }
-  | ftype                     { $1 }
+  : "forall" tvar "." type   { Forall $2 $4 }
+  | monotype                 { $1 }
+
+monotype :: { Type }
+  : intertype "->" monotype  { Fun $1 $3 }
+  | intertype                { $1 }
+
+intertype :: { Type }
+  : ftype "&" intertype      { And $1 $3 }
+  | ftype                    { $1 }
 
 ftype :: { Type }
-  : atype "&" atype           { And $1 $3 }
-  | ftype atype               { OpApp $1 $2 }
-  | atype                     { $1 }
+  : ftype atype              { OpApp $1 $2 }
+  | atype                    { $1 }
 
 atype :: { Type }
   : tvar                     { TVar $1 }
   | JAVACLASS                { JClass $1 }
+  | "Unit"                   { Unit }
   | "(" product_body ")"     { Product $2 }
   | "{" record_body "}"      { Record $2 }
-  | "(" type ")"             { $2 }
-  | "Unit"                   { Unit }
   | "'" atype                { Thunk $2 }
+  | "(" type ")"             { $2 }
 
 product_body :: { [Type] }
   : type "," type             { $1:[$3] }
