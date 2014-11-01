@@ -33,13 +33,13 @@ import Prelude hiding (pred)
 
 type Connection = (Handle, Handle)
 
-typeCheck :: Expr Name -> IO (Either TypeError (Expr TcId, Type))
+typeCheck :: Expr Name -> IO (Either TypeError (Expr (Name,Type), Type))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnv type_server) . runErrorT . infer) e)
 
 -- Temporary hack for REPL
-typeCheckWithEnv :: ValueContext -> Expr Name -> IO (Either TypeError (Expr TcId, Type))
+typeCheckWithEnv :: ValueContext -> Expr Name -> IO (Either TypeError (Expr (Name,Type), Type))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . infer) e)
@@ -199,7 +199,7 @@ hasKindStar d t
   = do k <- kind d t
        return (k == Just Star)
 
-infer :: Expr Name -> Checker (Expr TcId, Type)
+infer :: Expr Name -> Checker (Expr (Name,Type), Type)
 infer (Var name)
   = do value_ctxt <- getValueContext
        case Map.lookup name value_ctxt of
@@ -369,14 +369,14 @@ infer (Type tid params rhs e)
         k (_:as) = KArrow Star (k as)
         pullRight as t = foldr OpAbs t as
 
-inferAgainst :: Expr Name -> Type -> Checker (Expr TcId, Type)
+inferAgainst :: Expr Name -> Type -> Checker (Expr (Name,Type), Type)
 inferAgainst expr expected_ty
   = do (expr', actual_ty) <- infer expr
        if actual_ty `alphaEq` expected_ty
           then return (expr', actual_ty)
           else throwError (Mismatch expected_ty actual_ty)
 
-inferAgainstAnyJClass :: Expr Name -> Checker (Expr TcId, ClassName)
+inferAgainstAnyJClass :: Expr Name -> Checker (Expr (Name,Type), ClassName)
 inferAgainstAnyJClass expr
   = do (expr', ty) <- infer expr
        case ty of
@@ -384,12 +384,12 @@ inferAgainstAnyJClass expr
         JType (JClass c) -> return (expr', c)
         _        -> sorry "TypeCheck.inferAgainstAnyJClass"
 
-inferAgainstMaybe :: Expr Name -> Maybe Type -> Checker (Expr TcId, Type)
+inferAgainstMaybe :: Expr Name -> Maybe Type -> Checker (Expr (Name,Type), Type)
 inferAgainstMaybe e Nothing  = infer e
 inferAgainstMaybe e (Just t) = inferAgainst e t
 
 -- f A1 ... An (x1:T1) ... (xn:Tn) = e
-inferBind :: Bind Name -> Checker (Name, Type, Expr TcId)
+inferBind :: Bind Name -> Checker (Name, Type, Expr (Name,Type))
 inferBind bind
   = do bind' <- checkBindLHS bind
        (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, TVar a))) (bindTargs bind')) $

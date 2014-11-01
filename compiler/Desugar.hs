@@ -16,7 +16,7 @@ import StringPrefixes
 
 import qualified Data.Map as Map
 
-desugar :: Expr TcId -> C.Expr t e
+desugar :: Expr (Name,Type) -> C.Expr t e
 desugar = desugarExpr (Map.empty, Map.empty)
 
 type TVarMap t  = Map.Map Name t
@@ -37,7 +37,7 @@ transType d (Record fs)  =
 transType _ Unit         = C.Unit
 transType i (Thunk t)    = C.Thunk (transType i t)
 
-desugarExpr :: (TVarMap t, VarMap t e) -> Expr TcId -> C.Expr t e
+desugarExpr :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarExpr (d, g) = go
   where
     go (Var (x,_t))      = fromMaybe (panic "Desugar.desugarExpr: Var") (Map.lookup x g)
@@ -134,7 +134,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 
     go (Seq es) = C.Seq (map go es)
 
-desugarLetRecToFix :: (TVarMap t, VarMap t e) -> Expr TcId -> C.Expr t e
+desugarLetRecToFix :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
   C.App
       (C.Lam
@@ -158,7 +158,7 @@ desugarLetRecToFix _ _ = panic "Desugar.desugarLetRecToFix"
 ~>  (\(y : Int -> (t1, ..., tn)). e[*])
       (fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*])
 -}
-desugarLetRecToFixEncoded :: (TVarMap t, VarMap t e) -> Expr TcId -> C.Expr t e
+desugarLetRecToFixEncoded :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarLetRecToFixEncoded (d,g) = go
   where
     go (LetOut Rec bs@(_:_) e) =
@@ -185,9 +185,9 @@ desugarLetRecToFixEncoded (d,g) = go
                            [1..length bs]
     go _ = panic "Desugar.desugarLetRecEncode"
 
--- Convert from: LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId)
+-- Convert from: LetOut RecFlag [(Name, Type, Expr (Name,Type))] (Expr (Name,Type))
 -- To:           LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
-desugarLetRecToLetRec :: (TVarMap t, VarMap t e) -> Expr TcId -> C.Expr t e
+desugarLetRecToLetRec :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec sigs' binds' body'
   where
     (ids, sigs, defs) = unzip3 binds
