@@ -154,7 +154,7 @@ tvar :: { Name }
 
 expr :: { Expr Name }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
-    | "\\" var_with_annot "." expr        { Lam $2 $4 }
+    | "\\" arg "." expr                   { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "let" recflag and_binds ";"  expr   { Let $2 $3 $5 }
     | "let" tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
@@ -242,12 +242,8 @@ comma_exprs2 :: { [Expr Name] }
     : expr "," expr           { [$1,$3]  }
     | expr "," comma_exprs2   { $1:$3     }
 
-var_with_annot :: { (Name, Type) }
-  : "(" var ":" type ")"         { ($2, $4) }
-  | "(" var_with_annot ")"      { $2       }
-
 bind :: { Bind Name }
-    : var tvars var_annots_emp maybe_sig "=" expr
+    : var tvars args maybe_sig "=" expr
         { Bind { bindId       = $1
                , bindTargs    = $2
                , bindArgs     = $3
@@ -268,12 +264,14 @@ recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
 
-var_annot :: { (Name, Type) }
+arg :: { (Name, Type) }
     : "(" var ":" type ")"       { ($2, $4) }
+    | "()"                       { ("_", Unit) }
+    | "(" arg ")"                { $2 }
 
-var_annots_emp :: { [(Name, Type)] }
+args :: { [(Name, Type)] }
     : {- empty -}               { []    }
-    | var_annot var_annots_emp  { $1:$2 }
+    | arg args  { $1:$2 }
 
 var :: { Name }
     : LOWERID           { $1 }

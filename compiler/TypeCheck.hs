@@ -102,9 +102,9 @@ data TypeError
   deriving (Show)
 
 instance Pretty TypeError where
-  pretty (General doc)      = line <> text "error:" <+> doc
-  pretty (NotInScopeTVar a) = line <> text "error:" <+> text "type" <+> bquotes (text a) <+> text "is not in scope"
-  pretty e                  = line <> text "error:" <+> text (show e)
+  pretty (General doc)      = text "error:" <+> doc
+  pretty (NotInScopeTVar a) = text "error:" <+> text "type" <+> bquotes (text a) <+> text "is not in scope"
+  pretty e                  = text "error:" <+> text (show e)
 
 instance Error TypeError where
   -- strMsg
@@ -225,7 +225,7 @@ infer (App e1 e2)
                                   (bquotes (pretty e1) <+> text "expects an argument of type at least" <+> bquotes (pretty t11) <> comma <+>
                                    text "but the argument" <+> bquotes (pretty e2) <+> text "has type" <+> pretty t2))
                            return (App e1' e2', t12)
-         _         -> throwError (General (text (show e1) <+> text "::" <+> text (show t1)))
+         _         -> throwError (General (bquotes (pretty e1) <+> text "is of type" <+> bquotes (pretty t1) <> text "; it cannot be applied"))
 
 infer (BLam a e)
   = do (e', t) <- withLocalTVars [(a, (Star, TVar a))] (infer e)
@@ -379,10 +379,10 @@ inferAgainst expr expected_ty
 inferAgainstAnyJClass :: Expr Name -> Checker (Expr (Name,Type), ClassName)
 inferAgainstAnyJClass expr
   = do (expr', ty) <- infer expr
-       case ty of
+       case dethunk ty of
         JType (JPrim "char") -> return (expr', "java.lang.Character")
         JType (JClass c) -> return (expr', c)
-        _        -> sorry "TypeCheck.inferAgainstAnyJClass"
+        _ -> throwError $ General (bquotes (pretty expr) <+> text "has type" <+> bquotes (pretty ty) <> comma <+> text "but is expected to be of some Java class")
 
 inferAgainstMaybe :: Expr Name -> Maybe Type -> Checker (Expr (Name,Type), Type)
 inferAgainstMaybe e Nothing  = infer e

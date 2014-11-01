@@ -1,7 +1,7 @@
 -- Adapted from
 -- http://stackoverflow.com/questions/13337338/call-by-name-vs-call-by-value-in-scala-clarification-needed
 
-let something (dummy : Unit) = {
+let something () = {
   java.lang.System.out.println("calling something");
   1
 };

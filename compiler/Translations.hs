@@ -55,7 +55,7 @@ import Language.Java.Pretty
 
 import Text.PrettyPrint.Leijen
 
--- import Text.PrettyPrint.Leijen
+import System.Exit (exitFailure)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -276,7 +276,9 @@ sf2java num optDump compilation className src =
   do let readSrc = Parser.reader src
      result <- readSrc `seq` (typeCheck readSrc)
      case result of
-       Left typeError -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
+       Left typeError ->
+         do print (Text.PrettyPrint.Leijen.pretty typeError)
+            exitFailure -- TODO: Ugly
        Right (tcheckedSrc, _t)   ->
          do let core = desugar tcheckedSrc
             when optDump $ do { putStrLn "Core"; print $ Core.prettyExpr core }
