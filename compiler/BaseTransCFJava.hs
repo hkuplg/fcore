@@ -45,7 +45,7 @@ data Translate m =
     ,translateApply :: m TransType -> m TransType -> m TransType
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
     ,translateLet :: TransType -> TransType -> Int -> m TransType
-    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
+    ,translateScopeTyp :: Bool -> Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
     ,genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,applyRetType :: Type Int -> m (Maybe J.Type)
@@ -341,6 +341,7 @@ trans self =
                                                              else cast typT1 accessField))
                    closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                    (cvar,t1) <- translateScopeTyp this
+                                                  True
                                                   v -- n + 1
                                                   n
                                                   [xf]
@@ -377,20 +378,22 @@ trans self =
                   let xfDecl = localFinalVar jt2 (varDecl xf j2)
                   return (s1 ++ [xDecl] ++ s2 ++ [xfDecl], var xf, t2)
        ,translateScopeTyp =
-          \currentId oldId initVars _ otherStmts closureClass ->
+          \flag currentId oldId initVars _ otherStmts closureClass ->
             do b <- genClone this
                (ostmts,oexpr,t1) <- otherStmts
+               let setApplyFlag = assignField (fieldAccExp (var (localvarstr ++ show currentId)) "isApply") (J.Lit (J.Boolean flag))
                return ([localClassDecl ("Fun" ++ show oldId)
                                        closureClass
                                        (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
-                                                                               (varDecl (localvarstr ++ show currentId) J.This)]
+                                                                               (varDecl (localvarstr ++ show currentId) J.This)
+                                                       ,J.InitDecl False $ block [setApplyFlag]]
                                                        (initVars ++ ostmts ++ [assign (name ["out"]) oexpr])
                                                        oldId
                                                        b
                                                        (classTy closureClass))
                        ,localVar (classTy closureClass) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                       ,t1)
-       ,genApply = \f _ _ _ _ -> return [applyMethodCall f]
+       ,genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
        ,genRes = \_ -> return
        ,setClosureVars =
           \_ fname j1 j2 -> do

@@ -1,6 +1,6 @@
 {-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures -XConstraintKinds -XScopedTypeVariables #-}
 
-module ApplyTransCFJava where
+module ApplyTransCFJava2 where
 
 import qualified Data.Set as Set
 import qualified Language.Java.Syntax as J
@@ -42,7 +42,10 @@ transApply _ super = NT {toT = super {
                       let refactored = modifiedScopeTyp je s currentId nextId closureClass
                       return (refactored,t1),
 
-  genApply = \f t x y z -> if (last t) then genApply super f t x y z else return [],
+  -- genApply = \f t x y z -> if (last t) then genApply super f t x y z else return [],
+  genApply = \f t x y z -> do applyGen <- genApply super f t x y z
+                              return [bStmt $ J.IfThen (fieldAccess (J.ExpName $ J.Name [f]) "isApply")
+                                      (J.StmtBlock (block applyGen)) ],
 
   setClosureVars = \t f j1 j2 -> do
               (usedCl :: Set.Set J.Exp) <- get
@@ -64,9 +67,10 @@ modifiedScopeTyp :: J.Exp -> [J.BlockStmt] -> Int -> Int -> String -> [J.BlockSt
 modifiedScopeTyp oexpr ostmts currentId nextId closureClass = completeClosure
   where closureType' = classTy closureClass
         currentInitialDeclaration = memberDecl $ fieldDecl closureType' (varDecl (localvarstr ++ show currentId) J.This)
+        setApplyFlag = assignField (fieldAccExp (var (localvarstr ++ show currentId)) "isApply") (J.Lit (J.Boolean False))
         completeClosure = [(localClassDecl ("Fun" ++ show nextId) closureClass
                             (closureBodyGen
-                             [currentInitialDeclaration, J.InitDecl False (block $ (ostmts ++ [assign (name ["out"]) oexpr]))]
+                             [currentInitialDeclaration, J.InitDecl False (block $ (setApplyFlag : ostmts ++ [assign (name ["out"]) oexpr]))]
                              []
                              nextId
                              True
