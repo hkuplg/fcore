@@ -125,7 +125,7 @@ ftype :: { Type }
 
 atype :: { Type }
   : tvar                     { TVar $1 }
-  | JAVACLASS                { JClass $1 }
+  | JAVACLASS                { JType (JClass $1) }
   | "Unit"                   { Unit }
   | "(" product_body ")"     { Product $2 }
   | "{" record_body "}"      { Record $2 }

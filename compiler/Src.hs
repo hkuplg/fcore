@@ -9,7 +9,7 @@ module Src
   ( Module(..)
   , Kind(..)
   , Type(..)
-  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..)
+  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..), JVMType(..)
   , Label
   , TypeContext, ValueContext
   , Name, TcId
@@ -48,11 +48,11 @@ data Module id = Module id [Bind id] deriving (Eq, Show)
 
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
 
--- data JVMType = JClass ClassName | JPrim String
+data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
 
 data Type
   = TVar Name
-  | JClass ClassName -- JType JVMType
+  | JType JVMType -- JClass ClassName
   | Unit
   | Fun Type Type
   | Forall Name Type
@@ -137,7 +137,10 @@ deThunk t         = t
 
 alphaEq :: Type -> Type -> Bool
 alphaEq (TVar a)       (TVar b)       = a == b
-alphaEq (JClass c)     (JClass d)     = c == d
+-- alphaEq (JClass c)     (JClass d)     = c == d
+alphaEq (JType (JPrim "char")) (JType (JClass "java.lang.Character")) = True
+alphaEq (JType (JClass "java.lang.Character")) (JType (JPrim "char")) = True
+alphaEq (JType c) (JType d)           = c == d
 alphaEq (Fun t1 t2)    (Fun t3 t4)    = t1 `alphaEq` t3 && t2 `alphaEq` t4
 alphaEq (Forall a1 t1) (Forall a2 t2) = fsubstTT (a2, TVar a1) t2 `alphaEq` t1
 alphaEq (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEq `all` zip ts1 ts2
@@ -152,9 +155,10 @@ alphaEq t1             t2             = False `panicOnSameDataCons` ("Src.alphaE
 
 subtype :: Type -> Type -> Bool
 subtype (TVar a)       (TVar b)       = a == b
-subtype (JClass c)     (JClass d)     = c == d
+-- subtype (JClass c)     (JClass d)     = c == d
   -- TODO: Should the subtype here be aware of the subtyping relations in the
   -- Java world?
+subtype (JType c)     (JType d)     = c == d
 subtype (Fun t1 t2)    (Fun t3 t4)    = t3 `subtype` t1 && t2 `subtype` t4
 subtype (Forall a1 t1) (Forall a2 t2) = fsubstTT (a1,TVar a2) t1 `subtype` t2
 subtype (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry subtype `all` zip ts1 ts2
@@ -178,7 +182,8 @@ fields :: Type -> [(Maybe Label, Type)]
 fields t
   = case t of
       TVar _            -> unlabeledField
-      JClass _          -> unlabeledField
+      -- JClass _          -> unlabeledField
+      JType _           -> unlabeledField
       Fun _ _           -> unlabeledField
       Forall _ _        -> unlabeledField
       Product _         -> unlabeledField
@@ -198,7 +203,8 @@ fsubstTT :: (Name, Type) -> Type -> Type
 fsubstTT (x,r) (TVar a)
   | a == x                     = r
   | otherwise                  = TVar a
-fsubstTT (_,_) (JClass c )     = JClass c
+-- fsubstTT (_,_) (JClass c )     = JClass c
+fsubstTT (_,_) (JType c)       = JType c
 fsubstTT (x,r) (Fun t1 t2)     = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Product ts)    = Product (map (fsubstTT (x,r)) ts)
 fsubstTT (x,r) (Forall a t)
@@ -213,7 +219,8 @@ fsubstTT (x,r) (Thunk t1)      = Thunk (fsubstTT (x,r) t1)
 
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x
-freeTVars (JClass _)   = Set.empty
+-- freeTVars (JClass _)    = Set.empty
+freeTVars (JType _)    = Set.empty
 freeTVars Unit         = Set.empty
 freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
 freeTVars (Forall a t) = Set.delete a (freeTVars t)
@@ -229,7 +236,8 @@ freeTVars (OpApp t1 t2) = Set.union (freeTVars t1) (freeTVars t2)
 
 instance Pretty Type where
   pretty (TVar a)     = text a
-  pretty (JClass c)   = text c
+  pretty (JType (JClass c))   = text c
+  pretty (JType (JPrim c))   = text c
   pretty Unit         = text "Unit"
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
   pretty (Forall a t) = parens $ forall <+> text a <> dot <+> pretty t
