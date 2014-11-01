@@ -204,7 +204,7 @@ prettyType' p i (And t1 t2) =
      ampersand  <+>
      prettyType' (2,PrecPlus) i t2)
 
-prettyType' _ i (Record (l,t)) = lbrace <> text l <> colon <> prettyType' basePrec i t <> rbrace
+prettyType' _ i (Record (l,t)) = lbrace <+> text l <+> colon <+> prettyType' basePrec i t <+> rbrace
 
 prettyType' p i (Thunk t) = squote <>
                              case t of
@@ -290,17 +290,14 @@ prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 prettyExpr' p (i,j) (Fix f t1 t) =
   parens
     (text "fix" <+> prettyVar j <+>
-     parens (prettyVar (succ j) <+> colon <+> prettyType' p i t1) <+>
+     parens (prettyVar (j + 1) <+> colon <+> prettyType' p i t1) <+>
      colon <+>
      prettyType' p i t <> dot <$$>
      indent 2 (prettyExpr' p (i, j + 2) (f j (j + 1))))
 
 prettyExpr' _ (i,j) (Let x f) =
-  text "let" <$$>
-  indent 2 (prettyVar j <> text " = " <>
-    prettyExpr' basePrec (i, succ j) x) <$$>
-  text "in" <$$>
-  indent 2 (prettyExpr' basePrec (i, succ j) (f j))
+  text "let" <+> prettyVar j <+> equals <+> prettyExpr' basePrec (i, j + 1) x <> semi <$$>
+  prettyExpr' basePrec (i, j + 1) (f j)
 
 prettyExpr' p (i,j) (LetRec sigs binds body)
   = text "let" <+> text "rec" <$$>
@@ -321,7 +318,7 @@ prettyExpr' p (i,j) (LetRec sigs binds body)
 prettyExpr' p (i,j) (Merge e1 e2) =
   parens $ prettyExpr' p (i,j) e1 <+> dcomma <+> prettyExpr' p (i,j) e2
 
-prettyExpr' _ (i,j) (RecordLit (l, e))       = lbrace <> text l <> equals <> prettyExpr' basePrec (i,j) e <> rbrace
+prettyExpr' _ (i,j) (RecordLit (l, e))       = lbrace <+> text l <+> equals <+> prettyExpr' basePrec (i,j) e <+> rbrace
 prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> text l
 prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordLit (l, e1))
 prettyExpr' _ (i,j) (Lazy e)                 = char '\'' <> parens (prettyExpr' basePrec (i,j) e)
