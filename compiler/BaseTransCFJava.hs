@@ -381,7 +381,7 @@ trans self =
           \flag currentId oldId initVars _ otherStmts closureClass ->
             do b <- genClone this
                (ostmts,oexpr,t1) <- otherStmts
-               let setApplyFlag = assignField (fieldAccExp (var (localvarstr ++ show currentId)) "isApply") (J.Lit (J.Boolean flag))
+               let setApplyFlag = assignField (fieldAccExp (var (localvarstr ++ show currentId)) "hasApply") (J.Lit (J.Boolean flag))
                return ([localClassDecl ("Fun" ++ show oldId)
                                        closureClass
                                        (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
