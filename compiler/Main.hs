@@ -58,13 +58,13 @@ optionsSpec :: Options
 optionsSpec = Options
   { optCompile = False &= explicit &= name "c" &= name "compile" &= help "Compile Java source"
   , optCompileAndRun = False &= explicit &= name "r" &= name "run" &= help "Compile & run Java source"
-  , optDump = NoDump &= explicit &= name "d" &= name "dump" &= help "Dump intermediate representations"
+  , optDump = NoDump &= explicit &= name "d" &= name "dump" &= typ "TYPE"
+           &= help ("Dump intermediate representations; " ++
+                    "options: `core`, `simplecore`, `closuref`")
   , optSourceFiles = [] &= args &= typ "SOURCE FILES"
   , optTransMethod = ApplyOpt &= explicit &= name "m" &= name "method" &= typ "METHOD"
-                  &= help ("Translations method." ++
-                           "Can be either 'naive', 'applyopt', or 'stack'" ++
-                           "(use without quotes)." ++
-                           "The default is 'applyopt'.")
+                  &= help ("Translations method; " ++
+                           "options: `naive`, `applyopt` (default), `stack`")
   , optVerbose = False &= explicit &= name "v" &= name "verbose" &= help "Verbose"
   }
   &= helpArg [explicit, name "help", name "h"]
