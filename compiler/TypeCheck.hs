@@ -284,7 +284,7 @@ infer (Let rec_flag binds e) =
 infer (LetOut{..}) = panic "TypeCheck.infer: LetOut"
 
 infer (JNew c args)
-  = do checkClassName c -- ToDo: Needed?
+  = do checkClassName c -- TODO: Needed?
        (args', arg_cs) <- mapAndUnzipM inferAgainstAnyJClass args
        checkNew c arg_cs
        return (JNew c args', JType $ JClass c)
@@ -380,9 +380,9 @@ inferAgainstAnyJClass :: Expr Name -> Checker (Expr TcId, ClassName)
 inferAgainstAnyJClass expr
   = do (expr', ty) <- infer expr
        case ty of
-         JType (JClass c) -> return (expr', c)
-         JType (JPrim c) -> return (expr', c)
-         _        -> sorry "TypeCheck.inferAgainstAnyJClass"
+        JType (JPrim "char") -> return (expr', "java.lang.Character")
+        JType (JClass c) -> return (expr', c)
+        _        -> sorry "TypeCheck.inferAgainstAnyJClass"
 
 inferAgainstMaybe :: Expr Name -> Maybe Type -> Checker (Expr TcId, Type)
 inferAgainstMaybe e Nothing  = infer e
