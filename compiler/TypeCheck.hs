@@ -219,7 +219,7 @@ infer (App e1 e2)
        case t1 of
          Fun t11 t12 -> do t11' <- evalType t11
                            t2'  <- evalType t2
-                           unless (deThunk t2' `subtype` deThunk t11') $
+                           unless (dethunk t2' `subtype` dethunk t11') $
                              throwError
                                (General
                                   (bquotes (pretty e1) <+> text "expects an argument of type at least" <+> bquotes (pretty t11) <> comma <+>

@@ -16,7 +16,7 @@ module Src
   -- , RdrExpr
   -- , TcBinds
   -- , TcExpr
-  , deThunk
+  , dethunk
   , alphaEq
   , subtype
   , fields
@@ -131,9 +131,9 @@ type ValueContext = Map.Map Name Type
 
 -- Type equivalence(s) and subtyping
 
-deThunk :: Type -> Type
-deThunk (Thunk t) = deThunk t
-deThunk t         = t
+dethunk :: Type -> Type
+dethunk (Thunk t) = dethunk t
+dethunk t         = t
 
 alphaEq :: Type -> Type -> Bool
 alphaEq (TVar a)       (TVar b)       = a == b
