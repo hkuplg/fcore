@@ -30,7 +30,7 @@ data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
     , optSourceFiles   :: [String]
-    , optDump          :: Bool
+    , optDump          :: DumpOption
     , optTransMethod   :: TransMethod
     , optVerbose       :: Bool
     } deriving (Eq, Show, Data, Typeable)
@@ -58,7 +58,7 @@ optionsSpec :: Options
 optionsSpec = Options
   { optCompile = False &= explicit &= name "c" &= name "compile" &= help "Compile Java source"
   , optCompileAndRun = False &= explicit &= name "r" &= name "run" &= help "Compile & run Java source"
-  , optDump = False &= explicit &= name "d" &= name "dump" &= help "Dump intermediate representations"
+  , optDump = NoDump &= explicit &= name "d" &= name "dump" &= help "Dump intermediate representations"
   , optSourceFiles = [] &= args &= typ "SOURCE FILES"
   , optTransMethod = ApplyOpt &= explicit &= name "m" &= name "method" &= typ "METHOD"
                   &= help ("Translations method." ++

@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts
+{-# LANGUAGE DeriveDataTypeable
+           , FlexibleContexts
            , FlexibleInstances
            , KindSignatures
            , MultiParamTypeClasses
@@ -24,6 +25,7 @@ module Translations
     , compileBSAU
     , sf2java
     , compilesf2java
+    , DumpOption(..)
     ) where
 
 import Parser    (reader)
@@ -57,6 +59,8 @@ import Text.PrettyPrint.Leijen
 
 -- import Text.PrettyPrint.Leijen
 
+import Data.Data
+
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -65,6 +69,8 @@ import Prelude hiding (exp)
 -- import Control.Monad.Trans.Error (runErrorT)
 
 -- import Debug.Trace      (trace)
+
+data DumpOption = NoDump | DumpCore | DumpSimpleCore | DumpClosureF deriving (Eq, Show, Data, Typeable)
 
 -- Naive translation
 
@@ -271,7 +277,7 @@ prettyJ = putStrLn . prettyPrint
 
 -- SystemF to Java
 -- TODO: ugly hack to integrate number of inlings
-sf2java :: Int -> Bool -> Compilation -> ClassName -> String -> IO String
+sf2java :: Int -> DumpOption -> Compilation -> ClassName -> String -> IO String
 sf2java num optDump compilation className src =
   do let readSrc = Parser.reader src
      result <- readSrc `seq` (typeCheck readSrc)
@@ -279,18 +285,18 @@ sf2java num optDump compilation className src =
        Left typeError -> error $ show (Text.PrettyPrint.Leijen.pretty typeError)
        Right (tcheckedSrc, _t)   ->
          do let core = desugar tcheckedSrc
-            when optDump $ do { putStrLn "Core"; print $ Core.prettyExpr core }
+            when (optDump == DumpCore) $ print (Core.prettyExpr core)
             let simpleCore = case num of
                                1 -> peval . inliner . simplify $ core
                                2 -> peval . inliner. inliner . simplify $ core
                                _ -> simplify core
             -- let simpleCore = simplify core
-            when optDump $ do { putStrLn "Simplified Core"; print $ Core.prettyExpr simpleCore }
-	    when optDump $ do { putStrLn "Closure F"; print $ ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore) }
+            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
+	    when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore))
             let (cu, _) = compilation className simpleCore
             return $ prettyPrint cu
 
-compilesf2java :: Int -> Bool -> Compilation -> FilePath -> FilePath -> IO ()
+compilesf2java :: Int -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java num optDump compilation srcPath outputPath = do
     src <- readFile srcPath
     output <- sf2java num optDump compilation (inferClassName outputPath) src
