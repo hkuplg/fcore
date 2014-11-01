@@ -11,7 +11,8 @@ public class TypeServer {
         map.put(boolean.class, Boolean.class);
         map.put(byte.class, Byte.class);
         map.put(short.class, Short.class);
-        map.put(char.class, Character.class);
+        // map.put(char.class, Character.class);
+        map.put(char.class, char.class);
         map.put(int.class, Integer.class);
         map.put(long.class, Long.class);
         map.put(float.class, Float.class);

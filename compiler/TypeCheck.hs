@@ -159,14 +159,16 @@ type TypeSubstitution = Map.Map Name Type
 
 applyTSubst :: TypeSubstitution -> Type -> Type
 applyTSubst s (TVar a)     = fromMaybe (TVar a) (Map.lookup a s)
-applyTSubst _ (JClass c)   = JClass c
+-- applyTSubst _ (JClass c)   = JClass c
+applyTSubst _ (JType c)    = JType c
 applyTSubst s (Fun t1 t2)  = Fun (applyTSubst s t1) (applyTSubst s t2)
 applyTSubst s (Forall a t) = Forall a (applyTSubst s' t) where s' = Map.delete a s
 applyTSubst _ _            = sorry "TypeCheck.applyTSubst"
 
 kind :: TypeContext -> Type -> IO (Maybe Kind)
 kind d (TVar a)     = return (Map.lookup a d)
-kind _ (JClass c)   = undefined
+-- kind _ (JClass c)   = undefined
+kind _ (JType c)    = undefined
 kind _  Unit        = return (Just Star)
 kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Forall a t) = kind d' t where d' = Map.insert a Star d
@@ -252,20 +254,20 @@ infer (Proj e i)
 infer (PrimOp e1 op e2)
   = case op of
       Arith _ ->
-        do (e1', _t1) <- inferAgainst e1 (JClass "java.lang.Integer")
-           (e2', _t2) <- inferAgainst e2 (JClass "java.lang.Integer")
-           return (PrimOp e1' op e2', JClass "java.lang.Integer")
+        do (e1', _t1) <- inferAgainst e1 (JType $ JClass "java.lang.Integer")
+           (e2', _t2) <- inferAgainst e2 (JType $ JClass "java.lang.Integer")
+           return (PrimOp e1' op e2', JType $ JClass "java.lang.Integer")
       Compare _ ->
         do (e1', t1)  <- infer e1
            (e2', _t2) <- inferAgainst e2 t1
-           return (PrimOp e1' op e2', JClass "java.lang.Boolean")
+           return (PrimOp e1' op e2', JType $ JClass "java.lang.Boolean")
       Logic _ ->
-        do (e1', _t1) <- inferAgainst e1 (JClass "java.lang.Boolean")
-           (e2', _t2) <- inferAgainst e2 (JClass "java.lang.Boolean")
-           return (PrimOp e1' op e2', JClass "java.lang.Boolean")
+        do (e1', _t1) <- inferAgainst e1 (JType $ JClass "java.lang.Boolean")
+           (e2', _t2) <- inferAgainst e2 (JType $ JClass "java.lang.Boolean")
+           return (PrimOp e1' op e2', JType $ JClass "java.lang.Boolean")
 
 infer (If pred b1 b2)
-  = do (pred', _pred_ty) <- inferAgainst pred (JClass "java.lang.Boolean")
+  = do (pred', _pred_ty) <- inferAgainst pred (JType $ JClass "java.lang.Boolean")
        (b1', t1)         <- infer b1
        (b2', _t2)        <- inferAgainst b2 t1
        return (If pred' b1' b2', t1)
@@ -285,32 +287,40 @@ infer (JNew c args)
   = do checkClassName c -- ToDo: Needed?
        (args', arg_cs) <- mapAndUnzipM inferAgainstAnyJClass args
        checkNew c arg_cs
-       return (JNew c args', JClass c)
+       return (JNew c args', JType $ JClass c)
 
 infer (JMethod callee m args _)
   = case callee of
       Static c ->
         do (args', arg_cs) <- mapAndUnzipM inferAgainstAnyJClass args
            ret_c <- checkMethodCall (Static c) m arg_cs
-           return (JMethod (Static c) m args' ret_c, JClass ret_c)
+           if (ret_c == "char")
+             then return (JMethod (Static c) m args' ret_c, JType $ JPrim "char")
+             else return (JMethod (Static c) m args' ret_c, JType $ JClass ret_c)
       NonStatic e ->
         do (e', c)         <- inferAgainstAnyJClass e
            (args', arg_cs) <- mapAndUnzipM inferAgainstAnyJClass args
            ret_c <- checkMethodCall (NonStatic c) m arg_cs
-           return (JMethod (NonStatic e') m args' ret_c, JClass ret_c)
+           if ret_c == "char"
+             then return (JMethod (NonStatic e') m args' ret_c, JType $ JPrim "char")
+             else return (JMethod (NonStatic e') m args' ret_c, JType $ JClass ret_c)
 
 infer (JField callee f _)
   = case callee of
       Static c ->
         do ret_c <- checkFieldAccess (Static c) f
-           return (JField (Static c) f ret_c, JClass ret_c)
+           if ret_c == "char"
+              then return (JField (Static c) f ret_c, JType $ JPrim ret_c)
+              else return (JField (Static c) f ret_c, JType $ JClass ret_c)
       NonStatic e ->
         do (e', t) <- infer e
            case t of
              Record _ -> infer (RecordAccess e f) -- Then the typechecker realized!
-             JClass c   ->
+             JType (JClass c)   ->
                do ret_c   <- checkFieldAccess (NonStatic c) f
-                  return (JField (NonStatic e') f ret_c, JClass ret_c)
+                  if ret_c == "char"
+                    then return (JField (NonStatic e') f ret_c, JType $ JPrim "char")
+                    else return (JField (NonStatic e') f ret_c, JType $ JClass ret_c)
              _          -> throwError
                            (General
                             (bquotes (pretty e) <+> text "has type" <+> bquotes (pretty t) <>
@@ -327,9 +337,9 @@ infer (Merge e1 e2) =
 
 infer (PrimList l) =
       do (es, ts) <- mapAndUnzipM infer l
-         case ts of [] -> return (PrimList es, JClass (namespace ++ "FunctionalList"))
+         case ts of [] -> return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
                     _  -> if all (`alphaEq` (ts !! 0)) ts
-                            then return (PrimList es, JClass (namespace ++ "FunctionalList"))
+                            then return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
                             else throwError $ General (text "Primitive List Type Mismatch" <+> text (show (PrimList l)))
 
 infer (RecordLit fs) =
@@ -370,7 +380,8 @@ inferAgainstAnyJClass :: Expr Name -> Checker (Expr TcId, ClassName)
 inferAgainstAnyJClass expr
   = do (expr', ty) <- infer expr
        case ty of
-         JClass c -> return (expr', c)
+         JType (JClass c) -> return (expr', c)
+         JType (JPrim c) -> return (expr', c)
          _        -> sorry "TypeCheck.inferAgainstAnyJClass"
 
 inferAgainstMaybe :: Expr Name -> Maybe Type -> Checker (Expr TcId, Type)
@@ -412,7 +423,7 @@ collectBindNameSigs
 checkType :: Type -> Checker ()
 checkType t
   = case t of
-      JClass c -> checkClassName c
+      JType (JClass c) -> checkClassName c
       _        ->
         do type_ctxt <- getTypeContext
            let free_ty_vars = freeTVars t `Set.difference` Set.fromList (map fst (filter (\(_,(k,_)) -> k == Star) (Map.toList type_ctxt)))
@@ -466,7 +477,7 @@ evalType (TVar a)
        case Map.lookup a typeContext of
          Nothing      -> return (TVar a)
          Just (_, t') -> evalType t'
-evalType (JClass c) = return (JClass c)
+evalType (JType (JClass c)) = return (JType $ JClass c)
 evalType Unit       = return Unit
 evalType (Fun t1 t2)
   = do t1' <- evalType t1
@@ -501,10 +512,10 @@ unwrapJCallee (NonStatic c) = (False, c)
 unwrapJCallee (Static    c) = (True, c)
 
 srcLitType :: Lit -> Type
-srcLitType (Int _)    = JClass "java.lang.Integer"
-srcLitType (String _) = JClass "java.lang.String"
-srcLitType (Bool _)   = JClass "java.lang.Boolean"
-srcLitType (Char _)   = JClass "java.lang.Character"
+srcLitType (Int _)    = JType $ JClass "java.lang.Integer"
+srcLitType (String _) = JType $ JClass "java.lang.String"
+srcLitType (Bool _)   = JType $ JClass "java.lang.Boolean"
+srcLitType (Char _)   = JType $ JClass "java.lang.Character"
 srcLitType UnitLit    = Unit
 
 checkDupNames :: [Name] -> Checker ()
