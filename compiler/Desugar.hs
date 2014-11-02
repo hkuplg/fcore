@@ -12,6 +12,7 @@ import qualified Core as C
 import Panic
 
 import Data.Maybe       (fromMaybe)
+import Data.List        (intercalate)
 import StringPrefixes
 
 import qualified Data.Map as Map
@@ -48,9 +49,9 @@ desugarExpr (d, g) = go
     go (Proj e i)        = C.Proj i (go e)
     go (PrimOp e1 op e2) = C.PrimOp (go e1) op (go e2)
     go (If e1 e2 e3)     = C.If (go e1) (go e2) (go e3)
-    go (Lam (x, t) e)    = C.Lam
+    go (Lam (x, t) e)    = C.Lam x
                                (transType d t)
-                               (\x' -> desugarExpr (d, Map.insert x (C.Var x') g) e)
+                               (\x' -> desugarExpr (d, Map.insert x (C.Var x x') g) e)
     go (BLam a e)        = C.BLam (\a' -> desugarExpr (Map.insert a a' d, g) e)
     go Let{..}           = panic "Desugar.desugarExpr: Let"
     go (LetOut _ [] e)   = go e
@@ -70,7 +71,7 @@ desugarExpr (d, g) = go
       -- C.App
       --   (C.Lam (transType d t1) (\f1' -> desugarExpr (d, Map.insert f1 (C.Var f1') g) e))
       --   (go e1)
-      C.Let (go e1) (\f1' -> desugarExpr (d, Map.insert f1 (C.Var f1') g) e)
+      C.Let f1 (go e1) (\f1' -> desugarExpr (d, Map.insert f1 (C.Var f1 f1') g) e)
 
 {-
 Note that rewriting simultaneous let expressions by nesting is wrong unless we do
@@ -86,7 +87,7 @@ variable renaming. An example:
 ~> let y = (t1, ..., tn). (e1, ..., en) in e[*]
 -}
     go (LetOut NonRec bs@(_:_) e) =
-      C.Let
+      C.Let (intercalate "_" fs)
         (go tupled_es)
         (\y -> desugarExpr (d, g' y `Map.union` g) e)
         where
@@ -96,7 +97,7 @@ variable renaming. An example:
 
           -- Substitution: fi -> y._(i-1)
           g' y = Map.fromList $
-                   zipWith (\f i -> (f, C.Proj i (C.Var y)))
+                   zipWith (\f i -> (f, C.Proj i (C.Var f y)))
                            fs
                            [1..length bs]
 
@@ -137,11 +138,11 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
   C.App
-      (C.Lam
+      (C.Lam "_"
           (transType d t)
-          (\f' -> desugarExpr (d, addToEnv [(f,C.Var f')] g) body))
+          (\f' -> desugarExpr (d, addToEnv [(f,C.Var f f')] g) body))
       (C.Fix
-          (\f' x1' -> desugarExpr (d, addToEnv [(f, C.Var f'), (x1, C.Var x1')] g) peeled_e)
+          (\f' x1' -> desugarExpr (d, addToEnv [(f, C.Var f f'), (x1, C.Var x1 x1')] g) peeled_e)
           (transType d t1)
           (transType d t2))
           where
@@ -163,7 +164,7 @@ desugarLetRecToFixEncoded (d,g) = go
   where
     go (LetOut Rec bs@(_:_) e) =
       C.App
-          (C.Lam
+          (C.Lam "_"
               (C.Fun (C.JClass "java.lang.Integer") (transType d tupled_ts))
               (\y -> desugarExpr (d, g' y `Map.union` g) e))
           (C.Fix
@@ -180,7 +181,7 @@ desugarLetRecToFixEncoded (d,g) = go
                 g' y = Map.fromList $
                          zipWith
                              -- TODO: better var name
-                           (\f i -> (f, C.Proj i (C.App (C.Var y) (C.Lit (Int 0)))))
+                           (\f i -> (f, C.Proj i (C.App (C.Var f y) (C.Lit (Int 0)))))
                            fs
                            [1..length bs]
     go _ = panic "Desugar.desugarLetRecEncode"
@@ -192,8 +193,8 @@ desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec sigs' binds
   where
     (ids, sigs, defs) = unzip3 binds
     sigs'  = map (transType d) sigs
-    binds' = \ids' -> map (desugarExpr (d, zip ids (map C.Var ids') `addToVarMap` g)) defs
-    body'  = \ids' -> desugarExpr (d, zip ids (map C.Var ids') `addToVarMap` g) body
+    binds' ids' = map (desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g)) defs
+    body'  ids' = desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g) body
 
 desugarLetRecToLetRec _ _ = panic "Desugar.desugarLetRecToLetRec"
 

@@ -8,7 +8,7 @@ import qualified Language.Java.Syntax as J (Op(..))
 app2let :: Expr t (Expr t e) -> Expr t (Expr t e)
 app2let (App e1 e2) =
     case e1' of
-      Lam t f -> Let e2' f
+      Lam n t f -> Let n e2' f
       _ -> App e1' e2'
     where e1' = app2let e1
           e2' = app2let e2
@@ -17,14 +17,14 @@ app2let e = mapExpr app2let e
 calc :: Expr t (Expr t e) -> Expr t (Expr t e)
 calc (App e1 e2) =
     case (e1', e2') of
-      (Lam _ f, Lit _) -> calc . f . joinExpr $ e2'
+      (Lam _ _ f, Lit _) -> calc . f . joinExpr $ e2'
       _ -> App e1' e2'
     where e1' = calc e1
           e2' = calc e2
-calc (Let bind body) =
+calc (Let n bind body) =
     case bind' of
       Lit _ -> calc . body . joinExpr $ bind'
-      _ -> Let bind' (\x -> calc . body $ x)
+      _ -> Let n bind' (\x -> calc . body $ x)
      where bind' = calc bind
 calc (PrimOp e1 op e2) =
     case (e1', e2') of

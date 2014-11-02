@@ -16,4 +16,4 @@ let callByName (x: 'Int) = {
   java.lang.System.out.println(x)
 };
 
-{ callByValue(something ()); callByName(something ()) }
+{ callByValue(something ()); callByValue(something ()) }
