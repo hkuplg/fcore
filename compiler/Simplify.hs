@@ -184,7 +184,7 @@ transExpr' _ this i j (App e1 e2)
     case t11 of
       Thunk t11_naked ->
         let c = fromMaybe (prettyPanic "Simplify.transExpr'" panic_doc) (coerce i t2 t11_naked)
-        in App e1' (App (lam (Fun Unit (transType i t2)) (App c . var)) (wrap e2'))
+        in App e1' (wrap (App c e2'))
       _       ->
         let c = fromMaybe (prettyPanic "Simplify.transExpr'" panic_doc) (coerce i t2 t11)
         in App e1' (App c e2')
