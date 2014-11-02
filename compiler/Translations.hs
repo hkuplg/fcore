@@ -39,7 +39,7 @@ import JavaUtils      (ClassName, inferClassName)
 
 import BaseTransCFJava
 import ApplyTransCFJava2
-import StackTransCFJava
+import StackTransCFJava2
 import BenchGenCF2J
 import BenchGenStack
 import UnboxTransCFJava
@@ -107,7 +107,7 @@ stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
 
 stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
-stackApplyNew = new ((transApply <.> adaptStack transS) $> trans)
+stackApplyNew = new ((transApply <.> adaptStack transSA) $> trans)
 
 -- Apply + Unbox + Naive
 applyUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => ApplyOptTranslate m
