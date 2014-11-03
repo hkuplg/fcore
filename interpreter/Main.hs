@@ -40,7 +40,7 @@ main = do
      hSetBuffering outP LineBuffering
      liftIO printHelp
      runInputT defaultSettings 
-	       (Loop.loop (inP, outP) Map.empty Env.empty Hist.empty 0 
+	       (Loop.loop (inP, outP) (0, compileAO) Map.empty Env.empty Hist.empty 0 
 		False False False 0)
      terminateProcess proch
      
