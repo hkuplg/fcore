@@ -291,7 +291,7 @@ sf2java num optDump compilation className src =
             let simpleCore = case num of
                                1 -> peval . inliner . simplify $ core
                                2 -> peval . inliner. inliner . simplify $ core
-                               _ -> simplify core
+                               _ -> peval $ simplify core
             -- let simpleCore = simplify core
             when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
 	    when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore))
