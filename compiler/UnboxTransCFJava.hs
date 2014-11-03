@@ -119,7 +119,7 @@ transUnbox this super =
                          (_,_,tt) <- ostmts
                          cName <- getClassType (up this) t (scope2ctyp tt)
 
-                         (cvar,t1) <- translateScopeTyp (up this) True v n [js] nextInClosure ostmts cName
+                         (cvar,t1) <- translateScopeTyp (up this) v n [js] nextInClosure ostmts cName
                          return (cvar,var (localvarstr ++ show n), Type t (\_ -> t1) )
 
                    _ -> translateScopeM super e m
