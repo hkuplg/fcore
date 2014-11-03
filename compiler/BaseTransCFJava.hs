@@ -46,7 +46,7 @@ data Translate m =
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
     ,translateLet :: TransType -> TransType -> Int -> m TransType
     ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
-    ,genApply :: J.Ident -> TScope Int -> String -> J.Type -> J.Type -> m [J.BlockStmt]
+    ,genApply :: String -> TScope Int -> String -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
@@ -70,7 +70,7 @@ getTupleClassName tuple =
 
 getS3 :: MonadState Int m
       => Translate m
-      -> J.Ident
+      -> String
       -> TScope Int
       -> J.Exp
       -> [J.BlockStmt]
@@ -359,7 +359,7 @@ trans self =
                let fname = localvarstr ++ show n -- use a fresh variable
                closureVars <- setClosureVars this retTyp fname j1 j2
                let fout = (fieldAccess (var fname) "out")
-               (s3,nje3) <- getS3 this (J.Ident fname) retTyp fout closureVars closureType
+               (s3,nje3) <- getS3 this fname retTyp fout closureVars closureType
                return (s1 ++ s2 ++ s3,nje3,scope2ctyp retTyp)
        ,translateIf =
           \m1 m2 m3 ->

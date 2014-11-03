@@ -144,8 +144,8 @@ transS this super = TS {toTS = super {
          (n :: Int) <- get
          put (n+1)
          if tailPosition
-           then nextApply (up this) (J.ExpName (J.Name [f])) x jType
-           else (whileApply (up this) (J.ExpName (J.Name [f])) ("c" ++ show n) x jType ctempCastTyp),
+           then nextApply (up this) (var f) x jType
+           else (whileApply (up this) (var f) ("c" ++ show n) x jType ctempCastTyp),
          -- case x of
          --    J.ExpName (J.Name [J.Ident h]) ->
 

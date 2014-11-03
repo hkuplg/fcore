@@ -107,7 +107,7 @@ stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
 
 stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
-stackApplyNew = new ((transApply <.> adaptStack transSA) $> trans)
+stackApplyNew = new ((transAS <.> adaptStack transSA) $> trans)
 
 -- Apply + Unbox + Naive
 applyUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => ApplyOptTranslate m
@@ -283,8 +283,7 @@ sf2java num optDump compilation className src =
             let simpleCore = case num of
                                1 -> peval . inliner . simplify $ core
                                2 -> peval . inliner. inliner . simplify $ core
-                               -- _ -> simplify core
-                               _ -> core
+                               _ -> peval $ simplify core
             -- let simpleCore = simplify core
             when optDump $ do { putStrLn "Simplified Core"; print $ Core.prettyExpr simpleCore }
             when optDump $ do { putStrLn "Closure F"; print $ ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore) }
