@@ -61,8 +61,8 @@ transUnbox this super =
                           let (je,typ) =
                                 case op of
                                   S.Arith realOp -> (J.BinOp j1 realOp j2,CFInt)
-                                  S.Compare realOp -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
-                                  S.Logic realOp -> (J.BinOp j1 realOp j2,JClass "java.lang.Boolean")
+                                  S.Compare realOp -> (J.BinOp j1 realOp j2,JClass "boolean")
+                                  S.Logic realOp -> (J.BinOp j1 realOp j2,JClass "boolean")
                           newVarName <- getNewVarName (up this)
                           aType <- javaType (up this) typ
                           return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
