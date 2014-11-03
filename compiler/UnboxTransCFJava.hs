@@ -147,7 +147,7 @@ transUnbox this super =
                       genIfBody (up this) m2 m3 (s1,j1) n
               ,javaType = \typ ->
                             case typ of
-                              CFInt -> return $ J.PrimType J.LongT
+                              CFInt -> return $ J.PrimType J.IntT
                               CFChar -> return $ J.PrimType J.CharT
                               (Forall (Type t1 f)) -> case f () of
                                                         Body t2 -> liftM classTy (getClassType (up this) t1 t2)
@@ -156,9 +156,9 @@ transUnbox this super =
               ,getPrefix = return (namespace ++ "unbox.")
               ,chooseCastBox = \typ ->
                                  case typ of
-                                   CFInt -> return (\s n e -> localFinalVar (J.PrimType J.LongT)
-                                                                            (varDecl (s ++ show n) (cast (J.PrimType J.LongT) e))
-                                                   ,J.PrimType J.LongT)
+                                   CFInt -> return (\s n e -> localFinalVar (J.PrimType J.IntT)
+                                                                            (varDecl (s ++ show n) (cast (J.PrimType J.IntT) e))
+                                                   ,J.PrimType J.IntT)
                                    CFChar -> return (\s n e -> localFinalVar (J.PrimType J.CharT)
                                                                             (varDecl (s ++ show n) (cast (J.PrimType J.CharT) e))
                                                    ,J.PrimType J.CharT)
