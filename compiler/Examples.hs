@@ -95,7 +95,7 @@ konstTy :: Type t
 konstTy = Forall (\a -> Forall (\b -> Fun (TVar a) (Fun (TVar b) (TVar a))))
 
 callByValue = Lam javaInt (\x -> Seq [println (Var x), intLit 0])
-callByName  = Lam (ThunkType javaInt) (\x -> Seq [println (Var x), intLit 0])
+callByName  = Lam (Thunk javaInt) (\x -> Seq [println (Var x), intLit 0])
 something   = Seq [println (Lit (S.String "called!")), intLit 1]
 println x   = JMethod (S.Static "java.lang.System.out") "println" [x] undefined
 intLit      = Lit . S.Int
