@@ -98,7 +98,7 @@ callByValue = Lam javaInt (\x -> Seq [println (Var x), intLit 0])
 callByName  = Lam (ThunkType javaInt) (\x -> Seq [println (Var x), intLit 0])
 something   = Seq [println (Lit (S.String "called!")), intLit 1]
 println x   = JMethod (S.Static "java.lang.System.out") "println" [x] undefined
-intLit      = Lit . S.Integer
+intLit      = Lit . S.Int
 
 -----------------------
 -- peval tests
@@ -124,7 +124,7 @@ fix = Fix (\f n -> If (((one `sub` zero) `eq` zero))
                    (Var n `mult` (Var f `App` (Var n `sub` one))))
       javaInt
       (javaInt `Fun` javaInt)
-app_fix = App fix (Lit (S.Integer 10))
+app_fix = App fix (Lit (S.Int 10))
 
 -- test App e1 e2, where e1 can be partially evaluated to a Lam
 minus = Lam javaInt (\x -> Lam javaInt (\y -> Var x `sub` Var y))
@@ -140,11 +140,11 @@ complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
                   one
 
 javaBool     = JClass "java.lang.Boolean"
-zero         = Lit (S.Integer 0)
-one          = Lit (S.Integer 1)
-magicNumber  = Lit (S.Integer 42)
-true         = Lit (S.Boolean True)
-false        = Lit (S.Boolean False)
+zero         = Lit (S.Int 0)
+one          = Lit (S.Int 1)
+magicNumber  = Lit (S.Int 42)
+true         = Lit (S.Bool True)
+false        = Lit (S.Bool False)
 x `eq` y     = PrimOp x (S.Compare J.Equal) y
 x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
