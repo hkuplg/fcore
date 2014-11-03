@@ -55,6 +55,7 @@ tokens :-
     Char        { \_ _ -> Tjavaclass "java.lang.Character" }
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
     List        { \_ _ -> Tjavaclass "f2j.FunctionalList" }
+    Empty       { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
