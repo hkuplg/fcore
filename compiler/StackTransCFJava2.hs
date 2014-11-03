@@ -20,7 +20,6 @@ import           ClosureF
 import           Inheritance
 import           JavaEDSL
 import           MonadLib
-import           Panic
 
 
 data TranslateStack m = TS {
@@ -143,12 +142,9 @@ transS this super = TS {toTS = super {
       do (tailPosition :: Bool) <- ask
          (n :: Int) <- get
          put (n+1)
-         case x of
-            J.ExpName (J.Name [J.Ident h]) ->
-              if tailPosition
-              then nextApply (up this) (J.ExpName (J.Name [f])) h jType
-              else (whileApply (up this) (J.ExpName (J.Name [f])) ("c" ++ show n) h jType ctempCastTyp)
-            _ -> panic "expected temporary variable name" ,
+         if tailPosition
+           then nextApply (up this) (J.ExpName (J.Name [f])) x jType
+           else (whileApply (up this) (J.ExpName (J.Name [f])) ("c" ++ show n) x jType ctempCastTyp),
 
   genRes = \_ _ -> return [],
 
@@ -190,10 +186,7 @@ transS this super = TS {toTS = super {
 
 transSA :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSA this super = TS {toTS = (up (transS this super)) {
-   -- genRes = \t s -> if (last t) then return [] else genRes super t s
-  genApply = \f t x y z -> do applyGen <- genApply super f t x y z
-                              return [bStmt $ J.IfThen (fieldAccess (J.ExpName $ J.Name [f]) "hasApply")
-                                      (J.StmtBlock (block applyGen)) ]
+   genRes = \t s -> if (last t) then return [] else genRes super t s
   }}
 
 -- Alternative version of transS that interacts with the Unbox translation

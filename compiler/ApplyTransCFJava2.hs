@@ -34,10 +34,10 @@ transApply :: (MonadState Int m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transApply _ super = NT {toT = super {
-  translateScopeTyp = \flag currentId nextId initVars nextInClosure m closureClass ->
+  translateScopeTyp = \currentId nextId initVars nextInClosure m closureClass ->
     case last nextInClosure of
          True -> do   (initVars' :: InitVars) <- ask
-                      translateScopeTyp super flag currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
+                      translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
          False -> do  (s,je,t1) <- local (initVars ++) m
                       let refactored = modifiedScopeTyp je s currentId nextId closureClass
                       return (refactored,t1),
@@ -77,3 +77,16 @@ modifiedScopeTyp oexpr ostmts currentId nextId closureClass = completeClosure
                              closureType'))
                           ,localVar closureType' (varDecl (localvarstr ++ show nextId) (funInstCreate nextId))]
 
+
+
+transAS :: (MonadState Int m,
+               MonadState (Set.Set J.Exp) m,
+               MonadReader InitVars m,
+               selfType :< ApplyOptTranslate m,
+               selfType :< Translate m)
+              => Mixin selfType (Translate m) (ApplyOptTranslate m)
+transAS this super = NT {toT = (up (transApply this super)) {
+     genApply = \f t x y z -> do applyGen <- genApply super f t x y z
+                                 return [bStmt $ J.IfThen (fieldAccess (J.ExpName $ J.Name [f]) "hasApply")
+                                         (J.StmtBlock (block applyGen)) ]
+  }}

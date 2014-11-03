@@ -34,10 +34,10 @@ transApply :: (MonadState Int m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transApply _ super = NT {toT = super {
-  translateScopeTyp = \flag currentId nextId initVars nextInClosure m closureClass ->
+  translateScopeTyp = \currentId nextId initVars nextInClosure m closureClass ->
     case last nextInClosure of
          True -> do   (initVars' :: InitVars) <- ask
-                      translateScopeTyp super flag currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
+                      translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
          False -> do  (s,je,t1) <- local (initVars ++) m
                       let refactored = modifiedScopeTyp je s currentId nextId closureClass
                       return (refactored,t1),

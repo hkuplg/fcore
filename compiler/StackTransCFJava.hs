@@ -20,7 +20,7 @@ import           ClosureF
 import           Inheritance
 import           JavaEDSL
 import           MonadLib
-import           Panic
+-- import           Panic
 
 
 data TranslateStack m = TS {
@@ -143,12 +143,13 @@ transS this super = TS {toTS = super {
       do (tailPosition :: Bool) <- ask
          (n :: Int) <- get
          put (n+1)
-         case x of
-            J.ExpName (J.Name [J.Ident h]) ->
-              if tailPosition
-              then nextApply (up this) (J.ExpName (J.Name [f])) h jType
-              else (whileApply (up this) (J.ExpName (J.Name [f])) ("c" ++ show n) h jType ctempCastTyp)
-            _ -> panic "expected temporary variable name" ,
+         if tailPosition
+           then nextApply (up this) (J.ExpName (J.Name [f])) x jType
+           else (whileApply (up this) (J.ExpName (J.Name [f])) ("c" ++ show n) x jType ctempCastTyp),
+         -- case x of
+         --    J.ExpName (J.Name [J.Ident h]) ->
+
+         --    _ -> panic "expected temporary variable name" ,
 
   genRes = \_ _ -> return [],
 

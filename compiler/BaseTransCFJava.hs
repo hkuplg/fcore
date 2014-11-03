@@ -45,8 +45,8 @@ data Translate m =
     ,translateApply :: m TransType -> m TransType -> m TransType
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
     ,translateLet :: TransType -> TransType -> Int -> m TransType
-    ,translateScopeTyp :: Bool -> Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
-    ,genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> J.Type -> m [J.BlockStmt]
+    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
+    ,genApply :: J.Ident -> TScope Int -> String -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
@@ -80,7 +80,7 @@ getS3 this fname retTyp fout fs ctempCastTyp =
   do (n :: Int) <- get
      put (n+1)
      (castBox,typ) <- chooseCastBox this (scope2ctyp retTyp)
-     apply <- genApply this fname retTyp (var (tempvarstr ++ show n)) typ ctempCastTyp
+     apply <- genApply this fname retTyp (tempvarstr ++ show n) typ ctempCastTyp
      rest <- genRes this retTyp [castBox tempvarstr n fout]
      let r = fs ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))
@@ -341,7 +341,6 @@ trans self =
                                                              else cast typT1 accessField))
                    closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                    (cvar,t1) <- translateScopeTyp this
-                                                  True
                                                   v -- n + 1
                                                   n
                                                   [xf]
@@ -378,15 +377,13 @@ trans self =
                   let xfDecl = localFinalVar jt2 (varDecl xf j2)
                   return (s1 ++ [xDecl] ++ s2 ++ [xfDecl], var xf, t2)
        ,translateScopeTyp =
-          \flag currentId oldId initVars _ otherStmts closureClass ->
+          \currentId oldId initVars _ otherStmts closureClass ->
             do b <- genClone this
                (ostmts,oexpr,t1) <- otherStmts
-               let setApplyFlag = assignField (fieldAccExp (var (localvarstr ++ show currentId)) "hasApply") (J.Lit (J.Boolean flag))
                return ([localClassDecl ("Fun" ++ show oldId)
                                        closureClass
                                        (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
-                                                                               (varDecl (localvarstr ++ show currentId) J.This)
-                                                       ,J.InitDecl False $ block [setApplyFlag]]
+                                                                               (varDecl (localvarstr ++ show currentId) J.This)]
                                                        (initVars ++ ostmts ++ [assign (name ["out"]) oexpr])
                                                        oldId
                                                        b

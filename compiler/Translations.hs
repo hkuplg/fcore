@@ -283,6 +283,7 @@ sf2java num optDump compilation className src =
             let simpleCore = case num of
                                1 -> peval . inliner . simplify $ core
                                2 -> peval . inliner. inliner . simplify $ core
+                               -- _ -> simplify core
                                _ -> core
             -- let simpleCore = simplify core
             when optDump $ do { putStrLn "Simplified Core"; print $ Core.prettyExpr simpleCore }
