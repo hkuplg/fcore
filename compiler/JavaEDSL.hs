@@ -41,8 +41,8 @@ localFinalVar typ vard = LocalVars [Final] typ [vard]
 methodCall :: [String] -> [Argument] -> Stmt
 methodCall idents argu = ExpStmt (MethodInv (MethodCall (name idents) argu))
 
-applyMethodCall :: Ident -> BlockStmt
-applyMethodCall f = BlockStmt (classMethodCall (ExpName $ Name [f]) "apply" [])
+applyMethodCall :: String -> Stmt
+applyMethodCall f = (classMethodCall (var f) "apply" [])
 
 applyCall :: BlockStmt
 applyCall = bStmt $ methodCall ["apply"] []
@@ -115,9 +115,7 @@ closureBodyGen initDecls body idCF generateClone className =
         cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
         cloneBody = (block [localVar className (varDecl "c" (funInstCreate idCF))
                     ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
-                    ,bStmt (classMethodCall (var "c")
-                                            "apply"
-                                            [])
+                    ,bStmt $ (applyMethodCall "c")
                     ,bStmt (Return (Just (cast className (var "c"))))])
 
 mainArgType :: [FormalParam]

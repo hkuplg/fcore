@@ -46,7 +46,7 @@ data Translate m =
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
     ,translateLet :: TransType -> TransType -> Int -> m TransType
     ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope (Expr Int (Var,Type Int)) Int (Var,Type Int) -> m ([J.BlockStmt],J.Exp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
-    ,genApply :: J.Ident -> TScope Int -> J.Exp -> J.Type -> J.Type -> m [J.BlockStmt]
+    ,genApply :: String -> TScope Int -> String -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
@@ -70,7 +70,7 @@ getTupleClassName tuple =
 
 getS3 :: MonadState Int m
       => Translate m
-      -> J.Ident
+      -> String
       -> TScope Int
       -> J.Exp
       -> [J.BlockStmt]
@@ -80,7 +80,7 @@ getS3 this fname retTyp fout fs ctempCastTyp =
   do (n :: Int) <- get
      put (n+1)
      (castBox,typ) <- chooseCastBox this (scope2ctyp retTyp)
-     apply <- genApply this fname retTyp (var (tempvarstr ++ show n)) typ ctempCastTyp
+     apply <- genApply this fname retTyp (tempvarstr ++ show n) typ ctempCastTyp
      rest <- genRes this retTyp [castBox tempvarstr n fout]
      let r = fs ++ apply ++ rest
      return (r, var (tempvarstr ++ show n))
@@ -359,7 +359,7 @@ trans self =
                let fname = localvarstr ++ show n -- use a fresh variable
                closureVars <- setClosureVars this retTyp fname j1 j2
                let fout = (fieldAccess (var fname) "out")
-               (s3,nje3) <- getS3 this (J.Ident fname) retTyp fout closureVars closureType
+               (s3,nje3) <- getS3 this fname retTyp fout closureVars closureType
                return (s1 ++ s2 ++ s3,nje3,scope2ctyp retTyp)
        ,translateIf =
           \m1 m2 m3 ->
@@ -390,7 +390,7 @@ trans self =
                                                        (classTy closureClass))
                        ,localVar (classTy closureClass) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
                       ,t1)
-       ,genApply = \f _ _ _ _ -> return [applyMethodCall f]
+       ,genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
        ,genRes = \_ -> return
        ,setClosureVars =
           \_ fname j1 j2 -> do

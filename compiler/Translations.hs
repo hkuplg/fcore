@@ -14,6 +14,7 @@ module Translations
     ( Compilation
     , compileN
     , compileAO
+    , compileAONew
     , compileS
     , compileSAU
     , compileSN
@@ -42,6 +43,7 @@ import JavaUtils      (ClassName, inferClassName)
 import BaseTransCFJava
 import ApplyTransCFJava
 import StackTransCFJava
+import qualified ApplyTransCFJava2 as A2
 import BenchGenCF2J
 import BenchGenStack
 import UnboxTransCFJava
@@ -88,6 +90,9 @@ naive = new trans
 
 applyopt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => ApplyOptTranslate m
 applyopt = new (transApply $> trans)
+
+applyoptNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => A2.ApplyOptTranslate m
+applyoptNew = new (A2.transApply $> trans)
 
 -- Stack naive optimization
 
@@ -338,6 +343,9 @@ type AOptType = StateT Int (StateT (Set.Set J.Exp) (Reader InitVars))
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
 
+aoptinstNew :: A2.ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
+aoptinstNew = applyoptNew
+
 -- translate :: String -> Expr Int (Var, Type Int) -> MAOpt (J.CompilationUnit, Type Int)
 -- translate = createWrap (up sopt)
 
@@ -346,6 +354,12 @@ translateAO = createWrap (up aoptinst)
 
 compileAO :: Compilation
 compileAO name e = runReader (evalStateT (evalStateT (translateAO name (fexp2cexp e)) 0) Set.empty) []
+
+translateAONew :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
+translateAONew = createWrap (up aoptinstNew)
+
+compileAONew :: Compilation
+compileAONew name e = runReader (evalStateT (evalStateT (translateAONew name (fexp2cexp e)) 0) Set.empty) []
 
 
 -- Setting for stack + naive
