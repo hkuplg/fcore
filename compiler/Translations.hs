@@ -70,7 +70,14 @@ import Prelude hiding (exp)
 
 -- import Debug.Trace      (trace)
 
-data DumpOption = NoDump | DumpCore | DumpSimpleCore | DumpClosureF deriving (Eq, Show, Data, Typeable)
+data DumpOption
+  = NoDump
+  | DumpParsed
+  | DumpTChecked
+  | DumpCore
+  | DumpSimpleCore
+  | DumpClosureF
+    deriving (Eq, Show, Data, Typeable)
 
 -- Naive translation
 
@@ -280,13 +287,15 @@ prettyJ = putStrLn . prettyPrint
 sf2java :: Int -> DumpOption -> Compilation -> ClassName -> String -> IO String
 sf2java num optDump compilation className src =
   do let readSrc = Parser.reader src
+     when (optDump == DumpParsed) $ print readSrc
      result <- readSrc `seq` (typeCheck readSrc)
      case result of
        Left typeError ->
          do print (Text.PrettyPrint.Leijen.pretty typeError)
             exitFailure -- TODO: Ugly
        Right (tcheckedSrc, _t)   ->
-         do let core = desugar tcheckedSrc
+         do when (optDump == DumpTChecked) $ print tcheckedSrc
+            let core = desugar tcheckedSrc
             when (optDump == DumpCore) $ print (Core.prettyExpr core)
             let simpleCore = case num of
                                1 -> peval . inliner . simplify $ core
