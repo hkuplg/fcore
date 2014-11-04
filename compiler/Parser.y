@@ -59,6 +59,8 @@ import JavaUtils
   INT      { Tint $$ }
   STRING   { Tstring $$ }
   BOOL     { Tbool $$ }
+  Empty    { Temptytree }
+  Fork     { Tnonemptytree}
   CHAR     { Tchar $$ }
   "()"     { Tunitlit }
   "Unit"   { Tunit }
@@ -207,6 +209,8 @@ lit :: { Expr Name }
 
 javaexpr :: { Expr Name }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
+    | Empty                                       { JNew "f2j.FunctionalTree" [] }
+    | Fork "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3}
     | JAVACLASS "." LOWERID "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
     | JAVACLASS "." LOWERID "()"                  { JMethod (Static $1) $3 [] undefined }
     | JAVACLASS "." field                         { JField  (Static $1) $3 undefined }
