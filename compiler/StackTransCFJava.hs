@@ -43,8 +43,8 @@ whileApplyLoop this ctemp tempOut outType ctempCastTyp = do
   nextName <- nextClass (up this)
   return [localVar closureType' (varDeclNoInit ctemp),
           localVar outType (varDecl tempOut (case outType of
-                                              J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: could be bug
-                                              J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: could be bug
+                                              J.PrimType J.IntT -> J.Lit (J.Int 0)
+                                              J.PrimType J.CharT -> J.Lit (J.Char 'a') --TODO: better default value?
                                               _ -> (J.Lit J.Null))),
           bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
                                           ,assign (name [nextName, "next"]) (J.Lit J.Null)
@@ -111,9 +111,8 @@ nextApply this cl tempOut outType = do
   nextName <- nextClass this
   return ([assign (name [nextName,"next"]) cl,
            localVar outType (varDecl tempOut (case outType of
-                                               J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: potential bug
-                                               J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: potential bug
-                                               J.PrimType J.CharT -> J.Lit (J.Char 'a')
+                                               J.PrimType J.IntT -> J.Lit (J.Int 0)
+                                               J.PrimType J.CharT -> J.Lit (J.Char 'a') --TODO: better default value?
                                                _ -> J.Lit J.Null))])
 
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
