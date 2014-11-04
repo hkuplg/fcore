@@ -1,7 +1,7 @@
 let rec
-  foldLeft A (f : A -> Int -> A) (v : A) (xs : f2j.FunctionalList) : A =
-    if xs.isEmpty() then v
-    else foldLeft A f (f v xs.head()) xs.tail()
+  foldLeft (f : (Int -> (f2j.FunctionalList, Int)) -> Int -> (Int -> (f2j.FunctionalList, Int))) (v : Int -> (f2j.FunctionalList, Int)) (xs : f2j.FunctionalList) (n : Int) : (f2j.FunctionalList, Int) = 
+    if xs.isEmpty() then v n
+    else foldLeft f (f v xs.head()) xs.tail() n
 in
 let
   inject A S (a : A) (s : S) : (A, S) = (a, s)
@@ -11,32 +11,31 @@ and
 and
   get S (s : S) = (s, s)
 and
-  put S (s : S) (dummy : S) =  ((), s)
+  put S (s : S) (dummy : S) = ((), s)
 and
   cons (a : Int) (as : f2j.FunctionalList) : f2j.FunctionalList = new f2j.FunctionalList(a, as)
-in
-  let lastBind (xs : f2j.FunctionalList) (n : Int ) : (f2j.FunctionalList, Int) =
-                 (bind Unit f2j.FunctionalList Int
-                    (put Int (n + 1))
-                    (\(s : Unit) . (inject f2j.FunctionalList Int (cons n xs))))
 in
 let
   rindex (as : f2j.FunctionalList) : f2j.FunctionalList =
     let
-      gao (acc : Int -> (f2j.FunctionalList, Int)) (a : Int) : (f2j.FunctionalList, Int) =
+      gao (acc : Int -> (f2j.FunctionalList, Int)) (a : Int) (n : Int) : (f2j.FunctionalList, Int) =
         bind f2j.FunctionalList f2j.FunctionalList Int
           acc
           (\(xs : f2j.FunctionalList) .
             (bind Int f2j.FunctionalList Int
                (get Int)
-               (lastBind xs)))
+               (\(n : Int) .
+                 (bind Unit f2j.FunctionalList Int
+                    (put Int (n + 1))
+                    (\(s : Unit) . (inject f2j.FunctionalList Int (cons n xs))))))) n
+    in 
+    let 
+      gao2 (acc : Int -> (f2j.FunctionalList, Int)) (a : Int) (n : Int) : (f2j.FunctionalList, Int) =
+        (as,0)
     in
     let
-      foldLeft' (as : f2j.FunctionalList) (n : Int) : (f2j.FunctionalList, Int) =
-        foldLeft (Int -> (f2j.FunctionalList, Int))
-          gao
-          (inject f2j.FunctionalList Int [])
-          as n
+      foldLeft' (as : f2j.FunctionalList) (n : Int) : (f2j.FunctionalList, Int) = 
+        foldLeft gao2 (\(n : Int) . (as,n)) as n--(inject f2j.FunctionalList Int []) as n
     in
     (foldLeft' as 0)._1
 in
@@ -50,4 +49,5 @@ let rec
     }
   }
 in
+--printList(rindex [0])
 printList(rindex [0,0,0,0,0,0])
