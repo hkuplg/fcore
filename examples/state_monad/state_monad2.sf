@@ -1,7 +1,7 @@
 let rec
   foldLeft (f : (Int -> (f2j.FunctionalList, Int)) -> Int -> (Int -> (f2j.FunctionalList, Int))) (v : Int -> (f2j.FunctionalList, Int)) (xs : f2j.FunctionalList) (n : Int) : (f2j.FunctionalList, Int) = 
     if xs.isEmpty() then v n
-    else foldLeft f (f v xs.head()) xs.tail() n
+    else foldLeft f (\(x : Int) . f v xs.head() x) xs.tail() n
 in
 let
   inject A S (a : A) (s : S) : (A, S) = (a, s)
