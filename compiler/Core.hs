@@ -231,16 +231,16 @@ prettyExpr = prettyExpr' basePrec (0, 0)
 
 prettyExpr' :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
-prettyExpr' _ _ (Var n x) = prettyVar x
+prettyExpr' _ _ (Var _ x) = prettyVar x
 
-prettyExpr' p (i,j) (Lam n t f) =
-  parensIf p 2
-    (hang 3 (lambda <+> parens (prettyVar j <+> colon <+> prettyType' basePrec i t) <> dot <+>
-             prettyExpr' (2,PrecMinus) (i, succ j) (f j)))
+prettyExpr' p (i,j) (Lam _ t f)
+  = parensIf p 2 $ group $ hang 2 $
+      lambda <+> parens (prettyVar j <+> colon <+> prettyType' basePrec i t) <> dot <$>
+      prettyExpr' (2,PrecMinus) (i, j + 1) (f j)
 
-prettyExpr' p (i,j) (App e1 e2) =
-  parensIf p 4
-    (prettyExpr' (4,PrecMinus) (i,j) e1 <+> prettyExpr' (4,PrecPlus) (i,j) e2)
+prettyExpr' p (i,j) (App e1 e2)
+  = parensIf p 4 $
+      group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e1 <$> prettyExpr' (4,PrecPlus) (i,j) e2
 
 prettyExpr' p (i,j) (BLam f) =
   parensIf p 2
@@ -249,7 +249,7 @@ prettyExpr' p (i,j) (BLam f) =
 
 prettyExpr' p (i,j) (TApp e t) =
   parensIf p 4
-    (prettyExpr' (4,PrecMinus) (i,j) e <+> prettyType' (4,PrecPlus) i t)
+    (group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e <$> prettyType' (4,PrecPlus) i t)
 
 prettyExpr' _ _ (Lit (Src.Int n))    = integer n
 prettyExpr' _ _ (Lit (Src.String s)) = dquotes (string s)
@@ -273,7 +273,7 @@ prettyExpr' p (i,j) (PrimOp e1 op e2)
                   Src.Compare op' -> op'
                   Src.Logic   op' -> op'
 
-prettyExpr' _ (i,j) (Tuple es) = parens $ hcat (intersperse comma (map (prettyExpr' basePrec (i,j)) es))
+prettyExpr' _ (i,j) (Tuple es) = tupled (map (prettyExpr' basePrec (i,j)) es)
 
 prettyExpr' p i (Proj n e) =
   parensIf p 5
@@ -294,17 +294,16 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 
-prettyExpr' p (i,j) (Fix f t1 t) =
-  parens
-    (text "fix" <+> prettyVar j <+>
-     parens (prettyVar (j + 1) <+> colon <+> prettyType' p i t1) <+>
-     colon <+>
-     prettyType' p i t <> dot <$>
-     indent 2 (prettyExpr' p (i, j + 2) (f j (j + 1))))
+prettyExpr' p (i,j) (Fix f t1 t)
+  = parens $ group $ hang 2 $
+      text "fix" <+> prettyVar j <+>
+      parens (prettyVar (j + 1) <+> colon <+> prettyType' p i t1) <+>
+      colon <+> prettyType' p i t <> dot <$>
+      prettyExpr' p (i, j + 2) (f j (j + 1))
 
-prettyExpr' _ (i,j) (Let n x f) =
-  text "let" <+> prettyVar j <+> equals <+> prettyExpr' basePrec (i, j + 1) x <> semi <$>
-  prettyExpr' basePrec (i, j + 1) (f j)
+prettyExpr' _ (i,j) (Let _ b e) =
+  text "let" <+> prettyVar j <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
+  prettyExpr' basePrec (i, j + 1) (e j)
 
 prettyExpr' p (i,j) (LetRec sigs binds body)
   = text "let" <+> text "rec" <$>
