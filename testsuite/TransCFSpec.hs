@@ -23,7 +23,7 @@ import System.Process
 
 import qualified Data.List as List      (isSuffixOf)
 
-testCasesPath = "testsuite/tests/pipeline"
+testCasesPath = "testsuite/tests/run-pass"
 
 -- java compilation + run
 compileAndRun name compileF exp =
