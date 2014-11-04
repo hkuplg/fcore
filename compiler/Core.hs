@@ -299,17 +299,17 @@ prettyExpr' p (i,j) (Fix f t1 t) =
     (text "fix" <+> prettyVar j <+>
      parens (prettyVar (j + 1) <+> colon <+> prettyType' p i t1) <+>
      colon <+>
-     prettyType' p i t <> dot <$$>
+     prettyType' p i t <> dot <$>
      indent 2 (prettyExpr' p (i, j + 2) (f j (j + 1))))
 
 prettyExpr' _ (i,j) (Let n x f) =
-  text "let" <+> prettyVar j <+> equals <+> prettyExpr' basePrec (i, j + 1) x <> semi <$$>
+  text "let" <+> prettyVar j <+> equals <+> prettyExpr' basePrec (i, j + 1) x <> semi <$>
   prettyExpr' basePrec (i, j + 1) (f j)
 
 prettyExpr' p (i,j) (LetRec sigs binds body)
-  = text "let" <+> text "rec" <$$>
-    vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$$>
-    text "in" <$$>
+  = text "let" <+> text "rec" <$>
+    vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$>
+    text "in" <$>
     pretty_body
   where
     n   = length sigs
@@ -318,7 +318,7 @@ prettyExpr' p (i,j) (LetRec sigs binds body)
     pretty_sigs  = map (prettyType' p i) sigs
     pretty_defs  = map (prettyExpr' p (i, j + n)) (binds ids)
     pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->
-                  pretty_id <+> colon <+> pretty_sig <$$> indent 2 (equals <+> pretty_def))
+                  pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
                   pretty_ids pretty_sigs pretty_defs
     pretty_body  = prettyExpr' p (i, j + n) (body ids)
 
