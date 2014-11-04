@@ -46,6 +46,9 @@ prettyTVar, prettyVar :: Int -> Doc
 prettyTVar = prettyVarFrom 'A'
 prettyVar  = prettyVarFrom 'a'
 
+prettyNVar :: String -> Int -> Doc
+prettyNVar n j = prettyVar j <> (if n == "_" then empty else char '/' <> text n)
+
 prettyVarFrom :: Char -> Int -> Doc
 prettyVarFrom c n
   | n < 26    = text [chr (ord c + n)]

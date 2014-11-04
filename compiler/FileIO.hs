@@ -41,7 +41,7 @@ sfToJava :: Handle -> Bool -> FilePath -> IO ()
 sfToJava h flagS f = do 
 	contents <- readFile f
 	let className = getClassName f
-	result <- E.try (sf2java 0 False compileAO className contents)
+	result <- E.try (sf2java 0 NoDump compileAO className contents)
 	case result of 
 	  Left  (_ :: E.SomeException) -> do 
 	  	putStrLn "invalid expression"

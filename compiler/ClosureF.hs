@@ -100,7 +100,7 @@ CTApp (fexp2cexp e) (ftyp2ctyp t)
 
 
 fexp2cexp :: C.Expr t e -> Expr t e
-fexp2cexp (C.Var x)                  = Var x
+fexp2cexp (C.Var _ x)                = Var x
 fexp2cexp (C.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (C.TApp e t)               = TApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (C.PrimOp e1 op e2)        = PrimOp (fexp2cexp e1) op (fexp2cexp e2)
@@ -109,10 +109,10 @@ fexp2cexp (C.Lit e)         = Lit e
 fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
-fexp2cexp (C.Let bind body)          = Let (fexp2cexp bind) (\e -> fexp2cexp $ body e)
+fexp2cexp (C.Let n bind body)        = Let (fexp2cexp bind) (\e -> fexp2cexp $ body e)
 fexp2cexp (C.LetRec ts f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
 fexp2cexp (C.Fix f t1 t2) =
-  let  g e = groupLambda (C.Lam t1 (f e)) -- is this right???? (BUG)
+  let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
   in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
@@ -139,7 +139,7 @@ groupLambda2 (FLam t f) tenv env =
 
 groupLambda :: C.Expr t e -> EScope t e
 groupLambda (C.BLam f)  = Kind (\a -> groupLambda (f a))
-groupLambda (C.Lam t f) = Type (ftyp2ctyp t) (\x -> groupLambda (f x))
+groupLambda (C.Lam _ t f) = Type (ftyp2ctyp t) (\x -> groupLambda (f x))
 groupLambda e          = Body (fexp2cexp e)
 
 -- join

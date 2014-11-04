@@ -44,6 +44,7 @@ tokens :-
     \'          { \_ _ -> Tquote }
     this        { \_ _ -> Tthis }
     super       { \_ _ -> Tsuper }
+    type        { \_ _ -> Ttype }
     let         { \_ _ -> Tlet }
     rec         { \_ _ -> Trec }
     \=          { \_ _ -> Teq }
@@ -55,6 +56,7 @@ tokens :-
     Char        { \_ _ -> Tjavaclass "java.lang.Character" }
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
     List        { \_ _ -> Tjavaclass "f2j.FunctionalList" }
+    Tree        { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
@@ -68,6 +70,8 @@ tokens :-
     \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
     True                   { \_ s -> Tbool True}
     False                  { \_ s -> Tbool False}
+    Empty                  { \_ _ -> Temptytree}
+    Fork                   { \_ _ -> Tnonemptytree }
     \(\)                   { \_ _ -> Tunitlit }
     Unit                   { \_ _ -> Tunit }
 
@@ -97,7 +101,7 @@ tokens :-
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tthis | Tsuper
-           | Tlet | Trec | Teq | Tand | Tin
+           | Ttype | Tlet | Trec | Teq | Tand | Tin
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
@@ -107,6 +111,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule
+           | Temptytree | Tnonemptytree
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-cd tests/pipeline
+cd tests/run-pass
 
 for m in 'naive' 'applyopt' 'stack'; do
   for f in $(ls *.sf); do

@@ -30,7 +30,7 @@ data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
     , optSourceFiles   :: [String]
-    , optDump          :: Bool
+    , optDump          :: DumpOption
     , optTransMethod   :: TransMethod
     , optVerbose       :: Bool
     } deriving (Eq, Show, Data, Typeable)
@@ -43,6 +43,8 @@ data TransMethod = Naive
                  | StackU
                  | StackN
                  | StackAU
+                 | StackAU1
+                 | StackAU2
                  | BenchN
                  | BenchS
                  | BenchNA
@@ -58,13 +60,13 @@ optionsSpec :: Options
 optionsSpec = Options
   { optCompile = False &= explicit &= name "c" &= name "compile" &= help "Compile Java source"
   , optCompileAndRun = False &= explicit &= name "r" &= name "run" &= help "Compile & run Java source"
-  , optDump = False &= explicit &= name "d" &= name "dump" &= help "Dump intermediate representations"
+  , optDump = NoDump &= explicit &= name "d" &= name "dump" &= typ "TYPE"
+           &= help ("Dump intermediate representations; " ++
+                    "options: `core`, `simplecore`, `closuref`")
   , optSourceFiles = [] &= args &= typ "SOURCE FILES"
   , optTransMethod = ApplyOpt &= explicit &= name "m" &= name "method" &= typ "METHOD"
-                  &= help ("Translations method." ++
-                           "Can be either 'naive', 'applyopt', or 'stack'" ++
-                           "(use without quotes)." ++
-                           "The default is 'applyopt'.")
+                  &= help ("Translations method; " ++
+                           "options: `naive`, `applyopt` (default), `stack`")
   , optVerbose = False &= explicit &= name "v" &= name "verbose" &= help "Verbose"
   }
   &= helpArg [explicit, name "help", name "h"]
@@ -98,6 +100,8 @@ main = do
                                 ApplyU -> compilesf2java 0 optDump compileAoptUnbox source_path output_path
                                 Stack    -> compilesf2java 0 optDump compileS source_path output_path
                                 StackAU -> compilesf2java 0 optDump compileSAU source_path output_path
+                                StackAU1 -> compilesf2java 1 optDump compileSAU source_path output_path
+                                StackAU2 -> compilesf2java 2 optDump compileSAU source_path output_path
                                 StackN    -> compilesf2java 0 optDump compileSN source_path output_path
                                 StackU    -> compilesf2java 0 optDump compileSU source_path output_path
                                 Unbox -> compilesf2java 0 optDump compileUnbox source_path output_path

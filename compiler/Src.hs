@@ -12,11 +12,11 @@ module Src
   , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..), JVMType(..)
   , Label
   , TypeContext, ValueContext
-  , Name, TcId
+  , Name
   -- , RdrExpr
   -- , TcBinds
   -- , TcExpr
-  , deThunk
+  , dethunk
   , alphaEq
   , subtype
   , fields
@@ -42,7 +42,6 @@ import qualified Data.Set as Set
 type Name       = String
 type ModuleName = Name
 type Label      = Name
-type TcId       = (Name, Type)
 
 data Module id = Module id [Bind id] deriving (Eq, Show)
 
@@ -91,7 +90,7 @@ data Expr id
   | PrimOp (Expr id) Operator (Expr id) -- Primitive operation
   | If (Expr id) (Expr id) (Expr id)    -- If expression
   | Let RecFlag [Bind id] (Expr id)     -- Let (rec) ... (and) ... in ...
-  | LetOut RecFlag [(Name, Type, Expr TcId)] (Expr TcId) -- Post typecheck only
+  | LetOut RecFlag [(Name, Type, Expr (Name,Type))] (Expr (Name,Type)) -- Post typecheck only
   | JNew ClassName [Expr id]
   | JMethod (JCallee (Expr id)) MethodName [Expr id] ClassName
   | JField  (JCallee (Expr id)) FieldName            ClassName
@@ -131,9 +130,9 @@ type ValueContext = Map.Map Name Type
 
 -- Type equivalence(s) and subtyping
 
-deThunk :: Type -> Type
-deThunk (Thunk t) = deThunk t
-deThunk t         = t
+dethunk :: Type -> Type
+dethunk (Thunk t) = dethunk t
+dethunk t         = t
 
 alphaEq :: Type -> Type -> Bool
 alphaEq (TVar a)       (TVar b)       = a == b

@@ -43,8 +43,8 @@ whileApplyLoop this ctemp tempOut outType ctempCastTyp = do
   nextName <- nextClass (up this)
   return [localVar closureType' (varDeclNoInit ctemp),
           localVar outType (varDecl tempOut (case outType of
-                                              J.PrimType J.LongT -> J.Lit (J.Int 0) -- TODO: could be bug
-                                              J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: could be bug
+                                              J.PrimType J.IntT -> J.Lit (J.Int 0)
+                                              J.PrimType J.CharT -> J.Lit (J.Char 'a') --TODO: better default value?
                                               _ -> (J.Lit J.Null))),
           bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
                                           ,assign (name [nextName, "next"]) (J.Lit J.Null)
@@ -111,9 +111,8 @@ nextApply this cl tempOut outType = do
   nextName <- nextClass this
   return ([assign (name [nextName,"next"]) cl,
            localVar outType (varDecl tempOut (case outType of
-                                               J.PrimType J.LongT -> J.Lit (J.Int 0) -- TODO: potential bug
-                                               J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: potential bug
-                                               J.PrimType J.CharT -> J.Lit (J.Char 'a')
+                                               J.PrimType J.IntT -> J.Lit (J.Int 0)
+                                               J.PrimType J.CharT -> J.Lit (J.Char 'a') --TODO: better default value?
                                                _ -> J.Lit J.Null))])
 
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
@@ -204,7 +203,7 @@ transSU this super =
          applyRetType = \t -> (case t of
                                 JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
                                 JClass "java.lang.Boolean" -> return $ Just $ J.PrimType J.BooleanT
-                                CFInt -> return $ Just $ J.PrimType J.LongT
+                                CFInt -> return $ Just $ J.PrimType J.IntT
                                 _ -> return $ Just objClassTy),
          stackMainBody = \t -> do
            closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
@@ -214,7 +213,7 @@ transSU this super =
                             CFInt -> "Int"
                             _ -> "Box"
            let resultType = case t of
-                             CFInt -> J.PrimType J.LongT
+                             CFInt -> J.PrimType J.IntT
                              CFChar -> J.PrimType J.CharT
                              JClass "java.lang.Integer" -> classTy "java.lang.Integer"
                              _ -> objClassTy

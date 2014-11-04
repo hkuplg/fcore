@@ -36,6 +36,7 @@ import JavaUtils
   ",,"     { Tmerge }
   "with"   { Twith }
   "'"      { Tquote }
+  "type"   { Ttype }
   "let"    { Tlet }
   "rec"    { Trec }
   "="      { Teq }
@@ -59,6 +60,8 @@ import JavaUtils
   INT      { Tint $$ }
   STRING   { Tstring $$ }
   BOOL     { Tbool $$ }
+  Empty    { Temptytree }
+  Fork     { Tnonemptytree}
   CHAR     { Tchar $$ }
   "()"     { Tunitlit }
   "Unit"   { Tunit }
@@ -154,11 +157,13 @@ tvar :: { Name }
 
 expr :: { Expr Name }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
-    | "\\" var_with_annot "." expr        { Lam $2 $4 }
+    | "\\" arg "." expr                   { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "let" recflag and_binds ";"  expr   { Let $2 $3 $5 }
-    | "let" tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
-    | "let" tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
+    | "let"  tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
+    | "let"  tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
+    | "type" tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
+    | "type" tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | infixexpr                           { $1 }
@@ -207,6 +212,8 @@ lit :: { Expr Name }
 
 javaexpr :: { Expr Name }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
+    | Empty                                       { JNew "f2j.FunctionalTree" [] }
+    | Fork "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3}
     | JAVACLASS "." LOWERID "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
     | JAVACLASS "." LOWERID "()"                  { JMethod (Static $1) $3 [] undefined }
     | JAVACLASS "." field                         { JField  (Static $1) $3 undefined }
@@ -242,12 +249,8 @@ comma_exprs2 :: { [Expr Name] }
     : expr "," expr           { [$1,$3]  }
     | expr "," comma_exprs2   { $1:$3     }
 
-var_with_annot :: { (Name, Type) }
-  : "(" var ":" type ")"         { ($2, $4) }
-  | "(" var_with_annot ")"      { $2       }
-
 bind :: { Bind Name }
-    : var tvars var_annots_emp maybe_sig "=" expr
+    : var tvars args maybe_sig "=" expr
         { Bind { bindId       = $1
                , bindTargs    = $2
                , bindArgs     = $3
@@ -268,12 +271,14 @@ recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
 
-var_annot :: { (Name, Type) }
+arg :: { (Name, Type) }
     : "(" var ":" type ")"       { ($2, $4) }
+    | "()"                       { ("_", Unit) }
+    | "(" arg ")"                { $2 }
 
-var_annots_emp :: { [(Name, Type)] }
+args :: { [(Name, Type)] }
     : {- empty -}               { []    }
-    | var_annot var_annots_emp  { $1:$2 }
+    | arg args  { $1:$2 }
 
 var :: { Name }
     : LOWERID           { $1 }

@@ -27,6 +27,6 @@ guard :
 .PHONY : clean
 clean :
 	rm -f *.class *.jar Main.java
-	rm -f $(testdir)/tests/pipeline/*.java
+	rm -f $(testdir)/tests/run-pass/*.java
 	cd compiler; make clean
 	cd runtime; ant clean
