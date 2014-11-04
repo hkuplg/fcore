@@ -20,7 +20,7 @@ public class FunctionalTree{
         this.right = right;
     }
 
-    boolean isEmpty(){
+    public boolean isEmpty(){
         return empty;
     }
 

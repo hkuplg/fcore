@@ -56,7 +56,7 @@ tokens :-
     Char        { \_ _ -> Tjavaclass "java.lang.Character" }
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
     List        { \_ _ -> Tjavaclass "f2j.FunctionalList" }
-    Empty       { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
+    Tree        { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
@@ -70,6 +70,8 @@ tokens :-
     \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
     True                   { \_ s -> Tbool True}
     False                  { \_ s -> Tbool False}
+    Empty                  { \_ _ -> Temptytree}
+    Fork                   { \_ _ -> Tnonemptytree }
     \(\)                   { \_ _ -> Tunitlit }
     Unit                   { \_ _ -> Tunit }
 
@@ -109,6 +111,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule
+           | Temptytree | Tnonemptytree
            deriving (Eq, Show)
 
 lexer :: String -> [Token]
