@@ -231,11 +231,11 @@ prettyExpr = prettyExpr' basePrec (0, 0)
 
 prettyExpr' :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
-prettyExpr' _ _ (Var n x) = prettyNVar n x
+prettyExpr' _ _ (Var n x) = prettyVar x
 
 prettyExpr' p (i,j) (Lam n t f) =
   parensIf p 2
-    (hang 3 (lambda <+> parens (prettyNVar n j <+> colon <+> prettyType' basePrec i t) <> dot <+>
+    (hang 3 (lambda <+> parens (prettyVar j <+> colon <+> prettyType' basePrec i t) <> dot <+>
              prettyExpr' (2,PrecMinus) (i, succ j) (f j)))
 
 prettyExpr' p (i,j) (App e1 e2) =
@@ -303,7 +303,7 @@ prettyExpr' p (i,j) (Fix f t1 t) =
      indent 2 (prettyExpr' p (i, j + 2) (f j (j + 1))))
 
 prettyExpr' _ (i,j) (Let n x f) =
-  text "let" <+> prettyNVar n j <+> equals <+> prettyExpr' basePrec (i, j + 1) x <> semi <$$>
+  text "let" <+> prettyVar j <+> equals <+> prettyExpr' basePrec (i, j + 1) x <> semi <$$>
   prettyExpr' basePrec (i, j + 1) (f j)
 
 prettyExpr' p (i,j) (LetRec sigs binds body)
