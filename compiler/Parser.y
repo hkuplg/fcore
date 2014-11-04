@@ -36,6 +36,7 @@ import JavaUtils
   ",,"     { Tmerge }
   "with"   { Twith }
   "'"      { Tquote }
+  "type"   { Ttype }
   "let"    { Tlet }
   "rec"    { Trec }
   "="      { Teq }
@@ -157,8 +158,10 @@ expr :: { Expr Name }
     | "\\" arg "." expr                   { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "let" recflag and_binds ";"  expr   { Let $2 $3 $5 }
-    | "let" tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
-    | "let" tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
+    | "let"  tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
+    | "let"  tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
+    | "type" tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
+    | "type" tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | infixexpr                           { $1 }
