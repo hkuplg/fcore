@@ -35,7 +35,7 @@ let
     in
     let
       foldLeft' (as : f2j.FunctionalList) (n : Int) : (f2j.FunctionalList, Int) = 
-        foldLeft gao2 (\(n : Int) . (as,n)) as n--(inject f2j.FunctionalList Int []) as n
+        foldLeft gao (inject f2j.FunctionalList Int []) as n
     in
     (foldLeft' as 0)._1
 in
