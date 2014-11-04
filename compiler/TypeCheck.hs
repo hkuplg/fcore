@@ -476,7 +476,7 @@ evalType (TVar a)
   = do typeContext <- getTypeContext
        case Map.lookup a typeContext of
          Nothing      -> return (TVar a)
-         Just (_, t') -> evalType t'
+         Just (_, t') -> if t' == TVar a then return t' else evalType t'
 evalType (JType (JClass c)) = return (JType $ JClass c)
 evalType Unit       = return Unit
 evalType (Fun t1 t2)
