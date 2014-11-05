@@ -24,38 +24,51 @@ import System.FilePath           (takeBaseName)
 import System.IO
 
 import Data.FileEmbed            (embedFile)
+import Data.List                 (sort, group)
 import qualified Data.ByteString (ByteString, writeFile)
+
+type CompileOpt = (Int, Compilation)
 
 data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
     , optSourceFiles   :: [String]
+<<<<<<< local
     , optDump          :: DumpOption
     , optTransMethod   :: TransMethod
     , optVerbose       :: Bool
+=======
+    , optDump          :: Bool
+    , optTransMethod   :: [TransMethod]
+>>>>>>> other
     } deriving (Eq, Show, Data, Typeable)
 
+<<<<<<< local
 data TransMethod = Naive
                  | ApplyOpt
                  | ApplyU
                  | ApplyNew
+=======
+data TransMethod = Apply
+                 | Naive
+>>>>>>> other
                  | Stack
                  | Unbox
+<<<<<<< local
                  | StackU
                  | StackN
                  | StackAU
                  | StackAU1
                  | StackAU2
+=======
+>>>>>>> other
                  | BenchN
                  | BenchS
                  | BenchNA
                  | BenchSA
-                 | BenchSAU
-                 | BenchSAU1
-                 | BenchSAU2
                  | BenchSAI1
                  | BenchSAI2
-                 deriving (Eq, Show, Data, Typeable)
+                 deriving (Eq, Show, Data, Typeable, Ord)
 
 optionsSpec :: Options
 optionsSpec = Options
@@ -65,10 +78,18 @@ optionsSpec = Options
            &= help ("Dump intermediate representations; " ++
                     "options: `core`, `simplecore`, `closuref`")
   , optSourceFiles = [] &= args &= typ "SOURCE FILES"
+<<<<<<< local
   , optTransMethod = ApplyOpt &= explicit &= name "m" &= name "method" &= typ "METHOD"
                   &= help ("Translations method; " ++
                            "options: `naive`, `applyopt` (default), `stack`")
   , optVerbose = False &= explicit &= name "v" &= name "verbose" &= help "Verbose"
+=======
+  , optTransMethod = [] &= explicit &= name "m" &= name "method" &= typ "METHOD"
+                  &= help ("Translations method." ++
+                           "Can be either 'naive', 'apply', 'stack', and/or 'unbox'" ++
+                           "(use without quotes)." ++
+                           "The default is 'naive'.")
+>>>>>>> other
   }
   &= helpArg [explicit, name "help", name "h"]
   &= program "f2j"
@@ -93,6 +114,7 @@ main = do
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod
+<<<<<<< local
        when optVerbose $ do
          putStrLn (takeBaseName source_path ++ " using " ++ show translate_method)
          putStrLn ("  Compiling to Java source code ( " ++ output_path ++ " )")
@@ -118,9 +140,33 @@ main = do
                                 BenchSAU2   -> compilesf2java 2 optDump (compileBSAU) source_path output_path
 
 
+=======
+           sort_and_rmdups  = map head . group . sort . ((++) [Naive])
+       putStrLn (takeBaseName source_path ++ " using " ++ show (sort_and_rmdups translate_method))
+       putStrLn ("  Compiling to Java source code ( " ++ output_path ++ " )")
+       (num, opt) <- getOpt (sort_and_rmdups translate_method)
+       compilesf2java num optDump opt source_path output_path
+>>>>>>> other
        when (optCompile || optCompileAndRun) $
          do when optVerbose (putStrLn "  Compiling to Java bytecode")
             compileJava output_path
        when optCompileAndRun $
          do when optVerbose $ do { putStr "  Running Java\n  Output: "; hFlush stdout }
             runJava output_path)
+
+getOpt :: [TransMethod] -> IO CompileOpt
+getOpt translate_method = case translate_method of
+  [Naive]                      -> return (0, compileN)
+  [Apply, Naive]               -> return (0, compileAO)
+  [Apply, Naive, Unbox]        -> return (0, compileAoptUnbox)
+  [Apply, Naive, Stack]        -> return (0, compileS)
+  [Apply, Naive, Stack, Unbox] -> return (0, compileSAU)
+  [Naive, Stack]               -> return (0, compileSN)
+  [Naive, Stack, Unbox]        -> return (0, compileSU)
+  [Naive, Unbox]               -> return (0, compileUnbox)
+  [BenchN]                     -> return (0, compileBN False)
+  [BenchS]                     -> return (0, compileBS False)
+  [BenchNA]                    -> return (0, compileBN True)
+  [BenchSA]                    -> return (0, compileBS True)
+  [BenchSAI1]                  -> return (1, compileBS True)
+  [BenchSAI2]                  -> return (2, compileBS True)
