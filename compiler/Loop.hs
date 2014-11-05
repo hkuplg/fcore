@@ -92,23 +92,27 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  Just filename -> liftIO (wrapFlag handle opt flagT flagS filename) 
 	      	  Nothing       ->  outputStrLn "Invalid input"
 		loop handle opt val_ctx env hist index flagH flagT flagS num
-	  ":time" -> case getCMD xs of 
-		Just "on"  -> loop handle opt val_ctx env hist index 
-				   flagH True flagS num
-		Just "off" -> loop handle opt val_ctx env hist index
-				   flagH False flagS num
-		_          -> do 
+	  ":set" -> case getCMD xs of
+	 	Just "method" -> do
+		  let (y:ys)= xs
+		  case getCMD ys of 
+		    Just method -> do
+		      result <- liftIO (E.try (getOpt method))
+		      case result of 
+		        Left (_ :: E.SomeException) -> do
+		    	  outputStrLn "Invalid method"
+			  loop handle opt val_ctx env hist index 
+			       flagH flagT flagS num
+		        Right optNew 		-> do
+		  	  loop handle optNew val_ctx env hist index 
+			       flagH flagT flagS num
+		    Nothing     -> do
+	       	      outputStrLn "Invalid option for :set method"
+		      loop handle opt val_ctx env hist index flagH flagT flagS num
+		_	      -> do
 		  outputStrLn "Invalid input"
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 	  ":quit" -> return ()
-	  ":showfile" -> case getCMD xs of
-	  	Just "on"  -> loop handle opt val_ctx env hist index 
-				   flagH flagT True num
-		Just "off" -> loop handle opt val_ctx env hist index
-				   flagH flagT False num
-		_	   -> do 
-			outputStrLn "Invalid input"
-			loop handle opt val_ctx env hist index flagH flagT flagS num
 	  ":let"  -> do 
 	  	if (length xs) < 3 
 		  then do
@@ -137,6 +141,26 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  Nothing  ->  outputStrLn "Too few input"
 		loop handle opt val_ctx env hist index flagH flagT flagS num
 	  ":show" -> case getCMD xs of
+	        Just "time"   -> do
+		  let (y:ys) = xs
+		  case getCMD ys of 
+		    Just "on"  -> loop handle opt val_ctx env hist index 
+				       flagH True flagS num
+		    Just "off" -> loop handle opt val_ctx env hist index
+				       flagH False flagS num
+		    _	     -> do
+		      outputStrLn "Invalid option for :set time"
+               	      loop handle opt val_ctx env hist index flagH flagT flagS num
+	  	Just "file"   -> do
+		  let (y:ys) = xs
+		  case getCMD ys of
+		    Just "on"  -> loop handle opt val_ctx env hist index 
+		                  flagH flagT True num
+		    Just "off" -> loop handle opt val_ctx env hist index
+				  flagH flagT False num
+		    _          -> do
+		      outputStrLn "Invalid option for :show file"
+		      loop handle opt val_ctx env hist index flagH flagT flagS num
 	  	Just "env"    -> do 
 		  outputStrLn ("[" ++ Env.showPrettyEnv env ++ "]")
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
@@ -147,35 +171,25 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 			      "benchSAI2/benchSAU/benchSAU1/benchSAU2")
 		  outputStrLn "Default: applyOpt"
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
-		Just input -> outputStrLn "Invalid input"
-		Nothing    -> outputStrLn "Too few input"
+		Just input -> do 
+		  outputStrLn "Invalid input"
+		  loop handle opt val_ctx env hist index flagH flagT flagS num
+		Nothing    -> do 
+		  outputStrLn "Too few input"
+		  loop handle opt val_ctx env hist index flagH flagT flagS num
 	  ":clear" -> loop handle opt Map.empty Env.empty hist index
 	  	           flagH flagT flagS num
 	  ":replay" -> do
 	  	let envNew = Env.empty
 		--outputStrLn (show hist)
 		loop handle opt val_ctx envNew hist 0 True flagT flagS num
-	  ":method" -> case getCMD xs of 
-	  	Just method -> do
-		  result <- liftIO (E.try (getOpt method))
-		  case result of 
-		    Left (_ :: E.SomeException) -> do
-		    	outputStrLn "Invalid method"
-			loop handle opt val_ctx env hist index flagH flagT flagS num
-		    Right optNew 		-> do
-		        outputStrLn "here!"
-		  	loop handle optNew val_ctx env hist index 
-			     flagH flagT flagS num
-		Nothing     -> do
-	       	  outputStrLn "Too few input"
-		  loop handle opt val_ctx env hist index flagH flagT flagS num
 	  input	  -> do outputStrLn $ "Command not recognized: " ++ input
 	  	        loop handle opt val_ctx env hist index flagH flagT flagS num
 
 getCMD :: [String] -> Maybe String
 getCMD xs = case xs of
-		[x] -> Just x
-		xs  -> Nothing
+		[]      -> Nothing
+		(x:xs)  -> Just x
 
 -- if the return type is CompileOpt, then return to E.try (return (getOpt method))
 -- will not evaluate argument inside return (lazy), thus can't catch error
@@ -188,7 +202,7 @@ getOpt method = case method of
 	"stackAU" 	-> return (0, compileSAU)
 	"stackN" 	-> return (0, compileSN)
 	"stackU" 	-> return (0, compileSU)
-	"unbox" 	-> return (0,compileUnbox)
+	"unbox" 	-> return (0, compileUnbox)
 	"benchN" 	-> return (0, compileBN False)
 	"benchS" 	-> return (0, compileBS False)
 	"benchNA" 	-> return (0, compileBN True)
@@ -216,19 +230,23 @@ printHelp = do
 	putStrLn "Welcome to f2ji!"
 	putStrLn "-----------------------------------------"
 	putStrLn "[COMMANDS] [SOURCE FILE/FLAG]"
-	putStrLn "Options:"
+	putStrLn "Commands:"
 	putStrLn "  :help               Print help manual"
-	putStrLn "  :run sourceFile     Execute sourceFile"
-	putStrLn "  :method opt         Set compilation options"
+	putStrLn "  :run <sourceFile>   Compile and run sourceFile"
 	putStrLn "  :let var = expr     Bind expr to var"
 	putStrLn "  :type var           Show the type of var"
 	putStrLn "  :replay             Replay all previous user commands"
-	putStrLn "  :showfile on/off    Show/Hide source file and .java file contents"
-	putStrLn "  :time on/off        Show/Hide execution time"
-	putStrLn "  :show env           Show current environment"
-	putStrLn "  :show method       Show available compilation options"
 	putStrLn "  :clear              Clear environment"
 	putStrLn "  :quit               Quit f2ji"
+	putStrLn ""
+	putStrLn "--- Commands for settings ---"
+        putStrLn ":set method opt       Set compilation options"
+        putStrLn ""	
+	putStrLn "--- Commands for displaying information ---"
+	putStrLn ":show time on/off     Show/Hide execution time"
+	putStrLn ":show file on/off     Show/Hide source file and .java file contents"
+	putStrLn ":show env             Show current bindings"
+	putStrLn ":show method          Show available compilation options"
 	putStrLn "-----------------------------------------"
 	putStrLn ""
 
