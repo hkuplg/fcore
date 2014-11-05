@@ -1,0 +1,7 @@
+--> 1
+
+let x = 1 in
+let x = 2 and
+    y = x
+in
+y
