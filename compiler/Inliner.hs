@@ -16,7 +16,6 @@ inliner (If e1 e2 e3) = If (inliner e1) (inliner e2) (inliner e3)
 inliner (PrimOp e1 o e2) = PrimOp (inliner e1) o (inliner e2)
 inliner (Tuple es) = Tuple (map inliner es)
 inliner (Proj i e) = Proj i (inliner e)
--- inliner e@(Fix f t1 _) = lam t1 (\n -> joinExpr $ f (joinExpr e) (var n))
 inliner (Fix f t1 t2) = Fix (\name n -> joinExpr $ f (joinExpr $ lam t1 (f (var name))) (var n)) t1 t2
 inliner (LetRec f es1 es2) =
   LetRec f
