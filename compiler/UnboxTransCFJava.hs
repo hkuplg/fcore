@@ -137,14 +137,14 @@ transUnbox this super =
                         let fout = fieldAccess (var fname) "out"
                         (s3, nje3) <- getS3 (up this) fname retTyp fout closureVars (classTy cName)
                         return (s1 ++ s2 ++ s3, nje3, scope2ctyp retTyp)
-              ,translateIf =
-                 \m1 m2 m3 ->
-                   do n <- get
-                      put (n + 1)
-                      (s1,j1,_) <- m1 {- translateM this e1 -}
-                      -- let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
-                      -- genIfBody this m2 m3 j1' s1 n,
-                      genIfBody (up this) m2 m3 (s1,j1) n
+              -- ,translateIf =
+              --    \m1 m2 m3 ->
+              --      do n <- get
+              --         put (n + 1)
+              --         (s1,j1,_) <- m1 {- translateM this e1 -}
+              --         -- let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
+              --         -- genIfBody this m2 m3 j1' s1 n,
+              --         genIfBody (up this) m2 m3 (s1,j1) n
               ,javaType = \typ ->
                             case typ of
                               CFInt -> return $ J.PrimType J.IntT
