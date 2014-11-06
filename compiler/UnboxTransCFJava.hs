@@ -63,7 +63,7 @@ transUnbox this super =
                                   S.Arith realOp -> (J.BinOp j1 realOp j2,CFInt)
                                   S.Compare realOp -> (J.BinOp j1 realOp j2,JClass "boolean")
                                   S.Logic realOp -> (J.BinOp j1 realOp j2,JClass "boolean")
-                          newVarName <- getNewVarName (up this)
+                          newVarName <- getNewVarName super
                           aType <- javaType (up this) typ
                           return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
                      LetRec t xs body ->
