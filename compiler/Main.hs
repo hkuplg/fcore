@@ -38,7 +38,7 @@ data Options = Options
 data TransMethod = Naive
                  | ApplyOpt
                  | ApplyU
-                 | ApplyNew
+                 | Apply2
                  | Stack
                  | Stack2
                  | Unbox
@@ -99,7 +99,7 @@ main = do
          putStrLn ("  Compiling to Java source code ( " ++ output_path ++ " )")
        case translate_method of Naive    -> compilesf2java 0 optDump compileN source_path output_path
                                 ApplyOpt -> compilesf2java 0 optDump compileAO source_path output_path
-                                ApplyNew -> compilesf2java 0 optDump compileAONew source_path output_path
+                                Apply2 -> compilesf2java 0 optDump compileAONew source_path output_path
                                 ApplyU -> compilesf2java 0 optDump compileAoptUnbox source_path output_path
                                 Stack    -> compilesf2java 0 optDump compileS source_path output_path
                                 Stack2    -> compilesf2java 0 optDump compileS2 source_path output_path
