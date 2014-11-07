@@ -12,6 +12,7 @@ import Data.Char
 import Data.List
 import Data.FileEmbed			(embedFile)
 import qualified Data.ByteString 	(ByteString, writeFile)
+import Data.Time			(getCurrentTime, diffUTCTime)
 
 import Control.Monad.Error
 
@@ -68,6 +69,7 @@ addFilePath (x:xs) = (testCasesPath ++ x) : (addFilePath xs)
 
 main :: IO ()
 main = do
+  start <- getCurrentTime
   xs <- getDirectoryContents testCasesPath
   let (x:y:ys) = xs 
   let zs = addFilePath ys
@@ -77,5 +79,7 @@ main = do
   timeIt(initReplEnv zs)
   putStrLn "-------------------------------------"
   putStrLn "Finished!"
+  end <- getCurrentTime
+  putStrLn ("Running Time" ++ show (diffUTCTime end start))
 
  
