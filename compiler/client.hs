@@ -30,9 +30,6 @@ main = do
      existsCur <- doesFileExist "./runtime.jar"
      unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
      fileExist "runtime.jar"
-     --let p0 = (proc "javac" ["-cp", "runtime.jar:.", "FileServer.java"])
-     --createProcess p0
-     --fileExist "FileServer.class"
      let p = (proc "java" ["-cp", "runtime.jar:.", (namespace ++ "FileServer")])
                   {std_in = CreatePipe, std_out = CreatePipe}
      (Just inP, Just outP, _, proch) <- createProcess p
@@ -40,8 +37,8 @@ main = do
      hSetBuffering outP LineBuffering
      liftIO printHelp
      runInputT defaultSettings 
-	       (Loop.loop (inP, outP) (0, compileAO) Map.empty Env.empty Hist.empty 0 
-		False False False 0)
+	       (Loop.loop (inP, outP) (0, compileAO, "applyOpt") 
+		          Map.empty Env.empty Hist.empty 0 False False False 0)
      terminateProcess proch
      
 fileExist :: String -> IO ()

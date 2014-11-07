@@ -165,10 +165,29 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  outputStrLn ("[" ++ Env.showPrettyEnv env ++ "]")
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 		Just "method" -> do
+		  let (num, compile, method) = opt
+		  outputStrLn ("Currently using: " ++ method)
+		  outputStrLn "----------------------------"
 		  outputStrLn "Avaible compilation options:"
-		  outputStrLn ("naive/applyOpt/applyU/stack/stackAU/stackN/stackU/" ++
-		  	      "unbox/benchN/benchS/benchNA/benchSA/benchSAI1/" ++
-			      "benchSAI2/benchSAU/benchSAU1/benchSAU2")
+		  outputStrLn "----------------------------"
+		  outputStrLn "naive"
+		  outputStrLn "applyOpt"
+		  outputStrLn "applyU"
+		  outputStrLn "stack"
+		  outputStrLn "stackAU"
+		  outputStrLn "stackN"
+		  outputStrLn "stackU"
+		  outputStrLn "unbox"
+		  outputStrLn "benchN"
+		  outputStrLn "benchS"
+		  outputStrLn "benchNA"
+		  outputStrLn "benchSA"
+		  outputStrLn "benchSAI1"
+		  outputStrLn "benchSAI2"
+		  outputStrLn "benchSAU"
+		  outputStrLn "benchSAU1"
+		  outputStrLn "benchSAU2"
+		  outputStrLn "---------------------------"
 		  outputStrLn "Default: applyOpt"
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 		Just input -> do 
@@ -195,23 +214,23 @@ getCMD xs = case xs of
 -- will not evaluate argument inside return (lazy), thus can't catch error
 getOpt :: String -> IO CompileOpt 
 getOpt method = case method of
-	"naive" 	-> return (0, compileN)
-	"applyOpt" 	-> return (0, compileAO)
-	"applyU"	-> return (0, compileAoptUnbox)
-	"stack"  	-> return (0, compileS)
-	"stackAU" 	-> return (0, compileSAU)
-	"stackN" 	-> return (0, compileSN)
-	"stackU" 	-> return (0, compileSU)
-	"unbox" 	-> return (0, compileUnbox)
-	"benchN" 	-> return (0, compileBN False)
-	"benchS" 	-> return (0, compileBS False)
-	"benchNA" 	-> return (0, compileBN True)
-	"benchSA" 	-> return (0, (compileBS True))
-	"benchSAI1"	-> return (1, (compileBS True))
-	"benchSAI2" 	-> return (2, (compileBS True))
-	"benchSAU" 	-> return (0, compileBSAU)
-	"benchSAU1" 	-> return (1, compileBSAU)
-	"benchSAU2" 	-> return (2, compileBSAU)
+	"naive" 	-> return (0, compileN, method)
+	"applyOpt" 	-> return (0, compileAO, method)
+	"applyU"	-> return (0, compileAoptUnbox, method)
+	"stack"  	-> return (0, compileS, method)
+	"stackAU" 	-> return (0, compileSAU, method)
+	"stackN" 	-> return (0, compileSN, method)
+	"stackU" 	-> return (0, compileSU, method)
+	"unbox" 	-> return (0, compileUnbox, method)
+	"benchN" 	-> return (0, (compileBN False), method)
+	"benchS" 	-> return (0, (compileBS False), method)
+	"benchNA" 	-> return (0, (compileBN True), method)
+	"benchSA" 	-> return (0, (compileBS True), method)
+	"benchSAI1"	-> return (1, (compileBS True), method)
+	"benchSAI2" 	-> return (2, (compileBS True), method)
+	"benchSAU" 	-> return (0, compileBSAU, method)
+	"benchSAU1" 	-> return (1, compileBSAU, method)
+	"benchSAU2" 	-> return (2, compileBSAU, method)
 	_		-> error "invalid method" 
 
 wrapFlag :: Connection -> CompileOpt -> Bool -> Bool -> String -> IO ()
