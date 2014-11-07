@@ -38,6 +38,7 @@ data Options = Options
 data TransMethod = Naive
                  | ApplyOpt
                  | ApplyU
+                 | ApplyU2
                  | Apply2
                  | Stack
                  | Stack2
@@ -101,6 +102,7 @@ main = do
                                 ApplyOpt -> compilesf2java 0 optDump compileAO source_path output_path
                                 Apply2 -> compilesf2java 0 optDump compileAONew source_path output_path
                                 ApplyU -> compilesf2java 0 optDump compileAoptUnbox source_path output_path
+                                ApplyU2 -> compilesf2java 0 optDump compileAoptUnbox2 source_path output_path
                                 Stack    -> compilesf2java 0 optDump compileS source_path output_path
                                 Stack2    -> compilesf2java 0 optDump compileS2 source_path output_path
                                 StackAU -> compilesf2java 0 optDump compileSAU source_path output_path

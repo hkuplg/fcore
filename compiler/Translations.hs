@@ -23,6 +23,7 @@ module Translations
     , compileBS
     , compileUnbox
     , compileAoptUnbox
+    , compileAoptUnbox2
     , compileSU
     , compileBSAU
     , sf2java
@@ -144,6 +145,9 @@ stackApplyNew2 = new ((A.transAS <.> adaptStackNew S.transSA) $> trans)
 applyUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => ApplyOptTranslate m
 applyUnbox = new ((transApply <.> adaptUnbox transUnbox) $> trans)
 
+applyUnbox2 :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => A.ApplyOptTranslate m
+applyUnbox2 = new ((A.transApply <.> adaptUnbox transUnbox) $> trans)
+
 -- Stack + Unbox + Naive
 stackUnbox :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
 stackUnbox = new ((transSU <.> adaptUnbox transUnbox) $> trans)
@@ -167,14 +171,26 @@ instance (:<)  (A.ApplyOptTranslate m) (S.TranslateStack m) where
 instance (:<) (UnboxTranslate m) (TranslateStack m) where
   up = TS . toUT
 
+instance (:<) (UnboxTranslate m) (S.TranslateStack m) where
+  up = S.TS . toUT
+
 instance (:<) (TranslateStack m) (UnboxTranslate m) where
   up = UT . toTS
+
+instance (:<) (S.TranslateStack m) (UnboxTranslate m) where
+  up = UT . S.toTS
 
 instance (:<) (UnboxTranslate m) (ApplyOptTranslate m) where
   up = NT . toUT
 
+instance (:<) (UnboxTranslate m) (A.ApplyOptTranslate m) where
+  up = A.NT . toUT
+
 instance (:<) (ApplyOptTranslate m) (UnboxTranslate m) where
   up = UT . toT
+
+instance (:<) (A.ApplyOptTranslate m) (UnboxTranslate m) where
+  up = UT . A.toT
 
 
 -- Benchmark-link generation
@@ -411,11 +427,20 @@ type AOptUnboxType = StateT Int (StateT (Set.Set J.Exp) (Reader InitVars))
 aoptUnboxInst :: ApplyOptTranslate AOptUnboxType
 aoptUnboxInst = applyUnbox
 
+aoptUnboxInst2 :: A.ApplyOptTranslate AOptUnboxType
+aoptUnboxInst2 = applyUnbox2
+
 translateAU :: String -> Expr Int (Var, Type Int) -> AOptUnboxType (J.CompilationUnit, Type Int)
 translateAU = createWrap (up aoptUnboxInst)
 
+translateAU2 :: String -> Expr Int (Var, Type Int) -> AOptUnboxType (J.CompilationUnit, Type Int)
+translateAU2 = createWrap (up aoptUnboxInst2)
+
 compileAoptUnbox :: Compilation
 compileAoptUnbox name e = runReader (evalStateT (evalStateT (translateAU name (fexp2cexp e)) 0) Set.empty) []
+
+compileAoptUnbox2 :: Compilation
+compileAoptUnbox2 name e = runReader (evalStateT (evalStateT (translateAU2 name (fexp2cexp e)) 0) Set.empty) []
 
 -- Setting for stack + unbox + naive
 
