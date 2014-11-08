@@ -41,7 +41,9 @@ data TransMethod = Naive
                  | ApplyU2
                  | Apply2
                  | Stack
-                 | Stack2
+                 | StackNew
+                 | StackNew1
+                 | StackNew2
                  | Unbox
                  | StackU
                  | StackN
@@ -104,7 +106,9 @@ main = do
                                 ApplyU -> compilesf2java 0 optDump compileAoptUnbox source_path output_path
                                 ApplyU2 -> compilesf2java 0 optDump compileAoptUnbox2 source_path output_path
                                 Stack    -> compilesf2java 0 optDump compileS source_path output_path
-                                Stack2    -> compilesf2java 0 optDump compileS2 source_path output_path
+                                StackNew    -> compilesf2java 0 optDump compileS2 source_path output_path
+                                StackNew1    -> compilesf2java 1 optDump compileS2 source_path output_path
+                                StackNew2    -> compilesf2java 2 optDump compileS2 source_path output_path
                                 StackAU -> compilesf2java 0 optDump compileSAU source_path output_path
                                 StackAU1 -> compilesf2java 1 optDump compileSAU source_path output_path
                                 StackAU2 -> compilesf2java 2 optDump compileSAU source_path output_path
