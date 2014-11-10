@@ -53,9 +53,8 @@ pathsZ3 env (NewSymVar i typ t) s stop =
        pathsZ3 env' t s stop
 pathsZ3 env (Fork l e r) s stop =
     do ast <- assertProjs env e
-       mapM_ local [ (assertCnstr ast >> whenSat (re l (s ++ " && " ++ show e) (stop - 1)))
-                   , (mkNot ast >>= assertCnstr >> whenSat (re r (s ++ " && not " ++ show e) (stop - 1)))
-                   ]
+       local (assertCnstr ast >> whenSat (re l (s ++ " && " ++ show e) (stop - 1)))
+       local (mkNot ast >>= assertCnstr >> whenSat (re r (s ++ " && not " ++ show e) (stop - 1)))
     where re = pathsZ3 env
 
 

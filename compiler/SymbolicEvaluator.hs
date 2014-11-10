@@ -147,11 +147,12 @@ seval (Let _ e f) = let v = seval e in seval (f v)
 seval (App e1 e2) = treeApply (seval e1) (seval e2)
 seval (BLam f) =  seval $ f ()
 seval (TApp e _) = seval e
-seval e = error "Not supported"
+seval _ = error "seval: not supported"
 
 etype2stype :: Type t -> SymType
 etype2stype (JClass "java.lang.Integer") = TInt
 etype2stype (JClass "java.lang.Boolean") = TBool
+etype2stype _ = error "etype2stype: not supported"
 
 propagate :: ExecutionTree -> ExecutionTree -> ExecutionTree -> ExecutionTree
 propagate (Exp e) t1 t2 = Fork t1 e t2
@@ -254,7 +255,6 @@ pp (Fork l e r) s stop =
         (s3, stop3) = pp r (s ++ " && " ++ "not (" ++ s1 ++ ")") stop2
     in (s2 ++ s3, stop3)
 pp (NewSymVar _ _ t) s stop = pp t s stop
--- pp (NewSymVar _ _ t) s stop = pp t s stop
 
 prettyZ3 :: ExecutionTree -> String -> IntSet -> Int -> [String]
 prettyZ3 _ _ _ 0 = []
@@ -304,7 +304,6 @@ simplify :: SymValue -> String
 simplify e = "(simplify " ++ prettyZ3SymValue e ++ ")"
 
 fun e = fst . exec . seval $ e
--- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
 -- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
 
 -- BUG
