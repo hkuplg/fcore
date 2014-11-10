@@ -13,9 +13,10 @@ import           Panic
 import           Prelude                 hiding (EQ, GT, LT)
 import qualified Src                     as S
 import Data.IntSet hiding (map)
-import Data.SBV
+-- import Data.SBV
 -- import           PrettyUtils
 -- import           Text.PrettyPrint.Leijen
+-- import DataTypes
 
 data Value = VInt Integer
            | VBool Bool
@@ -70,13 +71,18 @@ eval _ = panic "Can not be evaled"
 
 data ExecutionTree = Exp SymValue
                    | Fork ExecutionTree SymValue ExecutionTree
+                   | NewSymVar Int SymType ExecutionTree
 
-data SymValue = SVar Int -- free variables
+data SymType = TInt
+             | TBool
+             | TFun [SymType] SymType
+
+data SymValue = SVar Int SymType -- free variables
               | SInt Integer
               | SBoolean Bool
               | SApp SymValue SymValue
               | SOp Op SymValue SymValue
-              | SFun (ExecutionTree -> ExecutionTree)
+              | SFun (ExecutionTree -> ExecutionTree) SymType
 
 data Op = ADD
         | MUL
@@ -92,10 +98,12 @@ data Op = ADD
         | AND
 
 -- Add index to SVars
-exec :: ExecutionTree -> ExecutionTree
+exec :: ExecutionTree -> (ExecutionTree, Int)
 exec e = go e 0
-    where go (Exp (SFun f)) n = go (f . Exp $ SVar n) (n+1)
-          go e n = e
+    where go (Exp (SFun f t)) i =
+              case (go (f . Exp $ SVar i t) (i+1)) of
+                (e, i') -> (NewSymVar i t e, i')
+          go e i = (e, i)
 
 -- symbolic evaluation
 seval :: Expr () ExecutionTree -> ExecutionTree
@@ -135,16 +143,21 @@ seval (PrimOp e1 op e2) =
     where e1' = seval e1
           e2' = seval e2
 
-seval (Lam _ _ f) = Exp $ SFun (seval . f)
+seval (Lam _ t f) = Exp $ SFun (seval . f) (etype2stype t)
 seval (Let _ e f) = let v = seval e in seval (f v)
 seval (App e1 e2) = treeApply (seval e1) (seval e2)
 seval (BLam f) =  seval $ f ()
 seval (TApp e _) = seval e
 seval e = error "Not supported"
 
+etype2stype :: Type t -> SymType
+etype2stype (JClass "java.lang.Integer") = TInt
+etype2stype (JClass "java.lang.Boolean") = TBool
+
 propagate :: ExecutionTree -> ExecutionTree -> ExecutionTree -> ExecutionTree
-propagate (Exp e) et1 et2 = Fork et1 e et2
-propagate (Fork l e r) et1 et2 = Fork (propagate l et1 et2) e (propagate r et1 et2)
+propagate (Exp e) t1 t2 = Fork t1 e t2
+propagate (Fork l e r) t1 t2 = Fork (propagate l t1 t2) e (propagate r t1 t2)
+propagate (NewSymVar i typ tree) t1 t2 = NewSymVar i typ (propagate tree t1 t2)
 
 -- ($*$) :: SymValue -> SymValue -> SymValue
 -- t1 $*$ t2 =
@@ -179,18 +192,22 @@ merge (_, AND) (Exp (SBoolean a)) (Exp (SBoolean b)) = Exp $ SBoolean (a&&b)
 merge (f, _) (Exp e1) (Exp e2) = Exp (f e1 e2)
 merge f (Fork l e r) t = Fork (merge f l t) e (merge f r t)
 merge f t (Fork l e r) = Fork (merge f t l) e (merge f t r)
+merge f (NewSymVar i t t1) t2 = NewSymVar i t (merge f t1 t2)
+merge f t1 (NewSymVar i typ t2) = NewSymVar i typ (merge f t1 t2)
 
 
 treeApply :: ExecutionTree -> ExecutionTree -> ExecutionTree
 treeApply (Exp e) t =
     case e of
-      SVar n -> apply (SApp (SVar n)) t
-      SFun f -> f t
+      SVar n typ -> apply (SApp (SVar n typ)) t
+      SFun f _ -> f t
 treeApply (Fork l e r) t = Fork (treeApply l t) e (treeApply r t)
+treeApply (NewSymVar i typ t1) t2 = NewSymVar i typ (treeApply t1 t2)
 
 apply :: (SymValue -> SymValue) -> ExecutionTree -> ExecutionTree
 apply f (Exp e) = Exp (f e)
 apply f (Fork l e r) = Fork (apply f l) e (apply f r)
+apply f (NewSymVar i typ t) = NewSymVar i typ (apply f t)
 
 instance Show Value where
     show (VFun _) = "<<func>>"
@@ -212,12 +229,12 @@ instance Show Op where
     show AND = " && "
 
 instance Show SymValue where
-    show (SVar n) = "x" ++ show n
+    show (SVar i _) = "x" ++ show i
     show (SInt i) = show i
     show (SBoolean b) = show b
     show (SApp e1 e2) = show e1 ++ " " ++ show e2
     show (SOp op e1 e2) = "(" ++ show e1 ++ show op ++ show e2 ++ ")"
-    show (SFun _) = "<<func>>"
+    show (SFun _ _) = "<<func>>"
 
 -- instance Pretty ExecutionTree where
     -- pretty t = prettyTree t
@@ -237,6 +254,7 @@ pp (Fork l e r) s stop =
         (s2, stop2) = pp l (s ++ " && " ++ s1) stop
         (s3, stop3) = pp r (s ++ " && " ++ "not (" ++ s1 ++ ")") stop2
     in (s2 ++ s3, stop3)
+pp (NewSymVar _ _ t) s stop = pp t s stop
 
 prettyZ3 :: ExecutionTree -> String -> IntSet -> Int -> [String]
 prettyZ3 _ _ _ 0 = []
@@ -266,7 +284,7 @@ prettyZ3SymValue (SOp op e1 e2) =
       NEQ -> "(not (= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ "))"
       OR -> "(or " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
       AND -> "(and " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-prettyZ3SymValue (SFun _) = error "prettyZ3SymValue SFun"
+prettyZ3SymValue (SFun _ _) = error "prettyZ3SymValue SFun"
 prettyZ3SymValue e = show e
 
 declare :: Int -> String
@@ -277,7 +295,7 @@ assert e = "(assert " ++ prettyZ3SymValue e ++ ")"
 assertNeg e = "(assert (not" ++ prettyZ3SymValue e ++ "))"
 
 freeSVars :: SymValue -> IntSet
-freeSVars (SVar i) = singleton i
+freeSVars (SVar i _) = singleton i
 freeSVars (SOp _ e1 e2) = freeSVars e1 `union` freeSVars e2
 freeSVars (SApp e1 e2) = freeSVars e1 `union` freeSVars e2
 freeSVars _ = Data.IntSet.empty
@@ -286,7 +304,7 @@ simplify :: SymValue -> String
 simplify e = "(simplify " ++ prettyZ3SymValue e ++ ")"
 
 fun e = exec . seval $ e
-fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
+-- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
 -- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
 
 -- BUG
