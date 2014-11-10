@@ -118,21 +118,25 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  then do
 		    outputStrLn "Parse error: no space around \"=\"/Too few input"
                     loop handle opt val_ctx env hist index flagH flagT flagS num
-		  else do  
-		    let (var, exp) = Env.createPair xs
-		    --outputStrLn exp
-		    result <- liftIO (checkType val_ctx exp)
-		    case result of
-		      Left  typeErr	  -> do
-		        --outputStrLn "typeCheck error!"
-		        outputStrLn (show typeErr)
-			loop handle opt val_ctx env hist index flagH flagT flagS num
-		      Right (tchecked, t) -> do
-		        let val_ctx_new = Map.insert var t val_ctx 
-			--outputStrLn (show val_ctx_new)
-	  	      	let envNew = Env.insert (var, exp) env
-		        loop handle opt val_ctx_new envNew hist index 
-			     flagH flagT flagS num	
+		  else if (xs !! 1) /= "=" 
+		    then do
+		      outputStrLn "Parse error: no space around \"=\""
+                      loop handle opt val_ctx env hist index flagH flagT flagS num
+		    else do  
+		      let (var, exp) = Env.createPair xs
+		      --outputStrLn exp
+		      result <- liftIO (checkType val_ctx exp)
+		      case result of
+		        Left  typeErr	  -> do
+		          --outputStrLn "typeCheck error!"
+		          outputStrLn (show typeErr)
+			  loop handle opt val_ctx env hist index flagH flagT flagS num
+		        Right (tchecked, t) -> do
+		          let val_ctx_new = Map.insert var t val_ctx 
+			  --outputStrLn (show val_ctx_new)
+	  	      	  let envNew = Env.insert (var, exp) env
+		          loop handle opt val_ctx_new envNew hist index 
+			       flagH flagT flagS num	
 	  ":type" -> do
 	  	case getCMD xs of
 	  	  Just var -> case Map.lookup var val_ctx of
