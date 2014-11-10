@@ -9,9 +9,10 @@ import qualified Src as S
 import Core
 import Simplify
 import PartialEvaluator
-import SymbolicEvaluator
 import Inliner
 import Translations
+import SymbolicEvaluator
+import Z3Backend
 
 import PrettyUtils
 import OptiUtils
@@ -139,13 +140,23 @@ complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
                   zero
                   one
 
+p1 = Lam "" javaInt (\n -> If ((Var "" n) `lt` ten) negOne one)
+
+p2 = Lam "" javaInt (\n -> If ((Var "" n) `lt` five) negOne one)
+
+prop_p1_p2 = Lam "" javaInt (\n -> (App p1 (Var "" n)) `eq` (App p2 (Var "" n)))
+
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (S.Int 0)
 one          = Lit (S.Int 1)
+five         = Lit (S.Int 5)
+ten          = Lit (S.Int 10)
+negOne       = Lit (S.Int (-1))
 magicNumber  = Lit (S.Int 42)
 true         = Lit (S.Bool True)
 false        = Lit (S.Bool False)
 x `eq` y     = PrimOp x (S.Compare J.Equal) y
+x `lt` y     = PrimOp x (S.Compare J.LThan) y
 x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y

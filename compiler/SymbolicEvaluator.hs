@@ -13,7 +13,6 @@ import           Panic
 import           Prelude                 hiding (EQ, GT, LT)
 import qualified Src                     as S
 import Data.IntSet hiding (map)
--- import Data.SBV
 -- import           PrettyUtils
 -- import           Text.PrettyPrint.Leijen
 -- import DataTypes
@@ -79,7 +78,7 @@ data SymType = TInt
 
 data SymValue = SVar Int SymType -- free variables
               | SInt Integer
-              | SBoolean Bool
+              | SBool Bool
               | SApp SymValue SymValue
               | SOp Op SymValue SymValue
               | SFun (ExecutionTree -> ExecutionTree) SymType
@@ -111,12 +110,12 @@ seval (Var _ x) = x
 seval (Lit x) =
     case x of
       S.Int n -> Exp $ SInt n
-      S.Bool b -> Exp $ SBoolean b
+      S.Bool b -> Exp $ SBool b
 
 seval (If e1 e2 e3) =
     case e1' of
-        Exp (SBoolean True) -> seval e2
-        Exp (SBoolean False) -> seval e3
+        Exp (SBool True) -> seval e2
+        Exp (SBool False) -> seval e3
         _ -> propagate e1' (seval e2) (seval e3)
     where e1' = seval e1
 
@@ -177,17 +176,17 @@ merge (_, MUL) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SInt (a*b)
 merge (_, SUB) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SInt (a-b)
 merge (_, DIV) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SInt (a `div` b)
 
-merge (_, EQ) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBoolean (a==b)
-merge (_, EQ) (Exp (SBoolean a)) (Exp (SBoolean b)) = Exp $ SBoolean (a==b)
-merge (_, NEQ) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBoolean (a/=b)
-merge (_, NEQ) (Exp (SBoolean a)) (Exp (SBoolean b)) = Exp $ SBoolean (a/=b)
-merge (_, LT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBoolean (a<b)
-merge (_, LE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBoolean (a<=b)
-merge (_, GT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBoolean (a>b)
-merge (_, GE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBoolean (a>=b)
+merge (_, EQ) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a==b)
+merge (_, EQ) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a==b)
+merge (_, NEQ) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a/=b)
+merge (_, NEQ) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a/=b)
+merge (_, LT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a<b)
+merge (_, LE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a<=b)
+merge (_, GT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a>b)
+merge (_, GE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a>=b)
 
-merge (_, OR) (Exp (SBoolean a)) (Exp (SBoolean b)) = Exp $ SBoolean (a||b)
-merge (_, AND) (Exp (SBoolean a)) (Exp (SBoolean b)) = Exp $ SBoolean (a&&b)
+merge (_, OR) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a||b)
+merge (_, AND) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a&&b)
 
 merge (f, _) (Exp e1) (Exp e2) = Exp (f e1 e2)
 merge f (Fork l e r) t = Fork (merge f l t) e (merge f r t)
@@ -231,7 +230,7 @@ instance Show Op where
 instance Show SymValue where
     show (SVar i _) = "x" ++ show i
     show (SInt i) = show i
-    show (SBoolean b) = show b
+    show (SBool b) = show b
     show (SApp e1 e2) = show e1 ++ " " ++ show e2
     show (SOp op e1 e2) = "(" ++ show e1 ++ show op ++ show e2 ++ ")"
     show (SFun _ _) = "<<func>>"
@@ -255,6 +254,7 @@ pp (Fork l e r) s stop =
         (s3, stop3) = pp r (s ++ " && " ++ "not (" ++ s1 ++ ")") stop2
     in (s2 ++ s3, stop3)
 pp (NewSymVar _ _ t) s stop = pp t s stop
+-- pp (NewSymVar _ _ t) s stop = pp t s stop
 
 prettyZ3 :: ExecutionTree -> String -> IntSet -> Int -> [String]
 prettyZ3 _ _ _ 0 = []
@@ -303,7 +303,7 @@ freeSVars _ = Data.IntSet.empty
 simplify :: SymValue -> String
 simplify e = "(simplify " ++ prettyZ3SymValue e ++ ")"
 
-fun e = exec . seval $ e
+fun e = fst . exec . seval $ e
 -- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
 -- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
 
