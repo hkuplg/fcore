@@ -15,6 +15,8 @@ public class MyList {
   }
 
   public Integer head() {
+    if (lst.isEmpty())
+      return 0;
     return lst.element();
   }
 
