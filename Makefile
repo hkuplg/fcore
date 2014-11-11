@@ -9,6 +9,11 @@ compiler :
 	./select-cabal.sh
 	cabal install
 
+.PHONY : smt
+smt :
+	./select-cabal.sh
+	cabal install -f Z3
+
 .PHONY : test
 test :
 	make parsers
