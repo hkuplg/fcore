@@ -37,18 +37,13 @@ public class MyList {
     return lst.get(index);
   }
 
+  public static MyList genFuncList(int n) {
+    MyList wh = new MyList();
 
-  // public static void main(String[] args) {
-
-  //   MyList lst = new MyList();
-
-  //   lst.cons(3);
-  //   lst.cons(4);
-
-  //   MyList l1 = lst.tail();
-  //   System.out.println(l1.at(0));
-
-  // }
-
+    for (int i = n; i > 0; i --) {
+      wh.cons(i % 5 + 1);
+    }
+    return wh;
+  }
 
 }
