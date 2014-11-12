@@ -164,35 +164,53 @@ propagate (Exp e) t1 t2 = Fork t1 e t2
 propagate (Fork l e r) t1 t2 = Fork (propagate l t1 t2) e (propagate r t1 t2)
 propagate (NewSymVar i typ tree) t1 t2 = NewSymVar i typ (propagate tree t1 t2)
 
--- ($*$) :: SymValue -> SymValue -> SymValue
--- t1 $*$ t2 =
---     case (t1, t2) of
---       (SInt a, SInt b) -> SInt (a*b)
---       (SInt 1, _) -> t2
---       (SInt 0, _) -> t1
---       (_, SInt 1) -> t2
---       (_, SInt 0) -> t1
-
 merge :: (SymValue -> SymValue -> SymValue, Op)
       -> ExecutionTree
       -> ExecutionTree
       -> ExecutionTree
+
 merge (_, ADD) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SInt (a+b)
+merge (_, ADD) (Exp (SInt 0)) e = e
+merge (_, ADD) e (Exp (SInt 0)) = e
+
 merge (_, MUL) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SInt (a*b)
+merge (_, MUL) zero@(Exp (SInt 0)) _ = zero
+merge (_, MUL) _ zero@(Exp (SInt 0)) = zero
+merge (_, MUL) (Exp (SInt 1)) e = e
+merge (_, MUL) e (Exp (SInt 1)) = e
+
 merge (_, SUB) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SInt (a-b)
+merge (_, SUB) e (Exp (SInt 0)) = e
+
 merge (_, DIV) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SInt (a `div` b)
+merge (_, DIV) zero@(Exp (SInt 0)) _ = zero
+merge (_, DIV) e (Exp (SInt 1)) = e
 
 merge (_, EQ) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a==b)
 merge (_, EQ) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a==b)
+
 merge (_, NEQ) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a/=b)
 merge (_, NEQ) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a/=b)
+
 merge (_, LT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a<b)
+
 merge (_, LE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a<=b)
+
 merge (_, GT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a>b)
+
 merge (_, GE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a>=b)
 
 merge (_, OR) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a||b)
+merge (_, OR) true@(Exp (SBool True)) _ = true
+merge (_, OR) _ true@(Exp (SBool True)) = true
+merge (_, OR) e (Exp (SBool False)) = e
+merge (_, OR) (Exp (SBool False)) e = e
+
 merge (_, AND) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a&&b)
+merge (_, AND) false@(Exp (SBool False)) _ = false
+merge (_, AND) _ false@(Exp (SBool False)) = false
+merge (_, AND) (Exp (SBool True)) e = e
+merge (_, AND) e (Exp (SBool True)) = e
 
 merge (f, _) (Exp e1) (Exp e2) = Exp (f e1 e2)
 merge f (Fork l e r) t = Fork (merge f l t) e (merge f r t)
