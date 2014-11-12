@@ -279,52 +279,52 @@ pp (Fork l e r) s stop =
     in (s2 ++ s3, stop3)
 pp (NewSymVar _ _ t) s stop = pp t s stop
 
-prettyZ3 :: ExecutionTree -> String -> IntSet -> Int -> [String]
-prettyZ3 _ _ _ 0 = []
-prettyZ3 (Exp e) s vars stop = [s ++ "\n(check-sat)\n" ++ simplify e ++ "\n(pop)"]
-prettyZ3 (Fork l e r) s vars stop =
-    let v1 = freeSVars e
-        undeclared = v1 `difference` vars
-        vars' = vars `union` undeclared
-        declared = unlines $ map declare $ toList undeclared
-        s1 = s ++ "\n" ++ declared
-        s2 = prettyZ3 l (s1 ++ assert e) vars' (stop - 1)
-        s3 = prettyZ3 r (s1 ++ assertNeg e) vars' (stop - 1)
-    in s2 ++ s3
+-- prettyZ3 :: ExecutionTree -> String -> IntSet -> Int -> [String]
+-- prettyZ3 _ _ _ 0 = []
+-- prettyZ3 (Exp e) s vars stop = [s ++ "\n(check-sat)\n" ++ simplify e ++ "\n(pop)"]
+-- prettyZ3 (Fork l e r) s vars stop =
+--     let v1 = freeSVars e
+--         undeclared = v1 `difference` vars
+--         vars' = vars `union` undeclared
+--         declared = unlines $ map declare $ toList undeclared
+--         s1 = s ++ "\n" ++ declared
+--         s2 = prettyZ3 l (s1 ++ assert e) vars' (stop - 1)
+--         s3 = prettyZ3 r (s1 ++ assertNeg e) vars' (stop - 1)
+--     in s2 ++ s3
 
-prettyZ3SymValue :: SymValue -> String
-prettyZ3SymValue (SOp op e1 e2) =
-    case op of
-      ADD -> "(+ " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      MUL -> "(* " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      SUB -> "(- " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      DIV -> "(/ " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      LT -> "(< " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      LE -> "(<= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      GT -> "(> " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      GE -> "(>= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      EQ -> "(= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      NEQ -> "(not (= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ "))"
-      OR -> "(or " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-      AND -> "(and " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
-prettyZ3SymValue (SFun _ _) = error "prettyZ3SymValue SFun"
-prettyZ3SymValue e = show e
+-- prettyZ3SymValue :: SymValue -> String
+-- prettyZ3SymValue (SOp op e1 e2) =
+--     case op of
+--       ADD -> "(+ " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       MUL -> "(* " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       SUB -> "(- " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       DIV -> "(/ " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       LT -> "(< " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       LE -> "(<= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       GT -> "(> " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       GE -> "(>= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       EQ -> "(= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       NEQ -> "(not (= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ "))"
+--       OR -> "(or " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+--       AND -> "(and " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
+-- prettyZ3SymValue (SFun _ _) = error "prettyZ3SymValue SFun"
+-- prettyZ3SymValue e = show e
 
-declare :: Int -> String
-declare n = "(declare-const " ++ "x" ++ show n ++ "Int)"
+-- declare :: Int -> String
+-- declare n = "(declare-const " ++ "x" ++ show n ++ "Int)"
 
-assert, assertNeg :: SymValue -> String
-assert e = "(assert " ++ prettyZ3SymValue e ++ ")"
-assertNeg e = "(assert (not" ++ prettyZ3SymValue e ++ "))"
+-- assert, assertNeg :: SymValue -> String
+-- assert e = "(assert " ++ prettyZ3SymValue e ++ ")"
+-- assertNeg e = "(assert (not" ++ prettyZ3SymValue e ++ "))"
 
-freeSVars :: SymValue -> IntSet
-freeSVars (SVar i _) = singleton i
-freeSVars (SOp _ e1 e2) = freeSVars e1 `union` freeSVars e2
-freeSVars (SApp e1 e2) = freeSVars e1 `union` freeSVars e2
-freeSVars _ = Data.IntSet.empty
+-- freeSVars :: SymValue -> IntSet
+-- freeSVars (SVar i _) = singleton i
+-- freeSVars (SOp _ e1 e2) = freeSVars e1 `union` freeSVars e2
+-- freeSVars (SApp e1 e2) = freeSVars e1 `union` freeSVars e2
+-- freeSVars _ = Data.IntSet.empty
 
-simplify :: SymValue -> String
-simplify e = "(simplify " ++ prettyZ3SymValue e ++ ")"
+-- simplify :: SymValue -> String
+-- simplify e = "(simplify " ++ prettyZ3SymValue e ++ ")"
 
 fun e = fst . exec . seval $ e
 -- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
