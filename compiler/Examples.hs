@@ -151,7 +151,12 @@ if_bool = Lam "" javaBool (\n -> If (Var "" n `eq` true) negOne one)
 
 inverse = Lam "" javaBool (\_ -> If (true) false true)
 
+intfun = Lam "" (Fun javaInt javaInt) (\n -> If ((App (Var "" n) one) `neq` (App (Var "" n) one)) one negOne)
+
+intfun2 = Lam "" (Fun javaInt javaInt) (\n -> If (false `bAnd` ((App (Var "" n) one) `neq` (App (Var "" n) one))) one negOne)
+
 boolfun = Lam "" (Fun javaBool javaBool) (\n -> If ((App (Var "" n) true) `neq` (App (Var "" n) true)) one negOne)
+
 app_bool_fun = App boolfun inverse
 
 javaBool     = JClass "java.lang.Boolean"
@@ -166,6 +171,7 @@ false        = Lit (S.Bool False)
 x `eq` y     = PrimOp x (S.Compare J.Equal) y
 x `neq` y    = PrimOp x (S.Compare J.NotEq) y
 x `lt` y     = PrimOp x (S.Compare J.LThan) y
+x `bAnd` y    = PrimOp x (S.Logic J.And) y
 x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y

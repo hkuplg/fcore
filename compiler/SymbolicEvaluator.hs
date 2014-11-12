@@ -3,8 +3,6 @@
 --       2. simplify the condition
 --       3. find counter-example
 
--- add Leaf?  Leaf is expression
-
 module SymbolicEvaluator where
 
 import           Core
@@ -64,6 +62,8 @@ eval (PrimOp e1 op e2) =
                -- logic operations
                S.Logic J.And -> VBool $ a && b
                S.Logic J.Or -> VBool $ a || b
+               S.Compare J.Equal -> VBool $ a == b
+               S.Compare J.NotEq -> VBool $ a /= b
                -- _ -> simplified
          _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
 eval _ = panic "Can not be evaled"
@@ -150,9 +150,14 @@ seval (TApp e _) = seval e
 seval _ = error "seval: not supported"
 
 etype2stype :: Type t -> SymType
-etype2stype (JClass "java.lang.Integer") = TInt
-etype2stype (JClass "java.lang.Boolean") = TBool
+etype2stype (JClass t) = str2stype t
+etype2stype (Fun (JClass a) (JClass b)) = TFun [str2stype a] (str2stype b)
 etype2stype _ = error "etype2stype: not supported"
+
+str2stype :: String -> SymType
+str2stype "java.lang.Integer" = TInt
+str2stype "java.lang.Boolean" = TBool
+str2stype _ = error "str2stype: unknown java type"
 
 propagate :: ExecutionTree -> ExecutionTree -> ExecutionTree -> ExecutionTree
 propagate (Exp e) t1 t2 = Fork t1 e t2

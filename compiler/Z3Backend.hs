@@ -82,8 +82,8 @@ declareSymFun i args res =
        mkFuncDecl f args res
 
 assertProj :: AST -> (FuncDecl, AST) -> Z3 ()
-assertProj app (fd, arg) =
-    do ast <- mkApp fd [app] >>= mkEq arg
+assertProj app (f, arg) =
+    do ast <- mkApp f [app] >>= mkEq arg
        assertCnstr ast
 
 assertProjs :: Z3Env -> SymValue -> Z3 AST
@@ -92,7 +92,6 @@ assertProjs Z3Env { symVars = vars, funVars = funs} v = go v
           go (SInt i) = mkInt i
           go (SBool True) = mkTrue
           go (SBool False) = mkFalse
-          -- go (SBool b) = mkBool b
           go (SOp op v1 v2) =
               do x1 <- go v1
                  x2 <- go v2
@@ -124,11 +123,11 @@ assertProjs Z3Env { symVars = vars, funVars = funs} v = go v
           symFun _ _ = error "symFun"
 
 local :: Z3 a -> Z3 a
-local m = do
-  push
-  a <- m
-  pop 1
-  return a
+local m =
+    do push
+       a <- m
+       pop 1
+       return a
 
 whenSat :: Z3 () -> Z3 ()
 whenSat m =
