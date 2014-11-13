@@ -63,7 +63,7 @@ sfToJava h (n, method) flagS f = do
 	contents <- readFile f
 	--putStrLn contents
 	let className = getClassName f
-	result <- E.try (sf2java n False method className contents)
+	result <- E.try (sf2java n NoDump method className contents)
 	case result of 
 	  Left  (_ :: E.SomeException) -> do 
 	  	putStrLn "invalid expression sf2Java"

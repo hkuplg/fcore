@@ -219,7 +219,7 @@ wrapFlag handle opt flagT flagS filename = case flagT of
 	True  -> timeIt (wrap handle opt flagS filename)
 	False -> wrap handle opt flagS filename
 
-checkType :: ValueContext -> String -> IO (Either TypeError (Expr TcId, Type))
+checkType :: ValueContext -> String -> IO (Either TypeError (Expr (Name, Type), Type))
 checkType val_ctx s =
   do let parsed = reader s
      typeCheckWithEnv val_ctx parsed
