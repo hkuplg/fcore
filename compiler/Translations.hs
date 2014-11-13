@@ -192,7 +192,6 @@ instance (:<) (ApplyOptTranslate m) (UnboxTranslate m) where
 instance (:<) (A.ApplyOptTranslate m) (UnboxTranslate m) where
   up = UT . A.toT
 
-
 -- Benchmark-link generation
 
 -- bench for naive
@@ -338,10 +337,9 @@ sf2java num optDump compilation className src =
             let core = desugar tcheckedSrc
             when (optDump == DumpCore) $ print (Core.prettyExpr core)
             let simpleCore = case num of
-                               1 -> peval . inliner {- . simplify -} $ core
-                               2 -> peval . inliner . inliner {- . simplify -} $ core
-                               _ -> peval {-. simplify-} $ core
-                               -- _ -> peval . simplify $ core
+                               1 -> peval . inliner . simplify $ core
+                               2 -> peval . inliner . inliner . simplify $ core
+                               _ -> peval . simplify $ core
             -- let simpleCore = simplify core
             when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
             when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore))

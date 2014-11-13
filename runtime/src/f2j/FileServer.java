@@ -1,4 +1,4 @@
-//package f2j; 
+package f2j; 
 
 import java.util.*;
 import java.lang.*;
@@ -28,7 +28,8 @@ public class FileServer {
             fileManager.getJavaFileObjectsFromFiles(Arrays.asList(files));
 
         //String [] compileOptions = new String[] {"-classpath", cp};
-	String [] compileOptions = new String[] {"-classpath", "runtime.jar"};
+	//String [] compileOptions = new String[] {"-classpath", "runtime.jar"};
+	String [] compileOptions = new String[] {};
         Iterable<String> compilationOptions = Arrays.asList(compileOptions);
 
         JavaCompiler.CompilationTask task =
