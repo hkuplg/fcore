@@ -12,18 +12,9 @@ import           Parser (reader)
 import           PartialEvaluator (peval)
 import           Simplify (simplify)
 import qualified Src as S
-import           System.Directory
-import           Translations
+import           System.Directory (getCurrentDirectory)
 import           TypeCheck (typeCheck)
--- import SymbolicEvaluator
--- import Z3Backend
-
-import           PrettyUtils
-import           OptiUtils
-
-import           Text.PrettyPrint.Leijen
-
-import           Unsafe.Coerce
+import           Unsafe.Coerce (unsafeCoerce)
 
 import qualified Language.Java.Syntax as J (Op(..))
 
@@ -37,50 +28,49 @@ instance Show (Type t) where
 tailFact :: Expr t e
 tailFact
   = Fix (\tail_fact acc ->
-      Lam "" javaInt (\n ->
-        If (Var "" n `eq` zero)
-           (Var "" acc)
-           (Var "" tail_fact `App` (Var "" acc `mult` Var "" n) `App` (Var "" n `sub` one))))
+      lam javaInt (\n ->
+        If (var n `eq` zero)
+           (var acc)
+           (var tail_fact `App` (var acc `mult` var n) `App` (var n `sub` one))))
     javaInt (javaInt `Fun` javaInt)
 
 testTail :: Expr t e
-testTail = Fix (\f n -> If (Var "" n `eq` zero)
+testTail = Fix (\f n -> If (var n `eq` zero)
                            one
-                           (Var "" f `App` (Var "" n `sub` one)))
+                           (var f `App` (var n `sub` one)))
                javaInt
                (javaInt `Fun` javaInt)
 
 fact :: Expr t (Expr t e)
-fact = Fix (\f n -> If (Var "" n `eq` zero)
+fact = Fix (\f n -> If (var n `eq` zero)
                        one
-                       (Var "" n `mult` (Var "" f `App` (Var "" n `sub` one))))
+                       (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
            (javaInt `Fun` javaInt)
 
 tailFactLike :: Expr t e
 tailFactLike
   = Fix (\tail_fact acc ->
-      Lam "" javaInt (\n ->
-        If (Var "" n `eq` zero)
-           (Var "" acc)
-           (Var "" tail_fact `App` (Var "" acc `mult` one) `App` one)))
+      lam javaInt (\n ->
+                    If (var n `eq` zero)
+                    (var acc)
+                    (var tail_fact `App` (var acc `mult` one) `App` one)))
     javaInt (javaInt `Fun` javaInt)
 
 
 plus2 :: Expr t e
-plus2 = (App (Lam "" (Fun javaInt (Fun javaInt javaInt))
-                  (\e -> (App (App (Var "" e) one) zero)))
-             (Lam "" javaInt (\e -> (Lam "" javaInt (\f -> (Var "" e) `mult` (Var "" f))))))
+plus2 = (App (lam (Fun javaInt (Fun javaInt javaInt)) (\e -> (App (App (var e) one) zero)))
+             (lam javaInt (\e -> (lam javaInt (\f -> (var e) `mult` (var f))))))
 
 evenOdd :: Expr t e
 evenOdd
   = LetRec
       [(Fun javaInt javaBool), (Fun javaInt javaBool)]
       (\ids ->
-         [ Lam "" javaInt (\n -> If (Var "" n `eq` zero) true  (App (Var "" (ids !! 1)) (Var "" n `sub` one)))
-         , Lam "" javaInt (\n -> If (Var "" n `eq` zero) false (App (Var "" (ids !! 0)) (Var "" n `sub` one)))])
+         [ lam javaInt (\n -> If (var n `eq` zero) true  (App (var (ids !! 1)) (var n `sub` one)))
+         , lam javaInt (\n -> If (var n `eq` zero) false (App (var (ids !! 0)) (var n `sub` one)))])
       (\ids ->
-         App (Var "" (ids !! 1)) magicNumber)
+         App (var (ids !! 1)) magicNumber)
 
 
 javaBool     = JClass "java.lang.Boolean"
