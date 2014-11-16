@@ -80,6 +80,6 @@ main = do
   putStrLn "-------------------------------------"
   putStrLn "Finished!"
   end <- getCurrentTime
-  putStrLn ("Running Time" ++ show (diffUTCTime end start))
+  putStrLn ("Running Time " ++ show (diffUTCTime end start))
 
  

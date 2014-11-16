@@ -6,6 +6,7 @@ import System.Console.Haskeline
 import System.IO
 import System.Process hiding (runCommand)
 import System.TimeIt
+import System.CPUTime
 import System.Directory			(removeFile, doesFileExist)
 
 import Control.Monad.Error		(liftIO)
@@ -239,7 +240,12 @@ getOpt method = case method of
 
 wrapFlag :: Connection -> CompileOpt -> Bool -> Bool -> String -> IO ()
 wrapFlag handle opt flagT flagS filename = case flagT of
-	True  -> timeIt (wrap handle opt flagS filename)
+	True  -> --timeIt (wrap handle opt flagS filename)
+	  do
+	    start <- getCPUTime
+	    wrap handle opt flagS filename
+	    end <- getCPUTime
+	    putStrLn ("CPU time: " ++ (show ((end - start) `div` 1000)) ++ "ns")
 	False -> wrap handle opt flagS filename
 
 checkType :: ValueContext -> String -> IO (Either TypeError (Expr TcId, Type))
@@ -254,13 +260,13 @@ printHelp = do
 	putStrLn "-----------------------------------------"
 	putStrLn "[COMMANDS] [SOURCE FILE/FLAG]"
 	putStrLn "Commands:"
-	putStrLn "  :help               Print help manual"
-	putStrLn "  :run <sourceFile>   Compile and run sourceFile"
-	putStrLn "  :let var = expr     Bind expr to var"
-	putStrLn "  :type var           Show the type of var"
-	putStrLn "  :replay             Replay all previous user commands"
-	putStrLn "  :clear              Clear environment"
-	putStrLn "  :quit               Quit f2ji"
+	putStrLn ":help                 Print help manual"
+	putStrLn ":run <sourceFile>     Compile and run sourceFile"
+	putStrLn ":let var = expr       Bind expr to var"
+	putStrLn ":type var             Show the type of var"
+	putStrLn ":replay               Replay all previous user commands"
+	putStrLn ":clear                Clear environment"
+	putStrLn ":quit                 Quit f2ji"
 	putStrLn ""
 	putStrLn "--- Commands for settings ---"
         putStrLn ":set method opt       Set compilation options"
