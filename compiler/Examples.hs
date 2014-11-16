@@ -140,6 +140,8 @@ complex_eq_zero = If (((App identity minus_1_0) `sub` one) `eq` zero)
                   zero
                   one
 
+
+-- tests for seval
 p1 = Lam "" javaInt (\n -> If ((Var "" n) `lt` ten) negOne one)
 
 p2 = Lam "" javaInt (\n -> If ((Var "" n) `lt` five) negOne one)
@@ -155,13 +157,18 @@ intfun = Lam "" (Fun javaInt javaInt) (\n -> If ((App (Var "" n) one) `neq` (App
 
 intfun2 = Lam "" (Fun javaInt javaInt) (\n -> If (false `bAnd` ((App (Var "" n) one) `neq` (App (Var "" n) one))) one negOne)
 
+multiple_if = Lam "" (javaInt) (\n -> If ((Var "" n) `eq` zero) (If ((App identity (Var "" n)) `eq` one) one zero) negOne)
+
 boolfun = Lam "" (Fun javaBool javaBool) (\n -> If ((App (Var "" n) true) `neq` (App (Var "" n) true)) one negOne)
 
 app_bool_fun = App boolfun inverse
 
+
+
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (S.Int 0)
 one          = Lit (S.Int 1)
+two          = Lit (S.Int 2)
 five         = Lit (S.Int 5)
 ten          = Lit (S.Int 10)
 negOne       = Lit (S.Int (-1))
@@ -171,6 +178,7 @@ false        = Lit (S.Bool False)
 x `eq` y     = PrimOp x (S.Compare J.Equal) y
 x `neq` y    = PrimOp x (S.Compare J.NotEq) y
 x `lt` y     = PrimOp x (S.Compare J.LThan) y
+x `gt` y     = PrimOp x (S.Compare J.GThan) y
 x `bAnd` y    = PrimOp x (S.Logic J.And) y
 x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y

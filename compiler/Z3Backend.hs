@@ -2,7 +2,7 @@ module Z3Backend where
 
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
-import Z3.Monad hiding (Z3Env, local)
+import Z3.Monad hiding (Z3Env)
 import Data.IntMap (IntMap, (!), empty, insert)
 import SymbolicEvaluator
 import Prelude hiding (EQ, GT, LT)
@@ -16,9 +16,6 @@ data Z3Env = Z3Env { index :: Int
                    , funVars :: IntMap FuncDecl
                    , target :: String -> SymValue -> Z3 ()
                    }
-
-defaultTarget :: String -> SymValue -> Z3 ()
-defaultTarget s e = liftIO $ putStrLn $ s ++ " ==> " ++ show e
 
 solve :: Expr () ExecutionTree -> IO ()
 solve = solve' 5
@@ -41,9 +38,15 @@ solve' stop e =
                       }
       pathsZ3 env tree "True" stop
 
+defaultTarget :: String -> SymValue -> Z3 ()
+defaultTarget s e = liftIO $ putStrLn $ s ++ " ==> " ++ show e
+
 pathsZ3 :: Z3Env -> ExecutionTree -> String -> Int -> Z3 ()
 pathsZ3 _ _ _ stop | stop <= 0 = return ()
-pathsZ3 env (Exp e) s _ = target env s e
+pathsZ3 env (Exp e) s _ =
+    case s of
+      "True" -> target env "" e -- sole result
+      _ -> target env (drop (length "True && ") s) e
 pathsZ3 env (NewSymVar i typ t) s stop =
     do ast <- declareVar env i typ
        let env' = either
@@ -57,13 +60,11 @@ pathsZ3 env (Fork l e r) s stop =
        local (mkNot ast >>= assertCnstr >> whenSat (re r (s ++ " && not " ++ show e) (stop - 1)))
     where re = pathsZ3 env
 
-
 stype2sort :: Z3Env -> SymType -> Sort
 stype2sort env TInt = intSort env
 stype2sort env TBool = boolSort env
 stype2sort _ (TFun _ _) = error "stype2sort: Function type"
 -- stype2sort env _ = adtSort env
-
 
 declareVar :: Z3Env -> Int -> SymType -> Z3 (Either AST FuncDecl)
 declareVar env i (TFun tArgs tRes) =
@@ -112,8 +113,6 @@ assertProjs Z3Env { symVars = vars, funVars = funs} v = go v
           go (SApp v1 v2) = symFun v1 [v2]
           go (SFun _ _) = error "symValueZ3 of SFun"
 
-
-
           symFun :: SymValue -> [SymValue] -> Z3 AST
           symFun (SApp v1 v2) vs = symFun v1 (v2:vs)
           symFun (SVar i _) vs =
@@ -121,13 +120,6 @@ assertProjs Z3Env { symVars = vars, funVars = funs} v = go v
                  let f = funs ! i
                  mkApp f args
           symFun _ _ = error "symFun"
-
-local :: Z3 a -> Z3 a
-local m =
-    do push
-       a <- m
-       pop 1
-       return a
 
 whenSat :: Z3 () -> Z3 ()
 whenSat m =
