@@ -6,6 +6,7 @@ import System.Console.Haskeline
 import System.IO
 import System.Process hiding (runCommand)
 import System.TimeIt
+import System.CPUTime
 import System.Directory			(removeFile, doesFileExist)
 
 import Control.Monad.Error		(liftIO)
@@ -21,6 +22,8 @@ import Src hiding (wrap)
 import Text.PrettyPrint.Leijen
 import Translations
 import JavaUtils
+import qualified OptiUtils		(sf2core)
+import qualified Core			(prettyExpr)
 import Parser
 import ParseCMD
 import FileIO
@@ -92,6 +95,13 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  Just filename -> liftIO (wrapFlag handle opt flagT flagS filename) 
 	      	  Nothing       ->  outputStrLn "Invalid input"
 		loop handle opt val_ctx env hist index flagH flagT flagS num
+	  ":expr" -> do
+	  	case getCMD xs of
+		  Just filename -> do
+		    expr <- liftIO (OptiUtils.sf2core filename)
+		    outputStrLn (show (Core.prettyExpr expr))
+		  Nothing 	-> outputStrLn "Invalid input"
+		loop handle opt val_ctx env hist index flagH flagT flagS num
 	  ":set" -> case getCMD xs of
 	 	Just "method" -> do
 		  let (y:ys)= xs
@@ -118,21 +128,25 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  then do
 		    outputStrLn "Parse error: no space around \"=\"/Too few input"
                     loop handle opt val_ctx env hist index flagH flagT flagS num
-		  else do  
-		    let (var, exp) = Env.createPair xs
-		    --outputStrLn exp
-		    result <- liftIO (checkType val_ctx exp)
-		    case result of
-		      Left  typeErr	  -> do
-		        --outputStrLn "typeCheck error!"
-		        outputStrLn (show typeErr)
-			loop handle opt val_ctx env hist index flagH flagT flagS num
-		      Right (tchecked, t) -> do
-		        let val_ctx_new = Map.insert var t val_ctx 
-			--outputStrLn (show val_ctx_new)
-	  	      	let envNew = Env.insert (var, exp) env
-		        loop handle opt val_ctx_new envNew hist index 
-			     flagH flagT flagS num	
+		  else if (xs !! 1) /= "=" 
+		    then do
+		      outputStrLn "Parse error: no space around \"=\""
+                      loop handle opt val_ctx env hist index flagH flagT flagS num
+		    else do  
+		      let (var, exp) = Env.createPair xs
+		      --outputStrLn exp
+		      result <- liftIO (checkType val_ctx exp)
+		      case result of
+		        Left  typeErr	  -> do
+		          --outputStrLn "typeCheck error!"
+		          outputStrLn (show typeErr)
+			  loop handle opt val_ctx env hist index flagH flagT flagS num
+		        Right (tchecked, t) -> do
+		          let val_ctx_new = Map.insert var t val_ctx 
+			  --outputStrLn (show val_ctx_new)
+	  	      	  let envNew = Env.insert (var, exp) env
+		          loop handle opt val_ctx_new envNew hist index 
+			       flagH flagT flagS num	
 	  ":type" -> do
 	  	case getCMD xs of
 	  	  Just var -> case Map.lookup var val_ctx of
@@ -165,14 +179,38 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  outputStrLn ("[" ++ Env.showPrettyEnv env ++ "]")
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 		Just "method" -> do
+		  let (num, compile, method) = opt
+		  outputStrLn ("Currently using: " ++ method)
+		  outputStrLn "----------------------------"
 		  outputStrLn "Avaible compilation options:"
-		  outputStrLn ("naive/applyOpt/applyU/stack/stackAU/stackN/stackU/" ++
-		  	      "unbox/benchN/benchS/benchNA/benchSA/benchSAI1/" ++
-			      "benchSAI2/benchSAU/benchSAU1/benchSAU2")
+		  outputStrLn "----------------------------"
+		  outputStrLn "naive"
+		  outputStrLn "applyOpt"
+		  outputStrLn "applyU"
+		  outputStrLn "stack"
+		  outputStrLn "stackAU"
+		  outputStrLn "stackN"
+		  outputStrLn "stackU"
+		  outputStrLn "unbox"
+		  outputStrLn "benchN"
+		  outputStrLn "benchS"
+		  outputStrLn "benchNA"
+		  outputStrLn "benchSA"
+		  outputStrLn "benchSAI1"
+		  outputStrLn "benchSAI2"
+		  outputStrLn "benchSAU"
+		  outputStrLn "benchSAU1"
+		  outputStrLn "benchSAU2"
+		  outputStrLn "---------------------------"
 		  outputStrLn "Default: applyOpt"
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 		Just input -> do 
-		  outputStrLn "Invalid input"
+		  exist <- liftIO (doesFileExist input)
+		  case exist of
+		    True  -> do
+		   	content <- liftIO (readFile input)
+		        outputStrLn content
+		    False -> outputStrLn "Invalid input"
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 		Nothing    -> do 
 		  outputStrLn "Too few input"
@@ -195,31 +233,36 @@ getCMD xs = case xs of
 -- will not evaluate argument inside return (lazy), thus can't catch error
 getOpt :: String -> IO CompileOpt 
 getOpt method = case method of
-	"naive" 	-> return (0, compileN)
-	"applyOpt" 	-> return (0, compileAO)
-	"applyU"	-> return (0, compileAoptUnbox)
-	"stack"  	-> return (0, compileS)
-	"stackAU" 	-> return (0, compileSAU)
-	"stackN" 	-> return (0, compileSN)
-	"stackU" 	-> return (0, compileSU)
-	"unbox" 	-> return (0, compileUnbox)
-	"benchN" 	-> return (0, compileBN False)
-	"benchS" 	-> return (0, compileBS False)
-	"benchNA" 	-> return (0, compileBN True)
-	"benchSA" 	-> return (0, (compileBS True))
-	"benchSAI1"	-> return (1, (compileBS True))
-	"benchSAI2" 	-> return (2, (compileBS True))
-	"benchSAU" 	-> return (0, compileBSAU)
-	"benchSAU1" 	-> return (1, compileBSAU)
-	"benchSAU2" 	-> return (2, compileBSAU)
+	"naive" 	-> return (0, compileN, method)
+	"applyOpt" 	-> return (0, compileAO, method)
+	"applyU"	-> return (0, compileAoptUnbox, method)
+	"stack"  	-> return (0, compileS, method)
+	"stackAU" 	-> return (0, compileSAU, method)
+	"stackN" 	-> return (0, compileSN, method)
+	"stackU" 	-> return (0, compileSU, method)
+	"unbox" 	-> return (0, compileUnbox, method)
+	"benchN" 	-> return (0, (compileBN False), method)
+	"benchS" 	-> return (0, (compileBS False), method)
+	"benchNA" 	-> return (0, (compileBN True), method)
+	"benchSA" 	-> return (0, (compileBS True), method)
+	"benchSAI1"	-> return (1, (compileBS True), method)
+	"benchSAI2" 	-> return (2, (compileBS True), method)
+	"benchSAU" 	-> return (0, compileBSAU, method)
+	"benchSAU1" 	-> return (1, compileBSAU, method)
+	"benchSAU2" 	-> return (2, compileBSAU, method)
 	_		-> error "invalid method" 
 
 wrapFlag :: Connection -> CompileOpt -> Bool -> Bool -> String -> IO ()
 wrapFlag handle opt flagT flagS filename = case flagT of
-	True  -> timeIt (wrap handle opt flagS filename)
+	True  -> --timeIt (wrap handle opt flagS filename)
+	  do
+	    start <- getCPUTime
+	    wrap handle opt flagS filename
+	    end <- getCPUTime
+	    putStrLn ("CPU time: " ++ (show ((end - start) `div` 1000)) ++ "ns")
 	False -> wrap handle opt flagS filename
 
-checkType :: ValueContext -> String -> IO (Either TypeError (Expr (Name, Type), Type))
+checkType :: ValueContext -> String -> IO (Either TypeError (Expr TcId, Type))
 checkType val_ctx s =
   do let parsed = reader s
      typeCheckWithEnv val_ctx parsed
@@ -231,13 +274,13 @@ printHelp = do
 	putStrLn "-----------------------------------------"
 	putStrLn "[COMMANDS] [SOURCE FILE/FLAG]"
 	putStrLn "Commands:"
-	putStrLn "  :help               Print help manual"
-	putStrLn "  :run <sourceFile>   Compile and run sourceFile"
-	putStrLn "  :let var = expr     Bind expr to var"
-	putStrLn "  :type var           Show the type of var"
-	putStrLn "  :replay             Replay all previous user commands"
-	putStrLn "  :clear              Clear environment"
-	putStrLn "  :quit               Quit f2ji"
+	putStrLn ":help                 Print help manual"
+	putStrLn ":run <sourceFile>     Compile and run sourceFile"
+	putStrLn ":let var = expr       Bind expr to var"
+	putStrLn ":type var             Show the type of var"
+	putStrLn ":replay               Replay all previous user commands"
+	putStrLn ":clear                Clear environment"
+	putStrLn ":quit                 Quit f2ji"
 	putStrLn ""
 	putStrLn "--- Commands for settings ---"
         putStrLn ":set method opt       Set compilation options"
