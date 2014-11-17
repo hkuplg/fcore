@@ -179,6 +179,8 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  outputStrLn ("[" ++ Env.showPrettyEnv env ++ "]")
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 		Just "method" -> do
+		  outputStrLn "Undefined in develop branch"
+{-do
 		  let (num, compile, method) = opt
 		  outputStrLn ("Currently using: " ++ method)
 		  outputStrLn "----------------------------"
@@ -202,7 +204,7 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  outputStrLn "benchSAU1"
 		  outputStrLn "benchSAU2"
 		  outputStrLn "---------------------------"
-		  outputStrLn "Default: applyOpt"
+		  outputStrLn "Default: applyOpt"-}
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 		Just input -> do 
 		  exist <- liftIO (doesFileExist input)
@@ -232,7 +234,8 @@ getCMD xs = case xs of
 -- if the return type is CompileOpt, then return to E.try (return (getOpt method))
 -- will not evaluate argument inside return (lazy), thus can't catch error
 getOpt :: String -> IO CompileOpt 
-getOpt method = case method of
+getOpt method = undefined
+{-case method of
 	"naive" 	-> return (0, compileN, method)
 	"applyOpt" 	-> return (0, compileAO, method)
 	"applyU"	-> return (0, compileAoptUnbox, method)
@@ -250,7 +253,7 @@ getOpt method = case method of
 	"benchSAU" 	-> return (0, compileBSAU, method)
 	"benchSAU1" 	-> return (1, compileBSAU, method)
 	"benchSAU2" 	-> return (2, compileBSAU, method)
-	_		-> error "invalid method" 
+	_		-> error "invalid method" -}
 
 wrapFlag :: Connection -> CompileOpt -> Bool -> Bool -> String -> IO ()
 wrapFlag handle opt flagT flagS filename = case flagT of
@@ -262,7 +265,7 @@ wrapFlag handle opt flagT flagS filename = case flagT of
 	    putStrLn ("CPU time: " ++ (show ((end - start) `div` 1000)) ++ "ns")
 	False -> wrap handle opt flagS filename
 
-checkType :: ValueContext -> String -> IO (Either TypeError (Expr TcId, Type))
+checkType :: ValueContext -> String -> IO (Either TypeError (Src.Expr (Name, Type), Type))
 checkType val_ctx s =
   do let parsed = reader s
      typeCheckWithEnv val_ctx parsed
@@ -276,6 +279,7 @@ printHelp = do
 	putStrLn "Commands:"
 	putStrLn ":help                 Print help manual"
 	putStrLn ":run <sourceFile>     Compile and run sourceFile"
+	putStrLn ":expr <sourceFile>    Show core expression of the file"
 	putStrLn ":let var = expr       Bind expr to var"
 	putStrLn ":type var             Show the type of var"
 	putStrLn ":replay               Replay all previous user commands"
@@ -288,6 +292,7 @@ printHelp = do
 	putStrLn "--- Commands for displaying information ---"
 	putStrLn ":show time on/off     Show/Hide execution time"
 	putStrLn ":show file on/off     Show/Hide source file and .java file contents"
+	putStrLn ":show <sourcefile>    Show file content"
 	putStrLn ":show env             Show current bindings"
 	putStrLn ":show method          Show available compilation options"
 	putStrLn "-----------------------------------------"
