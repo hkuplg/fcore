@@ -20,6 +20,7 @@ import           ClosureF
 import           Inheritance
 import           JavaEDSL
 import           MonadLib
+import           StringPrefixes
 -- import           Panic
 
 
@@ -52,7 +53,7 @@ whileApplyLoop this ctemp tempOut outType ctempCastTyp = do
                  (J.BinOp (J.ExpName $ name [nextName, "next"])
                   J.NotEq
                   (J.Lit J.Null))),
-          assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) "out")))]
+          assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) closureOutput)))]
 
 
 whileApplyLoopMain :: (Monad m) => Translate m -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
@@ -67,7 +68,7 @@ whileApplyLoopMain this ctemp tempOut outType ctempCastTyp = do
                                           ,assign (name [nextName, "next"]) (J.Lit J.Null)
                                           ,bStmt (methodCall [ctemp, "apply"] [])]))
                     nextNEqNull),
-              assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) "out")))]
+              assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) closureOutput)))]
   return [localVar closureType' (varDeclNoInit ctemp),
           localVar outType (varDecl tempOut (J.MethodInv (J.MethodCall (name ["apply"]) []))),
           bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop)))]
@@ -97,7 +98,7 @@ empyClosure this outExp box = do
                                Nothing
                                "apply"
                                []
-                               (Just (block [assign (name ["out"]) outExp]))))]))))
+                               (Just (block [assign (name [closureOutput]) outExp]))))]))))
 
 whileApply :: (Monad m) => Translate m -> J.Exp -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
 whileApply this cl ctemp tempOut outType ctempCastTyp = do
@@ -235,13 +236,13 @@ transSU this super =
                                 (cast resultType
                                  (J.FieldAccess (fieldAccExp
                                                  (cast (classTy (closureClass ++ "Int" ++ finalType)) (var "c"))
-                                                 "out"))))
+                                                 closureOutput))))
                               (assignE
                                (name ["result"])
                                (cast resultType
                                 (J.FieldAccess (fieldAccExp
                                                 (cast (classTy (closureClass ++ "Box" ++ finalType)) (var "c"))
-                                                "out")))))]
+                                                closureOutput)))))]
 
            return ((localVar closureType' (varDeclNoInit "c")) :
                    (localVar resultType (varDecl "result" (J.MethodInv (J.MethodCall (name ["apply"]) [])))) :

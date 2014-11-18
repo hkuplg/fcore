@@ -231,17 +231,17 @@ trans self =
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
                                   (varnums `zip` bindExprs)
 
-                   let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name ["out"]) bodyExpr]
+                   let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [closureOutput]) bodyExpr]
                    let letClass =
                          [localClass ("Let" ++ show n)
-                                      (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit "out")) :
+                                      (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit closureOutput)) :
                                                   mDecls ++ [J.InitDecl False (J.Block stasm)]))
 
                          ,localVar (classTy ("Let" ++ show n))
                                    (varDecl (localvarstr ++ show n)
                                             (instCreat (classTyp ("Let" ++ show n)) []))
                          ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
-                                                (cast typ (J.ExpName (name [localvarstr ++ show n, "out"]))))]
+                                                (cast typ (J.ExpName (name [localvarstr ++ show n, closureOutput]))))]
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
               App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
@@ -322,9 +322,7 @@ trans self =
               Kind f ->
                 do n <- get
                    put (n + 1) -- needed?
-                   (s,je,t1) <- translateScopeM this
-                                                (f n)
-                                                m
+                   (s,je,t1) <- translateScopeM this (f n) m
                    return (s,je,Kind (\a -> substScope n (TVar a) t1))
               Type t g ->
                 do n <- get
@@ -358,7 +356,7 @@ trans self =
                let retTyp = g ()
                let fname = localvarstr ++ show n -- use a fresh variable
                closureVars <- setClosureVars this retTyp fname j1 j2
-               let fout = (fieldAccess (var fname) "out")
+               let fout = (fieldAccess (var fname) closureOutput)
                (s3,nje3) <- getS3 this fname retTyp fout closureVars closureType
                return (s1 ++ s2 ++ s3,nje3,scope2ctyp retTyp)
        ,translateIf =
@@ -384,7 +382,7 @@ trans self =
                                        closureClass
                                        (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
                                                                                (varDecl (localvarstr ++ show currentId) J.This)]
-                                                       (initVars ++ ostmts ++ [assign (name ["out"]) oexpr])
+                                                       (initVars ++ ostmts ++ [assign (name [closureOutput]) oexpr])
                                                        oldId
                                                        b
                                                        (classTy closureClass))

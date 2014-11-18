@@ -23,3 +23,7 @@ tempvarstr = "temp"
 -- Closure input field
 closureInput :: String
 closureInput = "x"
+
+-- Closure out field
+closureOutput :: String
+closureOutput = "out"

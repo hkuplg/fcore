@@ -66,7 +66,7 @@ modifiedScopeTyp oexpr ostmts currentId nextId closureClass = completeClosure
         currentInitialDeclaration = memberDecl $ fieldDecl closureType' (varDecl (localvarstr ++ show currentId) J.This)
         completeClosure = [(localClassDecl ("Fun" ++ show nextId) closureClass
                             (closureBodyGen
-                             [currentInitialDeclaration, J.InitDecl False (block $ (ostmts ++ [assign (name ["out"]) oexpr]))]
+                             [currentInitialDeclaration, J.InitDecl False (block $ (ostmts ++ [assign (name [closureOutput]) oexpr]))]
                              []
                              nextId
                              True
