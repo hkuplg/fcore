@@ -140,6 +140,11 @@ trans self =
   in T {translateM =
           \e ->
             case e of
+{-
+    (x1 : T1 -> x2) in ∆
+    -------------------------- :: cj-var
+    Γ |-  x1 : T1 ~> x2 in {}
+-}
               Var (i,t) ->
                 return ([],var (localvarstr ++ show i),t)
               Lit lit ->
@@ -186,11 +191,20 @@ trans self =
                           return (statement ++ [assignExpr] ,var newVarName ,typ)
                      _ ->
                        panic "BaseTransCFJava.trans: expected tuple type"
+{-
+    E : ∀α∆.T2 ~> 􏰃J in S  ∆;T2 ⇓ T3
+    -------------------------------- :: cj-tapp
+    Γ |- E T1 : T3[T1/α] ~> 􏰃J in S
+-}
               TApp expr t ->
                 do n <- get
                    (s,je,Forall (Kind f)) <- translateM this expr
                    return (s,je,scope2ctyp (substScope n t (f n)))
-    -- TODO: CLam and CFix generation of top-level Fun closures is a bit ad-hoc transformation from the old generated code + duplicate code
+{-
+    Γ; ∆ |- E : T ~> J in S
+    ------------------------------- :: cj-abs
+    Γ |- λ∆ . E : ∀∆ . T ~> J in S
+-}
               Lam se ->
                 do (s,je,t) <- translateScopeM this se Nothing
                    return (s,je,Forall t)
@@ -243,6 +257,14 @@ trans self =
                          ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
                                                 (cast typ (J.ExpName (name [localvarstr ++ show n, "out"]))))]
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
+{-
+    Γ |- E1 : ∀(x:T2)∆.T1 ~> 􏰃J1 in S1
+    Γ |- E2 : T2 ~> 􏰃J2 in S2
+    ∆;T1 ⇓ T3     f,xf fresh
+    ----------------------------------- :: cj-app
+    Γ |- E1 E2 : T3 in S1⊎S2⊎S3
+    (S3 := see translateApply)
+-}
               App e1 e2 -> translateApply this (translateM this e1) (translateM this e2)
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
               JNew c args ->
@@ -316,9 +338,20 @@ trans self =
        ,translateScopeM =
           \e m ->
             case e of
+{-
+    Γ |- E : T ~> J in S
+    --------------------------- :: cjd-empty
+    Γ;empty |- E : T ~> J in S
+-}
               Body t ->
                 do (s,je,t1) <- translateM this t
                    return (s,je,Body t1)
+
+{-
+    Γα;∆ ⊢ E : T ~>􏰃 J in S
+    ----------------------- :: cjd-bind2
+    Γ;α∆ ⊢ E : T ~>􏰃 J in S
+-}
               Kind f ->
                 do n <- get
                    put (n + 1) -- needed?
@@ -326,6 +359,14 @@ trans self =
                                                 (f n)
                                                 m
                    return (s,je,Kind (\a -> substScope n (TVar a) t1))
+
+{-
+    Γ(y : T1 􏰀-> x2);∆ |- E : T ~> J in S
+    FC, x1, x2, f fresh
+    ------------------------------------- :: cjd-bind1
+    Γ;(y : T1)∆ |- E : T ~> f in S'
+    S' := (cvar)
+-}
               Type t g ->
                 do n <- get
                    let (v,n') = maybe (n + 1,n + 2) (\(i,_) -> (i,n + 1)) m -- decide whether we have found the fixpoint closure or not
