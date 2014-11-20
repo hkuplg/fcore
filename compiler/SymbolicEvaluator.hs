@@ -222,7 +222,7 @@ merge f t1 (NewSymVar i typ t2) = NewSymVar i typ (merge f t1 t2)
 treeApply :: ExecutionTree -> ExecutionTree -> ExecutionTree
 treeApply (Exp e) t =
     case e of
-      SVar n typ -> apply (SApp (SVar n typ)) t
+      SVar i typ -> apply (SApp (SVar i typ)) t
       SFun f _ -> f t
 treeApply (Fork l e r) t = Fork (treeApply l t) e (treeApply r t)
 treeApply (NewSymVar i typ t1) t2 = NewSymVar i typ (treeApply t1 t2)
@@ -257,7 +257,7 @@ instance Show SymValue where
     show (SBool b) = show b
     show (SApp e1 e2) = show e1 ++ " " ++ show e2
     show (SOp op e1 e2) = "(" ++ show e1 ++ show op ++ show e2 ++ ")"
-    show (SFun _ _) = "<<func>>"
+    show (SFun _ _) = "<<fun>>"
 
 -- instance Pretty ExecutionTree where
     -- pretty t = prettyTree t
