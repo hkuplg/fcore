@@ -90,18 +90,16 @@ x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y
 
-sf2core :: Int -> String -> IO (Expr t e)
-sf2core n fname = do
-     path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
-     string <- readFile (path ++ "/" ++ fname)
-     result <- typeCheck . reader $ string
-     case result of
-       Left typeError -> error $ show typeError
-       Right (tcheckedSrc, _) ->
-         case n of
-          1 -> return (peval . simplify . desugar $ tcheckedSrc)
-          2 -> return (simplify . desugar $ tcheckedSrc)
-          3 -> return (desugar $ tcheckedSrc)
-          _ -> return (peval . desugar $ tcheckedSrc)
-
-fCore f str = sf2core str >>= (\e -> return $ f e)
+sf2c :: Int -> String -> IO (Expr t e)
+sf2c n fname = do
+  path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
+  string <- readFile (path ++ "/" ++ fname)
+  result <- typeCheck . reader $ string
+  case result of
+   Left typeError -> error $ show typeError
+   Right (tcheckedSrc, _) ->
+     case n of
+      1 -> return (peval . simplify . desugar $ tcheckedSrc)
+      2 -> return (simplify . desugar $ tcheckedSrc)
+      3 -> return (desugar $ tcheckedSrc)
+      _ -> return (peval . desugar $ tcheckedSrc)
