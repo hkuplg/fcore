@@ -400,13 +400,13 @@ trans self =
           \m1 m2 ->
             do (n :: Int) <- get
                put (n + 1)
-               (s1,j1,Forall (Type _ g)) <- m1
+               (s1,Left j1,Forall (Type _ g)) <- m1
                (s2,j2,_) <- m2
                let retTyp = g ()
                let fname = localvarstr ++ show n -- use a fresh variable
-               closureVars <- setClosureVars this retTyp fname (unwrap j1) (unwrap j2)
-               let fout = (fieldAccess (left $ var fname) closureOutput)
-               (s3,nje3) <- getS3 this fname retTyp fout closureVars closureType
+               closureVars <- setClosureVars this retTyp fname (J.ExpName j1) (unwrap j2)
+               let fout = (fieldAccess (J.ExpName j1) closureOutput)
+               (s3,nje3) <- getS3 this (case j1 of J.Name [J.Ident s] -> s) retTyp fout closureVars closureType
                return (s1 ++ s2 ++ s3,nje3,scope2ctyp retTyp)
        ,translateIf =
           \m1 m2 m3 ->
@@ -442,8 +442,8 @@ trans self =
        ,setClosureVars =
           \_ fname j1 j2 -> do
             closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
-            return [localVar (classTy closureClass) (varDecl fname j1)
-                   ,assignField (fieldAccExp (left $ var fname) closureInput) j2]
+            return [-- localVar (classTy closureClass) (varDecl fname j1),
+                   assignField (fieldAccExp (j1) closureInput) j2]
        ,javaType = \typ -> case typ of
                              (JClass c) -> return $ classTy c
                              (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
