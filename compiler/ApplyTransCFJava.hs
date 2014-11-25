@@ -39,7 +39,7 @@ transApply _ super = NT {toT = super {
          True -> do   (initVars' :: InitVars) <- ask
                       translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
          False -> do  (s,je,t1) <- local (initVars ++) m
-                      let refactored = modifiedScopeTyp je s currentId nextId closureClass
+                      let refactored = modifiedScopeTyp (unwrap je) s currentId nextId closureClass
                       return (refactored,t1),
 
   genApply = \f t x y z -> if (last t) then genApply super f t x y z else return [],
@@ -72,4 +72,3 @@ modifiedScopeTyp oexpr ostmts currentId nextId closureClass = completeClosure
                              True
                              closureType'))
                           ,localVar closureType' (varDecl (localvarstr ++ show nextId) (funInstCreate nextId))]
-

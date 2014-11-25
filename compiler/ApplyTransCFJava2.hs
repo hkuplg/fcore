@@ -39,12 +39,12 @@ transApply _ super = NT {toT = super {
          True -> do   (initVars' :: InitVars) <- ask
                       translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
          False -> do  (s,je,t1) <- local (initVars ++) m
-                      let refactored = modifiedScopeTyp je s currentId nextId closureClass
+                      let refactored = modifiedScopeTyp (unwrap je) s currentId nextId closureClass
                       return (refactored,t1),
 
   -- genApply = \f t x y z -> if (last t) then genApply super f t x y z else return [],
   genApply = \f t x y z -> do applyGen <- genApply super f t x y z
-                              return [bStmt $ J.IfThen (fieldAccess (var f) "hasApply")
+                              return [bStmt $ J.IfThen (fieldAccess (left $ var f) "hasApply")
                                       (J.StmtBlock (block applyGen)) ],
 
   setClosureVars = \t f j1 j2 -> do
@@ -67,7 +67,7 @@ modifiedScopeTyp :: J.Exp -> [J.BlockStmt] -> Int -> Int -> String -> [J.BlockSt
 modifiedScopeTyp oexpr ostmts currentId nextId closureClass = completeClosure
   where closureType' = classTy closureClass
         currentInitialDeclaration = memberDecl $ fieldDecl closureType' (varDecl (localvarstr ++ show currentId) J.This)
-        setApplyFlag = assignField (fieldAccExp (var (localvarstr ++ show currentId)) "hasApply") (J.Lit (J.Boolean False))
+        setApplyFlag = assignField (fieldAccExp (left $ var (localvarstr ++ show currentId)) "hasApply") (J.Lit (J.Boolean False))
         completeClosure = [(localClassDecl ("Fun" ++ show nextId) closureClass
                             (closureBodyGen
                              [currentInitialDeclaration, J.InitDecl False (block $ (setApplyFlag : ostmts ++ [assign (name ["out"]) oexpr]))]
@@ -88,11 +88,11 @@ transAS this super = NT {toT = (up (transApply this super)) {
                       (varDecl tempOut (case outType of
                                          J.PrimType J.IntT -> J.Lit (J.Int 0)
                                          _ -> (J.Lit J.Null)))
-       let elseDecl = assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast z (var f)) "out")))
+       let elseDecl = assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast z (left $ var f)) "out")))
 
        if length applyGen == 2
          then return applyGen
-         else return [tempDecl, bStmt $ J.IfThenElse (fieldAccess (var f) "hasApply")
+         else return [tempDecl, bStmt $ J.IfThenElse (fieldAccess (left $ var f) "hasApply")
                                 (J.StmtBlock (block applyGen))
                                 (J.StmtBlock (block [elseDecl]))]
   }}
