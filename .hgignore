@@ -62,3 +62,6 @@ formalization/*.pdf
 TAGS
 Main.java
 .git
+
+### OS X ###
+.DS_Store
