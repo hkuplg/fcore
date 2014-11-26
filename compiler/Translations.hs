@@ -43,12 +43,8 @@ import PrettyUtils
 import JavaUtils      (ClassName, inferClassName)
 
 import BaseTransCFJava
--- import ApplyTransCFJava
--- import StackTransCFJava
--- import qualified ApplyTransCFJava2 as A
--- import qualified StackTransCFJava2 as S
-import ApplyTransCFJava2
-import StackTransCFJava2
+import ApplyTransCFJava
+import StackTransCFJava
 import BenchGenCF2J
 import BenchGenStack
 import UnboxTransCFJava
