@@ -5,6 +5,8 @@ module FileIO where
 import System.IO
 import System.Process hiding (runCommand)
 import System.Directory			(removeFile, doesFileExist)
+import System.FilePath			(takeFileName)
+
 import qualified Control.Exception as E
 
 import Data.Char
@@ -14,17 +16,18 @@ import Data.List
 import Translations
 
 type Connection = (Handle, Handle)
+type CompileOpt = (Int, Compilation, String)
 
-wrap :: Connection -> Bool -> String -> IO ()
-wrap (inP, outP) flagS name = do
-	send inP flagS name 
+wrap :: Connection -> CompileOpt -> Bool -> String -> IO ()
+wrap (inP, outP) opt flagS name = do
+	send inP opt flagS name 
 	exist <- doesFileExist name
 	if exist
 	  then receiveMsg outP
 	  else return ()
 
-send :: Handle -> Bool -> String -> IO () 
-send h flagS name = do 
+send :: Handle -> CompileOpt -> Bool -> String -> IO () 
+send h opt flagS name = do 
 	exist <- doesFileExist name
 	if not exist 
 	  then do
@@ -32,19 +35,20 @@ send h flagS name = do
 	    return ()
 	  else do
 	    let className = getClassName name
-	    sfToJava h flagS name
+	    sfToJava h opt flagS name
 
 getClassName :: String -> String
 getClassName (x : xs) = (toUpper x) : (takeWhile (/= '.') xs)
 
-sfToJava :: Handle -> Bool -> FilePath -> IO ()
-sfToJava h flagS f = do 
+sfToJava :: Handle -> CompileOpt -> Bool -> FilePath -> IO ()
+sfToJava h (n, opt, method) flagS f = do 
 	contents <- readFile f
-	let className = getClassName f
-	result <- E.try (sf2java 0 NoDump compileAO className contents)
+	--putStrLn contents
+	let className = getClassName (takeFileName f)
+	result <- E.try (sf2java n NoDump opt className contents)
 	case result of 
 	  Left  (_ :: E.SomeException) -> do 
-	  	putStrLn "invalid expression"
+	  	putStrLn "invalid expression sf2Java"
 		removeFile f
 	  Right javaFile	       -> do 
 	  	sendMsg h (className ++ ".java")

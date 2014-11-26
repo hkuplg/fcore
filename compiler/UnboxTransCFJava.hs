@@ -32,6 +32,12 @@ getClassType this t1 t2 = do
    (_, CFInt) -> return (closureClass ++ "BoxInt")
    (_, _) -> return (closureClass ++ "BoxBox")
 
+boxType :: (Monad m) => Translate m -> m ClassName
+boxType this = do
+  closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+  return (closureClass ++ "BoxBox")
+
+
 getFunType :: Type t -> (Type t, Type t)
 getFunType (Forall (Type b f)) = (b, scope2ctyp (f ()))
 getFunType _ = panic "UnboxTranslate.getFunType: expect Forall construcr"
@@ -63,7 +69,7 @@ transUnbox this super =
                                   S.Arith realOp -> (J.BinOp j1 realOp j2,CFInt)
                                   S.Compare realOp -> (J.BinOp j1 realOp j2,JClass "boolean")
                                   S.Logic realOp -> (J.BinOp j1 realOp j2,JClass "boolean")
-                          newVarName <- getNewVarName (up this)
+                          newVarName <- getNewVarName super
                           aType <- javaType (up this) typ
                           return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
                      LetRec t xs body ->
@@ -137,14 +143,6 @@ transUnbox this super =
                         let fout = fieldAccess (var fname) "out"
                         (s3, nje3) <- getS3 (up this) fname retTyp fout closureVars (classTy cName)
                         return (s1 ++ s2 ++ s3, nje3, scope2ctyp retTyp)
-              ,translateIf =
-                 \m1 m2 m3 ->
-                   do n <- get
-                      put (n + 1)
-                      (s1,j1,_) <- m1 {- translateM this e1 -}
-                      -- let j1' = J.BinOp j1 J.Equal (J.Lit (J.Int 0))
-                      -- genIfBody this m2 m3 j1' s1 n,
-                      genIfBody (up this) m2 m3 (s1,j1) n
               ,javaType = \typ ->
                             case typ of
                               CFInt -> return $ J.PrimType J.IntT
@@ -152,6 +150,7 @@ transUnbox this super =
                               (Forall (Type t1 f)) -> case f () of
                                                         Body t2 -> liftM classTy (getClassType (up this) t1 t2)
                                                         _ -> liftM classTy (getClassType (up this) t1 CFInteger)
+                              (Forall (Kind _)) -> liftM classTy (boxType (up this))
                               x -> javaType super x
               ,getPrefix = return (namespace ++ "unbox.")
               ,chooseCastBox = \typ ->

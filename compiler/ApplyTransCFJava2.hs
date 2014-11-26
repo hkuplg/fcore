@@ -79,45 +79,20 @@ modifiedScopeTyp oexpr ostmts currentId nextId closureClass = completeClosure
 
 
 
-transAS :: (MonadState Int m,
-               MonadState (Set.Set J.Exp) m,
-               MonadReader InitVars m,
-               selfType :< ApplyOptTranslate m,
-               selfType :< Translate m)
-              => Mixin selfType (Translate m) (ApplyOptTranslate m)
-transAS _ super = NT {toT = super {
-  translateScopeTyp = \currentId nextId initVars nextInClosure m closureClass ->
-    case last nextInClosure of
-         True -> do   (initVars' :: InitVars) <- ask
-                      translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
-         False -> do  (s,je,t1) <- local (initVars ++) m
-                      let refactored = modifiedScopeTyp je s currentId nextId closureClass
-                      return (refactored,t1),
+transAS :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
+transAS this super = NT {toT = (up (transApply this super)) {
 
-  genApply = \f t tempOut outType z -> do applyGen <- genApply super f t tempOut outType z
-                                          let tempDecl = localVar outType
-                                                         (varDecl tempOut (case outType of
-                                                                            J.PrimType J.LongT -> J.Lit (J.Int 0)
-                                                                            J.PrimType J.IntT -> J.Lit (J.Int 0)
-                                                                            _ -> (J.Lit J.Null)))
-                                          let elseDecl = assign (name [tempOut]) (cast outType
-                                                                                  (J.FieldAccess (fieldAccExp (cast z (var f)) "out")))
-                                          return [tempDecl, bStmt $ J.IfThenElse (fieldAccess (var f) "hasApply")
-                                                            (J.StmtBlock (block applyGen))
-                                                            (J.StmtBlock (block [elseDecl]))],
+  genApply = \f t tempOut outType z ->
+    do applyGen <- genApply super f t tempOut outType z
+       let tempDecl = localVar outType
+                      (varDecl tempOut (case outType of
+                                         J.PrimType J.IntT -> J.Lit (J.Int 0)
+                                         _ -> (J.Lit J.Null)))
+       let elseDecl = assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast z (var f)) "out")))
 
-  setClosureVars = \t f j1 j2 -> do
-              (usedCl :: Set.Set J.Exp) <- get
-              maybeCloned <-  case t of
-                                Body _ ->
-                                   return j1
-                                _ ->
-                                   if (Set.member j1 usedCl) then
-                                      return $ J.MethodInv (J.PrimaryMethodCall (j1) [] (J.Ident "clone") [])
-                                   else do
-                                           put (Set.insert j1 usedCl)
-                                           return j1
-              setClosureVars super t f maybeCloned j2,
-
-  genClone = return True
+       if length applyGen == 2
+         then return applyGen
+         else return [tempDecl, bStmt $ J.IfThenElse (fieldAccess (var f) "hasApply")
+                                (J.StmtBlock (block applyGen))
+                                (J.StmtBlock (block [elseDecl]))]
   }}

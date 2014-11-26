@@ -1,4 +1,4 @@
-//package f2j; 
+package f2j; 
 
 import java.util.*;
 import java.lang.*;
@@ -28,12 +28,13 @@ public class FileServer {
             fileManager.getJavaFileObjectsFromFiles(Arrays.asList(files));
 
         //String [] compileOptions = new String[] {"-classpath", cp};
-	String [] compileOptions = new String[] {"-classpath", "runtime.jar"};
+	String [] compileOptions = new String[] {"-classpath", "runtime.jar:."};
+	//String [] compileOptions = new String[] {};
         Iterable<String> compilationOptions = Arrays.asList(compileOptions);
 
         JavaCompiler.CompilationTask task =
-            compiler.getTask(null, fileManager, diagnostics, compilationOptions, 
-                    null, compilationUnits);
+        compiler.getTask(null, fileManager, diagnostics, compilationOptions, 
+                         null, compilationUnits);
         task.call();
 
     }
@@ -56,7 +57,16 @@ public class FileServer {
 	    Class<?> cls = classLoader.loadClass(className);
             Method meth = cls.getMethod("main", String[].class);
             String[] params = null;
-            meth.invoke(null, (Object) params);
+
+	    try {
+	      meth.setAccessible(true);
+              meth.invoke(null, (Object) params);
+	    } catch (InvocationTargetException e) {
+	      Throwable cause = e.getCause();
+	      e.printStackTrace();
+              System.out.format("Invocation of %s failed because of: %s%n",
+                                "main", cause.getMessage());
+	    }
         } catch (Exception e) {
             e.printStackTrace();     
         }
@@ -79,17 +89,13 @@ public class FileServer {
     {
         Scanner scanner = new Scanner(System.in);
 
-	// Runtime path for runtime.jar
-	//String cp = scanner.nextLine();
-	//System.out.println(cp);
-
 	while(true){
 	  if(!scanner.hasNextLine()) break;
 
           String fileName = scanner.nextLine();
-         //System.out.println(fileName);
+          //System.out.println(fileName);
 
-        // Receive .java file from client
+          //Receive .java file from client
           try {
             File myFile = new File(fileName);
             BufferedWriter output = new BufferedWriter(new FileWriter(myFile));
@@ -100,13 +106,11 @@ public class FileServer {
                 output.write(line);
             }
             output.close();
+	    String className = compileLoad(fileName);
+	    myFile.delete();
           } catch (Exception e) {
             e.printStackTrace();
           }
-
-          String className = compileLoad(fileName);
-	  File file1 = new File(className + ".java");
-	  file1.delete();
 
 	  // Delete dummy .class files in current directory
 	  DeleteDummy();

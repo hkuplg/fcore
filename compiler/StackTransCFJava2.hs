@@ -40,27 +40,21 @@ whileApplyLoop this flag ctemp tempOut outType ctempCastTyp = do
   closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
   let closureType' = classTy closureClass
   nextName <- nextClass (up this)
+  let doWhileStmts = [localVar closureType' (varDeclNoInit ctemp),
+                      localVar outType (varDecl tempOut (case outType of
+                                                          J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: could be bug
+                                                          _ -> (J.Lit J.Null))),
+                      bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
+                                                      ,assign (name [nextName, "next"]) (J.Lit J.Null)
+                                                      ,bStmt (methodCall [ctemp, "apply"] [])]))
+                             (J.BinOp (J.ExpName $ name [nextName, "next"])
+                              J.NotEq
+                              (J.Lit J.Null))),
+                      assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) "out")))]
   if flag
-    then return [localVar closureType' (varDeclNoInit ctemp),
-                 localVar outType (varDecl tempOut (case outType of
-                                                     J.PrimType J.LongT -> J.Lit (J.Int 0) -- TODO: could be bug
-                                                     J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: could be bug
-                                                     _ -> (J.Lit J.Null))),
-                 bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
-                                                 ,assign (name [nextName, "next"]) (J.Lit J.Null)
-                                                 ,bStmt (methodCall [ctemp, "apply"] [])]))
-                        (J.BinOp (J.ExpName $ name [nextName, "next"])
-                         J.NotEq
-                         (J.Lit J.Null))),
-                 assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) "out")))]
-    else return [localVar closureType' (varDeclNoInit ctemp),
-                 bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
-                                                 ,assign (name [nextName, "next"]) (J.Lit J.Null)
-                                                 ,bStmt (methodCall [ctemp, "apply"] [])]))
-                        (J.BinOp (J.ExpName $ name [nextName, "next"])
-                         J.NotEq
-                         (J.Lit J.Null))),
-                 assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) "out")))]
+    then return doWhileStmts
+    else return (let (l1,l2) = splitAt 2 doWhileStmts
+                 in (head l1):l2)
 
 
 whileApplyLoopMain :: (Monad m) => Translate m -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
@@ -114,17 +108,14 @@ whileApply this flag cl ctemp tempOut outType ctempCastTyp = do
   return ((assign (name [nextName, "next"]) cl) : loop)
 
 --e.g. Next.next = x8;
-nextApply :: (Monad m) => Translate m -> Bool -> J.Exp -> String -> J.Type -> m [J.BlockStmt]
-nextApply this flag cl tempOut outType = do
+nextApply :: (Monad m) => Translate m -> J.Exp -> String -> J.Type -> m [J.BlockStmt]
+nextApply this cl tempOut outType = do
   nextName <- nextClass this
-  if flag
-     then return ([assign (name [nextName,"next"]) cl,
-                   localVar outType (varDecl tempOut (case outType of
-                                                       J.PrimType J.LongT -> J.Lit (J.Int 0) -- TODO: potential bug
-                                                       J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: potential bug
-                                                       J.PrimType J.CharT -> J.Lit (J.Char 'a')
-                                                       _ -> J.Lit J.Null))])
-    else return [assign (name [nextName,"next"]) cl]
+  return ([assign (name [nextName,"next"]) cl,
+           localVar outType (varDecl tempOut (case outType of
+                                               J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: potential bug
+                                               J.PrimType J.CharT -> J.Lit (J.Char 'a')
+                                               _ -> J.Lit J.Null))])
 
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super = TS {toTS = super {
@@ -154,7 +145,7 @@ transS this super = TS {toTS = super {
          (n :: Int) <- get
          put (n+1)
          if tailPosition
-           then nextApply (up this) True (var f) x jType
+           then nextApply (up this) (var f) x jType
            else (whileApply (up this) True (var f) ("c" ++ show n) x jType ctempCastTyp),
 
   genRes = \_ _ -> return [],
@@ -203,7 +194,7 @@ transSA this super = TS {toTS = (up (transS this super)) {
          (n :: Int) <- get
          put (n+1)
          if tailPosition
-           then nextApply (up this) False (var f) x jType
+           then nextApply (up this) (var f) x jType
            else (whileApply (up this) False (var f) ("c" ++ show n) x jType ctempCastTyp)
   }}
 
@@ -217,7 +208,7 @@ transSU this super =
          applyRetType = \t -> (case t of
                                 JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
                                 JClass "java.lang.Boolean" -> return $ Just $ J.PrimType J.BooleanT
-                                CFInt -> return $ Just $ J.PrimType J.LongT
+                                CFInt -> return $ Just $ J.PrimType J.IntT
                                 _ -> return $ Just objClassTy),
          stackMainBody = \t -> do
            closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
@@ -227,7 +218,7 @@ transSU this super =
                             CFInt -> "Int"
                             _ -> "Box"
            let resultType = case t of
-                             CFInt -> J.PrimType J.LongT
+                             CFInt -> J.PrimType J.IntT
                              CFChar -> J.PrimType J.CharT
                              JClass "java.lang.Integer" -> classTy "java.lang.Integer"
                              _ -> objClassTy
