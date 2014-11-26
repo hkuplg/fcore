@@ -60,7 +60,7 @@ data Translate m =
     ,chooseCastBox :: Type Int -> m (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
     ,setClosureVars :: TScope Int -> String -> J.Exp -> J.Exp -> m [J.BlockStmt]
-     -- getS3 :: TScope Int -> J.Exp -> (J.Exp -> J.Type -> [J.BlockStmt]) -> ([J.BlockStmt] -> [J.BlockStmt]) -> [J.BlockStmt] -> m ([J.BlockStmt], J.Exp)
+    -- ,genClosureVar :: m J.Exp
     ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
 
 -- needed
@@ -75,17 +75,17 @@ getS3 :: MonadState Int m
       => Translate m
       -> String
       -> TScope Int
-      -> J.Exp
       -> [J.BlockStmt]
       -> J.Type
       -> m ([J.BlockStmt],TransJavaExp)
-getS3 this fname retTyp fout fs ctempCastTyp =
+getS3 this fname retTyp fs ctempCastTyp =
   do (n :: Int) <- get
      put (n+1)
      (castBox,typ) <- chooseCastBox this (scope2ctyp retTyp)
      apply <- genApply this fname retTyp (tempvarstr ++ show n) typ ctempCastTyp
-     rest <- genRes this retTyp [castBox tempvarstr n fout]
-     let r = fs ++ apply ++ rest
+     let fout = (fieldAccess (left . var $ fname) closureOutput)
+     res <- genRes this retTyp [castBox tempvarstr n fout]
+     let r = fs ++ apply ++ res
      return (r, var (tempvarstr ++ show n))
 
 genIfBody :: MonadState Int m
@@ -405,8 +405,7 @@ trans self =
                let retTyp = g ()
                let fname = localvarstr ++ show n -- use a fresh variable
                closureVars <- setClosureVars this retTyp fname (J.ExpName j1) (unwrap j2)
-               let fout = (fieldAccess (J.ExpName j1) closureOutput)
-               (s3,nje3) <- getS3 this (case j1 of J.Name [J.Ident s] -> s) retTyp fout closureVars closureType
+               (s3,nje3) <- getS3 this (case j1 of J.Name [J.Ident s] -> s) retTyp closureVars closureType
                return (s1 ++ s2 ++ s3,nje3,scope2ctyp retTyp)
        ,translateIf =
           \m1 m2 m3 ->

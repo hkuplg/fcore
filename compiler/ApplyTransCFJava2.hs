@@ -70,7 +70,7 @@ modifiedScopeTyp oexpr ostmts currentId nextId closureClass = completeClosure
         setApplyFlag = assignField (fieldAccExp (left $ var (localvarstr ++ show currentId)) "hasApply") (J.Lit (J.Boolean False))
         completeClosure = [(localClassDecl ("Fun" ++ show nextId) closureClass
                             (closureBodyGen
-                             [currentInitialDeclaration, J.InitDecl False (block $ (setApplyFlag : ostmts ++ [assign (name ["out"]) oexpr]))]
+                             [currentInitialDeclaration, J.InitDecl False (block $ (setApplyFlag : ostmts ++ [assign (name [closureOutput]) oexpr]))]
                              []
                              nextId
                              True
@@ -88,7 +88,7 @@ transAS this super = NT {toT = (up (transApply this super)) {
                       (varDecl tempOut (case outType of
                                          J.PrimType J.IntT -> J.Lit (J.Int 0)
                                          _ -> (J.Lit J.Null)))
-       let elseDecl = assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast z (left $ var f)) "out")))
+       let elseDecl = assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast z (left $ var f)) closureOutput)))
 
        if length applyGen == 2
          then return applyGen

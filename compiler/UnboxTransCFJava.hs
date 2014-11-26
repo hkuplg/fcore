@@ -142,8 +142,7 @@ transUnbox this super =
                         let fname = localvarstr ++ show n -- use a fresh variable
                         let closureVars = [localVar (classTy cName) (varDecl fname (unwrap j1))
                                           ,assignField (fieldAccExp (left $ var fname) closureInput) (unwrap j2)]
-                        let fout = fieldAccess (left $ var fname) "out"
-                        (s3, nje3) <- getS3 (up this) fname retTyp fout closureVars (classTy cName)
+                        (s3, nje3) <- getS3 (up this) fname retTyp closureVars (classTy cName)
                         return (s1 ++ s2 ++ s3, nje3, scope2ctyp retTyp)
               ,javaType = \typ ->
                             case typ of

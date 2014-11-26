@@ -20,6 +20,7 @@ import           ClosureF
 import           Inheritance
 import           JavaEDSL
 import           MonadLib
+import           StringPrefixes
 
 
 data TranslateStack m = TS {
@@ -50,7 +51,7 @@ whileApplyLoop this flag ctemp tempOut outType ctempCastTyp = do
                              (J.BinOp (J.ExpName $ name [nextName, "next"])
                               J.NotEq
                               (J.Lit J.Null))),
-                      assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) "out")))]
+                      assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) closureOutput)))]
   if flag
     then return doWhileStmts
     else return (let (l1,l2) = splitAt 2 doWhileStmts
@@ -68,7 +69,7 @@ whileApplyLoopMain this ctemp tempOut outType ctempCastTyp = do
                                           ,assign (name [nextName, "next"]) (J.Lit J.Null)
                                           ,bStmt (methodCall [ctemp, "apply"] [])]))
                     nextNEqNull),
-              assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) "out")))]
+              assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) closureOutput)))]
   return [localVar closureType' (varDeclNoInit ctemp),
           localVar outType (varDecl tempOut (J.MethodInv (J.MethodCall (name ["apply"]) []))),
           bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop)))]
@@ -98,7 +99,7 @@ empyClosure this outExp box = do
                                Nothing
                                "apply"
                                []
-                               (Just (block [assign (name ["out"]) outExp]))))]))))
+                               (Just (block [assign (name [closureOutput]) outExp]))))]))))
 
 whileApply :: (Monad m) => Translate m -> Bool -> J.Exp -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
 whileApply this flag cl ctemp tempOut outType ctempCastTyp = do
@@ -112,8 +113,8 @@ nextApply this cl tempOut outType = do
   nextName <- nextClass this
   return ([assign (name [nextName,"next"]) cl,
            localVar outType (varDecl tempOut (case outType of
-                                               J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: potential bug
-                                               J.PrimType J.CharT -> J.Lit (J.Char 'a')
+                                               J.PrimType J.IntT -> J.Lit (J.Int 0)
+                                               J.PrimType J.CharT -> J.Lit (J.Char 'a') --TODO: better default value?
                                                _ -> J.Lit J.Null))])
 
 transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
@@ -239,13 +240,13 @@ transSU this super =
                                 (cast resultType
                                  (J.FieldAccess (fieldAccExp
                                                  (cast (classTy (closureClass ++ "Int" ++ finalType)) (left $ var "c"))
-                                                 "out"))))
+                                                 closureOutput))))
                               (assignE
                                (name ["result"])
                                (cast resultType
                                 (J.FieldAccess (fieldAccExp
                                                 (cast (classTy (closureClass ++ "Box" ++ finalType)) (left $ var "c"))
-                                                "out")))))]
+                                                closureOutput)))))]
 
            return ((localVar closureType' (varDeclNoInit "c")) :
                    (localVar resultType (varDecl "result" (J.MethodInv (J.MethodCall (name ["apply"]) [])))) :
