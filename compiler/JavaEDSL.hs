@@ -42,8 +42,8 @@ localFinalVar typ vard = LocalVars [Final] typ [vard]
 methodCall :: [String] -> [Argument] -> Stmt
 methodCall idents argu = ExpStmt (MethodInv (MethodCall (name idents) argu))
 
-applyMethodCall :: String -> Stmt
-applyMethodCall f = (classMethodCall (left $ var f) "apply" [])
+applyMethodCall :: Exp -> Stmt
+applyMethodCall f = (classMethodCall f "apply" [])
 
 applyCall :: BlockStmt
 applyCall = bStmt $ methodCall ["apply"] []
@@ -116,7 +116,7 @@ closureBodyGen initDecls body idCF generateClone className =
         cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
         cloneBody = (block [localVar className (varDecl "c" (funInstCreate idCF))
                     ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
-                    ,bStmt $ (applyMethodCall "c")
+                    ,bStmt $ (applyMethodCall (left . var $ "c"))
                     ,bStmt (Return (Just (cast className (left $ var "c"))))])
 
 mainArgType :: [FormalParam]
@@ -131,7 +131,7 @@ right (Right x) = x
 right (Left _) = error "this should be right (literal or method inv)"
 
 unwrap :: Either Name Exp -> Exp
-unwrap x = if isLeft x then left x else right x 
+unwrap x = if isLeft x then left x else right x
 
 mainBody :: Maybe Block
 mainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
