@@ -58,17 +58,19 @@ transUnbox this super =
                           return (s,je,scope2ctyp (substScope n CFInteger (f n)))
                      Lit lit ->
                        case lit of
-                         (S.Int i) -> return ([] ,J.Lit $ J.Int i ,CFInt)
-                         (S.Char i) -> return ([] ,J.Lit $ J.Char i ,CFChar)
+                         (S.Int i) -> return ([] ,Right $ J.Lit $ J.Int i ,CFInt)
+                         (S.Char i) -> return ([] ,Right $ J.Lit $ J.Char i ,CFChar)
                          _ -> translateM super e
                      PrimOp e1 op e2 ->
                        do (s1,j1,_) <- translateM (up this) e1
                           (s2,j2,_) <- translateM (up this) e2
+                          let j1' = unwrap j1
+                          let j2' = unwrap j2
                           let (je,typ) =
                                 case op of
-                                  S.Arith realOp -> (J.BinOp j1 realOp j2,CFInt)
-                                  S.Compare realOp -> (J.BinOp j1 realOp j2,JClass "boolean")
-                                  S.Logic realOp -> (J.BinOp j1 realOp j2,JClass "boolean")
+                                  S.Arith realOp -> (J.BinOp j1' realOp j2',CFInt)
+                                  S.Compare realOp -> (J.BinOp j1' realOp j2',JClass "boolean")
+                                  S.Logic realOp -> (J.BinOp j1' realOp j2',JClass "boolean")
                           newVarName <- getNewVarName super
                           aType <- javaType (up this) typ
                           return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
@@ -97,8 +99,8 @@ transUnbox this super =
                           typ <- javaType (up this) t'
                           -- assign new created closures bindings to variables
                           let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
-                                         (varnums `zip` bindExprs)
-                          let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name ["out"]) bodyExpr]
+                                         (varnums `zip` (map unwrap bindExprs))
+                          let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name ["out"]) (left bodyExpr)]
                           let letClass =
                                 [localClass ("Let" ++ show n)
                                              (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit "out")) :
@@ -118,7 +120,7 @@ transUnbox this super =
                          let nextInClosure = g (n',t)
 
                          aType <- javaType (up this) t
-                         let accessField = fieldAccess (var (localvarstr ++ show v)) closureInput
+                         let accessField = fieldAccess (left $ var (localvarstr ++ show v)) closureInput
                          let js = localFinalVar aType (varDecl (localvarstr ++ show n') (cast aType accessField))
 
                          let ostmts = translateScopeM (up this) nextInClosure Nothing
@@ -138,10 +140,9 @@ transUnbox this super =
                         cName <- getClassType (up this) t1 (scope2ctyp retTyp)
                         -- let (wrapS, jS) = wrap j2 t1 t2
                         let fname = localvarstr ++ show n -- use a fresh variable
-                        let closureVars = [localVar (classTy cName) (varDecl fname j1)
-                                          ,assignField (fieldAccExp (var fname) closureInput) j2]
-                        let fout = fieldAccess (var fname) "out"
-                        (s3, nje3) <- getS3 (up this) fname retTyp fout closureVars (classTy cName)
+                        let closureVars = [localVar (classTy cName) (varDecl fname (unwrap j1))
+                                          ,assignField (fieldAccExp (left $ var fname) closureInput) (unwrap j2)]
+                        (s3, nje3) <- getS3 (up this) (left . var $ fname) (unwrap j2) retTyp (classTy cName)
                         return (s1 ++ s2 ++ s3, nje3, scope2ctyp retTyp)
               ,javaType = \typ ->
                             case typ of

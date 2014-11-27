@@ -21,7 +21,6 @@ import           Inheritance
 import           JavaEDSL
 import           MonadLib
 import           StringPrefixes
--- import           Panic
 
 
 data TranslateStack m = TS {
@@ -37,24 +36,26 @@ instance (:<) (TranslateStack m) (TranslateStack m) where -- reflexivity
 nextClass ::(Monad m) => (Translate m) -> m String
 nextClass this = liftM2 (++) (getPrefix this) (return "Next")
 
-whileApplyLoop :: (Monad m) => Translate m -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
-whileApplyLoop this ctemp tempOut outType ctempCastTyp = do
+whileApplyLoop :: (Monad m) => Translate m -> Bool -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
+whileApplyLoop this flag ctemp tempOut outType ctempCastTyp = do
   closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
   let closureType' = classTy closureClass
   nextName <- nextClass (up this)
-  return [localVar closureType' (varDeclNoInit ctemp),
-          localVar outType (varDecl tempOut (case outType of
-                                              J.PrimType J.IntT -> J.Lit (J.Int 0)
-                                              J.PrimType J.CharT -> J.Lit (J.Char 'a') --TODO: better default value?
-                                              _ -> (J.Lit J.Null))),
-          bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
-                                          ,assign (name [nextName, "next"]) (J.Lit J.Null)
-                                          ,bStmt (methodCall [ctemp, "apply"] [])]))
-                 (J.BinOp (J.ExpName $ name [nextName, "next"])
-                  J.NotEq
-                  (J.Lit J.Null))),
-          assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) closureOutput)))]
-
+  let doWhileStmts = [localVar closureType' (varDeclNoInit ctemp),
+                      localVar outType (varDecl tempOut (case outType of
+                                                          J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: could be bug
+                                                          _ -> (J.Lit J.Null))),
+                      bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
+                                                      ,assign (name [nextName, "next"]) (J.Lit J.Null)
+                                                      ,bStmt (methodCall [ctemp, "apply"] [])]))
+                             (J.BinOp (J.ExpName $ name [nextName, "next"])
+                              J.NotEq
+                              (J.Lit J.Null))),
+                      assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) closureOutput)))]
+  if flag
+    then return doWhileStmts
+    else return (let (l1,l2) = splitAt 2 doWhileStmts
+                 in (head l1):l2)
 
 whileApplyLoopMain :: (Monad m) => Translate m -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
 whileApplyLoopMain this ctemp tempOut outType ctempCastTyp = do
@@ -68,7 +69,7 @@ whileApplyLoopMain this ctemp tempOut outType ctempCastTyp = do
                                           ,assign (name [nextName, "next"]) (J.Lit J.Null)
                                           ,bStmt (methodCall [ctemp, "apply"] [])]))
                     nextNEqNull),
-              assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (var ctemp)) closureOutput)))]
+              assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) closureOutput)))]
   return [localVar closureType' (varDeclNoInit ctemp),
           localVar outType (varDecl tempOut (J.MethodInv (J.MethodCall (name ["apply"]) []))),
           bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop)))]
@@ -100,9 +101,9 @@ empyClosure this outExp box = do
                                []
                                (Just (block [assign (name [closureOutput]) outExp]))))]))))
 
-whileApply :: (Monad m) => Translate m -> J.Exp -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
-whileApply this cl ctemp tempOut outType ctempCastTyp = do
-  loop <- whileApplyLoop this ctemp tempOut outType ctempCastTyp
+whileApply :: (Monad m) => Translate m -> Bool -> J.Exp -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
+whileApply this flag cl ctemp tempOut outType ctempCastTyp = do
+  loop <- whileApplyLoop this flag ctemp tempOut outType ctempCastTyp
   nextName <- nextClass (up this)
   return ((assign (name [nextName, "next"]) cl) : loop)
 
@@ -144,12 +145,8 @@ transS this super = TS {toTS = super {
          (n :: Int) <- get
          put (n+1)
          if tailPosition
-           then nextApply (up this) (var f) x jType
-           else (whileApply (up this) (var f) ("c" ++ show n) x jType ctempCastTyp),
-         -- case x of
-         --    J.ExpName (J.Name [J.Ident h]) ->
-
-         --    _ -> panic "expected temporary variable name" ,
+           then nextApply (up this) f x jType
+           else (whileApply (up this) True f ("c" ++ show n) x jType ctempCastTyp),
 
   genRes = \_ _ -> return [],
 
@@ -160,7 +157,7 @@ transS this super = TS {toTS = super {
             (fromJust retType)
             (classTy closureClass)
 
-    return (loop ++ [bStmt (classMethodCall (var "System.out") "println" [var "result"])]),
+    return (loop ++ [bStmt (classMethodCall (left $ var "System.out") "println" [left $ var "result"])]),
 
   applyRetType = \t -> (case t of
                          JClass "java.lang.Integer" -> return $ Just $ classTy "java.lang.Integer"
@@ -171,9 +168,9 @@ transS this super = TS {toTS = super {
   createWrap = \nam expr ->
         do (bs,e,t) <- translateM (up this) expr
            returnType <- applyRetType (up this) t
-           let returnStmt = [bStmt $ J.Return $ Just e]
+           let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
            box <- getBox (up this) t
-           empyClosure' <- empyClosure (up this) e box
+           empyClosure' <- empyClosure (up this) (unwrap e) box
            mainbody <- stackMainBody (up this) t
            isTest <- genTest super
            let stackDecl = wrapperClass nam
@@ -191,7 +188,14 @@ transS this super = TS {toTS = super {
 
 transSA :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSA this super = TS {toTS = (up (transS this super)) {
-   genRes = \t s -> if (last t) then return [] else genRes super t s
+   -- genRes = \t s -> if (last t) then return [] else genRes super t s,
+   genApply = \f _ x jType ctempCastTyp ->
+      do (tailPosition :: Bool) <- ask
+         (n :: Int) <- get
+         put (n+1)
+         if tailPosition
+           then nextApply (up this) f x jType
+           else (whileApply (up this) False f ("c" ++ show n) x jType ctempCastTyp)
   }}
 
 -- Alternative version of transS that interacts with the Unbox translation
@@ -230,24 +234,24 @@ transSU this super =
                                J.NotEq
                                (J.Lit J.Null))),
                        bStmt (J.IfThenElse
-                              (J.InstanceOf (var "c") (J.ClassRefType $ classTyp (closureClass ++ "Int" ++ finalType)))
+                              (J.InstanceOf (left $ var "c") (J.ClassRefType $ classTyp (closureClass ++ "Int" ++ finalType)))
                               (assignE
                                 (name ["result"])
                                 (cast resultType
                                  (J.FieldAccess (fieldAccExp
-                                                 (cast (classTy (closureClass ++ "Int" ++ finalType)) (var "c"))
+                                                 (cast (classTy (closureClass ++ "Int" ++ finalType)) (left $ var "c"))
                                                  closureOutput))))
                               (assignE
                                (name ["result"])
                                (cast resultType
                                 (J.FieldAccess (fieldAccExp
-                                                (cast (classTy (closureClass ++ "Box" ++ finalType)) (var "c"))
+                                                (cast (classTy (closureClass ++ "Box" ++ finalType)) (left $ var "c"))
                                                 closureOutput)))))]
 
            return ((localVar closureType' (varDeclNoInit "c")) :
                    (localVar resultType (varDecl "result" (J.MethodInv (J.MethodCall (name ["apply"]) [])))) :
                     bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop))) :
-                    [bStmt (classMethodCall (var "System.out") "println" [var "result"])])
+                    [bStmt (classMethodCall (left $ var "System.out") "println" [left $ var "result"])])
          }}
 
 

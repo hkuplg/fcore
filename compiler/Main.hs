@@ -39,7 +39,7 @@ data Options = Options
     } deriving (Eq, Show, Data, Typeable)
 
 data TransMethod = Apply
-                 | ApplyNew
+                 -- | ApplyNew
                  | Naive
                  | Stack
                  | Unbox
@@ -106,7 +106,7 @@ main = do
 getOpt :: [TransMethod] -> IO CompileOpt
 getOpt translate_method = case translate_method of
   [Apply, Naive]               -> return (0, compileAO)
-  [ApplyNew, Naive]            -> return (0, compileAONew)
+  -- [ApplyNew, Naive]            -> return (0, compileAONew)
   [Apply, Naive, Unbox]        -> return (0, compileAoptUnbox)
   [Apply, Naive, Stack]        -> return (0, compileS)
   [Apply, Naive, Stack, Unbox] -> return (0, compileSAU)
