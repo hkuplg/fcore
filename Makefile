@@ -11,6 +11,7 @@ compiler :
 
 .PHONY : smt
 smt :
+	cd runtime; ant
 	./select-cabal.sh
 	cabal install -f Z3
 
