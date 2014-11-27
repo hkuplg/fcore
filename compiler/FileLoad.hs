@@ -21,7 +21,7 @@ import FileIO
 import JavaUtils
 import StringPrefixes			(namespace)
 
-testCasesPath = "../testsuite/tests/pipeline/"
+testCasesPath = "../testsuite/tests/run-pass/"
 
 runtimeBytes :: Data.ByteString.ByteString
 runtimeBytes = $(embedFile "../runtime/runtime.jar")
@@ -38,7 +38,7 @@ initReplEnv xs =  do
      hSetBuffering inP NoBuffering
      hSetBuffering outP NoBuffering
      loadFile inP outP "Naive" compileN xs
-     loadFile inP outP "ApplyOpt" compileAO xs
+     loadFile inP outP "Apply" compileAO xs
      loadFile inP outP "Stack" compileS xs
      terminateProcess proch
 

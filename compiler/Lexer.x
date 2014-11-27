@@ -41,9 +41,10 @@ tokens :-
     \&          { \_ _ -> Tandtype }
     \,\,        { \_ _ -> Tmerge }
     with        { \_ _ -> Twith }
-    \(\+\)      { \_ _ -> Tcombine }
+    \'          { \_ _ -> Tquote }
     this        { \_ _ -> Tthis }
     super       { \_ _ -> Tsuper }
+    type        { \_ _ -> Ttype }
     let         { \_ _ -> Tlet }
     rec         { \_ _ -> Trec }
     \=          { \_ _ -> Teq }
@@ -55,22 +56,24 @@ tokens :-
     Char        { \_ _ -> Tjavaclass "java.lang.Character" }
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
     List        { \_ _ -> Tjavaclass "f2j.FunctionalList" }
+    Tree        { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
     else        { \_ _ -> Telse }
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
     module      { \_ _ -> Tmodule }
-    end         { \_ _ -> Tend }
 
     -- Literals
-    $digit+                { \_ s -> Tinteger (read s) }
+    $digit+                { \_ s -> Tint (read s) }
     \"($printable # \")*\" { \_ s -> Tstring (init $ tail s) }
     \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
-    True                   { \_ s -> Tboolean True}
-    False                  { \_ s -> Tboolean False}
-    \(\)                   { \_ _ -> Tunit }
-    Unit                   { \_ _ -> Tunittype }
+    True                   { \_ s -> Tbool True}
+    False                  { \_ s -> Tbool False}
+    Empty                  { \_ _ -> Temptytree}
+    Fork                   { \_ _ -> Tnonemptytree }
+    \(\)                   { \_ _ -> Tunitlit }
+    Unit                   { \_ _ -> Tunit }
 
     -- java.package.path.Classname
     ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavaclass s }
@@ -97,17 +100,18 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tcombine | Tthis | Tsuper
-           | Tlet | Trec | Teq | Tand | Tin
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tthis | Tsuper
+           | Ttype | Tlet | Trec | Teq | Tand | Tin
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
            | Tcomma | Tsemi
            | Tupperid String | Tlowerid String | Tunderid Int
-           | Tinteger Integer | Tstring String | Tboolean Bool | Tchar Char | Tunit | Tunittype
+           | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule | Tend
+           | Tmodule
+           | Temptytree | Tnonemptytree
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

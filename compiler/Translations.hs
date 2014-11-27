@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts
+{-# LANGUAGE DeriveDataTypeable
+           , FlexibleContexts
            , FlexibleInstances
            , KindSignatures
            , MultiParamTypeClasses
@@ -13,17 +14,21 @@ module Translations
     ( Compilation
     , compileN
     , compileAO
+    -- , compileAONew
     , compileS
+    -- , compileS2
     , compileSAU
     , compileSN
     , compileBN
     , compileBS
     , compileUnbox
     , compileAoptUnbox
+    -- , compileAoptUnbox2
     , compileSU
     , compileBSAU
     , sf2java
     , compilesf2java
+    , DumpOption(..)
     ) where
 
 import Parser    (reader)
@@ -53,7 +58,11 @@ import MonadLib
 import qualified Language.Java.Syntax as J
 import Language.Java.Pretty
 
--- import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.Leijen
+
+import System.Exit (exitFailure)
+
+import Data.Data
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -64,6 +73,15 @@ import Prelude hiding (exp)
 
 -- import Debug.Trace      (trace)
 
+data DumpOption
+  = NoDump
+  | DumpParsed
+  | DumpTChecked
+  | DumpCore
+  | DumpSimpleCore
+  | DumpClosureF
+    deriving (Eq, Show, Data, Typeable)
+
 -- Naive translation
 
 naive :: (MonadState Int m) => Translate m
@@ -71,8 +89,11 @@ naive = new trans
 
 -- Apply naive optimization
 
-applyopt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => ApplyOptTranslate m
+applyopt :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m) => ApplyOptTranslate m
 applyopt = new (transApply $> trans)
+
+-- applyoptNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => A.ApplyOptTranslate m
+-- applyoptNew = new (A.transApply $> trans)
 
 -- Stack naive optimization
 
@@ -91,52 +112,83 @@ adaptApply :: forall (m :: * -> *) t t1.
               (t -> t1 -> ApplyOptTranslate m) -> t -> t1 -> Translate m
 adaptApply mix' this super = toT $ mix' this super
 
+-- adaptApplyNew :: forall (m :: * -> *) t t1.
+--               (t -> t1 -> A.ApplyOptTranslate m) -> t -> t1 -> Translate m
+-- adaptApplyNew mix' this super = A.toT $ mix' this super
+
 adaptStack :: forall (m :: * -> *) t t1.
               (t -> t1 -> TranslateStack m) -> t -> t1 -> Translate m
 adaptStack mix' this super = toTS $ mix' this super
+
+-- adaptStackNew :: forall (m :: * -> *) t t1.
+--               (t -> t1 -> S.TranslateStack m) -> t -> t1 -> Translate m
+-- adaptStackNew mix' this super = S.toTS $ mix' this super
 
 adaptUnbox :: forall (m :: * -> *) t t1. (t -> t1 -> UnboxTranslate m) -> t -> t1 -> Translate m
 adaptUnbox mix' this super = toUT $ mix' this super
 
 -- Stack + Apply + Naive
 
-stackApply :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
+stackApply :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
 stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
 
-stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
-stackApplyNew = new ((transApply <.> adaptStack transSA) $> trans)
+stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
+stackApplyNew = new ((transAS <.> adaptStack transSA) $> trans)
+
+-- stackApplyNew2 :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => A.ApplyOptTranslate m
+-- stackApplyNew2 = new ((A.transAS <.> adaptStackNew S.transSA) $> trans)
 
 -- Apply + Unbox + Naive
-applyUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => ApplyOptTranslate m
+applyUnbox :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m) => ApplyOptTranslate m
 applyUnbox = new ((transApply <.> adaptUnbox transUnbox) $> trans)
+
+-- applyUnbox2 :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => A.ApplyOptTranslate m
+-- applyUnbox2 = new ((A.transApply <.> adaptUnbox transUnbox) $> trans)
 
 -- Stack + Unbox + Naive
 stackUnbox :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
 stackUnbox = new ((transSU <.> adaptUnbox transUnbox) $> trans)
 
 -- Stack + Apply + Unbox + Naive
-stackApplyUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
+stackApplyUnbox :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
 stackApplyUnbox = new ((transApply <.> adaptStack transSAU <.> adaptUnbox transUnbox) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
   up = NT . toTS
 
+-- instance (:<) (S.TranslateStack m) (A.ApplyOptTranslate m) where
+--   up = A.NT . S.toTS
+
 instance (:<)  (ApplyOptTranslate m) (TranslateStack m) where
   up = TS . toT
+
+-- instance (:<)  (A.ApplyOptTranslate m) (S.TranslateStack m) where
+--   up = S.TS . A.toT
 
 instance (:<) (UnboxTranslate m) (TranslateStack m) where
   up = TS . toUT
 
+-- instance (:<) (UnboxTranslate m) (S.TranslateStack m) where
+--   up = S.TS . toUT
+
 instance (:<) (TranslateStack m) (UnboxTranslate m) where
   up = UT . toTS
+
+-- instance (:<) (S.TranslateStack m) (UnboxTranslate m) where
+--   up = UT . S.toTS
 
 instance (:<) (UnboxTranslate m) (ApplyOptTranslate m) where
   up = NT . toUT
 
+-- instance (:<) (UnboxTranslate m) (A.ApplyOptTranslate m) where
+--   up = A.NT . toUT
+
 instance (:<) (ApplyOptTranslate m) (UnboxTranslate m) where
   up = UT . toT
 
+-- instance (:<) (A.ApplyOptTranslate m) (UnboxTranslate m) where
+--   up = UT . A.toT
 
 -- Benchmark-link generation
 
@@ -147,11 +199,11 @@ benchGen = new (transBench $> trans)
 
 
 -- bench for naive + applyopt
-inheritNOpt :: (t -> t1 -> ApplyOptTranslate m) -> t -> t1 -> Translate m
-inheritNOpt mix' this super = toT $ mix' this super
+-- inheritNOpt :: (t -> t1 -> ApplyOptTranslate m) -> t -> t1 -> Translate m
+-- inheritNOpt mix' this super = toT $ mix' this super
 
-benchGenNOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => BenchGenTranslateOpt m
-benchGenNOpt = new ((transBenchOpt <.> inheritNOpt transApply) $> trans)
+-- benchGenNOpt :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m) => BenchGenTranslateOpt m
+-- benchGenNOpt = new ((transBenchOpt <.> inheritNOpt transApply) $> trans)
 
 instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
   up = NT . toTBA
@@ -169,12 +221,12 @@ instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
 --benchGenStackOpt ::  (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
 
 
-benchGenStackOpt :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
+benchGenStackOpt :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
 benchGenStackOpt = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptStack transSA) $> trans)
 
 -- bench for stack + apply + unbox opt
-benchGenStackOptUnbox :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
-benchGenStackOptUnbox = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptStack transSU <.> adaptUnbox transUnbox) $> trans)
+benchGenStackOptUnbox :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m, MonadReader Bool m) => BenchGenTranslateStackOpt m
+benchGenStackOptUnbox = new ((transBenchStackOpt <.> adaptApply transApply <.> adaptStack transSAU <.> adaptUnbox transUnbox) $> trans)
 
 
 instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
@@ -269,26 +321,30 @@ prettyJ = putStrLn . prettyPrint
 
 -- SystemF to Java
 -- TODO: ugly hack to integrate number of inlings
-sf2java :: Int -> Bool -> Compilation -> ClassName -> String -> IO String
+sf2java :: Int -> DumpOption -> Compilation -> ClassName -> String -> IO String
 sf2java num optDump compilation className src =
   do let readSrc = Parser.reader src
-     result <- typeCheck readSrc
+     when (optDump == DumpParsed) $ print readSrc
+     result <- readSrc `seq` (typeCheck readSrc)
      case result of
-       Left typeError -> error $ show ({- Text.PrettyPrint.Leijen.pretty-} typeError)
+       Left typeError ->
+         do print (Text.PrettyPrint.Leijen.pretty typeError)
+            exitFailure -- TODO: Ugly
        Right (tcheckedSrc, _t)   ->
-         do let core = desugar tcheckedSrc
-            when optDump $ do { putStrLn "Core"; print $ Core.prettyExpr basePrec (0,0) core }
+         do when (optDump == DumpTChecked) $ print tcheckedSrc
+            let core = desugar tcheckedSrc
+            when (optDump == DumpCore) $ print (Core.prettyExpr core)
             let simpleCore = case num of
                                1 -> peval . inliner . simplify $ core
-                               2 -> peval . inliner. inliner . simplify $ core
-                               _ -> simplify core
+                               2 -> peval . inliner . inliner . simplify $ core
+                               _ -> peval core --simplify $ core
             -- let simpleCore = simplify core
-            when optDump $ do { putStrLn "Simplified Core"; print $ Core.prettyExpr basePrec (0,0) simpleCore }
-	    --when optDump $ do { putStrLn "Closure F"; print $ ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore) }
+            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
+            when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore))
             let (cu, _) = compilation className simpleCore
             return $ prettyPrint cu
 
-compilesf2java :: Int -> Bool -> Compilation -> FilePath -> FilePath -> IO ()
+compilesf2java :: Int -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java num optDump compilation srcPath outputPath = do
     src <- readFile srcPath
     output <- sf2java num optDump compilation (inferClassName outputPath) src
@@ -314,10 +370,13 @@ compileN :: Compilation
 compileN name e = evalState (translateN name (fexp2cexp e)) 0
 
 -- Setting for apply + naive
-type AOptType = StateT Int (StateT (Set.Set J.Exp) (Reader InitVars))
+type AOptType = StateT Int (StateT (Set.Set J.Name) (Reader InitVars))
 
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
+
+-- aoptinstNew :: A.ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
+-- aoptinstNew = applyoptNew
 
 -- translate :: String -> Expr Int (Var, Type Int) -> MAOpt (J.CompilationUnit, Type Int)
 -- translate = createWrap (up sopt)
@@ -327,6 +386,12 @@ translateAO = createWrap (up aoptinst)
 
 compileAO :: Compilation
 compileAO name e = runReader (evalStateT (evalStateT (translateAO name (fexp2cexp e)) 0) Set.empty) []
+
+-- translateAONew :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
+-- translateAONew = createWrap (up aoptinstNew)
+
+-- compileAONew :: Compilation
+-- compileAONew name e = runReader (evalStateT (evalStateT (translateAONew name (fexp2cexp e)) 0) Set.empty) []
 
 
 -- Setting for stack + naive
@@ -339,7 +404,7 @@ translateSN :: String -> Expr Int (Var, Type Int) -> StackNaiveType (J.Compilati
 translateSN = createWrap (up stackNaiveinst)
 
 compileSN :: Compilation
-compileSN name e = evalState (runReaderT (translateSN name (fexp2cexp e)) False) 0
+compileSN name e = evalState (runReaderT (translateSN name (fexp2cexp e)) True) 0
 
 -- Setting for unbox + naive
 unboxinst :: UnboxTranslate NType  -- instantiation; all coinstraints resolved
@@ -353,16 +418,25 @@ compileUnbox name e = evalState (translateUnbox name (fexp2cexp e)) 0
 
 -- Setting for apply + unbox + naive
 
-type AOptUnboxType = StateT Int (StateT (Set.Set J.Exp) (Reader InitVars))
+type AOptUnboxType = StateT Int (StateT (Set.Set J.Name) (Reader InitVars))
 
 aoptUnboxInst :: ApplyOptTranslate AOptUnboxType
 aoptUnboxInst = applyUnbox
 
+-- aoptUnboxInst2 :: A.ApplyOptTranslate AOptUnboxType
+-- aoptUnboxInst2 = applyUnbox2
+
 translateAU :: String -> Expr Int (Var, Type Int) -> AOptUnboxType (J.CompilationUnit, Type Int)
 translateAU = createWrap (up aoptUnboxInst)
 
+-- translateAU2 :: String -> Expr Int (Var, Type Int) -> AOptUnboxType (J.CompilationUnit, Type Int)
+-- translateAU2 = createWrap (up aoptUnboxInst2)
+
 compileAoptUnbox :: Compilation
 compileAoptUnbox name e = runReader (evalStateT (evalStateT (translateAU name (fexp2cexp e)) 0) Set.empty) []
+
+-- compileAoptUnbox2 :: Compilation
+-- compileAoptUnbox2 name e = runReader (evalStateT (evalStateT (translateAU2 name (fexp2cexp e)) 0) Set.empty) []
 
 -- Setting for stack + unbox + naive
 
@@ -375,10 +449,10 @@ translateSU :: String -> Expr Int (Var, Type Int) -> StackUnboxType (J.Compilati
 translateSU = createWrap (up stackUnboxInst)
 
 compileSU :: Compilation
-compileSU name e =  evalState (runReaderT (translateSU name (fexp2cexp e)) False) 0
+compileSU name e =  evalState (runReaderT (translateSU name (fexp2cexp e)) True) 0
 
 -- Setting for apply + stack + naive
-type StackType = ReaderT Bool (ReaderT InitVars (StateT (Set.Set J.Exp) (State Int)))
+type StackType = ReaderT Bool (ReaderT InitVars (StateT (Set.Set J.Name) (State Int)))
 
 -- stackinstOld :: TranslateStack StackType  -- instantiation; all coinstraints resolved
 -- stackinstOld = stackApply --stackNaive
@@ -386,11 +460,20 @@ type StackType = ReaderT Bool (ReaderT InitVars (StateT (Set.Set J.Exp) (State I
 stackinst :: ApplyOptTranslate StackType  -- instantiation; all coinstraints resolved
 stackinst = stackApplyNew --stackNaive
 
+-- stackinst2 :: A.ApplyOptTranslate StackType  -- instantiation; all coinstraints resolved
+-- stackinst2 = stackApplyNew2 --stackNaive
+
 translateS :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit, Type Int)
 translateS = createWrap (up stackinst)
 
+-- translateS2 :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit, Type Int)
+-- translateS2 = createWrap (up stackinst2)
+
 compileS :: Compilation
-compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) False) []) Set.empty) 0
+compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) True) []) Set.empty) 0
+
+-- compileS2 :: Compilation
+-- compileS2 name e = evalState (evalStateT (runReaderT (runReaderT (translateS2 name (fexp2cexp e)) True) []) Set.empty) 0
 
 -- Setting for apply + stack + unbox + naive
 stackau :: ApplyOptTranslate StackType
@@ -400,7 +483,7 @@ translateSAU :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUn
 translateSAU = createWrap (up stackau)
 
 compileSAU :: Compilation
-compileSAU name e = evalState (evalStateT (runReaderT (runReaderT (translateSAU name (fexp2cexp e)) False) []) Set.empty) 0
+compileSAU name e = evalState (evalStateT (runReaderT (runReaderT (translateSAU name (fexp2cexp e)) True) []) Set.empty) 0
 
 -- | Setting for benchmark
 
@@ -427,11 +510,11 @@ compileBN True = \name e -> evalState (translateBench name (fexp2cexp e)) 0--eva
 --                                                [] [(closureClass)])
 
 -- Bench naive+ applyopt
-benchnaiveopt :: BenchGenTranslateOpt AOptType
-benchnaiveopt = benchGenNOpt
+-- benchnaiveopt :: BenchGenTranslateOpt AOptType
+-- benchnaiveopt = benchGenNOpt
 
-translateBenchOpt :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
-translateBenchOpt = createWrap (up benchnaiveopt)
+-- translateBenchOpt :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
+-- translateBenchOpt = createWrap (up benchnaiveopt)
 
 -- Bench stack + apply
 benchstackinst :: BenchGenTranslateStack StackType  -- instantiation; all coinstraints resolved
@@ -451,8 +534,8 @@ translateBenchStackOpt = createWrap (up benchstackoptinst)
 
 
 compileBS :: Bool -> Compilation
-compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) False) []) Set.empty) 0
-compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) False) []) Set.empty) 0
+compileBS False = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStack name (fexp2cexp e)) True) []) Set.empty) 0
+compileBS True = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOpt name (fexp2cexp e)) True) []) Set.empty) 0
 
 -- Bench stack + apply + unbox
 
@@ -463,4 +546,4 @@ translateBenchStackOptUnbox :: String -> Expr Int (Var, Type Int) -> StackType (
 translateBenchStackOptUnbox = createWrap (up benchstackoptunboxinst)
 
 compileBSAU :: Compilation
-compileBSAU = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOptUnbox name (fexp2cexp e)) False) []) Set.empty) 0
+compileBSAU = \name e -> evalState (evalStateT (runReaderT (runReaderT (translateBenchStackOptUnbox name (fexp2cexp e)) True) []) Set.empty) 0

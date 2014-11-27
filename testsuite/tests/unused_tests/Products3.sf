@@ -1,1 +1,0 @@
-(((fix (loop : Int -> Int) . \x . loop x) 1),2)._2 

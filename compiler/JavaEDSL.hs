@@ -4,6 +4,7 @@ module JavaEDSL where
 
 import Language.Java.Syntax
 import StringPrefixes
+import Data.Either
 
 arrayTy :: Type -> Type
 arrayTy ty  = RefType (ArrayType ty)
@@ -23,8 +24,8 @@ objClassTy = classTy "Object"
 name :: [String] -> Name
 name xs = Name $ map Ident xs
 
-var :: String -> Exp
-var x = ExpName $ name [x]
+var :: String -> Either Name Exp
+var x = Left $ name [x]
 
 block :: [BlockStmt] -> Block
 block = Block
@@ -41,8 +42,8 @@ localFinalVar typ vard = LocalVars [Final] typ [vard]
 methodCall :: [String] -> [Argument] -> Stmt
 methodCall idents argu = ExpStmt (MethodInv (MethodCall (name idents) argu))
 
-applyMethodCall :: Ident -> BlockStmt
-applyMethodCall f = BlockStmt (classMethodCall (ExpName $ Name [f]) "apply" [])
+applyMethodCall :: Exp -> Stmt
+applyMethodCall f = (classMethodCall f "apply" [])
 
 applyCall :: BlockStmt
 applyCall = bStmt $ methodCall ["apply"] []
@@ -115,18 +116,27 @@ closureBodyGen initDecls body idCF generateClone className =
         cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
         cloneBody = (block [localVar className (varDecl "c" (funInstCreate idCF))
                     ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
-                    ,bStmt (classMethodCall (var "c")
-                                            "apply"
-                                            [])
-                    ,bStmt (Return (Just (cast className (var "c"))))])
+                    ,bStmt $ (applyMethodCall (left . var $ "c"))
+                    ,bStmt (Return (Just (cast className (left $ var "c"))))])
 
 mainArgType :: [FormalParam]
 mainArgType = [paramDecl (arrayTy $ classTy "String") "args"]
 
+left :: Either Name Exp -> Exp
+left (Left x) = ExpName x
+left (Right _) = error "this should be left (variable name)"
+
+right :: Either Name Exp -> Exp
+right (Right x) = x
+right (Left _) = error "this should be right (literal or method inv)"
+
+unwrap :: Either Name Exp -> Exp
+unwrap x = if isLeft x then left x else right x
+
 mainBody :: Maybe Block
-mainBody = Just (block [bStmt $ classMethodCall (var "System.out")
+mainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
                                                 "println"
-                                                [var "apply()"]])
+                                                [left $ var "apply()"]])
 
 wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> [FormalParam] -> Maybe Block -> Bool -> TypeDecl
 wrapperClass className stmts returnType mainbodyDef testArgType testBodyDef genTest =

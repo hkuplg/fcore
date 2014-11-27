@@ -130,7 +130,7 @@ transBench this super = TB {
            let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just objClassTy
            let paraType = getParaType t
-           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) paraType testfuncBody returnType mainBody
+           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just (unwrap e))]) paraType testfuncBody returnType mainBody
            return (BenchGenCF2J.createCUB super [classDecl], t)
    }
 }
@@ -156,7 +156,7 @@ transBenchOpt this super = TBA {
            let returnType = case t of JClass "java.lang.Integer" -> Just $ J.PrimType $ J.IntT
                                       _ -> Just objClassTy
            let paraType = getParaType t
-           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just e)]) paraType testfuncBody returnType mainBody
+           let classDecl = BenchGenCF2J.getClassDecl name bs ([J.BlockStmt (J.Return $ Just (unwrap e))]) paraType testfuncBody returnType mainBody
            return (BenchGenCF2J.createCUB super [classDecl], t)
    }
 }

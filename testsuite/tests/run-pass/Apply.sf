@@ -1,0 +1,6 @@
+--> 2
+
+let
+  apply (f : Int -> Int -> Int) (a : Int) (b : Int) : Int = f a b
+in
+apply (\(a : Int) . \(b : Int) . a + b) 1 1

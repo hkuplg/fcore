@@ -10,8 +10,8 @@ import Desugar (desugar)
 import Simplify (simplify)
 
 joinExpr :: Expr t (Expr t e) -> Expr t e
-joinExpr (Var x) = x
-joinExpr (Lam t1 e1) = Lam t1 (\ee -> joinExpr (e1 (Var ee)))
+joinExpr (Var _ x) = x
+joinExpr (Lam n t1 e1) = Lam n t1 (\ee -> joinExpr (e1 (var ee)))
 joinExpr (App e1 e2) = App (joinExpr e1) (joinExpr e2)
 joinExpr (BLam t1) = BLam (\t2 -> joinExpr (t1 t2))
 joinExpr (TApp e t) = TApp (joinExpr e) t
@@ -20,12 +20,12 @@ joinExpr (If e1 e2 e3) = If (joinExpr e1) (joinExpr e2) (joinExpr e3)
 joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (Proj i e) = Proj i (joinExpr e)
-joinExpr (Fix f t1 t2) = Fix (\e1 e2 -> joinExpr (f (Var e1) (Var e2))) t1 t2
-joinExpr (Let bind body) = Let (joinExpr bind) (\e -> joinExpr (body (Var e)))
+joinExpr (Fix f t1 t2) = Fix (\e1 e2 -> joinExpr (f (var e1) (var e2))) t1 t2
+joinExpr (Let n bind body) = Let n (joinExpr bind) (\e -> joinExpr (body (var e)))
 joinExpr (LetRec s b1 b2) =
   LetRec s
-          (\es -> map joinExpr (b1 (map Var es)))
-          (\es -> joinExpr (b2 (map Var es)))
+          (\es -> map joinExpr (b1 (map var es)))
+          (\es -> joinExpr (b2 (map var es)))
 joinExpr (JNew name es) = JNew name (map joinExpr es)
 joinExpr (JMethod jc m es cn) =
   JMethod (fmap joinExpr jc) m (map joinExpr es) cn
@@ -36,11 +36,11 @@ joinExpr (Merge e1 e2) = Merge (joinExpr e1) (joinExpr e2)
 mapExpr :: (Expr t e -> Expr t e) -> Expr t e -> Expr t e
 mapExpr f e =
     case e of
-      Var x -> e
+      Var _ x -> e
       Lit l -> e
-      Lam t g -> Lam t (\x -> f . g $ x)
+      Lam n t g -> Lam n t (\x -> f . g $ x)
       Fix g t1 t -> Fix (\e1 e2 -> f $ g e1 e2) t1 t
-      Let bind body -> Let (f bind) (\x -> f . body $ x)
+      Let n bind body -> Let n (f bind) (\x -> f . body $ x)
       LetRec sigs binds body ->
           LetRec sigs
                  (\es -> map f $ binds es)

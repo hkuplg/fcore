@@ -15,23 +15,6 @@ import Data.List
 
 import Translations
 
-{-data TransMethod = Naive
-                 | ApplyOpt
-                 | ApplyU
-                 | Stack
-                 | Unbox
-                 | StackU
-                 | StackN
-                 | StackAU
-                 | BenchN
-                 | BenchS
-                 | BenchNA
-                 | BenchSA
-                 | BenchSAI1
-                 | BenchSAI2
-                 deriving (Eq, Show)
--}
-
 type Connection = (Handle, Handle)
 type CompileOpt = (Int, Compilation, String)
 
@@ -62,7 +45,7 @@ sfToJava h (n, opt, method) flagS f = do
 	contents <- readFile f
 	--putStrLn contents
 	let className = getClassName (takeFileName f)
-	result <- E.try (sf2java n False opt className contents)
+	result <- E.try (sf2java n NoDump opt className contents)
 	case result of 
 	  Left  (_ :: E.SomeException) -> do 
 	  	putStrLn "invalid expression sf2Java"

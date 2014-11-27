@@ -13,7 +13,7 @@ let rec
         }
         else False
 and
-    sierpB (level : Int) : Bool = 
+    sierpB (level : Int) : Bool =
         if level > 0 then {
             sierpB (level - 1);
             lib.DrawFrame.lineTo(0 - dist, dist);
@@ -25,8 +25,8 @@ and
             True
         }
         else False
-and 
-    sierpC (level : Int) : Bool = 
+and
+    sierpC (level : Int) : Bool =
         if level > 0 then {
             sierpC (level - 1);
             lib.DrawFrame.lineTo(0 - dist, 0 - dist);
@@ -38,8 +38,8 @@ and
             True
         }
         else False
-and 
-    sierpD (level : Int) : Bool = 
+and
+    sierpD (level : Int) : Bool =
         if level > 0 then {
             sierpD (level - 1);
             lib.DrawFrame.lineTo(dist, 0 - dist);
@@ -62,6 +62,6 @@ in
     lib.DrawFrame.lineTo(0 - dist, 0 - dist);
     sierpD(level);
     lib.DrawFrame.lineTo(dist, 0 - dist);
-    lib.DrawFrame.refresh( );
+    lib.DrawFrame.refresh();
     True
 }
