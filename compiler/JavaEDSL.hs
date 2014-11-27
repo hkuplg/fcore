@@ -115,8 +115,8 @@ closureBodyGen initDecls body idCF generateClone className =
   where applyMethod = MemberDecl $ methodDecl [Public] Nothing "apply" [] (Just (Block body))
         cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
         cloneBody = (block [localVar className (varDecl "c" (funInstCreate idCF))
-                    ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
-                    ,bStmt $ (applyMethodCall (left . var $ "c"))
+                    -- ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
+                    -- ,bStmt $ (applyMethodCall (left . var $ "c"))
                     ,bStmt (Return (Just (cast className (left $ var "c"))))])
 
 mainArgType :: [FormalParam]
