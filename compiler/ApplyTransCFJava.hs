@@ -20,10 +20,10 @@ instance (:<) (ApplyOptTranslate m) (Translate m) where
 instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where
    up              = id
 
-isMutiBinder :: EScope Int (Var, Type Int) -> Bool
-isMutiBinder (Type _ _) = True
-isMutiBinder (Kind f)   = isMutiBinder (f 0)
-isMutiBinder (Body _)   = False
+isMultiBinder :: EScope Int (Var, Type Int) -> Bool
+isMultiBinder (Type _ _) = True
+isMultiBinder (Kind f)   = isMultiBinder (f 0)
+isMultiBinder (Body _)   = False
 
 -- main translation function
 transApply :: (MonadState Int m,
@@ -34,7 +34,7 @@ transApply :: (MonadState Int m,
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transApply this super = NT {toT = super {
   translateScopeTyp = \currentId nextId initVars nextInClosure m closureClass ->
-    case isMutiBinder nextInClosure of
+    case isMultiBinder nextInClosure of
          False -> do (initVars' :: InitVars) <- ask
                      translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
          True -> do (s,je,t1) <- local (initVars ++) m
