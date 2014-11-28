@@ -54,6 +54,7 @@ data Translate m =
     ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
     ,genTest :: m Bool
+    ,withApply :: m Bool
     ,getPrefix :: m String
     ,getBox :: Type Int -> m String
     ,javaType :: Type Int -> m J.Type
@@ -464,6 +465,7 @@ trans self =
        ,getPrefix = return namespace
        ,genClone = return False -- do not generate clone method
        ,genTest = return False -- do not generate test method
+       ,withApply = return True
        ,getBox = \_ -> return ""
        ,stackMainBody = \_ -> return []
        ,applyRetType = \t -> (case t of

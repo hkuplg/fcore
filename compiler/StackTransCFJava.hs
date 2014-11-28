@@ -51,7 +51,7 @@ whileApplyLoop this flag ctemp tempOut outType ctempCastTyp = do
                               J.NotEq
                               (J.Lit J.Null))),
                       assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) closureOutput)))]
-  if flag
+  if flag -- False means stack with apply
     then return doWhileStmts
     else return (let (l1,l2) = splitAt 2 doWhileStmts
                  in (head l1):l2)
@@ -143,9 +143,10 @@ transS this super = TS {toTS = super {
       do (tailPosition :: Bool) <- ask
          (n :: Int) <- get
          put (n+1)
+         flag <- withApply (up this) -- False means Stack with Apply
          if tailPosition
            then nextApply (up this) f x jType
-           else (whileApply (up this) True f ("c" ++ show n) x jType ctempCastTyp),
+           else (whileApply (up this) flag f ("c" ++ show n) x jType ctempCastTyp),
 
   genRes = \_ _ -> return [],
 
@@ -187,13 +188,7 @@ transS this super = TS {toTS = super {
 
 transSA :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSA this super = TS {toTS = (up (transS this super)) {
-   genApply = \f _ x jType ctempCastTyp ->
-      do (tailPosition :: Bool) <- ask
-         (n :: Int) <- get
-         put (n+1)
-         if tailPosition
-           then nextApply (up this) f x jType
-           else (whileApply (up this) False f ("c" ++ show n) x jType ctempCastTyp)
+   withApply = return False
   }}
 
 -- Alternative version of transS that interacts with the Unbox translation

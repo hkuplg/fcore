@@ -4,7 +4,6 @@ module ApplyTransCFJava where
 
 import qualified Data.Set as Set
 import qualified Language.Java.Syntax as J
-import           Prelude hiding (init, last)
 
 import           BaseTransCFJava
 import           ClosureF
@@ -21,10 +20,10 @@ instance (:<) (ApplyOptTranslate m) (Translate m) where
 instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where
    up              = id
 
-last :: EScope Int (Var, Type Int) -> Bool
-last (Type _ _) = False
-last (Kind f)   = last (f 0)
-last (Body _)   = True
+isMutiBinder :: EScope Int (Var, Type Int) -> Bool
+isMutiBinder (Type _ _) = True
+isMutiBinder (Kind f)   = isMutiBinder (f 0)
+isMutiBinder (Body _)   = False
 
 -- main translation function
 transApply :: (MonadState Int m,
@@ -35,14 +34,13 @@ transApply :: (MonadState Int m,
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transApply this super = NT {toT = super {
   translateScopeTyp = \currentId nextId initVars nextInClosure m closureClass ->
-    case last nextInClosure of
-         True -> do   (initVars' :: InitVars) <- ask
-                      translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
-         False -> do  (s,je,t1) <- local (initVars ++) m
-                      let refactored = modifiedScopeTyp (unwrap je) s currentId nextId closureClass
-                      return (refactored,t1),
+    case isMutiBinder nextInClosure of
+         False -> do (initVars' :: InitVars) <- ask
+                     translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
+         True -> do (s,je,t1) <- local (initVars ++) m
+                    let refactored = modifiedScopeTyp (unwrap je) s currentId nextId closureClass
+                    return (refactored,t1),
 
-  -- genApply = \f t x y z -> if (last t) then genApply super f t x y z else return [],
   genApply = \f t x y z -> do applyGen <- genApply super f t x y z
                               return [bStmt $ J.IfThen (fieldAccess f "hasApply")
                                       (J.StmtBlock (block applyGen)) ],
