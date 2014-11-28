@@ -187,7 +187,6 @@ transS this super = TS {toTS = super {
 
 transSA :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSA this super = TS {toTS = (up (transS this super)) {
-   -- genRes = \t s -> if (last t) then return [] else genRes super t s,
    genApply = \f _ x jType ctempCastTyp ->
       do (tailPosition :: Bool) <- ask
          (n :: Int) <- get
@@ -255,7 +254,14 @@ transSU this super =
 
 
 -- Alternative version of transS that interacts with the Unbox and Apply translation
--- transSAU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
--- transSAU this super = TS {toTS = (up (transSU this super)) {
---    genRes = \t s -> if (last t) then return [] else genRes super t s
---   }}
+transSAU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transSAU this super = TS {toTS = (up (transSU this super)) {
+   -- genRes = \t s -> if (last t) then return [] else genRes super t s
+  genApply = \f _ x jType ctempCastTyp ->
+      do (tailPosition :: Bool) <- ask
+         (n :: Int) <- get
+         put (n+1)
+         if tailPosition
+           then nextApply (up this) f x jType
+           else (whileApply (up this) False f ("c" ++ show n) x jType ctempCastTyp)
+  }}

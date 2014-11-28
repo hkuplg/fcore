@@ -39,7 +39,6 @@ data Options = Options
     } deriving (Eq, Show, Data, Typeable)
 
 data TransMethod = Apply
-                 -- | ApplyNew
                  | Naive
                  | Stack
                  | Unbox
@@ -106,17 +105,16 @@ main = do
 getOpt :: [TransMethod] -> IO CompileOpt
 getOpt translate_method = case translate_method of
   [Apply, Naive]               -> return (0, compileAO)
-  -- [ApplyNew, Naive]            -> return (0, compileAONew)
-  -- [Apply, Naive, Unbox]        -> return (0, compileAoptUnbox)
+  [Apply, Naive, Unbox]        -> return (0, compileAoptUnbox)
   [Apply, Naive, Stack]        -> return (0, compileS)
-  -- [Apply, Naive, Stack, Unbox] -> return (0, compileSAU)
-  -- [Naive, StackAU1]            -> return (1, compileSAU)
-  -- [Naive, StackAU2]            -> return (2, compileSAU)
+  [Apply, Naive, Stack, Unbox] -> return (0, compileSAU)
+  [Naive, StackAU1]            -> return (1, compileSAU)
+  [Naive, StackAU2]            -> return (2, compileSAU)
   [Naive, Stack]               -> return (0, compileSN)
-  -- [Naive, Stack, Unbox]        -> return (0, compileSU)
+  [Naive, Stack, Unbox]        -> return (0, compileSU)
   [Naive, Unbox]               -> return (0, compileUnbox)
   -- [BenchS]                     -> return (0, compileBS False)
-  [BenchNA]                    -> return (0, compileBN True)
+  -- [BenchNA]                    -> return (0, compileBN True)
   -- [BenchSA]                    -> return (0, compileBS True)
   -- [BenchSAI1]                  -> return (1, compileBS True)
   -- [BenchSAI2]                  -> return (2, compileBS True)
