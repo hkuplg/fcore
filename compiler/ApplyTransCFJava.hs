@@ -33,12 +33,12 @@ transApply :: (MonadState Int m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transApply this super = NT {toT = super {
-  translateScopeTyp = \currentId nextId initVars nextInClosure m closureClass ->
+  translateScopeTyp = \x1 f initVars nextInClosure m closureClass ->
     case isMultiBinder nextInClosure of
          False -> do (initVars' :: InitVars) <- ask
-                     translateScopeTyp super currentId nextId (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
+                     translateScopeTyp super x1 f (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
          True -> do (s,je,t1) <- local (initVars ++) m
-                    let refactored = modifiedScopeTyp (unwrap je) s currentId nextId closureClass
+                    let refactored = modifiedScopeTyp (unwrap je) s x1 f closureClass
                     return (refactored,t1),
 
   genApply = \f t x y z -> do applyGen <- genApply super f t x y z
@@ -66,18 +66,19 @@ transApply this super = NT {toT = super {
 }}
 
 modifiedScopeTyp :: J.Exp -> [J.BlockStmt] -> Int -> Int -> String -> [J.BlockStmt]
-modifiedScopeTyp oexpr ostmts currentId nextId closureClass = completeClosure
+modifiedScopeTyp oexpr ostmts x1 f closureClass = completeClosure
   where closureType' = classTy closureClass
-        currentInitialDeclaration = memberDecl $ fieldDecl closureType' (varDecl (localvarstr ++ show currentId) J.This)
-        setApplyFlag = assignField (fieldAccExp (left $ var (localvarstr ++ show currentId)) "hasApply") (J.Lit (J.Boolean False))
-        completeClosure = [(localClassDecl ("Fun" ++ show nextId) closureClass
+        currentInitialDeclaration = memberDecl $ fieldDecl closureType' (varDecl (localvarstr ++ show x1) J.This)
+        setApplyFlag = assignField (fieldAccExp (left $ var (localvarstr ++ show x1)) "hasApply") (J.Lit (J.Boolean False))
+        fc = f
+        completeClosure = [(localClassDecl ("Fun" ++ show fc) closureClass
                             (closureBodyGen
                              [currentInitialDeclaration, J.InitDecl False (block $ (setApplyFlag : ostmts ++ [assign (name [closureOutput]) oexpr]))]
                              []
-                             nextId
+                             fc
                              True
                              closureType'))
-                          ,localVar closureType' (varDecl (localvarstr ++ show nextId) (funInstCreate nextId))]
+                          ,localVar closureType' (varDecl (localvarstr ++ show f) (funInstCreate fc))]
 
 
 -- Alternate version of transApply that works with Stack translation

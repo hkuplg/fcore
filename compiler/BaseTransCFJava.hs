@@ -138,8 +138,6 @@ getNewVarName _ = do (n :: Int) <- get
                      put (n + 1)
                      return $ localvarstr ++ show n
 
-
-
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self =
   let this = up self
@@ -376,20 +374,20 @@ trans self =
 -}
               Type t g ->
                 do n <- get
-                   let (v,n') = maybe (n + 1,n + 2) (\(i,_) -> (i,n + 1)) m -- decide whether we have found the fixpoint closure or not
-                   put (n' + 1)
-                   let nextInClosure = g (n',t)
+                   let (x1,x2) = maybe (n + 1,n + 2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
+                   put (x2 + 1)
+                   let nextInClosure = g (x2,t)
 
                    typT1 <- javaType this t
                    let flag = typT1 == objClassTy
-                   let accessField = fieldAccess (left $ var (localvarstr ++ show v)) closureInput
-                   let xf = localFinalVar typT1 (varDecl (localvarstr ++ show n')
+                   let accessField = fieldAccess (left $ var (localvarstr ++ show x1)) closureInput
+                   let xf = localFinalVar typT1 (varDecl (localvarstr ++ show x2)
                                                          (if flag
                                                              then accessField
                                                              else cast typT1 accessField))
                    closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                    (cvar,t1) <- translateScopeTyp this
-                                                  v -- n + 1
+                                                  x1
                                                   n
                                                   [xf]
                                                   nextInClosure
@@ -421,18 +419,19 @@ trans self =
                   let xfDecl = localFinalVar jt2 (varDecl xf $ unwrap j2)
                   return (s1 ++ [xDecl] ++ s2 ++ [xfDecl], var xf, t2)
        ,translateScopeTyp =
-          \currentId oldId initVars _ otherStmts closureClass ->
+          \x1 f initVars _ otherStmts closureClass ->
             do b <- genClone this
                (ostmts,oexpr,t1) <- otherStmts
-               return ([localClassDecl ("Fun" ++ show oldId)
+               let fc = f
+               return ([localClassDecl ("Fun" ++ show fc)
                                        closureClass
                                        (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
-                                                                               (varDecl (localvarstr ++ show currentId) J.This)]
+                                                                               (varDecl (localvarstr ++ show x1) J.This)]
                                                        (initVars ++ ostmts ++ [assign (name [closureOutput]) (unwrap oexpr)])
-                                                       oldId
+                                                       fc
                                                        b
                                                        (classTy closureClass))
-                       ,localVar (classTy closureClass) (varDecl (localvarstr ++ show oldId) (funInstCreate oldId))]
+                       ,localVar (classTy closureClass) (varDecl (localvarstr ++ show f) (funInstCreate fc))]
                       ,t1)
        ,genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
        ,genRes = \_ -> return
