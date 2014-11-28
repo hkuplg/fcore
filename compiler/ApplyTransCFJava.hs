@@ -21,7 +21,7 @@ instance (:<) (ApplyOptTranslate m) (Translate m) where
 instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where
    up              = id
 
-last :: Num t1 => Scope t t1 t2 -> Bool
+last :: EScope Int (Var, Type Int) -> Bool
 last (Type _ _) = False
 last (Kind f)   = last (f 0)
 last (Body _)   = True

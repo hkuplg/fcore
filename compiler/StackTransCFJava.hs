@@ -14,7 +14,6 @@ import           Prelude hiding (init, last)
 import qualified Language.Java.Syntax as J
 import           Data.Maybe (fromJust)
 
-import           ApplyTransCFJava (last)
 import           BaseTransCFJava
 import           ClosureF
 import           Inheritance
@@ -256,7 +255,7 @@ transSU this super =
 
 
 -- Alternative version of transS that interacts with the Unbox and Apply translation
-transSAU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
-transSAU this super = TS {toTS = (up (transSU this super)) {
-   genRes = \t s -> if (last t) then return [] else genRes super t s
-  }}
+-- transSAU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+-- transSAU this super = TS {toTS = (up (transSU this super)) {
+--    genRes = \t s -> if (last t) then return [] else genRes super t s
+--   }}
