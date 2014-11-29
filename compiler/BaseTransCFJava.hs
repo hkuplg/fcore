@@ -120,13 +120,6 @@ pairUp bindings vars = exchanged
         exchanged = map (\(a,(_,c)) -> (a,c)) z
 
 -- needed
-toTupleOf3Lists :: [(a, b, c)] -> ([a], [b], [c])
-toTupleOf3Lists list = (first,second,third)
-  where first = map (\(x,_,_) -> x) list
-        second = map (\(_,y,_) -> y) list
-        third = map (\(_,_,z) -> z) list
-
--- needed
 concatFirst :: ([[a]], [b], [c]) -> ([a], [b], [c])
 concatFirst (xs, y, z) = (concat xs, y, z)
 
@@ -176,7 +169,7 @@ trans self =
                        return (s1,j1,TupleType [t1])
                   _ ->
                     do tuple' <- mapM (translateM this) tuple
-                       let (statements,exprs,types) = concatFirst (toTupleOf3Lists tuple')
+                       let (statements,exprs,types) = concatFirst (unzip3 tuple')
                        newVarName <- getNewVarName this
                        let c = getTupleClassName tuple
                        let rhs = instCreat (classTyp c) (map unwrap exprs)
@@ -273,8 +266,7 @@ trans self =
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
               JNew c args ->
                 do args' <- mapM (translateM this) args
-                   let (statements,exprs,types) = concatFirst $
-                                                  toTupleOf3Lists args'
+                   let (statements,exprs,types) = concatFirst $ unzip3 args'
                    let rhs =
                          J.InstanceCreation
                            (map (\y -> case y of
@@ -298,8 +290,7 @@ trans self =
                           ,typ)
               JMethod c m args r ->
                 do args' <- mapM (translateM this) args
-                   let (statements,exprs,types) = concatFirst $
-                                                  toTupleOf3Lists args'
+                   let (statements,exprs,types) = concatFirst $ unzip3 args'
                    let exprs' = map unwrap exprs
                    let refTypes =
                          (map (\y -> case y of
