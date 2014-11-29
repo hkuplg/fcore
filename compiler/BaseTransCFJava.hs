@@ -116,17 +116,15 @@ assignVar this t varId e = do aType <- javaType this t
 
 pairUp :: [Var] -> [(TransJavaExp, Type Int)] -> [(Var, Type Int)]
 pairUp bindings vars = exchanged
-    where
-      z = bindings `zip` vars
-      exchanged = map (\(a, (_, c)) -> (a, c)) z
+  where z = bindings `zip` vars
+        exchanged = map (\(a,(_,c)) -> (a,c)) z
 
 -- needed
 toTupleOf3Lists :: [(a, b, c)] -> ([a], [b], [c])
-toTupleOf3Lists list = (first, second, third)
-  where
-    first  = map (\(x, _, _) -> x) list
-    second = map (\(_, y, _) -> y) list
-    third  = map (\(_, _, z) -> z) list
+toTupleOf3Lists list = (first,second,third)
+  where first = map (\(x,_,_) -> x) list
+        second = map (\(_,y,_) -> y) list
+        third = map (\(_,_,z) -> z) list
 
 -- needed
 concatFirst :: ([[a]], [b], [c]) -> ([a], [b], [c])
