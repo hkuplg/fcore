@@ -66,6 +66,7 @@ eval (PrimOp e1 op e2) =
                S.Compare J.NotEq -> VBool $ a /= b
                -- _ -> simplified
          _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
+eval g@(Fix f _ _) = VFun (\n -> eval $ f (eval g) n)
 eval _ = panic "Can not be evaled"
 
 data ExecutionTree = Exp SymValue
@@ -143,10 +144,11 @@ seval (PrimOp e1 op e2) =
           e2' = seval e2
 
 seval (Lam _ t f) = Exp $ SFun (seval . f) (etype2stype t)
-seval (Let _ e f) = let v = seval e in seval (f v)
+seval (Let _ e f) = seval . f $ seval e
 seval (App e1 e2) = treeApply (seval e1) (seval e2)
 seval (BLam f) =  seval $ f ()
 seval (TApp e _) = seval e
+seval g@(Fix f t _) = Exp $ SFun (\n -> seval $ f (seval g) n) (etype2stype t)
 seval _ = error "seval: not supported"
 
 etype2stype :: Type t -> SymType
@@ -328,9 +330,3 @@ pp (NewSymVar _ _ t) s stop = pp t s stop
 
 fun e = fst . exec . seval $ e
 -- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
-
--- BUG
--- fun' minus_1
--- simplify (- 1 x0) no declaration
-
--- (check-sat p) when p is empty, there should be no simplify
