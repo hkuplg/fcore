@@ -18,7 +18,7 @@ data Z3Env = Z3Env { index :: Int
                    }
 
 solve :: Expr () ExecutionTree -> IO ()
-solve = solve' 5
+solve = solve' 6
 
 solve' :: Int -> Expr () ExecutionTree -> IO ()
 solve' stop e =

@@ -22,8 +22,8 @@ tempvarstr = "temp"
 
 -- Closure input field
 closureInput :: String
-closureInput = "x"
+closureInput = "arg"
 
 -- Closure out field
 closureOutput :: String
-closureOutput = "out"
+closureOutput = "res"
