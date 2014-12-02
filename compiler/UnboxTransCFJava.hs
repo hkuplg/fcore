@@ -132,14 +132,14 @@ transUnbox this super =
 
                    _ -> translateScopeM super e m
               ,translateApply = \m1 m2 ->
-                    do  (s1,Left j1, Forall (Type t1 g)) <- m1
+                    do  (s1,Left j1', Forall (Type t1 g)) <- m1
                         (s2,j2,_) <- m2
-                        let retTyp = g ()
-                        cName <- getClassType (up this) t1 (scope2ctyp retTyp)
                         -- let (wrapS, jS) = wrap j2 t1 t2
-                        (clone, f) <- genClosureVar (up this) retTyp j1 (classTy cName)
-                        (s3, nje3) <- getS3 (up this) (J.ExpName f) (unwrap j2) retTyp (classTy cName)
-                        return (s1 ++ s2 ++ clone ++ s3, nje3, scope2ctyp retTyp)
+                        let retTyp = g ()
+                        j1 <- genClosureVar (up this) retTyp j1'
+                        cName <- getClassType (up this) t1 (scope2ctyp retTyp)
+                        (s3, nje3) <- getS3 (up this) j1 (unwrap j2) retTyp (classTy cName)
+                        return (s1 ++ s2 ++ s3, nje3, scope2ctyp retTyp)
               ,javaType = \typ ->
                             case typ of
                               CFInt -> return $ J.PrimType J.IntT

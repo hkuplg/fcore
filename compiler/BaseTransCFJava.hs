@@ -60,7 +60,7 @@ data Translate m =
     ,javaType :: Type Int -> m J.Type
     ,chooseCastBox :: Type Int -> m (String -> Int -> J.Exp -> J.BlockStmt, J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
-    ,genClosureVar :: TScope Int -> J.Name -> J.Type -> m ([J.BlockStmt], J.Name)
+    ,genClosureVar :: TScope Int -> J.Name -> m J.Exp
     ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
 
 -- needed
@@ -78,15 +78,18 @@ getS3 :: MonadState Int m
       -> TScope Int
       -> J.Type
       -> m ([J.BlockStmt],TransJavaExp)
-getS3 this fname j2 retTyp ctempCastTyp =
+getS3 this j1 j2 retTyp ctempCastTyp =
   do (n :: Int) <- get
      put (n+1)
-     let fs = assignField (fieldAccExp fname closureInput) j2
+     let f = (localvarstr ++ show n)
+     let fexp = left . var $ f
+     let fd = localVar ctempCastTyp (varDecl f j1)
+     let fs = assignField (fieldAccExp fexp closureInput) j2
      (castBox,typ) <- chooseCastBox this (scope2ctyp retTyp)
-     apply <- genApply this fname retTyp (tempvarstr ++ show n) typ ctempCastTyp
-     let fout = (fieldAccess fname closureOutput)
+     apply <- genApply this fexp retTyp (tempvarstr ++ show n) typ ctempCastTyp
+     let fout = (fieldAccess fexp closureOutput)
      res <- genRes this retTyp [castBox tempvarstr n fout]
-     let r = fs : apply ++ res
+     let r = fd : fs : apply ++ res
      return (r, var (tempvarstr ++ show n))
 
 genIfBody :: MonadState Int m
@@ -386,12 +389,12 @@ trans self =
                    return (cvar,var (localvarstr ++ show n),Type t (\_ -> t1))
        ,translateApply =
           \m1 m2 ->
-            do (s1,Left j1,Forall (Type _ g)) <- m1
+            do (s1,Left j1',Forall (Type _ g)) <- m1
                (s2,j2,_) <- m2
                let retTyp = g ()
-               (clone, f) <- genClosureVar this retTyp j1 closureType
-               (s3,nje3) <- getS3 this (J.ExpName f) (unwrap j2) retTyp closureType
-               return (s1 ++ s2 ++ clone ++ s3,nje3,scope2ctyp retTyp)
+               j1 <- genClosureVar this retTyp j1'
+               (s3,nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
+               return (s1 ++ s2 ++ s3,nje3,scope2ctyp retTyp)
        ,translateIf =
           \m1 m2 m3 ->
             do n <- get
@@ -424,7 +427,7 @@ trans self =
                       ,t1)
        ,genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
        ,genRes = \_ -> return
-       ,genClosureVar = \_ j1 _->  return ([], j1)
+       ,genClosureVar = \_ j1 ->  return (J.ExpName j1)
        ,javaType = \typ -> case typ of
                              (JClass c) -> return $ classTy c
                              (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")

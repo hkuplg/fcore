@@ -32,7 +32,7 @@ transApply :: (MonadState Int m,
                selfType :< ApplyOptTranslate m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
-transApply this super = NT {toT = super {
+transApply _ super = NT {toT = super {
   translateScopeTyp = \x1 f initVars nextInClosure m closureClass ->
     case isMultiBinder nextInClosure of
          False -> do (initVars' :: InitVars) <- ask
@@ -45,7 +45,7 @@ transApply this super = NT {toT = super {
                               return [bStmt $ J.IfThen (fieldAccess f "hasApply")
                                       (J.StmtBlock (block applyGen)) ],
 
-  genClosureVar = \t j1 typ -> do
+  genClosureVar = \t j1 -> do
     (usedCl :: Set.Set J.Name) <- get
     maybeCloned <- case t of
                     Body _ ->
@@ -56,11 +56,8 @@ transApply this super = NT {toT = super {
                       else do
                         put (Set.insert j1 usedCl)
                         return (J.ExpName j1)
-    f <- getNewVarName (up this)
-    case maybeCloned of
-     J.MethodInv _ -> return ([localVar typ (varDecl f maybeCloned)], (name [f]))
-     _ -> return ([], j1),
 
+    return maybeCloned,
 
   genClone = return True
 }}
