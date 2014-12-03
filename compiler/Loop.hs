@@ -30,9 +30,9 @@ import ParseCMD
 import FileIO
 import qualified Environment as Env
 import qualified History as Hist
+import SymbolicEvaluator
 
 #ifdef Z3
--- #if MIN_VERSION_z3(0,3,2)
 import Z3Backend
 #endif
 
@@ -102,7 +102,6 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 	      	  Nothing       ->  outputStrLn "Invalid input"
 		loop handle opt val_ctx env hist index flagH flagT flagS num
 #ifdef Z3
--- #if MIN_VERSION_z3(0,3,2)
           ":se" -> do
 	  	case getCMD xs of
 		  Just filename -> do
@@ -111,6 +110,13 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  Nothing 	-> outputStrLn "Invalid input"
 		loop handle opt val_ctx env hist index flagH flagT flagS num
 #endif
+          ":interp" -> do
+	  	case getCMD xs of
+		  Just filename -> do
+		    expr <- liftIO (OptiUtils.sf2core filename)
+		    outputStrLn $ show (eval expr)
+		  Nothing 	-> outputStrLn "Invalid input"
+		loop handle opt val_ctx env hist index flagH flagT flagS num
 	  ":expr" -> do
 	  	case getCMD xs of
 		  Just filename -> do
@@ -296,8 +302,9 @@ printHelp = do
 	putStrLn ":help                 Print help manual"
 	putStrLn ":run <sourceFile>     Compile and run sourceFile"
 	putStrLn ":expr <sourceFile>    Show core expression of the file"
+	putStrLn ":interp <sourceFile>  Interpret the expression of the file"
 #ifdef Z3
-	putStrLn ":se <sourceFile>      Symbolically evaluate the file"
+	putStrLn ":se <sourceFile>      Symbolically evaluate the expression of the file"
 #endif
 	putStrLn ":let var = expr       Bind expr to var"
 	putStrLn ":type var             Show the type of var"
