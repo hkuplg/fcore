@@ -10,6 +10,7 @@ import qualified Language.Java.Syntax    as J (Op (..))
 import           Panic
 import           Prelude                 hiding (EQ, GT, LT)
 import qualified Src                     as S
+import Control.Monad.Fix (fix)
 import Data.IntSet hiding (map)
 -- import           PrettyUtils
 -- import           Text.PrettyPrint.Leijen
@@ -67,6 +68,7 @@ eval (PrimOp e1 op e2) =
                -- _ -> simplified
          _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
 eval g@(Fix f _ _) = VFun (\n -> eval $ f (eval g) n)
+eval (LetRec _ binds body) = eval . body . fix $ map eval . binds
 eval _ = panic "Can not be evaled"
 
 data ExecutionTree = Exp SymValue
@@ -149,6 +151,7 @@ seval (App e1 e2) = treeApply (seval e1) (seval e2)
 seval (BLam f) =  seval $ f ()
 seval (TApp e _) = seval e
 seval g@(Fix f t _) = Exp $ SFun (\n -> seval $ f (seval g) n) (etype2stype t)
+seval (LetRec _ binds body) = seval . body . fix $ map seval . binds
 seval _ = error "seval: not supported"
 
 etype2stype :: Type t -> SymType

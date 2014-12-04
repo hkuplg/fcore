@@ -245,17 +245,17 @@ trans self =
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
                                   (varnums `zip` (map unwrap bindExprs))
 
-                   let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [closureOutput]) (unwrap bodyExpr)]
+                   let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap bodyExpr)]
                    let letClass =
                          [localClass ("Let" ++ show n)
-                                      (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit closureOutput)) :
+                                      (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
                                                   mDecls ++ [J.InitDecl False (J.Block stasm)]))
 
                          ,localVar (classTy ("Let" ++ show n))
                                    (varDecl (localvarstr ++ show n)
                                             (instCreat (classTyp ("Let" ++ show n)) []))
                          ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
-                                                (cast typ (J.ExpName (name [localvarstr ++ show n, closureOutput]))))]
+                                                     (cast typ (J.ExpName (name [localvarstr ++ show n, tempvarstr]))))]
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
 {-
     Γ |- E1 : ∀(x:T2)∆.T1 ~> 􏰃J1 in S1
