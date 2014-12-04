@@ -146,7 +146,7 @@ transS this super =
                        do (n :: Int) <- get
                           put (n + 2)
                           (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
-                          (s2,j2,t2) <- translateM (up this) (body (n,t1))
+                          (s2,j2,t2) <- translateM (up this) (body (N n,t1))
                           translateLet super (s1,j1,t1) (s2,j2,t2) n
                      -- count other expressions as not in tail position
                      _ ->

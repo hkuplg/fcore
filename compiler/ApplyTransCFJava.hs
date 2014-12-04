@@ -45,19 +45,19 @@ transApply _ super = NT {toT = super {
                               return [bStmt $ J.IfThen (fieldAccess f "hasApply")
                                       (J.StmtBlock (block applyGen)) ],
 
-  genClosureVar = \t j1 -> do
-    (usedCl :: Set.Set J.Name) <- get
-    maybeCloned <- case t of
-                    Body _ ->
-                      return (J.ExpName j1)
-                    _ ->
-                      if (Set.member j1 usedCl) then
-                        return $ J.MethodInv (J.PrimaryMethodCall (J.ExpName j1) [] (J.Ident "clone") [])
-                      else do
-                        put (Set.insert j1 usedCl)
-                        return (J.ExpName j1)
+  -- genClosureVar = \t j1 -> do
+  --   (usedCl :: Set.Set J.Name) <- get
+  --   maybeCloned <- case t of
+  --                   Body _ ->
+  --                     return (J.ExpName j1)
+  --                   _ ->
+  --                     if (Set.member j1 usedCl) then
+  --                       return $ J.MethodInv (J.PrimaryMethodCall (J.ExpName j1) [] (J.Ident "clone") [])
+  --                     else do
+  --                       put (Set.insert j1 usedCl)
+  --                       return (J.ExpName j1)
 
-    return maybeCloned,
+  --   return maybeCloned,
 
   genClone = return True
 }}
