@@ -47,6 +47,10 @@ import JavaUtils
   "else"   { Telse }
   ","      { Tcomma }
 
+  "data"   { Tdata }
+  "case"   { Tcase }
+  "|"      { Tbar }
+  "of"     { Tof }
 
   UPPERID  { Tupperid $$ }
   LOWERID  { Tlowerid $$ }
@@ -80,6 +84,7 @@ import JavaUtils
   "&&"     { Tprimop J.CAnd   }
   "||"     { Tprimop J.COr    }
 
+
 -- Precedence and associativity directives
 %nonassoc EOF
 
@@ -108,6 +113,8 @@ import JavaUtils
 module_name :: { Name }
   : UPPERID  { $1 }
 
+constr_name :: { Name }
+  : UPPERID  { $1 }
 -- Types
 
 type :: { Type }
@@ -153,6 +160,11 @@ tvars :: { [Name] }
 tvar :: { Name }
   : UPPERID                  { $1 }
 
+{-
+types :: { [Type] }
+  : {- empty -}              { [] }
+  | type types               { $1:$2 }
+  -}
 -- Expressions
 
 expr :: { Expr Name }
@@ -166,6 +178,9 @@ expr :: { Expr Name }
     | "type" tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
+    | "data" constr_name "=" constrs ";" expr { Data $2 $4 $6 }
+    | "case" expr "of" patterns           { Case $2 $4 }
+    | constr_name expr                   { Constr $1 $2 }
     | infixexpr                           { $1 }
 
 infixexpr :: { Expr Name }
@@ -247,7 +262,7 @@ comma_exprs1 :: { [Expr Name] }
 
 comma_exprs2 :: { [Expr Name] }
     : expr "," expr           { [$1,$3]  }
-    | expr "," comma_exprs2   { $1:$3     }
+    | expr "," comma_exprs2   { $1:$3    }
 
 bind :: { Bind Name }
     : var tvars args maybe_sig "=" expr
@@ -283,6 +298,20 @@ args :: { [(Name, Type)] }
 var :: { Name }
     : LOWERID           { $1 }
 
+constrs :: { [Constructor] }
+    : constr { [$1] }
+    | constr "|" constrs { $1:$3 }
+
+constr :: { Constructor }
+    : constr_name atype { Constructor $1 $2 }
+
+patterns :: { [Alt Name] }
+    : pattern { [$1] }
+    | pattern "|" patterns { $1:$3 }
+
+pattern :: { Alt Name }
+    : constr_name expr "->" expr { ConstrAlt $1 $2 $4 }
+
 {
 -- The monadic parser
 data P a = POk a | PError String
@@ -299,4 +328,6 @@ reader :: String -> Expr Name
 reader src = case (parseExpr . lexer) src of
                  POk expr   -> expr
                  PError msg -> error msg
+
+toSrc :: String -> Expr Name
 }

@@ -19,6 +19,7 @@ lambda    = text "\\"
 biglambda = text "/\\"
 dcomma    = text ",,"
 unit      = text "()"
+bar       = text "|"
 
 bquote :: Doc
 bquote = char '`'

@@ -1,5 +1,6 @@
 {- References for syntax:
    http://www.haskell.org/onlinereport/exps.html
+   http://www.haskell.org/onlinereport/decls.html
    http://caml.inria.fr/pub/docs/manual-ocaml/expr.html -}
 
 {-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
@@ -9,7 +10,7 @@ module Src
   ( Module(..)
   , Kind(..)
   , Type(..)
-  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..), JVMType(..)
+  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..), JVMType(..), Constructor(..), Alt(..)
   , Label
   , TypeContext, ValueContext
   , Name
@@ -42,6 +43,7 @@ import qualified Data.Set as Set
 type Name       = String
 type ModuleName = Name
 type Label      = Name
+type ConstrName = Name
 
 data Module id = Module id [Bind id] deriving (Eq, Show)
 
@@ -63,6 +65,8 @@ data Type
   | OpAbs Name Type -- Type level abstraction
   | OpApp Type Type -- Type level application
   | ListOf Type
+  -- | Datatype Name
+
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `alphaEq` and `subtype` below.
@@ -103,7 +107,17 @@ data Expr id
   | LetModule (Module id) (Expr id)
   | ModuleAccess ModuleName Name
   | Type Name [Name] Type (Expr id)
+  | Data Name [Constructor] (Expr id)
+  | Case (Expr id) [Alt id]
+  | Constr ConstrName (Expr id)
   deriving (Eq, Show)
+
+data Constructor = Constructor ConstrName Type
+                   deriving (Eq, Show)
+
+data Alt id = ConstrAlt ConstrName (Expr id) (Expr id)
+            | Default (Expr id)
+              deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
 -- type TcExpr  = Expr TcId
@@ -289,6 +303,11 @@ instance (Show id, Pretty id) => Pretty (Expr id) where
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
   pretty (RecordLit fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
+  pretty (Data n cons e) = text "data" <+> text n <+> align (equals <+> prependBarFromLine2 (map pretty cons) <$$> semi) <$>
+                           pretty e
+
+  pretty (Case e pats) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> prependBarFromLine2 (map pretty pats))
+  -- pretty (Constructor n e) = text n <+> pretty e
 
 instance (Show id, Pretty id) => Pretty (Bind id) where
   pretty Bind{..} =
@@ -303,7 +322,18 @@ instance Pretty RecFlag where
   pretty Rec    = text "rec"
   pretty NonRec = empty
 
+instance Pretty Constructor where
+    -- pretty (Constr n ts) = text n <+> hcat (intersperse space (map pretty ts))
+    pretty (Constructor n t) = text n <+> pretty t
+
+instance (Show id, Pretty id) => Pretty (Alt id) where
+    pretty (ConstrAlt n e1 e2) = text n <+> pretty e1 <+> arrow <+> pretty e2
+    pretty (Default e) = text "_" <+> arrow <+> pretty e
+
 -- Utilities
+
+prependBarFromLine2 :: [Doc] -> Doc
+prependBarFromLine2 = foldl1 (\acc x -> acc <$$> bar <+> x)
 
 wrap :: (b -> a -> a) -> [b] -> a -> a
 wrap cons xs t = foldr cons t xs
@@ -325,3 +355,6 @@ opPrec (Compare J.NotEq)  = 7
 opPrec (Logic J.CAnd)     = 11
 opPrec (Logic J.COr)      = 12
 opPrec op = panic $ "Src.Syntax.opPrec: " ++ show op
+
+-- one = Lit $ Int 1
+-- ecase = Case one [ConstrAlt "Nil" (Lit UnitLit) one, ConstrAlt "Cons" one one]
