@@ -43,7 +43,7 @@ import qualified Data.Set as Set
 type Name       = String
 type ModuleName = Name
 type Label      = Name
-type ConstrName = Name
+-- type ConstrName = Name
 
 data Module id = Module id [Bind id] deriving (Eq, Show)
 
@@ -65,7 +65,7 @@ data Type
   | OpAbs Name Type -- Type level abstraction
   | OpApp Type Type -- Type level application
   | ListOf Type
-  -- | Datatype Name
+  | Datatype Name (Map.Map Name [Type])
 
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
@@ -109,14 +109,13 @@ data Expr id
   | Type Name [Name] Type (Expr id)
   | Data Name [Constructor] (Expr id)
   | Case (Expr id) [Alt id]
-  | Constr ConstrName (Expr id)
   deriving (Eq, Show)
 
-data Constructor = Constructor ConstrName Type
+data Constructor = Constructor Name [Type]
                    deriving (Eq, Show)
 
-data Alt id = ConstrAlt ConstrName (Expr id) (Expr id)
-            | Default (Expr id)
+data Alt id = ConstrAlt Name [Name] (Expr id)
+            -- | Default (Expr id)
               deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
@@ -307,7 +306,6 @@ instance (Show id, Pretty id) => Pretty (Expr id) where
                            pretty e
 
   pretty (Case e pats) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> prependBarFromLine2 (map pretty pats))
-  -- pretty (Constructor n e) = text n <+> pretty e
 
 instance (Show id, Pretty id) => Pretty (Bind id) where
   pretty Bind{..} =
@@ -323,12 +321,12 @@ instance Pretty RecFlag where
   pretty NonRec = empty
 
 instance Pretty Constructor where
-    -- pretty (Constr n ts) = text n <+> hcat (intersperse space (map pretty ts))
-    pretty (Constructor n t) = text n <+> pretty t
+    pretty (Constructor n ts) = text n <+> hcat (intersperse space (map pretty ts))
+    -- pretty (Constructor n ts) = text n <+> map pretty t
 
 instance (Show id, Pretty id) => Pretty (Alt id) where
-    pretty (ConstrAlt n e1 e2) = text n <+> pretty e1 <+> arrow <+> pretty e2
-    pretty (Default e) = text "_" <+> arrow <+> pretty e
+    pretty (ConstrAlt cname ns e2) = text cname <+> hcat (intersperse space (map text ns)) <+> arrow <+> pretty e2
+    -- pretty (Default e) = text "_" <+> arrow <+> pretty e
 
 -- Utilities
 
@@ -355,6 +353,3 @@ opPrec (Compare J.NotEq)  = 7
 opPrec (Logic J.CAnd)     = 11
 opPrec (Logic J.COr)      = 12
 opPrec op = panic $ "Src.Syntax.opPrec: " ++ show op
-
--- one = Lit $ Int 1
--- ecase = Case one [ConstrAlt "Nil" (Lit UnitLit) one, ConstrAlt "Cons" one one]

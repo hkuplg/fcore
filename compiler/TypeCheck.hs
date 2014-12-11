@@ -92,7 +92,8 @@ data TypeError
   | Mismatch { expectedTy :: Type, actualTy :: Type }
   | MissingRHSAnnot
   | NotInScopeTVar Name
-  | NotInScopeVar   Name
+  | NotInScopeVar Name
+  | NotInScopeConstr Name
   | ProjectionOfNonProduct
 
   -- Java-specific type errors
@@ -105,6 +106,7 @@ data TypeError
 instance Pretty TypeError where
   pretty (General doc)      = text "error:" <+> doc
   pretty (NotInScopeTVar a) = text "error:" <+> text "type" <+> bquotes (text a) <+> text "is not in scope"
+  pretty (NotInScopeConstr a) = text "error:" <+> text "data constructor" <+> bquotes (text a) <+> text "is not in scope"
   pretty e                  = text "error:" <+> text (show e)
 
 instance Error TypeError where
@@ -370,6 +372,50 @@ infer (Type tid params rhs e)
         k (_:as) = KArrow Star (k as)
         pullRight as t = foldr OpAbs t as
 
+infer (Data name cs e) =
+    do checkDupNames (map cname cs)
+       withLocalTVars [(name, (Star, dt))] (withLocalVars nameTypePrs (infer e))
+
+    where
+      foldTypes :: Type -> [Type] -> Type
+      foldTypes = foldr (\t base -> Fun t base)
+
+      ctypes (Constructor _ ts) = ts
+      cname (Constructor n _) = n
+
+      pr (Constructor n ts) = (n, ts)
+      dt = Datatype name (Map.fromList $ map pr cs)
+      nameTypePrs = map (\c -> (cname c, foldTypes dt (ctypes c))) cs
+
+infer (Case e alts) =
+    do (e', t) <- infer e
+       unless (isDatatype t) $
+              throwError (General (bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"))
+       (es, ts) <- mapAndUnzipM
+                   (\alt -> do
+                     case alt of
+                       ConstrAlt n ns e2 ->
+                           case Map.lookup n (constrMap t) of
+                             Just ts -> if length ts == length ns
+                                        then withLocalVars (zip ns ts) (infer e2)
+                                        else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
+                                                                     <+> text "arguments, bus has been given" <+> int (length ns))
+                             Nothing -> throwError (NotInScopeConstr n))
+                   alts
+       let alts' = zipWith substAltExpr alts es
+       let resType = ts !! 0
+       unless (all (`alphaEq` resType) ts) $
+              throwError (General $ text "All the alternatives should be of the same type")
+       return (Case e' alts', resType)
+
+    where substAltExpr (ConstrAlt n ns _) expr = ConstrAlt n ns expr
+
+          isDatatype (Datatype _ _) = True
+          isDatatype _ = False
+
+          constrMap (Datatype _ m) = m
+
+
 inferAgainst :: Expr Name -> Type -> Checker (Expr (Name,Type), Type)
 inferAgainst expr expected_ty
   = do (expr', actual_ty) <- infer expr
@@ -507,6 +553,7 @@ evalType (OpApp (TVar t1) t2)
   = do typeContext <- getTypeContext
        case Map.lookup t1 typeContext of
          Just (_, OpAbs param t) -> return (fsubstTT (param, t2) t)
+evalType t@(Datatype _ _) = return t
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)

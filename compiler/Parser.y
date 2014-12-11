@@ -113,8 +113,6 @@ import JavaUtils
 module_name :: { Name }
   : UPPERID  { $1 }
 
-constr_name :: { Name }
-  : UPPERID  { $1 }
 -- Types
 
 type :: { Type }
@@ -160,11 +158,14 @@ tvars :: { [Name] }
 tvar :: { Name }
   : UPPERID                  { $1 }
 
-{-
+vars :: { [Name] }
+  : {- empty -}              { []    }
+  | var vars                 { $1:$2 }
+
 types :: { [Type] }
   : {- empty -}              { [] }
-  | type types               { $1:$2 }
-  -}
+  | atype types              { $1:$2 }
+
 -- Expressions
 
 expr :: { Expr Name }
@@ -178,9 +179,8 @@ expr :: { Expr Name }
     | "type" tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
-    | "data" constr_name "=" constrs ";" expr { Data $2 $4 $6 }
+    | "data" tvar "=" constrs ";" expr    { Data $2 $4 $6 }
     | "case" expr "of" patterns           { Case $2 $4 }
-    | constr_name expr                   { Constr $1 $2 }
     | infixexpr                           { $1 }
 
 infixexpr :: { Expr Name }
@@ -252,6 +252,10 @@ semi_exprs :: { [Expr Name] }
            : expr                { [$1] }
            | expr ";" semi_exprs { $1:$3 }
 
+aexprs :: { [Expr Name] }
+    : {- empty -}               { []    }
+    | aexpr aexprs              { $1:$2 }
+
 comma_exprs0 :: { [Expr Name] }
     : {- empty -}             { []    }
     | comma_exprs1            { $1    }
@@ -303,14 +307,14 @@ constrs :: { [Constructor] }
     | constr "|" constrs { $1:$3 }
 
 constr :: { Constructor }
-    : constr_name atype { Constructor $1 $2 }
+    : var types { Constructor $1 $2 }
 
 patterns :: { [Alt Name] }
     : pattern { [$1] }
     | pattern "|" patterns { $1:$3 }
 
 pattern :: { Alt Name }
-    : constr_name expr "->" expr { ConstrAlt $1 $2 $4 }
+    : var vars "->" expr { ConstrAlt $1 $2 $4 }
 
 {
 -- The monadic parser
@@ -328,6 +332,4 @@ reader :: String -> Expr Name
 reader src = case (parseExpr . lexer) src of
                  POk expr   -> expr
                  PError msg -> error msg
-
-toSrc :: String -> Expr Name
 }

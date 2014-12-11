@@ -1,9 +1,9 @@
 --> 4
-data MList = Nil Unit
-     	  | Cons (Int, MList)
-	  ;
+data MList = nil
+     	   | cons Int MList
+	   ;
 let head (xs : MList) : Int =
    case xs of
-       Nil x -> 0
-     | Cons (y ys) -> y
-in head (head Cons (5, Cons (4, Nil ())))
+       nil -> 0
+     | cons y ys -> y
+in head (head (cons 5 (cons 4 nil)))
