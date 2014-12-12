@@ -33,14 +33,7 @@ initClass className tempName expr =
                                             then expr
                                             else cast ty expr))
 
-data SFVar = N Int | C Int
-
-showVar :: SFVar -> String
-showVar (N n) = show n
-showVar (C n) = show n
-
-
-type Var = SFVar -- Either normal variable or class name
+type Var = Int -- Either normal variable or class name
 
 type TransJavaExp = Either J.Name J.Exp -- either variable or special case: Lit or MethodInv
 
@@ -148,10 +141,7 @@ trans self =
     -------------------------- :: cj-var
     Γ |-  x1 : T1 ~> x2 in {}
 -}
-              Var (i,t) ->
-                case i of
-                 N n -> return ([],var (localvarstr ++ show n),t)
-                 C n -> return ([],Right (funInstCreate n),t)
+              Var (i,t) -> return ([],var (localvarstr ++ show i),t)
               Lit lit ->
                 case lit of
                   (S.Int i)    -> return ([], Right $ J.Lit (J.Int i),     JClass "java.lang.Integer")
@@ -218,14 +208,14 @@ trans self =
               Fix t s ->
                 do (n :: Int) <- get
                    put (n + 1)
-                   (expr,je,t') <- translateScopeM this (s (N n,t)) (Just (n,t)) -- weird!
+                   (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
                    return (expr,je,Forall t')
 
               Let expr body ->
                 do (n :: Int) <- get
                    put (n + 1)
                    (s1, j1, t1) <- translateM this expr
-                   (s2, j2, t2) <- translateM this (body (N n,t1))
+                   (s2, j2, t2) <- translateM this (body (n,t1))
 
                    translateLet this (s1,j1,t1) (s2,j2,t2) n
 
@@ -234,11 +224,11 @@ trans self =
                    let needed = length t
                    put (n + 2 + needed)
                    mfuns <- return (\defs -> forM (xs defs) (translateM this))
-                   let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip (map N [n ..]) t))
-                   let (bindings :: [Var]) = map N [n + 2 .. n + 1 + needed]
+                   let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
+                   let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
                    newvars <- liftM (pairUp bindings) vars
                    closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
-                   let mDecls = map (\x -> memberDecl (fieldDecl (classTy closureClass) (varDeclNoInit (localvarstr ++ showVar x)))) bindings
+                   let mDecls = map (\x -> memberDecl (fieldDecl (classTy closureClass) (varDeclNoInit (localvarstr ++ show x)))) bindings
 
                    let finalFuns = mfuns newvars
                    let appliedBody = body newvars
@@ -247,7 +237,7 @@ trans self =
                    (bodyStmts,bodyExpr,t') <- translateM this appliedBody
                    typ <- javaType this t'
                    -- assign new created closures bindings to variables
-                   let assm = map (\(i,jz) -> assign (name [localvarstr ++ showVar i]) jz)
+                   let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
                                   (varnums `zip` (map unwrap bindExprs))
 
                    let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap bodyExpr)]
@@ -373,7 +363,7 @@ trans self =
                 do n <- get
                    let (x1,x2) = maybe (n + 1,n + 2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
                    put (x2 + 1)
-                   let nextInClosure = g (N x2,t)
+                   let nextInClosure = g (x2,t)
 
                    typT1 <- javaType this t
                    let flag = typT1 == objClassTy

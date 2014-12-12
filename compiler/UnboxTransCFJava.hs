@@ -76,11 +76,11 @@ transUnbox this super =
                           return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
                      LetRec t xs body ->
                        do (n :: Int) <- get
-                          let needed = length (xs (zip (map N [n ..]) t))
+                          let needed = length (xs (zip [n ..] t))
                           put (n + 2 + needed)
                           mfuns <- return (\defs -> forM (xs defs) (translateM (up this)))
-                          let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip (map N [n ..]) t))
-                          let (bindings :: [Var]) = map N [n + 2 .. n + 1 + needed]
+                          let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
+                          let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
                           newvars <- liftM (pairUp bindings) vars
                           cNames <- mapM (\(_, typ) ->
                                            let (t1, t2) = getFunType typ
@@ -89,7 +89,7 @@ transUnbox this super =
                           let varTypes = zip bindings cNames
                           let mDecls = map (\(x, typ) ->
                                               memberDecl (fieldDecl (classTy typ)
-                                                                    (varDeclNoInit (localvarstr ++ showVar x))))
+                                                                    (varDeclNoInit (localvarstr ++ show x))))
                                            varTypes
                           let finalFuns = mfuns newvars
                           let appliedBody = body newvars
@@ -98,7 +98,7 @@ transUnbox this super =
                           (bodyStmts,bodyExpr,t') <- translateM (up this) appliedBody
                           typ <- javaType (up this) t'
                           -- assign new created closures bindings to variables
-                          let assm = map (\(i,jz) -> assign (name [localvarstr ++ showVar i]) jz)
+                          let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
                                          (varnums `zip` (map unwrap bindExprs))
                           let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name ["out"]) (left bodyExpr)]
                           let letClass =
@@ -117,7 +117,7 @@ transUnbox this super =
                      do  n <- get
                          let (v,n')  = maybe (n+1,n+2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
                          put (n' + 1)
-                         let nextInClosure = g (N n',t)
+                         let nextInClosure = g (n',t)
 
                          aType <- javaType (up this) t
                          let accessField = fieldAccess (left $ var (localvarstr ++ show v)) closureInput
