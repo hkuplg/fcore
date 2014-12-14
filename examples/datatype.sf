@@ -1,9 +1,9 @@
---> 4
+--> 2
 data MList = nil
      	   | cons Int MList
 	   ;
-let head (xs : MList) : Int =
+let length (xs : MList) : Int =
    case xs of
        nil -> 0
-     | cons y ys -> y
-in head (head (cons 5 (cons 4 nil)))
+     | cons y ys -> 1 + length ys
+in length (cons 5 (cons 4 nil))

@@ -29,6 +29,7 @@ import Control.Monad.Error
 import Data.Maybe (fromJust, fromMaybe)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
+import Data.List (intersperse)
 
 import Prelude hiding (pred)
 
@@ -391,11 +392,12 @@ infer (Case e alts) =
     do (e', t) <- infer e
        unless (isDatatype t) $
               throwError (General (bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"))
+       let constr_map = constrMap t
        (es, ts) <- mapAndUnzipM
                    (\alt -> do
                      case alt of
                        ConstrAlt n ns e2 ->
-                           case Map.lookup n (constrMap t) of
+                           case Map.lookup n constr_map of
                              Just ts -> if length ts == length ns
                                         then withLocalVars (zip ns ts) (infer e2)
                                         else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
@@ -406,6 +408,12 @@ infer (Case e alts) =
        let resType = ts !! 0
        unless (all (`alphaEq` resType) ts) $
               throwError (General $ text "All the alternatives should be of the same type")
+
+       let allConstrs = Set.fromList $ Map.keys constr_map
+       let matchedConstrs = Set.fromList $ map altName alts
+       let unmatchedConstrs = allConstrs Set.\\ matchedConstrs
+       unless (Set.null unmatchedConstrs) $
+              throwError (General $ text "Pattern match(es) are non-exhaustive." <+> vcat (intersperse space (map (bquotes . text) (Set.elems unmatchedConstrs))))
        return (Case e' alts', resType)
 
     where substAltExpr (ConstrAlt n ns _) expr = ConstrAlt n ns expr
@@ -414,6 +422,9 @@ infer (Case e alts) =
           isDatatype _ = False
 
           constrMap (Datatype _ m) = m
+
+          altName (ConstrAlt n _ _) = n
+
 
 
 inferAgainst :: Expr Name -> Type -> Checker (Expr (Name,Type), Type)

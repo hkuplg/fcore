@@ -252,10 +252,6 @@ semi_exprs :: { [Expr Name] }
            : expr                { [$1] }
            | expr ";" semi_exprs { $1:$3 }
 
-aexprs :: { [Expr Name] }
-    : {- empty -}               { []    }
-    | aexpr aexprs              { $1:$2 }
-
 comma_exprs0 :: { [Expr Name] }
     : {- empty -}             { []    }
     | comma_exprs1            { $1    }
