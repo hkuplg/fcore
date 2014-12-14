@@ -228,6 +228,7 @@ fsubstTT (_,_) Unit            = Unit
 fsubstTT (x,r) (Record fs)     = Record (map (\(l1,t1) -> (l1, fsubstTT (x,r) t1)) fs)
 fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Thunk t1)      = Thunk (fsubstTT (x,r) t1)
+fsubstTT (x,r) (OpApp t1 t2)   = OpApp (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x
