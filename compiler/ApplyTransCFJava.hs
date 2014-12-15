@@ -7,6 +7,8 @@ import qualified Language.Java.Syntax as J
 
 import           BaseTransCFJava
 import           ClosureF
+import           Data.Char (isDigit, isUpper)
+import           Data.Either (isLeft)
 import           Inheritance
 import           JavaEDSL
 import           MonadLib
@@ -32,7 +34,25 @@ transApply :: (MonadState Int m,
                selfType :< ApplyOptTranslate m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
-transApply _ super = NT {toT = super {
+transApply this super = NT {toT = super {
+  translateM =
+     \e -> case e of
+            Let expr body ->
+              do (s1, j1, t1) <- translateM (up this) expr
+
+                 if (isLeft j1 && (isUpper . head . extractVar $ j1))
+                   then do let j1var = extractVar j1
+                           let n' = negate . read . filter isDigit $ j1var :: Int
+                           (s2, j2, t2) <- translateM (up this) (body (n',t1))
+                           return (s1 ++ s2, j2, t2)
+                   else do (n :: Int) <- get
+                           put (n + 1)
+                           (s2, j2, t2) <- translateM (up this) (body (n,t1))
+                           translateLet (up this) (s1,j1,t1) (s2,j2,t2) n
+
+            _ -> translateM super e,
+
+
   translateScopeTyp = \x1 f initVars nextInClosure m closureClass ->
     case isMultiBinder nextInClosure of
          False -> do (initVars' :: InitVars) <- ask
@@ -41,9 +61,9 @@ transApply _ super = NT {toT = super {
                     let refactored = modifiedScopeTyp (unwrap je) s x1 f closureClass
                     return (refactored,t1),
 
-  genApply = \f t x y z -> do applyGen <- genApply super f t x y z
-                              return [bStmt $ J.IfThen (fieldAccess f "hasApply")
-                                      (J.StmtBlock (block applyGen)) ],
+  genApply = \f t x y z ->
+              do applyGen <- genApply super f t x y z
+                 return [bStmt $ J.IfThen (fieldAccess f "hasApply") (J.StmtBlock (block applyGen))],
 
   -- genClosureVar = \t j1 -> do
   --   (usedCl :: Set.Set J.Name) <- get
@@ -74,8 +94,7 @@ modifiedScopeTyp oexpr ostmts x1 f closureClass = completeClosure
                              []
                              fc
                              True
-                             closureType'))
-                          ,localVar closureType' (varDecl (localvarstr ++ show f) (funInstCreate fc))]
+                             closureType'))]
 
 
 -- Alternate version of transApply that works with Stack translation

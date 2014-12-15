@@ -141,7 +141,8 @@ trans self =
     -------------------------- :: cj-var
     Γ |-  x1 : T1 ~> x2 in {}
 -}
-              Var (i,t) -> return ([],var (localvarstr ++ show i),t)
+              Var (i,t) -> if i < 0 then return ([], var $ "Fun" ++ show (negate i), t) -- TODO: negative denotes class variable
+                           else return ([],var (localvarstr ++ show i),t)
               Lit lit ->
                 case lit of
                   (S.Int i)    -> return ([], Right $ J.Lit (J.Int i),     JClass "java.lang.Integer")
@@ -348,7 +349,7 @@ trans self =
 -}
               Kind f ->
                 do n <- get
-                   put (n + 1) -- needed?
+                   -- put (n + 1) -- needed?
                    (s,je,t1) <- translateScopeM this (f n) m
                    return (s,je,Kind (\a -> substScope n (TVar a) t1))
 
@@ -375,7 +376,7 @@ trans self =
                    closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                    (cvar,t1) <- translateScopeTyp this x1 n [xf] nextInClosure (translateScopeM this nextInClosure Nothing) closureClass
 
-                   return (cvar,Right (funInstCreate n),Type t (\_ -> t1))
+                   return (cvar,var ("Fun" ++  show n),Type t (\_ -> t1))
        ,translateApply =
           \m1 m2 ->
             do (s1, j1',Forall (Type _ g)) <- m1
