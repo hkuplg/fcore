@@ -7,8 +7,6 @@ import qualified Language.Java.Syntax as J
 
 import           BaseTransCFJava
 import           ClosureF
-import           Data.Char (isDigit, isUpper)
-import           Data.Either (isLeft)
 import           Inheritance
 import           JavaEDSL
 import           MonadLib
@@ -34,24 +32,7 @@ transApply :: (MonadState Int m,
                selfType :< ApplyOptTranslate m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
-transApply this super = NT {toT = super {
-  translateM =
-     \e -> case e of
-            Let expr body ->
-              do (s1, j1, t1) <- translateM (up this) expr
-
-                 if (isLeft j1 && (isUpper . head . extractVar $ j1))
-                   then do let j1var = extractVar j1
-                           let n' = negate . read . filter isDigit $ j1var :: Int
-                           (s2, j2, t2) <- translateM (up this) (body (n',t1))
-                           return (s1 ++ s2, j2, t2)
-                   else do (n :: Int) <- get
-                           put (n + 1)
-                           (s2, j2, t2) <- translateM (up this) (body (n,t1))
-                           translateLet (up this) (s1,j1,t1) (s2,j2,t2) n
-
-            _ -> translateM super e,
-
+transApply _ super = NT {toT = super {
 
   translateScopeTyp = \x1 f initVars nextInClosure m closureClass ->
     case isMultiBinder nextInClosure of

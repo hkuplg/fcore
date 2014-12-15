@@ -143,14 +143,12 @@ transS this super =
                        translateApply (up this) (local (False &&) $ translateM (up this) e1) (local (False &&) $ translateM (up this) e2)
                      -- let e1 e2: e1 can't be in tail position, e2 inherits flag
                      Let expr body ->
-                       do (n :: Int) <- get
-                          put (n + 2)
-                          (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
-                          (s2,j2,t2) <- translateM (up this) (body (n,t1))
-                          translateLet super (s1,j1,t1) (s2,j2,t2) n
+                       do (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
+                          -- (s2,j2,t2) <- translateM (up this) (body (n,t1))
+                          translateLet super (s1,j1,t1) body
                      -- count other expressions as not in tail position
-                     _ ->
-                       local (False &&) $ translateM super e
+                     _ -> local (False &&) $ translateM super e
+
               ,genApply =
                  \f _ x jType ctempCastTyp ->
                    do (tailPosition :: Bool) <- ask
