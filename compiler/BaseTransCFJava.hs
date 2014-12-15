@@ -410,7 +410,6 @@ trans self =
                                                        fc
                                                        b
                                                        (classTy closureClass))]
-                       -- ,localVar (classTy closureClass) (varDecl (localvarstr ++ show f) (funInstCreate fc))]
                       ,t1)
        ,genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
        ,genRes = \_ -> return
