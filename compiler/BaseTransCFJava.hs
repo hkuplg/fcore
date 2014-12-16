@@ -383,7 +383,7 @@ trans self =
                let retTyp = g ()
                j1 <- genClosureVar this retTyp (unwrap j1')
                (s3,nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
-               return (s1 ++ s2 ++ s3,nje3,scope2ctyp retTyp)
+               return (s2 ++ s1 ++ s3,nje3,scope2ctyp retTyp)
        ,translateIf =
           \m1 m2 m3 ->
             do n <- get
