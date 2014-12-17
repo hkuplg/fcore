@@ -133,6 +133,7 @@ getNewVarName _ = do (n :: Int) <- get
                      put (n + 1)
                      return $ localvarstr ++ show n
 
+-- The reader monad (Int, Bool): Int for counting of arguments in a application; Bool for whether in tail position
 trans :: (MonadState Int m, MonadReader (Int, Bool) m, selfType :< Translate m) => Base selfType (Translate m)
 trans self =
   let this = up self
@@ -166,7 +167,7 @@ trans self =
                    assignExpr <- assignVar this typ newVarName jexpr
                    return (s1 ++ s2 ++ [assignExpr],var newVarName,typ)
               If e1 e2 e3 ->
-                translateIf this -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherits flag
+                translateIf this -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherit flag
                             (local (\(n :: Int, f :: Bool) -> (n, False && f)) $ translateM this e1)
                             (translateM this e2)
                             (translateM this e3)
