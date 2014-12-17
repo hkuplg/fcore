@@ -125,33 +125,32 @@ nextApply this cl tempOut outType =
                                    J.PrimType J.CharT -> J.Lit (J.Char 'a') --TODO: better default value?
                                    _ -> J.Lit J.Null))])
 
-transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transS :: forall m selfType . (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super =
-  TS {toTS =
-        super {translateM =
-                 \e ->
-                   case e of
-                     -- count abstraction as in tail position
-                     Lam _ -> local (True ||) $ translateM super e
-                     Fix _ _ -> local (True ||) $ translateM super e
-                     -- type application just inherits existing flag
-                     TApp _ _ -> translateM super e
-                     -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherits flag
-                     If e1 e2 e3 ->
-                       translateIf (up this) (local (False &&) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
-                     App e1 e2 ->
-                       translateApply (up this) (local (False &&) $ translateM (up this) e1) (local (False &&) $ translateM (up this) e2)
-                     -- let e1 e2: e1 can't be in tail position, e2 inherits flag
-                     Let expr body ->
-                       do (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
-                          -- (s2,j2,t2) <- translateM (up this) (body (n,t1))
-                          translateLet (up this) (s1,j1,t1) body
-                     -- count other expressions as not in tail position
-                     _ -> local (False &&) $ translateM super e
+  TS {toTS = super {
+         -- translateM =
+         --         \e ->
+         --           case e of
+         --             -- count abstraction as in tail position
+         --             Lam _ -> local (True ||) $ translateM super e
+         --             Fix _ _ -> local (True ||) $ translateM super e
+         --             -- type application just inherits existing flag
+         --             TApp _ _ -> translateM super e
+         --             -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherits flag
+         --             If e1 e2 e3 ->
+         --               translateIf (up this) (local (False &&) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
+         --             App e1 e2 ->
+         --               translateApply (up this) (local (False &&) $ translateM (up this) e1) (local (False &&) $ translateM (up this) e2)
+         --             -- let e1 e2: e1 can't be in tail position, e2 inherits flag
+         --             Let expr body ->
+         --               do (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
+         --                  translateLet (up this) (s1,j1,t1) body
+         --             -- count other expressions as not in tail position
+         --             _ -> local (False &&) $ translateM super e
 
-              ,genApply =
+              genApply =
                  \f _ x jType ctempCastTyp ->
-                   do (tailPosition :: Bool) <- ask
+                   do (_ :: Int, tailPosition :: Bool) <- ask
                       (n :: Int) <- get
                       put (n + 1)
                       flag <- withApply (up this) -- False means Stack with Apply
@@ -193,13 +192,13 @@ transS this super =
 
 -- Alternative version of transS that interacts with the Apply translation
 
-transSA :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transSA :: (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSA this super = TS {toTS = (up (transS this super)) {
    withApply = return False
   }}
 
 -- Alternative version of transS that interacts with the Unbox translation
-transSU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transSU :: (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSU this super =
   TS {toTS = (up (transS this super)) {
          getBox = \t -> case t of
@@ -256,11 +255,11 @@ transSU this super =
 
 
 -- Alternative version of transS that interacts with the Unbox and Apply translation
-transSAU :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transSAU :: (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transSAU this super = TS {toTS = (up (transSU this super)) {
    -- genRes = \t s -> if (last t) then return [] else genRes super t s
   genApply = \f _ x jType ctempCastTyp ->
-      do (tailPosition :: Bool) <- ask
+      do (_ :: Int, tailPosition :: Bool) <- ask
          (n :: Int) <- get
          put (n+1)
          if tailPosition

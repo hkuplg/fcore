@@ -26,26 +26,26 @@ isMultiBinder (Body _)   = False
 
 -- main translation function
 transApply :: (MonadState Int m,
-               MonadReader Int m,
+               MonadReader (Int, Bool) m,
                MonadReader InitVars m,
                selfType :< ApplyOptTranslate m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
-transApply this super = NT {toT = super {
-  translateM =
-     \e -> case e of
-            App e1 e2 -> do (n :: Int) <- ask
-                            translateApply super
-                                           (local (\(_ :: Int) -> n + 1) $ translateM (up this) e1)
-                                           (local (\(_ :: Int) -> 0) $ translateM (up this) e2)
-            _ -> translateM super e,
+transApply _ super = NT {toT = super {
+  -- translateM =
+  --    \e -> case e of
+  --           App e1 e2 -> do (n :: Int) <- ask
+  --                           translateApply super
+  --                                          (local (\(_ :: Int) -> n + 1) $ translateM (up this) e1)
+  --                                          (local (\(_ :: Int) -> 0) $ translateM (up this) e2)
+  --           _ -> translateM super e,
 
   genClosureVar =
     \arity j1 -> case j1 of
               Left (J.Name xs) ->
                 if beginUpper xs
                 then return (unwrap j1)
-                else do (n :: Int) <- ask
+                else do (n :: Int, _ :: Bool) <- ask
                         if arity > n
                           then return $ J.MethodInv (J.PrimaryMethodCall (J.ExpName . J.Name $ xs) [] (J.Ident "clone") [])
                           else return (unwrap j1)
@@ -62,20 +62,6 @@ transApply this super = NT {toT = super {
   genApply = \f t x y z ->
               do applyGen <- genApply super f t x y z
                  return [bStmt $ J.IfThen (fieldAccess f "hasApply") (J.StmtBlock (block applyGen))],
-
-  -- genClosureVar = \t j1 -> do
-  --   (usedCl :: Set.Set J.Name) <- get
-  --   maybeCloned <- case t of
-  --                   Body _ ->
-  --                     return (J.ExpName j1)
-  --                   _ ->
-  --                     if (Set.member j1 usedCl) then
-  --                       return $ J.MethodInv (J.PrimaryMethodCall (J.ExpName j1) [] (J.Ident "clone") [])
-  --                     else do
-  --                       put (Set.insert j1 usedCl)
-  --                       return (J.ExpName j1)
-
-  --   return maybeCloned,
 
   genClone = return True
 }}
@@ -96,7 +82,7 @@ modifiedScopeTyp oexpr ostmts x1 f closureClass = completeClosure
 
 
 -- Alternate version of transApply that works with Stack translation
-transAS :: (MonadState Int m, MonadReader Int m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
+transAS :: (MonadState Int m, MonadReader (Int, Bool) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transAS this super = NT {toT = (up (transApply this super)) {
 
   genApply = \f t tempOut outType z ->
