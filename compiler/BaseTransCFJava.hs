@@ -60,7 +60,7 @@ data Translate m =
     ,javaType :: Type Int -> m J.Type
     ,chooseCastBox :: Type Int -> m (String -> J.Exp -> J.BlockStmt, J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
-    ,genClosureVar :: TScope Int -> J.Exp -> m J.Exp
+    ,genClosureVar :: Int -> TransJavaExp -> m J.Exp
     ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
 
 -- needed
@@ -381,7 +381,7 @@ trans self =
             do (s1, j1',Forall (Type _ g)) <- m1
                (s2,j2,_) <- m2
                let retTyp = g ()
-               j1 <- genClosureVar this retTyp (unwrap j1')
+               j1 <- genClosureVar this (getArity retTyp) j1'
                (s3,nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
                return (s2 ++ s1 ++ s3,nje3,scope2ctyp retTyp)
        ,translateIf =
@@ -420,7 +420,7 @@ trans self =
                       ,t1)
        ,genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
        ,genRes = \_ -> return
-       ,genClosureVar = \_ j1 ->  return j1
+       ,genClosureVar = \_ j1 ->  return (unwrap j1)
        ,javaType = \typ -> case typ of
                              (JClass c) -> return $ classTy c
                              (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")

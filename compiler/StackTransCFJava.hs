@@ -145,7 +145,7 @@ transS this super =
                      Let expr body ->
                        do (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
                           -- (s2,j2,t2) <- translateM (up this) (body (n,t1))
-                          translateLet super (s1,j1,t1) body
+                          translateLet (up this) (s1,j1,t1) body
                      -- count other expressions as not in tail position
                      _ -> local (False &&) $ translateM super e
 

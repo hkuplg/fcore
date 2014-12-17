@@ -2,7 +2,6 @@
 
 module ApplyTransCFJava where
 
-import qualified Data.Set as Set
 import qualified Language.Java.Syntax as J
 
 import           BaseTransCFJava
@@ -27,12 +26,30 @@ isMultiBinder (Body _)   = False
 
 -- main translation function
 transApply :: (MonadState Int m,
-               MonadState (Set.Set J.Name) m,
+               MonadReader Int m,
                MonadReader InitVars m,
                selfType :< ApplyOptTranslate m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
-transApply _ super = NT {toT = super {
+transApply this super = NT {toT = super {
+  translateM =
+     \e -> case e of
+            App e1 e2 -> do (n :: Int) <- ask
+                            translateApply super
+                                           (local (\(_ :: Int) -> n + 1) $ translateM (up this) e1)
+                                           (local (\(_ :: Int) -> 0) $ translateM (up this) e2)
+            _ -> translateM super e,
+
+  genClosureVar =
+    \arity j1 -> case j1 of
+              Left (J.Name xs) ->
+                if beginUpper xs
+                then return (unwrap j1)
+                else do (n :: Int) <- ask
+                        if arity > n
+                          then return $ J.MethodInv (J.PrimaryMethodCall (J.ExpName . J.Name $ xs) [] (J.Ident "clone") [])
+                          else return (unwrap j1)
+              _ -> return (unwrap j1),
 
   translateScopeTyp = \x1 f initVars nextInClosure m closureClass ->
     case isMultiBinder nextInClosure of
@@ -79,7 +96,7 @@ modifiedScopeTyp oexpr ostmts x1 f closureClass = completeClosure
 
 
 -- Alternate version of transApply that works with Stack translation
-transAS :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
+transAS :: (MonadState Int m, MonadReader Int m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transAS this super = NT {toT = (up (transApply this super)) {
 
   genApply = \f t tempOut outType z ->

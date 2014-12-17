@@ -62,7 +62,6 @@ import System.Exit (exitFailure)
 import Data.Data
 
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import Prelude hiding (exp)
 
@@ -86,7 +85,7 @@ naive = new trans
 
 -- Apply naive optimization
 
-applyopt :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m) => ApplyOptTranslate m
+applyopt :: (MonadState Int m, MonadReader Int m, MonadReader InitVars m) => ApplyOptTranslate m
 applyopt = new (transApply $> trans)
 
 -- applyoptNew :: (MonadState Int m, MonadState (Set.Set J.Exp) m, MonadReader InitVars m) => A.ApplyOptTranslate m
@@ -122,11 +121,11 @@ adaptUnbox mix' this super = toUT $ mix' this super
 -- stackApply :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m, MonadReader Bool m) => TranslateStack m
 -- stackApply = new ((transS <.> adaptApply transApply) $> trans)
 
-stackApplyNew :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
+stackApplyNew :: (MonadState Int m, MonadReader Int m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
 stackApplyNew = new ((transAS <.> adaptStack transSA) $> trans)
 
 -- Apply + Unbox + Naive
-applyUnbox :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m) => ApplyOptTranslate m
+applyUnbox :: (MonadState Int m, MonadReader Int m, MonadReader InitVars m) => ApplyOptTranslate m
 applyUnbox = new ((transApply <.> adaptUnbox transUnbox) $> trans)
 
 -- Stack + Unbox + Naive
@@ -134,7 +133,7 @@ stackUnbox :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
 stackUnbox = new ((transSU <.> adaptUnbox transUnbox) $> trans)
 
 -- Stack + Apply + Unbox + Naive
-stackApplyUnbox :: (MonadState Int m, MonadState (Set.Set J.Name) m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
+stackApplyUnbox :: (MonadState Int m, MonadReader Int m, MonadReader InitVars m, MonadReader Bool m) => ApplyOptTranslate m
 stackApplyUnbox = new ((transAS <.> adaptStack transSAU <.> adaptUnbox transUnbox) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
@@ -335,7 +334,7 @@ compileN :: Compilation
 compileN name e = evalState (translateN name (fexp2cexp e)) 1
 
 -- Setting for apply + naive
-type AOptType = StateT Int (StateT (Set.Set J.Name) (Reader InitVars))
+type AOptType = StateT Int (ReaderT Int (Reader InitVars))
 
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
@@ -350,7 +349,7 @@ translateAO :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit
 translateAO = createWrap (up aoptinst)
 
 compileAO :: Compilation
-compileAO name e = runReader (evalStateT (evalStateT (translateAO name (fexp2cexp e)) 1) Set.empty) []
+compileAO name e = runReader (runReaderT (evalStateT (translateAO name (fexp2cexp e)) 1) 0) []
 
 -- translateAONew :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
 -- translateAONew = createWrap (up aoptinstNew)
@@ -383,7 +382,7 @@ compileUnbox name e = evalState (translateUnbox name (fexp2cexp e)) 1
 
 -- Setting for apply + unbox + naive
 
-type AOptUnboxType = StateT Int (StateT (Set.Set J.Name) (Reader InitVars))
+type AOptUnboxType = StateT Int (ReaderT Int (Reader InitVars))
 
 aoptUnboxInst :: ApplyOptTranslate AOptUnboxType
 aoptUnboxInst = applyUnbox
@@ -392,7 +391,7 @@ translateAU :: String -> Expr Int (Var, Type Int) -> AOptUnboxType (J.Compilatio
 translateAU = createWrap (up aoptUnboxInst)
 
 compileAoptUnbox :: Compilation
-compileAoptUnbox name e = runReader (evalStateT (evalStateT (translateAU name (fexp2cexp e)) 1) Set.empty) []
+compileAoptUnbox name e = runReader (runReaderT (evalStateT (translateAU name (fexp2cexp e)) 1) 0) []
 
 -- Setting for stack + unbox + naive
 
@@ -408,7 +407,7 @@ compileSU :: Compilation
 compileSU name e =  evalState (runReaderT (translateSU name (fexp2cexp e)) True) 1
 
 -- Setting for apply + stack + naive
-type StackType = ReaderT Bool (ReaderT InitVars (StateT (Set.Set J.Name) (State Int)))
+type StackType = ReaderT Bool (ReaderT InitVars (ReaderT Int (State Int)))
 
 -- stackinstOld :: TranslateStack StackType  -- instantiation; all coinstraints resolved
 -- stackinstOld = stackApply --stackNaive
@@ -420,7 +419,7 @@ translateS :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUnit
 translateS = createWrap (up stackinst)
 
 compileS :: Compilation
-compileS name e = evalState (evalStateT (runReaderT (runReaderT (translateS name (fexp2cexp e)) True) []) Set.empty) 1
+compileS name e = evalState (runReaderT (runReaderT (runReaderT (translateS name (fexp2cexp e)) True) []) 0) 1
 
 -- Setting for apply + stack + unbox + naive
 stackau :: ApplyOptTranslate StackType
@@ -430,7 +429,7 @@ translateSAU :: String -> Expr Int (Var, Type Int) -> StackType (J.CompilationUn
 translateSAU = createWrap (up stackau)
 
 compileSAU :: Compilation
-compileSAU name e = evalState (evalStateT (runReaderT (runReaderT (translateSAU name (fexp2cexp e)) True) []) Set.empty) 1
+compileSAU name e = evalState (runReaderT (runReaderT (runReaderT (translateSAU name (fexp2cexp e)) True) []) 0) 1
 
 -- | Setting for benchmark
 
