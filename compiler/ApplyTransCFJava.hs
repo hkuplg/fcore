@@ -32,13 +32,6 @@ transApply :: (MonadState Int m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transApply _ super = NT {toT = super {
-  -- translateM =
-  --    \e -> case e of
-  --           App e1 e2 -> do (n :: Int) <- ask
-  --                           translateApply super
-  --                                          (local (\(_ :: Int) -> n + 1) $ translateM (up this) e1)
-  --                                          (local (\(_ :: Int) -> 0) $ translateM (up this) e2)
-  --           _ -> translateM super e,
 
   genClosureVar =
     \arity j1 -> case j1 of

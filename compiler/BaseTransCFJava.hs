@@ -165,10 +165,11 @@ trans self =
                    newVarName <- getNewVarName this
                    assignExpr <- assignVar this typ newVarName jexpr
                    return (s1 ++ s2 ++ [assignExpr],var newVarName,typ)
-              If e1 e2 e3 -> translateIf this
-                                        (local (\(n :: Int, f :: Bool) -> (n, False && f)) $ translateM this e1)
-                                        (translateM this e2)
-                                        (translateM this e3)
+              If e1 e2 e3 ->
+                translateIf this -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherits flag
+                            (local (\(n :: Int, f :: Bool) -> (n, False && f)) $ translateM this e1)
+                            (translateM this e2)
+                            (translateM this e3)
               Tuple tuple -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
                 case tuple of
                   [t] ->
@@ -200,7 +201,7 @@ trans self =
     -------------------------------- :: cj-tapp
     Γ |- E T1 : T3[T1/α] ~> 􏰃J in S
 -}
-              TApp expr t ->
+              TApp expr t -> -- type application just inherits existing flag
                 do n <- get
                    (s,je,Forall (Kind f)) <- translateM this expr
                    return (s,je,scope2ctyp (substScope n t (f n)))
@@ -209,7 +210,7 @@ trans self =
     ------------------------------- :: cj-abs
     Γ |- λ∆ . E : ∀∆ . T ~> J in S
 -}
-              Lam se -> local (\(n :: Int, f :: Bool) -> (n, True || f)) $
+              Lam se -> local (\(n :: Int, f :: Bool) -> (n, True || f)) $ -- count abstraction as in tail position
                 do (s,je,t) <- translateScopeM this se Nothing
                    return (s,je,Forall t)
               Fix t s -> local (\(n :: Int, f :: Bool) -> (n, True || f)) $
@@ -218,7 +219,7 @@ trans self =
                    (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
                    return (expr,je,Forall t')
 
-              Let expr body ->
+              Let expr body -> -- let e1 e2: e1 can't be in tail position, e2 inherits flag
                 do (s1, j1, t1) <- local (\(n :: Int, f :: Bool) -> (n, False && f)) $ translateM this expr
                    translateLet this (s1,j1,t1) body
 
@@ -263,10 +264,11 @@ trans self =
     Γ |- E1 E2 : T3 in S1⊎S2⊎S3
     (S3 := see translateApply)
 -}
-              App e1 e2 -> do (n :: Int, _ :: Bool) <- ask
-                              translateApply this
-                                             (local (\(_ :: Int, f :: Bool) -> (n+1, False && f)) $ translateM this e1)
-                                             (local (\(_ :: Int, f :: Bool) -> (0, False && f)) $ translateM this e2)
+              App e1 e2 -> -- app e1 e2: e1 and e2 can't be in tail position, the whole inherits flag
+                do (n :: Int, _ :: Bool) <- ask
+                   translateApply this
+                                  (local (\(_ :: Int, f :: Bool) -> (n+1, False && f)) $ translateM this e1)
+                                  (local (\(_ :: Int, f :: Bool) -> (0, False && f)) $ translateM this e2)
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
               JNew c args -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
                 do args' <- mapM (translateM this) args

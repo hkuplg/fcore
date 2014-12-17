@@ -128,51 +128,32 @@ nextApply this cl tempOut outType =
 transS :: forall m selfType . (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super =
   TS {toTS = super {
-         -- translateM =
-         --         \e ->
-         --           case e of
-         --             -- count abstraction as in tail position
-         --             Lam _ -> local (True ||) $ translateM super e
-         --             Fix _ _ -> local (True ||) $ translateM super e
-         --             -- type application just inherits existing flag
-         --             TApp _ _ -> translateM super e
-         --             -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherits flag
-         --             If e1 e2 e3 ->
-         --               translateIf (up this) (local (False &&) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
-         --             App e1 e2 ->
-         --               translateApply (up this) (local (False &&) $ translateM (up this) e1) (local (False &&) $ translateM (up this) e2)
-         --             -- let e1 e2: e1 can't be in tail position, e2 inherits flag
-         --             Let expr body ->
-         --               do (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
-         --                  translateLet (up this) (s1,j1,t1) body
-         --             -- count other expressions as not in tail position
-         --             _ -> local (False &&) $ translateM super e
 
-              genApply =
-                 \f _ x jType ctempCastTyp ->
-                   do (_ :: Int, tailPosition :: Bool) <- ask
-                      (n :: Int) <- get
-                      put (n + 1)
-                      flag <- withApply (up this) -- False means Stack with Apply
-                      if tailPosition
-                         then nextApply (up this) f x jType
-                         else (whileApply (up this) flag f ("c" ++ show n) x jType ctempCastTyp)
-              ,genRes = \_ _ -> return []
-              ,stackMainBody =
-                 \t ->
-                   do closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
-                      retType <- applyRetType (up this) t
-                      loop <- whileApplyLoopMain (up this) "c" "result" (fromJust retType) (classTy closureClass)
-                      return (loop ++ [bStmt (classMethodCall (left $ var "System.out") "println" [left $ var "result"])])
-              ,applyRetType =
-                 \t ->
-                   (case t of
-                      JClass "java.lang.Integer" -> return $ Just $ classTy "java.lang.Integer"
-                      JClass "java.lang.Boolean" -> return $ Just $ classTy "java.lang.Boolean"
-                      CFInt -> return $ Just $ classTy "java.lang.Integer"
-                      _ -> return $ Just objClassTy)
-              ,createWrap =
-                 \nam expr ->
+         genApply =
+            \f _ x jType ctempCastTyp ->
+             do (_ :: Int, tailPosition :: Bool) <- ask
+                (n :: Int) <- get
+                put (n + 1)
+                flag <- withApply (up this) -- False means Stack with Apply
+                if tailPosition
+                  then nextApply (up this) f x jType
+                  else (whileApply (up this) flag f ("c" ++ show n) x jType ctempCastTyp)
+         ,genRes = \_ _ -> return []
+         ,stackMainBody =
+              \t ->
+               do closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
+                  retType <- applyRetType (up this) t
+                  loop <- whileApplyLoopMain (up this) "c" "result" (fromJust retType) (classTy closureClass)
+                  return (loop ++ [bStmt (classMethodCall (left $ var "System.out") "println" [left $ var "result"])])
+         ,applyRetType =
+                \t ->
+                 (case t of
+                   JClass "java.lang.Integer" -> return $ Just $ classTy "java.lang.Integer"
+                   JClass "java.lang.Boolean" -> return $ Just $ classTy "java.lang.Boolean"
+                   CFInt -> return $ Just $ classTy "java.lang.Integer"
+                   _ -> return $ Just objClassTy)
+         ,createWrap =
+                  \nam expr ->
                    do (bs,e,t) <- translateM (up this) expr
                       returnType <- applyRetType (up this) t
                       let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
