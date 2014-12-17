@@ -36,10 +36,10 @@ transApply _ super = NT {toT = super {
   genClosureVar =
     \arity j1 -> case j1 of
               Left (J.Name xs) ->
-                if beginUpper xs
+                if beginUpper xs -- true if it's class name
                 then return (unwrap j1)
                 else do (n :: Int, _ :: Bool) <- ask
-                        if arity > n
+                        if arity > n -- true if partial application
                           then return $ J.MethodInv (J.PrimaryMethodCall (J.ExpName . J.Name $ xs) [] (J.Ident "clone") [])
                           else return (unwrap j1)
               _ -> return (unwrap j1),
