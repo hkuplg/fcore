@@ -148,6 +148,10 @@ scope2ctyp :: TScope t -> Type t
 scope2ctyp (Body t)  = t
 scope2ctyp s         = Forall s
 
+getArity :: TScope t -> Int
+getArity (Type _ g) = 1 + getArity (g ())
+getArity _ = 0
+
 joinType :: Type (Type t) -> Type t
 joinType (TVar t)   = t
 joinType CFInt = CFInt

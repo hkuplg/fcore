@@ -4,7 +4,7 @@ module JavaEDSL where
 
 import Language.Java.Syntax
 import StringPrefixes
-import Data.Either
+import Data.Char (isUpper)
 
 arrayTy :: Type -> Type
 arrayTy ty  = RefType (ArrayType ty)
@@ -130,8 +130,21 @@ right :: Either Name Exp -> Exp
 right (Right x) = x
 right (Left _) = error "this should be right (literal or method inv)"
 
+beginUpper :: [Ident] -> Bool
+beginUpper xs = or (map (\s -> case s of Ident s' -> isUpper (head s')) xs)
+
 unwrap :: Either Name Exp -> Exp
-unwrap x = if isLeft x then left x else right x
+unwrap x = case x of
+            Left (Name xs) -> if beginUpper xs
+                              then instCreat (ClassType [(head xs, [])]) []
+                              else ExpName . Name $ xs
+            Right e -> e
+
+extractVar :: Either Name Exp -> String
+extractVar x = case x of
+                Left (Name xs) -> case (head xs) of
+                                   Ident xs' -> xs'
+                Right _ -> error "this should be a left (variable name)"
 
 mainBody :: Maybe Block
 mainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
