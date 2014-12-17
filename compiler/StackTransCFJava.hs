@@ -157,13 +157,7 @@ transS this super =
                       flag <- withApply (up this) -- False means Stack with Apply
                       if tailPosition
                          then nextApply (up this) f x jType
-                         else (whileApply (up this)
-                                          flag
-                                          f
-                                          ("c" ++ show n)
-                                          x
-                                          jType
-                                          ctempCastTyp)
+                         else (whileApply (up this) flag f ("c" ++ show n) x jType ctempCastTyp)
               ,genRes = \_ _ -> return []
               ,stackMainBody =
                  \t ->
