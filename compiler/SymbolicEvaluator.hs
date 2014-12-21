@@ -69,6 +69,7 @@ eval (PrimOp e1 op e2) =
          _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
 eval g@(Fix f _ _) = VFun (\n -> eval $ f (eval g) n)
 eval (LetRec _ binds body) = eval . body . fix $ map eval . binds
+eval (Case e alts)
 eval _ = panic "Can not be evaled"
 
 data ExecutionTree = Exp SymValue

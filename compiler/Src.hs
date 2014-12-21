@@ -65,7 +65,7 @@ data Type
   | OpAbs Name Type -- Type level abstraction
   | OpApp Type Type -- Type level application
   | ListOf Type
-  | Datatype Name (Map.Map Name [Type])
+  | Datatype Name [Name]
 
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
@@ -109,6 +109,7 @@ data Expr id
   | Type Name [Name] Type (Expr id)
   | Data Name [Constructor] (Expr id)
   | Case (Expr id) [Alt id]
+  | Constr Name [Expr id]
   deriving (Eq, Show)
 
 data Constructor = Constructor Name [Type]
@@ -163,6 +164,7 @@ alphaEq (And t1 t2)    (And t3 t4)    = t1 `alphaEq` t3 && t2 `alphaEq` t4
 alphaEq Unit           Unit           = True
 alphaEq (Thunk t1)     t2             = t1 `alphaEq` t2
 alphaEq t1             (Thunk t2)     = t1 `alphaEq` t2
+alphaEq (Datatype n1 m1) (Datatype n2 m2) = n1 == n2 && m1 == m2
 alphaEq t1             t2             = False `panicOnSameDataCons` ("Src.alphaEq", t1, t2)
 
 subtype :: Type -> Type -> Bool

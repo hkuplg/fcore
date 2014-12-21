@@ -91,6 +91,7 @@ data Expr t e
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
   | Lazy (Expr t e)
 
+  -- | Case (Expr t e) [Constructor] [e -> Expr t e]
 -- newtype Typ = HideTyp { revealTyp :: forall t. Type t } -- type of closed types
 
 -- newtype Exp = HideExp { revealExp :: forall t e. Expr t e }

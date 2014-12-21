@@ -374,42 +374,64 @@ infer (Type tid params rhs e)
         pullRight as t = foldr OpAbs t as
 
 infer (Data name cs e) =
-    do checkDupNames (map cname cs)
-       withLocalTVars [(name, (Star, dt))] (withLocalVars nameTypePrs (infer e))
+    do let names = map cname cs
+       checkDupNames names
+       let dt = Datatype name names
+       type_ctxt <- withLocalTVars [(name, (Star, dt))] getTypeContext
+       types <- mapM (mapM (lookupTVar type_ctxt) . ctypes) cs
+       let constrBindings = zip (map cname cs) (map (foldTypes dt) types)
+       withLocalTVars [(name, (Star, dt))] (withLocalVars constrBindings (infer e))
 
-    where
-      foldTypes :: Type -> [Type] -> Type
-      foldTypes = foldr (\t base -> Fun t base)
+    where ctypes (Constructor _ ts) = ts
+          cname (Constructor n _) = n
 
-      ctypes (Constructor _ ts) = ts
-      cname (Constructor n _) = n
+          pr (Constructor n ts) = (n, ts)
 
-      pr (Constructor n ts) = (n, ts)
-      dt = Datatype name (Map.fromList $ map pr cs)
-      nameTypePrs = map (\c -> (cname c, foldTypes dt (ctypes c))) cs
+          lookupTVar :: Map.Map Name (Kind, Type) -> Type -> Checker Type
+          lookupTVar ctxt t =
+              case t of
+                TVar n ->
+                    case Map.lookup n ctxt of
+                      Just (_, t') -> return t'
+                      _ -> throwError (NotInScopeTVar n)
+                _ -> return t
+
+infer (Constr n es) =
+    do value_ctxt <- getValueContext
+       ts <- case Map.lookup n value_ctxt of
+                  Just t -> return $ unfoldTypes t
+                  Nothing -> throwError (NotInScopeConstr n)
+       let (len_expected, len_actual) = (length ts - 1, length es)
+       unless (len_expected == len_actual) $
+              throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_expected <+> text "arguments, but has been given" <+> int len_actual)
+       (es', _) <- mapAndUnzipM (\pr -> inferAgainst (fst pr) (snd pr)) (zip es ts)
+       return (Constr n es', last ts)
 
 infer (Case e alts) =
     do (e', t) <- infer e
        unless (isDatatype t) $
               throwError (General (bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"))
-       let constr_map = constrMap t
+       value_ctxt <- getValueContext
+       let names = cnames t
        (es, ts) <- mapAndUnzipM
                    (\alt -> do
                      case alt of
                        ConstrAlt n ns e2 ->
-                           case Map.lookup n constr_map of
-                             Just ts -> if length ts == length ns
-                                        then withLocalVars (zip ns ts) (infer e2)
-                                        else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
+                           if n `elem` names
+                           then
+                               let ts = unfoldTypes . fromJust $ Map.lookup n value_ctxt
+                               in if length ts == length ns
+                                  then withLocalVars (zip ns ts) (infer e2)
+                                  else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
                                                                      <+> text "arguments, bus has been given" <+> int (length ns))
-                             Nothing -> throwError (NotInScopeConstr n))
+                           else throwError (NotInScopeConstr n))
                    alts
        let alts' = zipWith substAltExpr alts es
        let resType = ts !! 0
        unless (all (`alphaEq` resType) ts) $
               throwError (General $ text "All the alternatives should be of the same type")
 
-       let allConstrs = Set.fromList $ Map.keys constr_map
+       let allConstrs = Set.fromList names
        let matchedConstrs = Set.fromList $ map altName alts
        let unmatchedConstrs = allConstrs Set.\\ matchedConstrs
        unless (Set.null unmatchedConstrs) $
@@ -421,7 +443,7 @@ infer (Case e alts) =
           isDatatype (Datatype _ _) = True
           isDatatype _ = False
 
-          constrMap (Datatype _ m) = m
+          cnames (Datatype _ l) = l
 
           altName (ConstrAlt n _ _) = n
 
@@ -590,3 +612,10 @@ findDup xs = go xs Set.empty
     go (x:xs') s = if Set.member x s
                      then Just x
                      else go xs' (Set.insert x s)
+
+foldTypes :: Type -> [Type] -> Type
+foldTypes = foldr (\t base -> Fun t base)
+
+unfoldTypes :: Type -> [Type]
+unfoldTypes t@(Datatype _ _) = []
+unfoldTypes (Fun t t') = t : unfoldTypes t'

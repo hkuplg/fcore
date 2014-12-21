@@ -1,9 +1,9 @@
 --> 2
-data MList = nil
-     	   | cons Int MList
+data MList = Nil
+     	   | Cons Int MList
 	   ;
 let length (xs : MList) : Int =
    case xs of
-       nil -> 0
-     | cons y ys -> 1 + length ys
-in length (cons 5 (cons 4 nil))
+       Nil -> 0
+     | Cons y ys -> 1 + length ys
+in head {Cons 5 {Cons 4 {Nil}}}
