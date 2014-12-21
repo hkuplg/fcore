@@ -27,6 +27,7 @@ transType :: TVarMap t -> Type -> C.Type t
 transType d (TVar a)     = C.TVar (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
 transType _ (JType (JClass c))   = C.JClass c
 transType _ (JType (JPrim c))   = C.JClass c
+transType d (ListOf c)          = C.ListOf (transType d c) 
 transType d (Fun t1 t2)  = C.Fun (transType d t1) (transType d t2)
 transType d (Product ts) = C.Product (map (transType d) ts)
 transType d (Forall a t) = C.Forall (\a' -> transType (Map.insert a a' d) t)
@@ -125,13 +126,9 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (JField  callee f r)      = C.JField  (fmap go callee) f r
 
     -- Non Java Class translation
-    -- go (PrimList l)              = FPrimList (map go l)
-
-    -- Primitive List to java class
-
-    go (PrimList l)              = case l of     -- translate to java new obj
-                                     []   -> C.JNew (namespace ++ "FunctionalList") []
-                                     x:xs -> C.JNew (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
+    go (PolyList (t,l))          = case l of
+                                    []   -> C.PolyList(transType d t, [])
+                                    x:xs -> C.PolyList(transType d t, [go x, go(PolyList (t,xs))])
 
     go (Seq es) = C.Seq (map go es)
 

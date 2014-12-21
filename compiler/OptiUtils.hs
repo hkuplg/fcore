@@ -30,6 +30,7 @@ joinExpr (JNew name es) = JNew name (map joinExpr es)
 joinExpr (JMethod jc m es cn) =
   JMethod (fmap joinExpr jc) m (map joinExpr es) cn
 joinExpr (JField jc fn cn) = JField (fmap joinExpr jc) fn cn
+joinExpr (PolyList (t,es)) = PolyList (t, (map joinExpr es))
 joinExpr (Seq es) = Seq (map joinExpr es)
 joinExpr (Merge e1 e2) = Merge (joinExpr e1) (joinExpr e2)
 
@@ -55,6 +56,7 @@ mapExpr f e =
       JNew cname es -> JNew cname (map f es)
       JMethod cnameOrE mname es cname -> JMethod (fmap f cnameOrE) mname (map f es) cname
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
+      PolyList (t,es) -> PolyList(t, map f es)
       Seq es -> Seq $ map f es
       Merge e1 e2 -> Merge (f e1) (f e2)
 

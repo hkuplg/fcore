@@ -44,6 +44,7 @@ data Type t
   | And (Type t) (Type t)  -- t1 & t2
   | Record (Src.Label, Type t)
   | Thunk (Type t)
+  | ListOf (Type t)
     -- Warning: If you ever add a case to this, you *must* also define the
     -- binary relations on your new case. Namely, add cases for your data
     -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
@@ -82,6 +83,7 @@ data Expr t e
   | JNew ClassName [Expr t e]
   | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
   | JField  (Src.JCallee (Expr t e)) FieldName ClassName
+  | PolyList (Type t, [Expr t e])
 
   | Seq [Expr t e]
 
@@ -109,6 +111,7 @@ alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq
 alphaEq _  Unit     Unit            = True
 alphaEq i (And s1 s2)  (And t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
 alphaEq i (Thunk t1)   (Thunk t2)   = alphaEq i t1 t2
+alphaEq i (ListOf t1)  (ListOf t2)  = alphaEq i t1 t2
 alphaEq _ _            _            = False
 
 mapTVar :: (t -> Type t) -> Type t -> Type t
@@ -121,6 +124,7 @@ mapTVar _  Unit          = Unit
 mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
 mapTVar g (Thunk t)      = Thunk (mapTVar g t)
+mapTVar g (ListOf t)     = ListOf (mapTVar g t)
 
 mapVar :: (Src.Name -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
@@ -139,6 +143,7 @@ mapVar g h (Proj i e)                = Proj i (mapVar g h e)
 mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
 mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
+mapVar g h (PolyList (t,e))          = PolyList (h t, map (mapVar g h) e)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
 mapVar g h (RecordLit (l, e))        = RecordLit (l, mapVar g h e)
@@ -166,6 +171,7 @@ joinType  Unit        = Unit
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (Record (l,t)) = Record (l, joinType t)
 joinType (Thunk t)        = Thunk (joinType t)
+joinType (ListOf t)       = ListOf (joinType t)
 
 var :: e -> Expr t e
 var = Var "_"
@@ -204,6 +210,7 @@ prettyType' _ _ (JClass "java.lang.String")    = text "String"
 prettyType' _ _ (JClass "java.lang.Boolean")   = text "Bool"
 prettyType' _ _ (JClass "java.lang.Character") = text "Char"
 prettyType' _ _ (JClass c)                     = text c
+prettyType' p i (ListOf t)                     = text "List" <+> prettyType' p i t
 
 prettyType' p i (And t1 t2) =
   parensIf p 2
@@ -291,6 +298,8 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
   where
     fieldStr (Src.Static x) = text x
     fieldStr (Src.NonStatic x) = prettyExpr' (6,PrecMinus) i x
+
+prettyExpr' _ (i,j) (PolyList (t,es)) = brackets ((hcat (intersperse comma (map (prettyExpr' basePrec (i,j)) es))))
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 

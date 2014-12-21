@@ -65,6 +65,8 @@ import JavaUtils
   CHAR     { Tchar $$ }
   "()"     { Tunitlit }
   "Unit"   { Tunit }
+  List     { Tlist }
+  Head     { Tlisthead }
 
   "*"      { Tprimop J.Mult   }
   "/"      { Tprimop J.Div    }
@@ -134,6 +136,7 @@ atype :: { Type }
   | "{" record_body "}"      { Record $2 }
   | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
+  | List "<" type ">"        { ListOf $3}
 
 product_body :: { [Type] }
   : type "," type             { $1:[$3] }
@@ -200,7 +203,7 @@ aexpr :: { Expr Name }
     | "{" semi_exprs "}"        { Seq $2 }
     | "{" recordlit_body "}"    { RecordLit $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
-    | list_body                 { PrimList $1 }
+    | list                      { PolyList $1 }
     | "(" expr ")"              { $2 }
 
 lit :: { Expr Name }
@@ -225,9 +228,11 @@ recordlit_body :: { [(Label, Expr Name)] }
   : label "=" expr                     { [($1, $3)]  }
   | label "=" expr "," recordlit_body  { ($1, $3):$5 }
 
+list :: { (Type, [Expr Name]) }
+    : "new" List "<" type ">" list_body  { ($4, $6) }
+
 list_body :: { [Expr Name] }
-    : "(" expr "::" list_body ")"  { $2:$4 }
-    | "[" comma_exprs0 "]"         { $2 }
+    : "(" comma_exprs0 ")"         { $2 }
 
 field :: { Name }
    : LOWERID { $1 }

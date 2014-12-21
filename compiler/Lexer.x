@@ -55,7 +55,7 @@ tokens :-
     Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
     Char        { \_ _ -> Tjavaclass "java.lang.Character" }
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
-    List        { \_ _ -> Tjavaclass "f2j.FunctionalList" }
+    List        { \_ _ -> Tlist }
     Tree        { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
@@ -72,6 +72,7 @@ tokens :-
     False                  { \_ s -> Tbool False}
     Empty                  { \_ _ -> Temptytree}
     Fork                   { \_ _ -> Tnonemptytree }
+    Head                   { \_ _ -> Tlisthead}
     \(\)                   { \_ _ -> Tunitlit }
     Unit                   { \_ _ -> Tunit }
 
@@ -112,6 +113,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule
            | Temptytree | Tnonemptytree
+           | Tlist | Tlisthead
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

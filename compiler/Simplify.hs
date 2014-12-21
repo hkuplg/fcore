@@ -42,12 +42,14 @@ transType _  Unit          = Unit
 transType i (And a1 a2)    = Product [transType i a1, transType i a2]
 transType i (Record (_,t)) = transType i t
 transType i (Thunk t)      = Fun Unit (transType i t)
+transType i (ListOf t)     = ListOf (transType i t)
 
 -- Subtyping
 
 subtype' :: Class (Index -> Type Index -> Type Index -> Bool)
 subtype' _    _ (TVar a)     (TVar b)    = a == b
 subtype' _    _ (JClass c)   (JClass d)  = c == d
+subtype' this i (ListOf t1)  (ListOf t2) = subtype' this i t1 t2
 subtype' this i (Fun t1 t2)  (Fun t3 t4) = this i t3 t1 && this i t2 t4
 subtype' this i (Forall f)   (Forall g)  = this (i+1) (f i) (g i)
 subtype' this i (Product ss) (Product ts)
@@ -73,6 +75,7 @@ coerce i (TVar a) (TVar b) | a == b        = return (lam (transType i (TVar a)) 
                            | otherwise     = Nothing
 coerce i (JClass c) (JClass d) | c == d    = return (lam (transType i (JClass c)) var)
                                | otherwise = Nothing
+coerce i (ListOf a) (ListOf b) = coerce i a b
 coerce i (Fun t1 t2) (Fun t3 t4) =
   do c1 <- coerce i t3 t1
      c2 <- coerce i t2 t4
@@ -127,6 +130,7 @@ infer' this i j (Proj index e)      = ts !! (index-1) where Product ts = this i 
 infer' _    _ _ (JNew c _)          = JClass c
 infer' _    _ _ (JMethod _ _ _ c)   = JClass c
 infer' _    _ _ (JField _ _ c)      = JClass c
+infer' _    _ _ (PolyList (t, _))   = ListOf t
 infer' this i j (Seq es)            = this i j (last es)
 infer' this i j (Merge e1 e2)       = And (this i j e1) (this i j e2)
 infer' this i j (RecordLit (l,e))   = Record (l, this i j e)
@@ -208,6 +212,7 @@ transExpr' _ this i j (JMethod callee m args ret)
     forceLazy (_,e)        = e
 
 transExpr' _ this i j (JField callee m ret)        = JField (fmap (snd . this i j) callee) m ret
+transExpr' _ this i j (PolyList (t,es))            = PolyList (transType i t, (snd (unzip (map (this i j) es))))
 transExpr' _ this i j (Seq es)                     = Seq (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (Merge e1 e2)                = Tuple [snd (this i j e1), snd (this i j e2)]
 transExpr' _ this i j (RecordLit (_,e))            = snd (this i j e)

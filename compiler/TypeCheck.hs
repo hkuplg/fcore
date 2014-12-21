@@ -336,12 +336,13 @@ infer (Merge e1 e2) =
      (e2', t2) <- infer e2
      return (Merge e1' e2', And t1 t2)
 
-infer (PrimList l) =
+infer (PolyList (t,l)) =
       do (es, ts) <- mapAndUnzipM infer l
-         case ts of [] -> return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
-                    _  -> if all (`alphaEq` (ts !! 0)) ts
-                            then return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
-                            else throwError $ General (text "Primitive List Type Mismatch" <+> text (show (PrimList l)))
+         case ts of [] -> return (PolyList (t,es), ListOf t)
+                    _  -> if all (`alphaEq` t) ts
+                            then return (PolyList (t,es), ListOf t)
+                            else throwError $ General (text "Poly List Type Mismatch" <+> text (show (PolyList (t,l))))
+
 
 infer (RecordLit fs) =
   do (es', ts) <- mapAndUnzipM infer (map snd fs)
@@ -383,6 +384,7 @@ inferAgainstAnyJClass expr
        case dethunk ty of
         JType (JPrim "char") -> return (expr', "java.lang.Character")
         JType (JClass c) -> return (expr', c)
+        ListOf _         -> return (expr', namespace ++ "FunctionalList")
         _ -> throwError $ General (bquotes (pretty expr) <+> text "has type" <+> bquotes (pretty ty) <> comma <+> text "but is expected to be of some Java class")
 
 inferAgainstMaybe :: Expr Name -> Maybe Type -> Checker (Expr (Name,Type), Type)

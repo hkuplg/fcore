@@ -184,6 +184,14 @@ trans self =
                        let rhs = instCreat (classTyp c) (map unwrap exprs)
                        assignExpr <- assignVar this (JClass c) newVarName rhs
                        return (statements ++ [assignExpr],var newVarName,TupleType types)
+              PolyList (t,l) ->
+                do l' <- mapM (translateM this) l
+                   let (statements, exprs, _) = concatFirst (unzip3 l')
+                   newVarName <- getNewVarName this
+                   let c = namespace ++ "FunctionalList"
+                   let rhs = instCreat (classTyp c) (map unwrap exprs)
+                   assignExpr <- assignVar this (JClass c) newVarName rhs
+                   return (statements ++ [assignExpr], var newVarName, ListType t)
               Proj index expr -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
                 do ret@(statement,javaExpr,exprType) <- translateM this expr
                    case exprType of
@@ -441,6 +449,7 @@ trans self =
                              CFInteger -> return $ classTy "java.lang.Integer"
                              CFChar -> return $ classTy "java.lang.Character"
                              CFCharacter -> return $ classTy "java.lang.Character"
+                             (ListType _) -> return $ classTy $ namespace ++ "FunctionalList"
                              _ -> return objClassTy
        ,chooseCastBox = \typ -> case typ of
                                   (JClass c) -> return (initClass c, classTy c)
@@ -454,6 +463,7 @@ trans self =
                                                          [t] -> chooseCastBox this t
                                                          _ -> do let tupleClassName = getTupleClassName tuple
                                                                  return (initClass tupleClassName, classTy tupleClassName)
+                                  (ListType _) -> return (initClass (namespace ++ "FunctionalList"), classTy (namespace ++ "FunctionalList"))
                                   _ -> return (initClass "Object", objClassTy)
        ,getPrefix = return namespace
        ,genClone = return False -- do not generate clone method
