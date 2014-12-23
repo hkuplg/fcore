@@ -134,6 +134,16 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                                      x:xs -> C.JNew (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
 
     go (Seq es) = C.Seq (map go es)
+    go (Data n cs e) = desugarExpr (d, g `union`) e
+    go (Constr n es) = C.Constr n (map go es)
+    go (Case e alts) = C.Case (go e) (map desugarAlts alts)
+    -- go (Lam (x, t) e)    = C.Lam x
+    --                            (transType d t)
+    --                            (\x' -> desugarExpr (d, Map.insert x (C.Var x x') g) e)
+
+
+    desugarAlts (ConstrAlt n ns e) = (n, \es -> desugarExpr (d, g `Map.union` Map.fromList (map (\(x,x') -> (x, C.Var x x')) (zip ns es))) e)
+
 
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =

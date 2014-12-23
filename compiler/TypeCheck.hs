@@ -385,8 +385,6 @@ infer (Data name cs e) =
     where ctypes (Constructor _ ts) = ts
           cname (Constructor n _) = n
 
-          pr (Constructor n ts) = (n, ts)
-
           lookupTVar :: Map.Map Name (Kind, Type) -> Type -> Checker Type
           lookupTVar ctxt t =
               case t of
@@ -404,7 +402,7 @@ infer (Constr n es) =
        let (len_expected, len_actual) = (length ts - 1, length es)
        unless (len_expected == len_actual) $
               throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_expected <+> text "arguments, but has been given" <+> int len_actual)
-       (es', _) <- mapAndUnzipM (\pr -> inferAgainst (fst pr) (snd pr)) (zip es ts)
+       (es', _) <- mapAndUnzipM (\(e,t) -> inferAgainst e t) (zip es ts)
        return (Constr n es', last ts)
 
 infer (Case e alts) =
@@ -412,19 +410,16 @@ infer (Case e alts) =
        unless (isDatatype t) $
               throwError (General (bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"))
        value_ctxt <- getValueContext
-       let names = cnames t
+       let names = (\(Datatype _ ns) -> ns) t
        (es, ts) <- mapAndUnzipM
-                   (\alt -> do
-                     case alt of
-                       ConstrAlt n ns e2 ->
-                           if n `elem` names
-                           then
-                               let ts = unfoldTypes . fromJust $ Map.lookup n value_ctxt
-                               in if length ts == length ns
-                                  then withLocalVars (zip ns ts) (infer e2)
-                                  else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
+                   (\(ConstrAlt n ns e2) ->
+                        if n `elem` names
+                        then let ts = unfoldTypes . fromJust $ Map.lookup n value_ctxt
+                             in if length ts == length ns
+                                then withLocalVars (zip ns ts) (infer e2)
+                                else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
                                                                      <+> text "arguments, bus has been given" <+> int (length ns))
-                           else throwError (NotInScopeConstr n))
+                        else throwError (NotInScopeConstr n))
                    alts
        let alts' = zipWith substAltExpr alts es
        let resType = ts !! 0
@@ -443,11 +438,7 @@ infer (Case e alts) =
           isDatatype (Datatype _ _) = True
           isDatatype _ = False
 
-          cnames (Datatype _ l) = l
-
           altName (ConstrAlt n _ _) = n
-
-
 
 inferAgainst :: Expr Name -> Type -> Checker (Expr (Name,Type), Type)
 inferAgainst expr expected_ty
