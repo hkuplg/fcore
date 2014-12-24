@@ -130,6 +130,7 @@ infer' this i j (Proj index e)      = ts !! (index-1) where Product ts = this i 
 infer' _    _ _ (JNew c _)          = JClass c
 infer' _    _ _ (JMethod _ _ _ c)   = JClass c
 infer' _    _ _ (JField _ _ c)      = JClass c
+infer' _    _ _ (JProxyCall (_, t)) = t
 infer' _    _ _ (PolyList (t, _))   = ListOf t
 infer' this i j (Seq es)            = this i j (last es)
 infer' this i j (Merge e1 e2)       = And (this i j e1) (this i j e2)
@@ -213,6 +214,7 @@ transExpr' _ this i j (JMethod callee m args ret)
 
 transExpr' _ this i j (JField callee m ret)        = JField (fmap (snd . this i j) callee) m ret
 transExpr' _ this i j (PolyList (t,es))            = PolyList (transType i t, (snd (unzip (map (this i j) es))))
+transExpr' s this i j (JProxyCall (jmethod, t))    = JProxyCall (transExpr' s this i j jmethod, transType i t)
 transExpr' _ this i j (Seq es)                     = Seq (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (Merge e1 e2)                = Tuple [snd (this i j e1), snd (this i j e2)]
 transExpr' _ this i j (RecordLit (_,e))            = snd (this i j e)

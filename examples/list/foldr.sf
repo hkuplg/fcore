@@ -1,0 +1,12 @@
+let rec
+  foldr A B  (f:A->B->B) (x:B) (xs:List<A>) :B =
+    if(isNil(xs))
+    then
+        x
+    else
+        f (Head(A,xs)) (foldr A B (f) x (Tail(A,xs)))
+and
+  f (x:Int) (y:Int) :Int = x + y
+in
+  foldr Int Int f 0 (new List<Int>[-1,0,1,2,3,4])
+

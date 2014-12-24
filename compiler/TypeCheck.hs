@@ -290,6 +290,38 @@ infer (JNew c args)
        checkNew c arg_cs
        return (JNew c args', JType $ JClass c)
 
+infer (JProxyCall ( JNew c args, t)) =
+    if c /= (namespace ++ "FunctionalList")
+     then
+     throwError $ General (text (show c ++ " from JProxyCall: not supported"))
+     else do
+     (expr', [t1,t2]) <- mapAndUnzipM infer args
+     if ( ((ListOf t1) `alphaEq` t) && (t2 `alphaEq` t))
+       then
+       return (JProxyCall (JNew c expr', t), t)
+       else
+       throwError $ General (text ("Cons: type dismatch"))
+
+infer (JProxyCall (jmethod, t)) =
+    case jmethod of
+        JMethod (NonStatic e) methodname _ _ -> do
+            ty <- case methodname of
+                    "head" ->
+                      do (_, ListOf a) <- infer e 
+                         return a
+                    "tail" ->
+                      do (_, a) <- infer e 
+                         return a
+                    _ ->  throwError $ General (text (show methodname ++ " from JProxyCall: not supported"))
+            if (t `alphaEq` ty)
+              then 
+                do m <- infer jmethod
+                   return (JProxyCall (fst m, t), t)
+              else
+                throwError $ General (text (show methodname ++ ": type dismatch"))
+                    
+        _ -> throwError $ General (text "JProxyCall: not supported")
+
 infer (JMethod callee m args _)
   = case callee of
       Static c ->

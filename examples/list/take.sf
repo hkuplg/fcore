@@ -1,0 +1,16 @@
+let rec
+  take A (n:Int) (xs:List<A>) :List<A> =
+    if(isNil(xs) || n<=0)
+    then
+        new List<A>[]
+    else
+        Cons(A, Head(A,xs), (take A (n-1) Tail(A,xs)))
+in
+let rec
+  length A (xs:List<A>) :Int =
+    if(isNil(xs))
+    then 0
+    else 1 + length A Tail(A, xs)
+in
+   length Int (take Int 3 (new List<Int>[-1,0,1,2,3,4]))
+

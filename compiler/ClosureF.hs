@@ -56,6 +56,7 @@ data Expr t e =
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
    | JField  (Either ClassName (Expr t e)) FieldName ClassName
    | PolyList (Type t, [Expr t e])
+   | JProxyCall (Expr t e, Type t)
    | SeqExprs [Expr t e]
 
 
@@ -125,6 +126,7 @@ fexp2cexp (C.JField c fName r) =
   case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName r
             (S.Static cn)    -> JField (Left cn) fName r
 fexp2cexp (C.PolyList (t, ls))  = PolyList (ftyp2ctyp t, map fexp2cexp ls)
+fexp2cexp (C.JProxyCall (jmethod,t)) = JProxyCall (fexp2cexp jmethod, ftyp2ctyp t)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp e                         = Lam (groupLambda e)
 
@@ -335,4 +337,5 @@ prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
     fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
 
 prettyExpr p i (PolyList (t,l)) = brackets . list . map (prettyExpr p i) $ l
+prettyExpr p i (JProxyCall (jmethod,t)) = prettyExpr p i jmethod
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)

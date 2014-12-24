@@ -124,6 +124,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (JNew c args)          = C.JNew c (map go args)
     go (JMethod callee m args r) = C.JMethod (fmap go callee) m (map go args) r
     go (JField  callee f r)      = C.JField  (fmap go callee) f r
+    go (JProxyCall (jmethod, t)) = C.JProxyCall (go jmethod, transType d t)
 
     -- Non Java Class translation
     go (PolyList (t,l))          = case l of

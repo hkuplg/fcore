@@ -103,6 +103,7 @@ data Expr id
   | LetModule (Module id) (Expr id)
   | ModuleAccess ModuleName Name
   | Type Name [Name] Type (Expr id)
+  | JProxyCall (Expr id, Type)             -- wrap JMethod to specify the return type.
   deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
@@ -287,6 +288,7 @@ instance (Show id, Pretty id) => Pretty (Expr id) where
   pretty (JNew c args)  = text "new" <+> text c <> tupled (map pretty args)
   pretty (JMethod e m args _) = case e of (Static c)     -> pretty c  <> dot <> text m <> tupled (map pretty args)
                                           (NonStatic e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
+  pretty (JProxyCall (jmethod, t)) = pretty jmethod
   pretty (PolyList (_, l))     = brackets . hcat . intersperse comma $ map pretty l
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
   pretty (RecordLit fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace

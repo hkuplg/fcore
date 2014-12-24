@@ -84,6 +84,7 @@ data Expr t e
   | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
   | JField  (Src.JCallee (Expr t e)) FieldName ClassName
   | PolyList (Type t, [Expr t e])
+  | JProxyCall (Expr t e, Type t)
 
   | Seq [Expr t e]
 
@@ -144,6 +145,7 @@ mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
 mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
 mapVar g h (PolyList (t,e))          = PolyList (h t, map (mapVar g h) e)
+mapVar g h (JProxyCall (jmethod, t)) = JProxyCall (mapVar g h jmethod, h t)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
 mapVar g h (RecordLit (l, e))        = RecordLit (l, mapVar g h e)
@@ -299,7 +301,9 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
     fieldStr (Src.Static x) = text x
     fieldStr (Src.NonStatic x) = prettyExpr' (6,PrecMinus) i x
 
-prettyExpr' _ (i,j) (PolyList (t,es)) = brackets ((hcat (intersperse comma (map (prettyExpr' basePrec (i,j)) es))))
+prettyExpr' _ (i,j) (PolyList (t,es)) = brackets .hcat .intersperse comma .map (prettyExpr' basePrec (i,j)) $ es
+
+prettyExpr' p (i,j) (JProxyCall (jmethod, t)) = prettyExpr' p (i,j) jmethod
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 

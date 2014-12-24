@@ -73,6 +73,9 @@ tokens :-
     Empty                  { \_ _ -> Temptytree}
     Fork                   { \_ _ -> Tnonemptytree }
     Head                   { \_ _ -> Tlisthead}
+    Tail                   { \_ _ -> Tlisttail}
+    Cons                   { \_ _ -> Tlistcons}
+    isNil                  { \_ _ -> Tisnil}
     \(\)                   { \_ _ -> Tunitlit }
     Unit                   { \_ _ -> Tunit }
 
@@ -113,7 +116,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule
            | Temptytree | Tnonemptytree
-           | Tlist | Tlisthead
+           | Tlist | Tlisthead | Tlisttail | Tlistcons | Tisnil
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

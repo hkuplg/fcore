@@ -67,6 +67,9 @@ import JavaUtils
   "Unit"   { Tunit }
   List     { Tlist }
   Head     { Tlisthead }
+  Tail     { Tlisttail }
+  Cons     { Tlistcons }
+  isNil    { Tisnil }
 
   "*"      { Tprimop J.Mult   }
   "/"      { Tprimop J.Div    }
@@ -204,6 +207,10 @@ aexpr :: { Expr Name }
     | "{" recordlit_body "}"    { RecordLit $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | list                      { PolyList $1 }
+    | Head "(" atype "," aexpr ")"              { JProxyCall ( JMethod(NonStatic $5) "head" [] undefined, $3)}
+    | Tail "(" atype "," aexpr ")"              { JProxyCall ( JMethod(NonStatic $5) "tail" [] undefined, ListOf $3)}
+    | isNil "(" aexpr ")"                       { JMethod(NonStatic $3) "isEmpty" [] undefined }
+    | Cons "(" atype "," aexpr "," aexpr ")"    { JProxyCall ( JNew "f2j.FunctionalList" [$5,$7], ListOf $3)}
     | "(" expr ")"              { $2 }
 
 lit :: { Expr Name }
@@ -232,7 +239,7 @@ list :: { (Type, [Expr Name]) }
     : "new" List "<" type ">" list_body  { ($4, $6) }
 
 list_body :: { [Expr Name] }
-    : "(" comma_exprs0 ")"         { $2 }
+    : "[" comma_exprs0 "]"         { $2 }
 
 field :: { Name }
    : LOWERID { $1 }

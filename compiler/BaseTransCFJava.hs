@@ -303,6 +303,58 @@ trans self =
                            [assignExpr]
                           ,var newVarName
                           ,typ)
+              JProxyCall (JNew c args, realType) -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+                do args' <- mapM (translateM this) args
+                   let (statements,exprs,types) = concatFirst $ unzip3 args'
+                   let rhs =
+                         J.InstanceCreation
+                           (map (\y -> case y of
+                                         JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                                         CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         ListType _ -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident (namespace ++ "FunctionalList"), [])]
+                                         TVar t -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Object", [])])
+                                types)
+                           (J.ClassType [(J.Ident c,[])])
+                           (map unwrap exprs)
+                           Nothing
+                   let typ = JClass c
+                   newVarName <- getNewVarName this
+                   assignExpr <- assignVar this realType newVarName rhs
+                   return (statements ++
+                           [assignExpr]
+                          ,var newVarName
+                          ,realType)
+
+              JProxyCall (JMethod c m args r, realType) -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+                do args' <- mapM (translateM this) args
+                   let (statements,exprs,types) = concatFirst $ unzip3 args'
+                   let exprs' = map unwrap exprs
+                   let refTypes =
+                         (map (\y -> case y of
+                                       JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                                       CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                       CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                       CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                       CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                       _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                              types)
+                   realJavaType <- javaType this realType
+                   (classStatement,rhs) <- case c of
+                                             Right ce ->
+                                               do (classS,classE,_) <- translateM this ce
+                                                  return (classS ,cast realJavaType (J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs'))
+                                             Left cn ->
+                                               return ([] ,cast realJavaType (J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs'))
+                   let typ = JClass r
+                   if r /= "java.lang.Void"
+                      then do newVarName <- getNewVarName this
+                              assignExpr <- assignVar this realType newVarName rhs
+                              return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,realType)
+                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs] ,Right $ rhs ,realType)
               JMethod c m args r -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'

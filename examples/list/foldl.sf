@@ -1,0 +1,12 @@
+let rec
+  foldl A B  (f:B->A->B) (x:B) (xs:List<A>) :B =
+    if(isNil(xs))
+    then
+        x
+    else
+        foldl A B (f) (f x Head(A,xs)) (Tail(A,xs))
+and
+  f (x:Int) (y:Int) :Int = x + y
+in
+  foldl Int Int f 0 (new List<Int>[-1,0,1,2,3,4])
+

@@ -1,0 +1,8 @@
+let rec
+  length A (xs:List<A>) :Int =
+    if(isNil(xs))
+    then 0
+    else 1 + length A Tail(A, xs)
+in
+  length Int(new List<Int>[-1,0,1,2,3,4])
+
