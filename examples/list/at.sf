@@ -1,0 +1,9 @@
+let rec
+  at A (n:Int) (xs:List<A>) :A =
+    if(n==0)
+    then 
+        Head(A, xs)
+    else
+        at A (n-1) (Tail(A,xs))
+in
+  at Int 3 (new List<Int>[-1,0,1,2,3])

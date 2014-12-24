@@ -3,16 +3,24 @@
 let max (x : Int) (y : Int) : Int =
   if x > y then x else y
 in
+let rec
+  at A (n:Int) (xs:List<A>) :A =
+    if(n==0)
+    then 
+        Head(A, xs)
+    else
+        at A (n-1) (Tail(A,xs))
+in
 let maxValue (values : List<Int>) (weights : List<Int>) (totalWeight : Int) : Int = (
   let rec maxValue' (k : Int -> Int) (i : Int) (w : Int) : Int =
     if i == 0 || w == 0 then (k 0)
     else
-      if At(Int, (i-1), weights) > w then maxValue' k (i - 1) w
+      if ( at Int (i-1) weights ) > w then maxValue' k (i - 1) w
       else
         maxValue' (\(result : Int) .
-                    (maxValue' (\(result' : Int) . (k (max result (At(Int, (i-1), values) + result'))))
+                    (maxValue' (\(result' : Int) . (k (max result (( at Int (i-1) values ) + result'))))
                                (i - 1)
-                               (w - At(Int, (i-1), weights))))
+                               (w - ( at Int (i-1) weights ))))
         (i - 1)
         w
   in
