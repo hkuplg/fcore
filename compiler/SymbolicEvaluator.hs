@@ -12,12 +12,13 @@ import           Prelude                 hiding (EQ, GT, LT)
 import qualified Src                     as S
 import Control.Monad.Fix (fix)
 import Data.IntSet hiding (map)
+import Data.Maybe
 -- import           PrettyUtils
 -- import           Text.PrettyPrint.Leijen
--- import DataTypes
 
 data Value = VInt Integer
            | VBool Bool
+           | VConstr S.Name [Value]
            | VFun (Value -> Value)
 
 -- big-step interpreter
@@ -69,7 +70,11 @@ eval (PrimOp e1 op e2) =
          _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
 eval g@(Fix f _ _) = VFun (\n -> eval $ f (eval g) n)
 eval (LetRec _ binds body) = eval . body . fix $ map eval . binds
-eval (Case e alts)
+eval (Constr n es) = VConstr n (map eval es)
+eval (Case e alts) =
+    case eval e of
+      VConstr n vs -> eval $ fromJust (lookup n table) vs
+    where table = map (\(ConstrAlt n _ f) -> (n, f)) alts
 eval _ = panic "Can not be evaled"
 
 data ExecutionTree = Exp SymValue

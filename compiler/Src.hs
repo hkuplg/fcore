@@ -25,6 +25,7 @@ module Src
   , fsubstTT
   , wrap
   , opPrec
+  , intersperseBar
   ) where
 
 import JavaUtils
@@ -65,7 +66,7 @@ data Type
   | OpAbs Name Type -- Type level abstraction
   | OpApp Type Type -- Type level application
   | ListOf Type
-  | Datatype Name [Name]
+  | Datatype Name [(Name, Type)]
 
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
@@ -183,6 +184,7 @@ subtype (ListOf t1)    (ListOf t2)    = t1 `subtype` t2  -- List :: * -> * is co
 subtype t1             (And t2 t3)    = t1 `subtype` t2 && t1 `subtype` t3
 subtype (And t1 t2)    t3             = t1 `subtype` t3 || t2 `subtype` t3
 subtype Unit           Unit           = True
+subtype (Datatype n1 _) (Datatype n2 _) = n1 == n2
 subtype t1             t2             = False `panicOnSameDataCons` ("Src.subtype", t1, t2)
 
 -- Records
@@ -262,6 +264,7 @@ instance Pretty Type where
   pretty (Thunk t)    = squote <> parens (pretty t)
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (ListOf a)   = brackets $ pretty a
+  pretty (Datatype n _) = text n
 
 instance (Show id, Pretty id) => Pretty (Expr id) where
   pretty (Var x) = pretty x
@@ -305,10 +308,11 @@ instance (Show id, Pretty id) => Pretty (Expr id) where
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
   pretty (RecordLit fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
-  pretty (Data n cons e) = text "data" <+> text n <+> align (equals <+> prependBarFromLine2 (map pretty cons) <$$> semi) <$>
+  pretty (Data n cons e) = text "data" <+> text n <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>
                            pretty e
 
-  pretty (Case e pats) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> prependBarFromLine2 (map pretty pats))
+  pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
+  pretty (Constr n es) = text n <+> hcat (intersperse space (map pretty es))
 
 instance (Show id, Pretty id) => Pretty (Bind id) where
   pretty Bind{..} =
@@ -325,7 +329,6 @@ instance Pretty RecFlag where
 
 instance Pretty Constructor where
     pretty (Constructor n ts) = text n <+> hcat (intersperse space (map pretty ts))
-    -- pretty (Constructor n ts) = text n <+> map pretty t
 
 instance (Show id, Pretty id) => Pretty (Alt id) where
     pretty (ConstrAlt cname ns e2) = text cname <+> hcat (intersperse space (map text ns)) <+> arrow <+> pretty e2
@@ -333,8 +336,8 @@ instance (Show id, Pretty id) => Pretty (Alt id) where
 
 -- Utilities
 
-prependBarFromLine2 :: [Doc] -> Doc
-prependBarFromLine2 = foldl1 (\acc x -> acc <$$> bar <+> x)
+intersperseBar :: [Doc] -> Doc
+intersperseBar = foldl1 (\acc x -> acc <$$> bar <+> x)
 
 wrap :: (b -> a -> a) -> [b] -> a -> a
 wrap cons xs t = foldr cons t xs

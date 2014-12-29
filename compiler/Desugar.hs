@@ -11,9 +11,10 @@ import qualified Core as C
 
 import Panic
 
-import Data.Maybe       (fromMaybe)
+import Data.Maybe       (fromMaybe, fromJust)
 import Data.List        (intercalate)
 import StringPrefixes
+import Control.Monad.State.Lazy
 
 import qualified Data.Map as Map
 
@@ -37,6 +38,9 @@ transType d (Record fs)  =
                   _        -> transType d (Record (take (length fs - 1) fs)) `C.And` C.Record (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = C.Unit
 transType i (Thunk t)    = C.Thunk (transType i t)
+transType d (Datatype n nts) = C.Datatype n (zip ns ts')
+    where (ns, ts) = unzip nts
+          ts' = map (transType d) ts
 
 desugarExpr :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarExpr (d, g) = go
@@ -134,15 +138,16 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                                      x:xs -> C.JNew (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
 
     go (Seq es) = C.Seq (map go es)
-    go (Data n cs e) = desugarExpr (d, g `union`) e
+    -- go (Data n cs e) =
+    --     let names = map (\(Constructor s _) -> s) cs
+    --         dt = C.Datatype n names
+    --         c =
+    --     in desugarExpr (Map.insert (n)d, g `Map.union` Map.fromList ) e
     go (Constr n es) = C.Constr n (map go es)
+
     go (Case e alts) = C.Case (go e) (map desugarAlts alts)
-    -- go (Lam (x, t) e)    = C.Lam x
-    --                            (transType d t)
-    --                            (\x' -> desugarExpr (d, Map.insert x (C.Var x x') g) e)
 
-
-    desugarAlts (ConstrAlt n ns e) = (n, \es -> desugarExpr (d, g `Map.union` Map.fromList (map (\(x,x') -> (x, C.Var x x')) (zip ns es))) e)
+    desugarAlts (ConstrAlt n ns e) = C.ConstrAlt n ns (\es -> desugarExpr (d, g `Map.union` Map.fromList (map (\(x,x') -> (x, C.Var x x')) (zip ns es))) e)
 
 
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
@@ -210,3 +215,21 @@ desugarLetRecToLetRec _ _ = panic "Desugar.desugarLetRecToLetRec"
 
 addToVarMap :: [(Name, C.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
+
+-- data Supply = Supply {dataSupply :: [Int], constrSupply :: [Int]}
+-- type DatatypesM = State Supply
+
+-- newDataID :: DatatypesM Int
+-- newDataID = state $ \s -> case dataSupply s of
+--                             [] -> panic "data names exhausted"
+--                             (x:xs) -> (x, s{dataSupply = xs})
+
+-- newConstrID :: DatatypesM Int
+-- newConstrID = state $ \s -> case constrSupply s of
+--                             [] -> panic "constructor names exhausted"
+--                             (x:xs) -> (x, s{constrSupply = xs})
+
+-- newData :: [(Name, [Type t])] -> DatatypesM (Type t, [Constructor t])
+-- newData cs =
+--     do name <- newDataID
+--        names <- mapM

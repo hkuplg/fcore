@@ -42,6 +42,7 @@ transType _  Unit          = Unit
 transType i (And a1 a2)    = Product [transType i a1, transType i a2]
 transType i (Record (_,t)) = transType i t
 transType i (Thunk t)      = Fun Unit (transType i t)
+transType _ t@(Datatype _ _) = t
 
 -- Subtyping
 
@@ -61,6 +62,7 @@ subtype' this i (Record (l1,t1)) (Record (l2,t2))
   | otherwise                            = False
 subtype' this i t1           (Thunk t2)  = this i t1 t2
 subtype' this i (Thunk t1)   t2          = this i t1 t2
+subtype' _ _ (Datatype n1 _) (Datatype n2 _) = n1 == n2 -- TODO
 subtype' _    _ _ _                      = False
 
 subtype :: Index -> Type Index -> Type Index -> Bool
@@ -133,6 +135,7 @@ infer' this i j (RecordLit (l,e))   = Record (l, this i j e)
 infer' this i j (RecordElim e l1)   = t1 where Just (_,t1) = getter i (this i j e) l1
 infer' this i j (RecordUpdate e _)  = this i j e
 infer' this i j (Lazy e)            = Thunk (this i j e)
+infer' this i j (Constr n es)       =
 
 infer :: Index -> Index -> Expr Index (Index, Type Index) -> Type Index
 infer = new infer'

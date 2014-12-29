@@ -376,23 +376,32 @@ infer (Type tid params rhs e)
 infer (Data name cs e) =
     do let names = map cname cs
        checkDupNames names
-       let dt = Datatype name names
-       type_ctxt <- withLocalTVars [(name, (Star, dt))] getTypeContext
-       types <- mapM (mapM (lookupTVar type_ctxt) . ctypes) cs
-       let constrBindings = zip (map cname cs) (map (foldTypes dt) types)
+       -- let dt = Datatype name names
+       -- type_ctxt <- withLocalTVars [(name, (Star, dt))] getTypeContext
+       type_ctxt <- getTypeContext
+       types <- mapM (mapM (lookupTVar type_ctxt name) . ctypes) cs
+       let types' = map (map (substSelf dt)) types
+           constrBindings = zip (map cname cs) (map (foldTypes dt) types)
+           dt = Datatype name constrBindings
        withLocalTVars [(name, (Star, dt))] (withLocalVars constrBindings (infer e))
 
     where ctypes (Constructor _ ts) = ts
           cname (Constructor n _) = n
 
-          lookupTVar :: Map.Map Name (Kind, Type) -> Type -> Checker Type
-          lookupTVar ctxt t =
+          lookupTVar :: Map.Map Name (Kind, Type) -> Name -> Type -> Checker Type
+          lookupTVar ctxt self t =
               case t of
                 TVar n ->
-                    case Map.lookup n ctxt of
-                      Just (_, t') -> return t'
-                      _ -> throwError (NotInScopeTVar n)
+                    if n == self
+                    then return t
+                    else case Map.lookup n ctxt of
+                           Just (_, t') -> return t'
+                           _ -> throwError (NotInScopeTVar n)
                 _ -> return t
+
+          substSelf :: Type -> Type -> Type
+          substSelf dt (TVar _) = dt
+          substSelf _ t = t
 
 infer (Constr n es) =
     do value_ctxt <- getValueContext
@@ -410,11 +419,11 @@ infer (Case e alts) =
        unless (isDatatype t) $
               throwError (General (bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"))
        value_ctxt <- getValueContext
-       let names = (\(Datatype _ ns) -> ns) t
+       let names = (\(Datatype _ nts) -> map fst nts) t
        (es, ts) <- mapAndUnzipM
                    (\(ConstrAlt n ns e2) ->
                         if n `elem` names
-                        then let ts = unfoldTypes . fromJust $ Map.lookup n value_ctxt
+                        then let ts = init . unfoldTypes . fromJust $ Map.lookup n value_ctxt
                              in if length ts == length ns
                                 then withLocalVars (zip ns ts) (infer e2)
                                 else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
@@ -608,5 +617,5 @@ foldTypes :: Type -> [Type] -> Type
 foldTypes = foldr (\t base -> Fun t base)
 
 unfoldTypes :: Type -> [Type]
-unfoldTypes t@(Datatype _ _) = []
+unfoldTypes t@(Datatype _ _) = [t]
 unfoldTypes (Fun t t') = t : unfoldTypes t'
