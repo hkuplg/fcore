@@ -15,7 +15,7 @@ import qualified Control.Exception as E
 
 import Data.Char
 import Data.List.Split
-import Data.List			(stripPrefix)
+import Data.List			(stripPrefix, group, sort)
 import qualified Data.Map as Map
 
 import TypeCheck
@@ -30,6 +30,7 @@ import ParseCMD
 import FileIO
 import qualified Environment as Env
 import qualified History as Hist
+import FileIO 				(TransMethod (Apply, Naive, Stack, Unbox, StackAU1, StackAU2, BenchN, BenchS, BenchNA, BenchSA, BenchSAI1, BenchSAI2))
 
 #ifdef Z3
 -- #if MIN_VERSION_z3(0,3,2)
@@ -121,20 +122,15 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 	  ":set" -> case getCMD xs of
 	 	Just "method" -> do
 		  let (y:ys)= xs
-		  case getCMD ys of
-		    Just method -> do
-		      result <- liftIO (E.try (getOpt method))
-		      case result of
-		        Left (_ :: E.SomeException) -> do
-		    	  outputStrLn "Invalid method"
-			  loop handle opt val_ctx env hist index
-			       flagH flagT flagS num
-		        Right optNew 		-> do
-		  	  loop handle optNew val_ctx env hist index
-			       flagH flagT flagS num
-		    Nothing     -> do
-	       	      outputStrLn "Invalid option for :set method"
+		  --case getCMD ys of
+		  let ms = parseMethod ys
+		  result <- liftIO (E.try (getOpt ms))
+		  case result of
+		    Left (_ :: E.SomeException) -> do
+		      outputStrLn "Invalid method"
 		      loop handle opt val_ctx env hist index flagH flagT flagS num
+		    Right optNew 		-> do
+		      loop handle optNew val_ctx env hist index flagH flagT flagS num
 		_	      -> do
 		  outputStrLn "Invalid input"
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
@@ -195,32 +191,23 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		  outputStrLn ("[" ++ Env.showPrettyEnv env ++ "]")
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 		Just "method" -> do
-		  outputStrLn "Undefined in develop branch"
-{-do
 		  let (num, compile, method) = opt
-		  outputStrLn ("Currently using: " ++ method)
+		  outputStrLn ("Currently using: " ++ show method)
 		  outputStrLn "----------------------------"
 		  outputStrLn "Avaible compilation options:"
+		  outputStrLn "(Can also be the combination of the first four methods)"
 		  outputStrLn "----------------------------"
 		  outputStrLn "naive"
-		  outputStrLn "applyOpt"
-		  outputStrLn "applyU"
-		  outputStrLn "stack"
-		  outputStrLn "stackAU"
-		  outputStrLn "stackN"
-		  outputStrLn "stackU"
+		  outputStrLn "apply"
 		  outputStrLn "unbox"
-		  outputStrLn "benchN"
-		  outputStrLn "benchS"
-		  outputStrLn "benchNA"
-		  outputStrLn "benchSA"
-		  outputStrLn "benchSAI1"
-		  outputStrLn "benchSAI2"
-		  outputStrLn "benchSAU"
-		  outputStrLn "benchSAU1"
-		  outputStrLn "benchSAU2"
+		  outputStrLn "stack"
+		  outputStrLn "benchs"
+		  outputStrLn "benchna"
+		  outputStrLn "benchsa"
+		  outputStrLn "benchsai1"
+		  outputStrLn "benchsai2"
 		  outputStrLn "---------------------------"
-		  outputStrLn "Default: applyOpt"-}
+		  outputStrLn "Default: naive"
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
 		Just input -> do
 		  exist <- liftIO (doesFileExist input)
@@ -247,29 +234,30 @@ getCMD xs = case xs of
 		[]      -> Nothing
 		(x:xs)  -> Just x
 
+parseMethod :: [String] -> [String]
+parseMethod xs = (map head . Data.List.group . sort) xs;
+
 -- if the return type is CompileOpt, then return to E.try (return (getOpt method))
 -- will not evaluate argument inside return (lazy), thus can't catch error
-getOpt :: String -> IO CompileOpt
-getOpt method = undefined
-{-case method of
-	"naive" 	-> return (0, compileN, method)
-	"applyOpt" 	-> return (0, compileAO, method)
-	"applyU"	-> return (0, compileAoptUnbox, method)
-	"stack"  	-> return (0, compileS, method)
-	"stackAU" 	-> return (0, compileSAU, method)
-	"stackN" 	-> return (0, compileSN, method)
-	"stackU" 	-> return (0, compileSU, method)
-	"unbox" 	-> return (0, compileUnbox, method)
-	"benchN" 	-> return (0, (compileBN False), method)
-	"benchS" 	-> return (0, (compileBS False), method)
-	"benchNA" 	-> return (0, (compileBN True), method)
-	"benchSA" 	-> return (0, (compileBS True), method)
-	"benchSAI1"	-> return (1, (compileBS True), method)
-	"benchSAI2" 	-> return (2, (compileBS True), method)
-	"benchSAU" 	-> return (0, compileBSAU, method)
-	"benchSAU1" 	-> return (1, compileBSAU, method)
-	"benchSAU2" 	-> return (2, compileBSAU, method)
-	_		-> error "invalid method" -}
+getOpt :: [String] -> IO CompileOpt
+getOpt ms = case ms of
+	["naive"] 		-> return (0, compileN, [Naive])
+	["apply"] 		-> return (0, compileAO, [Apply, Naive])
+	["apply", "unbox"]	-> return (0, compileAoptUnbox, [Apply, Naive, Unbox])
+	["apply", "stack"]  	-> return (0, compileS, [Apply, Naive, Stack])
+	["apply", "stack", "unbox"] 
+			        -> return (0, compileSAU, [Apply, Naive, Stack, Unbox])
+	["stackau1"] 		-> return (1, compileSAU, [Naive, StackAU1])
+	["stackau2"] 		-> return (2, compileSAU, [Naive, StackAU2])
+	["stack"]		-> return (0, compileSN, [Naive, Stack])
+	["stack", "unbox"] 	-> return (0, compileSU, [Naive, Stack, Unbox])
+	["unbox"]		-> return (0, compileUnbox, [Naive, Unbox])
+	["benchs"] 		-> return (0, (compileBS False), [BenchS])
+	["benchna"] 		-> return (0, (compileBN True), [BenchNA])
+	["benchSA"]	 	-> return (0, (compileBS True), [BenchSA])
+	["benchSAI1"]		-> return (1, (compileBS True), [BenchSAI1])
+	["benchSAI2"] 		-> return (2, (compileBS True), [BenchSAI2])
+	_			-> error "invalid method" 
 
 wrapFlag :: Connection -> CompileOpt -> Bool -> Bool -> String -> IO ()
 wrapFlag handle opt flagT flagS filename = case flagT of
