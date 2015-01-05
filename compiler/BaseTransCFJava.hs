@@ -15,12 +15,15 @@ import qualified Src as S
 import           StringPrefixes
 
 import           Data.Char (isDigit, isUpper)
-import           Data.Either (isLeft)
 
 instance (:<) (Translate m) (Translate m) where
    up = id
 
 type InitVars = [J.BlockStmt]
+
+isLeft :: Either a b -> Bool
+isLeft (Left  _) = True
+isLeft (Right _) = False
 
 -- Closure F to Java
 
