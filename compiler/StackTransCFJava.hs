@@ -30,7 +30,7 @@ instance {-(r :< Translate m) =>-} (:<) (TranslateStack m) (Translate m) where
 instance (:<) (TranslateStack m) (TranslateStack m) where -- reflexivity
   up = id
 
-nextClass ::(Monad m) => (Translate m) -> m String
+nextClass ::(Monad m) => Translate m -> m String
 nextClass this = liftM2 (++) (getPrefix this) (return "Next")
 
 whileApplyLoop :: (Monad m) => Translate m -> Bool -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
@@ -41,7 +41,7 @@ whileApplyLoop this flag ctemp tempOut outType ctempCastTyp = do
   let doWhileStmts = [localVar closureType' (varDeclNoInit ctemp),
                       localVar outType (varDecl tempOut (case outType of
                                                           J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: could be bug
-                                                          _ -> (J.Lit J.Null))),
+                                                          _ -> J.Lit J.Null)),
                       bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
                                                       ,assign (name [nextName, "next"]) (J.Lit J.Null)
                                                       ,bStmt (methodCall [ctemp, "apply"] [])]))
@@ -52,14 +52,14 @@ whileApplyLoop this flag ctemp tempOut outType ctempCastTyp = do
   if flag -- False means stack with apply
     then return doWhileStmts
     else return (let (l1,l2) = splitAt 2 doWhileStmts
-                 in (head l1):l2)
+                 in head l1:l2)
 
 whileApplyLoopMain :: (Monad m) => Translate m -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
 whileApplyLoopMain this ctemp tempOut outType ctempCastTyp =
   do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
      let closureType' = classTy closureClass
      nextName <- nextClass (up this)
-     let nextNEqNull = (J.BinOp (J.ExpName $ name [nextName,"next"]) J.NotEq (J.Lit J.Null))
+     let nextNEqNull = J.BinOp (J.ExpName $ name [nextName,"next"]) J.NotEq (J.Lit J.Null)
      let loop =
            [bStmt (J.Do (J.StmtBlock
                            (block [assign (name [ctemp]) (J.ExpName $ name [nextName,"next"])
@@ -74,13 +74,13 @@ whileApplyLoopMain this ctemp tempOut outType ctempCastTyp =
             ,bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop)))]
 
 containsNext :: [J.BlockStmt] -> Bool
-containsNext l =
-  foldr (||) False $
-  map (\x ->
-         case x of
-           (J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident _nextClass,J.Ident "next"])) J.EqualA _))) -> True
-           _ -> False)
-      l
+containsNext =
+  foldr ((||) .
+         (\x ->
+            case x of
+              (J.BlockStmt (J.ExpStmt (J.Assign (J.NameLhs (J.Name [J.Ident _nextClass,J.Ident "next"])) J.EqualA _))) -> True
+              _ -> False))
+        False
 
 -- ad-hoc fix for final-returned expressions in Stack translation
 empyClosure :: Monad m => Translate m -> J.Exp -> String -> m J.BlockStmt
@@ -111,19 +111,19 @@ whileApply :: (Monad m) => Translate m -> Bool -> J.Exp -> String -> String -> J
 whileApply this flag cl ctemp tempOut outType ctempCastTyp =
   do loop <- whileApplyLoop this flag ctemp tempOut outType ctempCastTyp
      nextName <- nextClass (up this)
-     return ((assign (name [nextName,"next"]) cl) : loop)
+     return (assign (name [nextName,"next"]) cl : loop)
 
 --e.g. Next.next = x8;
 nextApply :: (Monad m) => Translate m -> J.Exp -> String -> J.Type -> m [J.BlockStmt]
 nextApply this cl tempOut outType =
   do nextName <- nextClass this
-     return ([assign (name [nextName,"next"]) cl
+     return [assign (name [nextName,"next"]) cl
              ,localVar outType
                        (varDecl tempOut
                                 (case outType of
                                    J.PrimType J.IntT -> J.Lit (J.Int 0)
                                    J.PrimType J.CharT -> J.Lit (J.Char 'a') --TODO: better default value?
-                                   _ -> J.Lit J.Null))])
+                                   _ -> J.Lit J.Null))]
 
 transS :: forall m selfType . (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
 transS this super =
@@ -137,7 +137,7 @@ transS this super =
                 flag <- withApply (up this) -- False means Stack with Apply
                 if tailPosition
                   then nextApply (up this) f x jType
-                  else (whileApply (up this) flag f ("c" ++ show n) x jType ctempCastTyp)
+                  else whileApply (up this) flag f ("c" ++ show n) x jType ctempCastTyp
          ,genRes = \_ _ -> return []
          ,stackMainBody =
               \t ->
@@ -165,7 +165,7 @@ transS this super =
                             wrapperClass
                               nam
                               (bs ++
-                               (if (containsNext bs) then [] else [empyClosure']) ++
+                               (if containsNext bs then [] else [empyClosure']) ++
                                returnStmt)
                               returnType (Just $ J.Block mainbody) [] Nothing isTest
                       return (createCUB (up this :: Translate m) [stackDecl]
@@ -203,9 +203,9 @@ transSU this super =
                              JClass "java.lang.Integer" -> classTy "java.lang.Integer"
                              _ -> objClassTy
 
-           let nextNEqNull = (J.BinOp (J.ExpName $ name [nextName, "next"])
-                     J.NotEq
-                     (J.Lit J.Null))
+           let nextNEqNull = J.BinOp (J.ExpName $ name [nextName, "next"])
+                             J.NotEq
+                             (J.Lit J.Null)
 
            let loop = [bStmt (J.Do (J.StmtBlock (block [assign (name ["c"]) (J.ExpName $ name [nextName, "next"])
                                                        ,assign (name [nextName, "next"]) (J.Lit J.Null)
@@ -228,10 +228,10 @@ transSU this super =
                                                 (cast (classTy (closureClass ++ "Box" ++ finalType)) (left $ var "c"))
                                                 closureOutput)))))]
 
-           return ((localVar closureType' (varDeclNoInit "c")) :
-                   (localVar resultType (varDecl "result" (J.MethodInv (J.MethodCall (name ["apply"]) [])))) :
-                    bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop))) :
-                    [bStmt (classMethodCall (left $ var "System.out") "println" [left $ var "result"])])
+           return (localVar closureType' (varDeclNoInit "c") :
+                   localVar resultType (varDecl "result" (J.MethodInv (J.MethodCall (name ["apply"]) []))) :
+                   bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop))) :
+                   [bStmt (classMethodCall (left $ var "System.out") "println" [left $ var "result"])])
          }}
 
 
@@ -245,5 +245,5 @@ transSAU this super = TS {toTS = (up (transSU this super)) {
          put (n+1)
          if tailPosition
            then nextApply (up this) f x jType
-           else (whileApply (up this) False f ("c" ++ show n) x jType ctempCastTyp)
+           else whileApply (up this) False f ("c" ++ show n) x jType ctempCastTyp
   }}

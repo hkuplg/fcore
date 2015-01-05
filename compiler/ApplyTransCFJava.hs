@@ -1,4 +1,4 @@
-{-# OPTIONS -XRankNTypes -XFlexibleInstances -XFlexibleContexts -XTypeOperators -XMultiParamTypeClasses -XKindSignatures -XConstraintKinds -XScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes, FlexibleInstances, FlexibleContexts, TypeOperators, MultiParamTypeClasses, ConstraintKinds, ScopedTypeVariables #-}
 
 module ApplyTransCFJava where
 
@@ -20,9 +20,9 @@ instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where
    up              = id
 
 isMultiBinder :: EScope Int (Var, Type Int) -> Bool
-isMultiBinder (Type _ _) = True
+isMultiBinder (Type _ _) = False
 isMultiBinder (Kind f)   = isMultiBinder (f 0)
-isMultiBinder (Body _)   = False
+isMultiBinder (Body _)   = True
 
 -- main translation function
 transApply :: (MonadState Int m,
@@ -45,12 +45,12 @@ transApply _ super = NT {toT = super {
               _ -> return (unwrap j1),
 
   translateScopeTyp = \x1 f initVars nextInClosure m closureClass ->
-    case isMultiBinder nextInClosure of
-         False -> do (initVars' :: InitVars) <- ask
-                     translateScopeTyp super x1 f (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
-         True -> do (s,je,t1) <- local (initVars ++) m
-                    let refactored = modifiedScopeTyp (unwrap je) s x1 f closureClass
-                    return (refactored,t1),
+    if isMultiBinder nextInClosure
+    then do (initVars' :: InitVars) <- ask
+            translateScopeTyp super x1 f (initVars ++ initVars') nextInClosure (local (\(_ :: InitVars) -> []) m) closureClass
+    else do (s,je,t1) <- local (initVars ++) m
+            let refactored = modifiedScopeTyp (unwrap je) s x1 f closureClass
+            return (refactored,t1),
 
   genApply = \f t x y z ->
               do applyGen <- genApply super f t x y z
@@ -65,13 +65,13 @@ modifiedScopeTyp oexpr ostmts x1 f closureClass = completeClosure
         currentInitialDeclaration = memberDecl $ fieldDecl closureType' (varDecl (localvarstr ++ show x1) J.This)
         setApplyFlag = assignField (fieldAccExp (left $ var (localvarstr ++ show x1)) "hasApply") (J.Lit (J.Boolean False))
         fc = f
-        completeClosure = [(localClassDecl ("Fun" ++ show fc) closureClass
+        completeClosure = [localClassDecl ("Fun" ++ show fc) closureClass
                             (closureBodyGen
-                             [currentInitialDeclaration, J.InitDecl False (block $ (setApplyFlag : ostmts ++ [assign (name [closureOutput]) oexpr]))]
+                             [currentInitialDeclaration, J.InitDecl False (block (setApplyFlag : ostmts ++ [assign (name [closureOutput]) oexpr]))]
                              []
                              fc
                              True
-                             closureType'))]
+                             closureType')]
 
 
 -- Alternate version of transApply that works with Stack translation
@@ -83,7 +83,7 @@ transAS this super = NT {toT = (up (transApply this super)) {
        let tempDecl = localVar outType
                       (varDecl tempOut (case outType of
                                          J.PrimType J.IntT -> J.Lit (J.Int 0)
-                                         _ -> (J.Lit J.Null)))
+                                         _ -> J.Lit J.Null))
        let elseDecl = assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast z f) closureOutput)))
 
        if length applyGen == 2

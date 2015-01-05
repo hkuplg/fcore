@@ -81,14 +81,14 @@ getS3 :: MonadState Int m
 getS3 this j1 j2 retTyp ctempCastTyp =
   do (n :: Int) <- get
      put (n+2)
-     let f = (localvarstr ++ show n)
-     let xf = (localvarstr ++ show (n+1))
+     let f = localvarstr ++ show n
+     let xf = localvarstr ++ show (n+1)
      let fexp = left . var $ f
      let fd = localVar ctempCastTyp (varDecl f j1)
      let fs = assignField (fieldAccExp fexp closureInput) j2
      (castBox,typ) <- chooseCastBox this (scope2ctyp retTyp)
      apply <- genApply this fexp retTyp xf typ ctempCastTyp
-     let fout = (fieldAccess fexp closureOutput)
+     let fout = fieldAccess fexp closureOutput
      res <- genRes this retTyp [castBox xf fout]
      let r = fd : fs : apply ++ res
      return (r, var xf)
@@ -154,7 +154,7 @@ trans self =
                   (S.String s) -> return ([], Right $ J.Lit (J.String s),  JClass "java.lang.String")
                   (S.Bool b)   -> return ([], Right $ J.Lit (J.Boolean b), JClass "java.lang.Boolean")
                   (S.Char c)   -> return ([], Right $ J.Lit (J.Char c),    JClass "java.lang.Character")
-              PrimOp e1 op e2 -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+              PrimOp e1 op e2 -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do (s1,j1,_) <- translateM this e1
                    (s2,j2,_) <- translateM this e2
                    let j1' = unwrap j1
@@ -168,10 +168,10 @@ trans self =
                    return (s1 ++ s2 ++ [assignExpr],var newVarName,typ)
               If e1 e2 e3 ->
                 translateIf this -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherit flag
-                            (local (\(n :: Int, f :: Bool) -> (n, False && f)) $ translateM this e1)
+                            (local (\(n :: Int, _ :: Bool) -> (n, False)) $ translateM this e1)
                             (translateM this e2)
                             (translateM this e3)
-              Tuple tuple -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+              Tuple tuple -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 case tuple of
                   [t] ->
                     do (s1,j1,t1) <- translateM this t
@@ -184,7 +184,7 @@ trans self =
                        let rhs = instCreat (classTyp c) (map unwrap exprs)
                        assignExpr <- assignVar this (JClass c) newVarName rhs
                        return (statements ++ [assignExpr],var newVarName,TupleType types)
-              Proj index expr -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+              Proj index expr -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do ret@(statement,javaExpr,exprType) <- translateM this expr
                    case exprType of
                      TupleType [_] -> return ret
@@ -211,20 +211,20 @@ trans self =
     ------------------------------- :: cj-abs
     Γ |- λ∆ . E : ∀∆ . T ~> J in S
 -}
-              Lam se -> local (\(n :: Int, f :: Bool) -> (n, True || f)) $ -- count abstraction as in tail position
+              Lam se -> local (\(n :: Int, _ :: Bool) -> (n, True)) $ -- count abstraction as in tail position
                 do (s,je,t) <- translateScopeM this se Nothing
                    return (s,je,Forall t)
-              Fix t s -> local (\(n :: Int, f :: Bool) -> (n, True || f)) $
+              Fix t s -> local (\(n :: Int, _ :: Bool) -> (n, True)) $
                 do (n :: Int) <- get
                    put (n + 1)
                    (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
                    return (expr,je,Forall t')
 
               Let expr body -> -- let e1 e2: e1 can't be in tail position, e2 inherits flag
-                do (s1, j1, t1) <- local (\(n :: Int, f :: Bool) -> (n, False && f)) $ translateM this expr
+                do (s1, j1, t1) <- local (\(n :: Int, _ :: Bool) -> (n, False)) $ translateM this expr
                    translateLet this (s1,j1,t1) body
 
-              LetRec t xs body -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+              LetRec t xs body -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do (n :: Int) <- get
                    let needed = length t
                    put (n + 2 + needed)
@@ -243,7 +243,7 @@ trans self =
                    typ <- javaType this t'
                    -- assign new created closures bindings to variables
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
-                                  (varnums `zip` (map unwrap bindExprs))
+                                  (varnums `zip` map unwrap bindExprs)
 
                    let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap bodyExpr)]
                    let letClass =
@@ -268,10 +268,10 @@ trans self =
               App e1 e2 -> -- app e1 e2: e1 and e2 can't be in tail position, the whole inherits flag
                 do (n :: Int, _ :: Bool) <- ask
                    translateApply this
-                                  (local (\(_ :: Int, f :: Bool) -> (n+1, False && f)) $ translateM this e1)
-                                  (local (\(_ :: Int, f :: Bool) -> (0, False && f)) $ translateM this e2)
+                                  (local (\(_ :: Int, _ :: Bool) -> (n+1, False)) $ translateM this e1)
+                                  (local (\(_ :: Int, _ :: Bool) -> (0, False)) $ translateM this e2)
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
-              JNew c args -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+              JNew c args -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'
                    let rhs =
@@ -295,19 +295,19 @@ trans self =
                            [assignExpr]
                           ,var newVarName
                           ,typ)
-              JMethod c m args r -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+              JMethod c m args r -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'
                    let exprs' = map unwrap exprs
                    let refTypes =
-                         (map (\y -> case y of
-                                       JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                       CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                       CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                       CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                       CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                       _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
-                              types)
+                         map (\y -> case y of
+                                     JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                                     CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                             types
                    (classStatement,rhs) <- case c of
                                              Right ce ->
                                                do (classS,classE,_) <- translateM this ce
@@ -319,8 +319,8 @@ trans self =
                       then do newVarName <- getNewVarName this
                               assignExpr <- assignVar this typ newVarName rhs
                               return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,typ)
-                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs] ,Right $ rhs ,typ)
-              JField c fName r -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, typ)
+              JField c fName r -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do (classStatement,classExpr,_) <- case c of
                                                      Right ce ->
                                                        translateM this ce
@@ -332,7 +332,7 @@ trans self =
                    let rhs = J.Cast aType $ J.FieldAccess $ J.PrimaryFieldAccess (unwrap classExpr) (J.Ident fName)
                    assignExpr <- assignVar this typ newVarName rhs
                    return (classStatement ++ [assignExpr],var newVarName,typ)
-              SeqExprs es -> local (\(n :: Int, f :: Bool) -> (n, False && f)) $
+              SeqExprs es -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do es' <- mapM (translateM this) es
                    let (_,lastExp,lastType) = last es'
                    let statements = concatMap (\(x,_,_) -> x) es'
@@ -384,7 +384,7 @@ trans self =
                    closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                    (cvar,t1) <- translateScopeTyp this x1 n [xf] nextInClosure (translateScopeM this nextInClosure Nothing) closureClass
 
-                   return (cvar,var ("Fun" ++  show n),Type t (\_ -> t1))
+                   return (cvar,var ("Fun" ++  show n),Type t (const t1))
        ,translateApply =
           \m1 m2 ->
             do (s1, j1',Forall (Type _ g)) <- m1
@@ -401,18 +401,18 @@ trans self =
                genIfBody this m2 m3 (s1, j1) n
        ,translateLet =
             \(s1,j1,t1) body ->
-             do if (isLeft j1 && (isUpper . head . extractVar $ j1)) -- test if class variable
-                  then do let j1var = extractVar j1
-                          let n' = negate . read . filter isDigit $ j1var :: Int
-                          (s2, j2, t2) <- translateM this (body (n',t1))
-                          return (s1 ++ s2, j2, t2)
-                    else do (n :: Int) <- get
-                            put (n + 1)
-                            (s2, j2, t2) <- translateM this (body (n,t1))
-                            let x = localvarstr ++ show n
-                            jt1 <- javaType this t1
-                            let xDecl = localFinalVar jt1 (varDecl x $ unwrap j1)
-                            return (s1 ++ [xDecl] ++ s2, j2, t2)
+             if isLeft j1 && (isUpper . head . extractVar $ j1) -- test if class variable
+             then do let j1var = extractVar j1
+                     let n' = negate . read . filter isDigit $ j1var :: Int
+                     (s2, j2, t2) <- translateM this (body (n',t1))
+                     return (s1 ++ s2, j2, t2)
+             else do (n :: Int) <- get
+                     put (n + 1)
+                     (s2, j2, t2) <- translateM this (body (n,t1))
+                     let x = localvarstr ++ show n
+                     jt1 <- javaType this t1
+                     let xDecl = localFinalVar jt1 (varDecl x $ unwrap j1)
+                     return (s1 ++ [xDecl] ++ s2, j2, t2)
        ,translateScopeTyp =
           \x1 f initVars _ otherStmts closureClass ->
             do b <- genClone this
@@ -428,7 +428,7 @@ trans self =
                                                        (classTy closureClass))]
                       ,t1)
        ,genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
-       ,genRes = \_ -> return
+       ,genRes = const return
        ,genClosureVar = \_ j1 ->  return (unwrap j1)
        ,javaType = \typ -> case typ of
                              (JClass c) -> return $ classTy c
