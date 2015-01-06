@@ -9,6 +9,7 @@ import System.Process hiding (runCommand)
 import System.TimeIt
 import System.CPUTime
 import System.Directory			(removeFile, doesFileExist)
+import System.FilePath			(dropExtension)
 
 import Control.Monad.Error		(liftIO)
 import qualified Control.Exception as E
@@ -31,6 +32,7 @@ import FileIO
 import qualified Environment as Env
 import qualified History as Hist
 import FileIO 				(TransMethod (Apply, Naive, Stack, Unbox, StackAU1, StackAU2, BenchN, BenchS, BenchNA, BenchSA, BenchSAI1, BenchSAI2))
+import Link
 
 #ifdef Z3
 -- #if MIN_VERSION_z3(0,3,2)
@@ -91,7 +93,7 @@ runCMD handle opt val_ctx env hist index flagH flagT flagS num msg = do
 				    flagH flagT flagS (num+1)
 
 processCMD :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Int -> [String] -> InputT IO ()
-processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
+processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
 	case x of
 	  ":help" -> do
 		liftIO printHelp
@@ -101,6 +103,15 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		case getCMD xs of
 		  Just filename -> liftIO (wrapFlag handle opt flagT flagS filename)
 	      	  Nothing       ->  outputStrLn "Invalid input"
+		loop handle opt val_ctx env hist index flagH flagT flagS num
+	  ":link" -> do
+	  	let (list1,modList) = splitAt 2 xs
+		let file = head list1
+  		content <- liftIO (Link.linkModule modList)
+  		outputStrLn "Linking..."
+		liftIO (Link.link file content)
+  		let newFile = (dropExtension file) ++ "c.sf"
+  		outputStrLn (newFile ++ " generated!")
 		loop handle opt val_ctx env hist index flagH flagT flagS num
 #ifdef Z3
 -- #if MIN_VERSION_z3(0,3,2)
@@ -122,7 +133,6 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 	  ":set" -> case getCMD xs of
 	 	Just "method" -> do
 		  let (y:ys)= xs
-		  --case getCMD ys of
 		  let ms = parseMethod ys
 		  result <- liftIO (E.try (getOpt ms))
 		  case result of
@@ -220,8 +230,8 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x : xs) = do
 		Nothing    -> do
 		  outputStrLn "Too few input"
 		  loop handle opt val_ctx env hist index flagH flagT flagS num
-	  ":clear" -> loop handle opt Map.empty Env.empty hist index
-	  	           flagH flagT flagS num
+	  ":clear"  -> loop handle opt Map.empty Env.empty hist index
+	  	            flagH flagT flagS num
 	  ":replay" -> do
 	  	let envNew = Env.empty
 		--outputStrLn (show hist)
@@ -281,8 +291,10 @@ printHelp = do
 	putStrLn "-----------------------------------------"
 	putStrLn "[COMMANDS] [SOURCE FILE/FLAG]"
 	putStrLn "Commands:"
-	putStrLn ":help                 Print help manual"
+	putStrLn ":help                 Display help manual"
 	putStrLn ":run <sourceFile>     Compile and run sourceFile"
+	putStrLn ":link <sourceFile> -m <module1> <module2> ..." 
+	putStrLn "                      Link sourceFile with modules" 
 	putStrLn ":expr <sourceFile>    Show core expression of the file"
 #ifdef Z3
 	putStrLn ":se <sourceFile>      Symbolically evaluate the file"
@@ -303,4 +315,3 @@ printHelp = do
 	putStrLn ":show env             Show current bindings"
 	putStrLn ":show method          Show available compilation options"
 	putStrLn "-----------------------------------------"
-	putStrLn ""
