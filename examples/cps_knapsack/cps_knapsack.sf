@@ -1,0 +1,20 @@
+let max (x : Int) (y : Int) : Int =
+  if x > y then x else y
+in
+let maxValue (values : List) (weights : List) (totalWeight : Int) : Int = (
+  let rec maxValue' (k : Int -> Int) (i : Int) (w : Int) : Int =
+    if i == 0 || w == 0 then (k 0)
+    else
+      if weights.at(i - 1) > w then maxValue' k (i - 1) w
+      else
+        maxValue' (\(result : Int) .
+                    (maxValue' (\(result' : Int) . (k (max result (values.at(i - 1) + result'))))
+                               (i - 1)
+                               (w - weights.at(i - 1))))
+        (i - 1)
+        w
+  in
+  maxValue' (\(x : Int) . x) values.length() totalWeight
+)
+in
+maxValue [9,3,4] [2,5,8] 10

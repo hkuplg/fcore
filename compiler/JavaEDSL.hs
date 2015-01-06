@@ -4,9 +4,7 @@ module JavaEDSL where
 
 import Language.Java.Syntax
 import StringPrefixes
-
--- TODO: module
-
+import Data.Char (isUpper)
 
 arrayTy :: Type -> Type
 arrayTy ty  = RefType (ArrayType ty)
@@ -17,23 +15,17 @@ classTy t = RefType $ ClassRefType $ classTyp t
 classTyp :: String -> ClassType
 classTyp t = ClassType [(Ident t, [])]
 
--- closureClass :: String
--- closureClass = "hk.hku.cs.f2j.Closure"
-
 closureType :: Type
-closureType = classTy "hk.hku.cs.f2j.Closure"
+closureType = classTy (namespace ++ "Closure")
 
 objClassTy :: Type
 objClassTy = classTy "Object"
 
--- javaClassType :: String -> Type
--- javaClassType t = RefType $ classTy t
-
 name :: [String] -> Name
 name xs = Name $ map Ident xs
 
-var :: String -> Exp
-var x = ExpName $ name [x]
+var :: String -> Either Name Exp
+var x = Left $ name [x]
 
 block :: [BlockStmt] -> Block
 block = Block
@@ -50,8 +42,11 @@ localFinalVar typ vard = LocalVars [Final] typ [vard]
 methodCall :: [String] -> [Argument] -> Stmt
 methodCall idents argu = ExpStmt (MethodInv (MethodCall (name idents) argu))
 
-applyMethodCall :: Ident -> BlockStmt
-applyMethodCall f = BlockStmt (classMethodCall (ExpName $ Name [f]) "apply" [])
+applyMethodCall :: Exp -> Stmt
+applyMethodCall f = (classMethodCall f "apply" [])
+
+applyCall :: BlockStmt
+applyCall = bStmt $ methodCall ["apply"] []
 
 classMethodCall :: Exp -> String -> [Argument] -> Stmt
 classMethodCall e s argus = ExpStmt (MethodInv (PrimaryMethodCall e [] (Ident s) argus))
@@ -120,38 +115,52 @@ closureBodyGen initDecls body idCF generateClone className =
   where applyMethod = MemberDecl $ methodDecl [Public] Nothing "apply" [] (Just (Block body))
         cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
         cloneBody = (block [localVar className (varDecl "c" (funInstCreate idCF))
-                    ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
-                    ,bStmt (classMethodCall (var "c")
-                                            "apply"
-                                            [])
-                    ,bStmt (Return (Just (cast className (var "c"))))])
+                    -- ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
+                    -- ,bStmt $ (applyMethodCall (left . var $ "c"))
+                    ,bStmt (Return (Just (cast className (left $ var "c"))))])
 
 mainArgType :: [FormalParam]
 mainArgType = [paramDecl (arrayTy $ classTy "String") "args"]
 
-mainBody :: Maybe Block
-mainBody = Just (block [bStmt $ classMethodCall (var "System.out")
-                                                "println"
-                                                [var "apply()"]])
+left :: Either Name Exp -> Exp
+left (Left x) = ExpName x
+left (Right _) = error "this should be left (variable name)"
 
-wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
-wrapperClass className stmts returnType mainbodyDef =
+right :: Either Name Exp -> Exp
+right (Right x) = x
+right (Left _) = error "this should be right (literal or method inv)"
+
+beginUpper :: [Ident] -> Bool
+beginUpper xs = or (map (\s -> case s of Ident s' -> isUpper (head s')) xs)
+
+unwrap :: Either Name Exp -> Exp
+unwrap x = case x of
+            Left (Name xs) -> if beginUpper xs
+                              then instCreat (ClassType [(head xs, [])]) []
+                              else ExpName . Name $ xs
+            Right e -> e
+
+extractVar :: Either Name Exp -> String
+extractVar x = case x of
+                Left (Name xs) -> case (head xs) of
+                                   Ident xs' -> xs'
+                Right _ -> error "this should be a left (variable name)"
+
+mainBody :: Maybe Block
+mainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
+                                                "println"
+                                                [left $ var "apply()"]])
+
+wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> [FormalParam] -> Maybe Block -> Bool -> TypeDecl
+wrapperClass className stmts returnType mainbodyDef testArgType testBodyDef genTest =
   ClassTypeDecl
     (classDecl [Public]
                className
-               (classBody [memberDecl $
-                           methodDecl [Static]
-                                      returnType
-                                      "apply"
-                                      []
-                                      body
-                          ,memberDecl $
-                           methodDecl [Public,Static]
-                                      Nothing
-                                      "main"
-                                      mainArgType
-                                      mainbodyDef]))
+               (classBody (applyMethod : mainMethod : if genTest then [testMethod] else [])))
   where body = Just (block stmts)
+        applyMethod = memberDecl $ methodDecl [Static] returnType "apply" [] body
+        testMethod = memberDecl $ methodDecl [Public,Static] returnType "test" testArgType testBodyDef
+        mainMethod  = memberDecl $ methodDecl [Public,Static] Nothing "main" mainArgType mainbodyDef
 
 annotation :: String -> Modifier
 annotation ann = Annotation (MarkerAnnotation {annName = Name [Ident ann]})

@@ -1,67 +1,66 @@
-{-# LANGUAGE FlexibleInstances, RankNTypes #-}
-{-# OPTIONS_GHC -fno-warn-unused-matches -fwarn-incomplete-patterns #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module Core
   ( Type(..)
   , Expr(..)
   , TypeContext
   , ValueContext
-  , emptyValueContext
-  , fields, fieldLookup
-
-  -- "Eq"
-  , alphaEquiv
-
-  , eval
-
-  -- "Show"
-  , pprType, pprExpr
-
-  , fsubstTT, fsubstTE, fsubstEE
-  , isSystemfType, isSystemfExpr
-  , opReturnType
+  , Index
+  , alphaEq
+  , mapTVar
+  , mapVar
+  , fsubstTT
+  , fsubstTE
+  , fsubstEE
+  , joinType
+  , var
+  , lam
+  , prettyType
+  , prettyExpr
+  , javaInt
   ) where
 
 import qualified Src
 
 import JavaUtils
 import PrettyUtils
-import Panic
 
 import Text.PrettyPrint.Leijen
-import qualified Language.Java.Pretty (prettyPrint)
+import qualified Language.Java.Pretty      (prettyPrint)
 
-import Data.List  (intersperse, elemIndex)
-import Data.Maybe (fromJust)
+import           Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-import Prelude hiding (id)
-
 data Type t
-  = TyVar t                -- a
+  = TVar t                 -- a
   | JClass ClassName       -- C
   | Fun (Type t) (Type t)  -- t1 -> t2
   | Forall (t -> Type t)   -- forall a. t
   | Product [Type t]       -- (t1, ..., tn)
+  | Unit
+
   | And (Type t) (Type t)  -- t1 & t2
-  | RecordTy (Src.Label, Type t)
-    -- Warning: If you ever add a case to this, you MUST also define the binary
-    -- relations on your new case. Namely, add cases for your data constructor
-    -- in `alphaEquiv' and `coerce' below. Consult George if you're not sure.
+  | Record (Src.Label, Type t)
+  | Thunk (Type t)
+    -- Warning: If you ever add a case to this, you *must* also define the
+    -- binary relations on your new case. Namely, add cases for your data
+    -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
+    -- George if you're not sure.
 
 data Expr t e
-  = Var e
+  = Var Src.Name e
   | Lit Src.Lit
 
   -- Binders we have: λ, fix, letrec, and Λ
-  | Lam (Type t) (e -> Expr t e)
+  | Lam Src.Name (Type t) (e -> Expr t e)
   | Fix (e -> e -> Expr t e)
         (Type t)  -- t1
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
-  | Let (Expr t e) (e -> Expr t e)
+  | Let Src.Name (Expr t e) (e -> Expr t e)
   | LetRec [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
@@ -80,16 +79,17 @@ data Expr t e
   | Proj Int (Expr t e)  -- Tuple elimination
 
   -- Java
-  | JNewObj ClassName [Expr t e]
-  | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
-  | JField  (Either ClassName (Expr t e)) FieldName ClassName
+  | JNew ClassName [Expr t e]
+  | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
+  | JField  (Src.JCallee (Expr t e)) FieldName ClassName
 
   | Seq [Expr t e]
 
   | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
-  | Record (Src.Label, Expr t e)
-  | RecordAccess (Expr t e) Src.Label
+  | RecordLit    (Src.Label, Expr t e)
+  | RecordElim   (Expr t e) Src.Label
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
+  | Lazy (Expr t e)
 
 -- newtype Typ = HideTyp { revealTyp :: forall t. Type t } -- type of closed types
 
@@ -98,216 +98,237 @@ data Expr t e
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
 
-emptyValueContext :: ValueContext t e
-emptyValueContext = Map.empty
+type Index = Int
 
--- Fields
-fields :: Type t -> [(Maybe Src.Label, Type t)]
-fields (And t1 t2)      = fields t1 ++ fields t2
-fields (RecordTy (l,t)) = [(Just l,t)]
-fields t                = [(Nothing, t)]
+alphaEq :: Int -> Type Index -> Type Index -> Bool
+alphaEq _ (TVar a)     (TVar b)     = a == b
+alphaEq _ (JClass c)   (JClass d)   = c == d
+alphaEq i (Fun s1 s2)  (Fun t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
+alphaEq i (Forall f)   (Forall g)   = alphaEq (succ i) (f i) (g i)
+alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq i) `all` zip ss ts
+alphaEq _  Unit     Unit            = True
+alphaEq i (And s1 s2)  (And t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
+alphaEq i (Thunk t1)   (Thunk t2)   = alphaEq i t1 t2
+alphaEq _ _            _            = False
 
-fieldLookup :: Src.Label -> [(Maybe Src.Label, Type t)] -> Maybe (Type t, Int)
-fieldLookup l f
-  = case lookup (Just l) (reverse f) of
-      Nothing -> Nothing
-      Just t  -> Just (t, length f - fromJust (elemIndex (Just l) (map fst (reverse f))))
+mapTVar :: (t -> Type t) -> Type t -> Type t
+mapTVar g (TVar a)       = g a
+mapTVar _ (JClass c)     = JClass c
+mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
+mapTVar g (Forall f)     = Forall (mapTVar g . f)
+mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
+mapTVar _  Unit          = Unit
+mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
+mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
+mapTVar g (Thunk t)      = Thunk (mapTVar g t)
 
-alphaEquiv :: Type Int -> Type Int -> Bool
-alphaEquiv = go 0
-  where
-    go i (TyVar a)    (TyVar b)    = a == b
-    go i (JClass c)   (JClass d)   = c == d
-    go i (Fun s1 s2)  (Fun t1 t2)  = go i s1 t1 && go i s2 t2
-    go i (Forall f)   (Forall g)   = go (succ i) (f i) (g i)
-    go i (Product ss) (Product ts) = length ss == length ts
-                                     && uncurry (go i) `all` zip ss ts
-    go i (And s1 s2)  (And t1 t2)  = go i s1 t1 && go i s2 t2
-    go i t1           t2           = False
+mapVar :: (Src.Name -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
+mapVar g _ (Var n a)                 = g n a
+mapVar _ _ (Lit n)                   = Lit n
+mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)
+mapVar g h (BLam f)                  = BLam (mapVar g h . f)
+mapVar g h (Fix f t1 t)              = Fix (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
+mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
+mapVar g h (LetRec ts bs e)          = LetRec (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
+mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
+mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
+mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
+mapVar g h (PrimOp e1 op e2)         = PrimOp (mapVar g h e1) op (mapVar g h e2)
+mapVar g h (Tuple es)                = Tuple (map (mapVar g h) es)
+mapVar g h (Proj i e)                = Proj i (mapVar g h e)
+mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
+mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
+mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
+mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
+mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
+mapVar g h (RecordLit (l, e))        = RecordLit (l, mapVar g h e)
+mapVar g h (RecordElim e l)          = RecordElim (mapVar g h e) l
+mapVar g h (RecordUpdate e (l1,e1))  = RecordUpdate (mapVar g h e) (l1, mapVar g h e1)
+mapVar g h (Lazy e)                  = Lazy (mapVar g h e)
 
--- Evaluation with call-by-value strategy
-eval :: Expr t e -> Expr t e
-eval (Proj i e) = case eval e of { Tuple es -> es !! (i - 1) }
+fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
+fsubstTT x r = mapTVar (\a -> if a == x then r else TVar a)
 
-pprType :: Prec -> Int -> Type Int -> Doc
+fsubstTE :: Eq t => t -> Type t -> Expr t e -> Expr t e
+fsubstTE x r = mapVar Var (fsubstTT x r)
 
-pprType p i (TyVar a)     = pprTVar a
-
-pprType p i (Fun t1 t2)  =
-  parensIf p 2
-    (pprType (2,PrecPlus) i t1 <+> arrow <+> pprType (2,PrecMinus) i t2)
-
-pprType p i (Forall f)   =
-  parensIf p 1
-    (forall <+> pprTVar i <> dot <+>
-     pprType (1,PrecMinus) (succ i) (f i))
-
-pprType p i (Product ts) = parens $ hcat (intersperse comma (map (pprType basePrec i) ts))
+fsubstEE :: Eq a => a -> Expr t a -> Expr t a -> Expr t a
+fsubstEE x r = mapVar (\n a -> if a == x then r else Var n a) id
 
 
-pprType p i (JClass "java.lang.Integer")   = text "Int"
-pprType p i (JClass "java.lang.String")    = text "String"
-pprType p i (JClass "java.lang.Boolean")   = text "Bool"
-pprType p i (JClass "java.lang.Character") = text "Char"
-pprType p i (JClass c)                     = text c
+joinType :: Type (Type t) -> Type t
+joinType (TVar a)         = a
+joinType (JClass c)       = JClass c
+joinType (Fun t1 t2)      = Fun (joinType t1) (joinType t2)
+joinType (Forall g)       = Forall (joinType . g . TVar)
+joinType (Product ts)     = Product (map joinType ts)
+joinType  Unit        = Unit
+joinType (And t1 t2)      = And (joinType t1) (joinType t2)
+joinType (Record (l,t)) = Record (l, joinType t)
+joinType (Thunk t)        = Thunk (joinType t)
 
-pprType p i (And t1 t2) =
-  parensIf p 2
-    (pprType (2,PrecMinus) i t1 <+>
-     ampersand  <+>
-     pprType (2,PrecPlus) i t2)
+var :: e -> Expr t e
+var = Var "_"
 
-pprType p i (RecordTy (l,t)) = lbrace <> text l <> colon <> pprType basePrec i t <> rbrace
+lam :: Type t -> (e -> Expr t e) -> Expr t e
+lam = Lam "_"
 
--- instance Show (Expr Int Int) where
+-- instance Show (Type Index) where
 --   show = show . pretty
 
-instance Pretty (Expr Int Int) where
-  pretty = pprExpr basePrec (0, 0)
+-- instance Pretty (Type Index) where
+--   pretty = prettyType
 
-pprExpr :: Prec -> (Int, Int) -> Expr Int Int -> Doc
+prettyType :: Type Index -> Doc
+prettyType = prettyType' basePrec 0
 
-pprExpr p (i,j) (Var x) = pprVar x
+prettyType' :: Prec -> Index -> Type Index -> Doc
 
-pprExpr p (i,j) (Lam t f) =
+prettyType' _ _ (TVar a)     = prettyTVar a
+
+prettyType' p i (Fun t1 t2)  =
   parensIf p 2
-    (hang 3 (lambda <+> parens (pprVar j <+> colon <+> pprType basePrec i t) <> dot <+>
-             pprExpr (2,PrecMinus) (i, succ j) (f j)))
+    (prettyType' (2,PrecPlus) i t1 <+> arrow <+> prettyType' (2,PrecMinus) i t2)
 
-pprExpr p (i,j) (App e1 e2) =
-  parensIf p 4
-    (pprExpr (4,PrecMinus) (i,j) e1 <+> pprExpr (4,PrecPlus) (i,j) e2)
+prettyType' p i (Forall f)   =
+  parensIf p 1
+    (forall <+> prettyTVar i <> dot <+>
+     prettyType' (1,PrecMinus) (succ i) (f i))
 
-pprExpr p (i,j) (BLam f) =
+prettyType' _ i (Product ts) = parens $ hcat (intersperse comma (map (prettyType' basePrec i) ts))
+
+prettyType' _ _  Unit = text "Unit"
+
+prettyType' _ _ (JClass "java.lang.Integer")   = text "Int"
+prettyType' _ _ (JClass "java.lang.String")    = text "String"
+prettyType' _ _ (JClass "java.lang.Boolean")   = text "Bool"
+prettyType' _ _ (JClass "java.lang.Character") = text "Char"
+prettyType' _ _ (JClass c)                     = text c
+
+prettyType' p i (And t1 t2) =
   parensIf p 2
-    (biglambda <+> pprTVar i <> dot <+>
-     pprExpr (2,PrecMinus) (succ i, j) (f i))
+    (prettyType' (2,PrecMinus) i t1 <+>
+     ampersand  <+>
+     prettyType' (2,PrecPlus) i t2)
 
-pprExpr p (i,j) (TApp e t) =
+prettyType' _ i (Record (l,t)) = lbrace <+> text l <+> colon <+> prettyType' basePrec i t <+> rbrace
+
+prettyType' p i (Thunk t) = squote <>
+                             case t of
+                               Fun _ _  -> parens (prettyType' basePrec i t)
+                               Forall _ -> parens (prettyType' basePrec i t)
+                               And _ _  -> parens (prettyType' basePrec i t)
+                               _        -> prettyType' p i t
+
+-- instance Show (Expr Index Index) where
+--   show = show . pretty
+
+-- instance Pretty (Expr Index Index) where
+--   pretty = prettyExpr
+
+prettyExpr :: Expr Index Index -> Doc
+prettyExpr = prettyExpr' basePrec (0, 0)
+
+prettyExpr' :: Prec -> (Index, Index) -> Expr Index Index -> Doc
+
+prettyExpr' _ _ (Var _ x) = prettyVar x
+
+prettyExpr' p (i,j) (Lam _ t f)
+  = parensIf p 2 $ group $ hang 2 $
+      lambda <+> parens (prettyVar j <+> colon <+> prettyType' basePrec i t) <> dot <$>
+      prettyExpr' (2,PrecMinus) (i, j + 1) (f j)
+
+prettyExpr' p (i,j) (App e1 e2)
+  = parensIf p 4 $
+      group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e1 <$> prettyExpr' (4,PrecPlus) (i,j) e2
+
+prettyExpr' p (i,j) (BLam f) =
+  parensIf p 2
+    (biglambda <+> prettyTVar i <> dot <+>
+     prettyExpr' (2,PrecMinus) (succ i, j) (f i))
+
+prettyExpr' p (i,j) (TApp e t) =
   parensIf p 4
-    (pprExpr (4,PrecMinus) (i,j) e <+> pprType (4,PrecPlus) i t)
+    (group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e <$> prettyType' (4,PrecPlus) i t)
 
-pprExpr p (i,j) (Lit (Src.Integer n)) = integer n
-pprExpr p (i,j) (Lit (Src.String s))  = dquotes (string s)
-pprExpr p (i,j) (Lit (Src.Boolean b)) = bool b
-pprExpr p (i,j) (Lit (Src.Char c))    = char c
+prettyExpr' _ _ (Lit (Src.Int n))    = integer n
+prettyExpr' _ _ (Lit (Src.String s)) = dquotes (string s)
+prettyExpr' _ _ (Lit (Src.Bool b))   = bool b
+prettyExpr' _ _ (Lit (Src.Char c))   = char c
+prettyExpr' _ _ (Lit Src.UnitLit)    = unit
 
-pprExpr p (i,j) (If e1 e2 e3)
+prettyExpr' p (i,j) (If e1 e2 e3)
   = parensIf p prec
-      (hang 3 (text "if"   <+> pprExpr (prec,PrecMinus) (i,j) e1 <+>
-               text "then" <+> pprExpr (prec,PrecMinus) (i,j) e2 <+>
-               text "else" <+> pprExpr (prec,PrecMinus) (i,j) e3))
+      (hang 3 (text "if"   <+> prettyExpr' (prec,PrecMinus) (i,j) e1 <+>
+               text "then" <+> prettyExpr' (prec,PrecMinus) (i,j) e2 <+>
+               text "else" <+> prettyExpr' (prec,PrecMinus) (i,j) e3))
   where prec = 3
 
-pprExpr p (i,j) (PrimOp e1 op e2)
-  = parens (pprExpr p (i,j) e1 <+> ppr_op <+> pprExpr p (i,j) e2)
+prettyExpr' p (i,j) (PrimOp e1 op e2)
+  = parens (prettyExpr' p (i,j) e1 <+> pretty_op <+> prettyExpr' p (i,j) e2)
   where
-    ppr_op = text (Language.Java.Pretty.prettyPrint (Src.unwrapOp op))
+    pretty_op = text (Language.Java.Pretty.prettyPrint java_op)
+    java_op   = case op of
+                  Src.Arith   op' -> op'
+                  Src.Compare op' -> op'
+                  Src.Logic   op' -> op'
 
-pprExpr p (i,j) (Tuple es) = parens $ hcat (intersperse comma (map (pprExpr basePrec (i,j)) es))
+prettyExpr' _ (i,j) (Tuple es) = tupled (map (prettyExpr' basePrec (i,j)) es)
 
-pprExpr p i (Proj n e) =
+prettyExpr' p i (Proj n e) =
   parensIf p 5
-    (pprExpr (5,PrecMinus) i e <> dot <> char '_' <> int n)
+    (prettyExpr' (5,PrecMinus) i e <> dot <> char '_' <> int n)
 
-pprExpr p (i,j) (JNewObj c args) =
-  parens (text "new" <+> text c <> tupled (map (pprExpr basePrec (i,j)) args))
+prettyExpr' _ (i,j) (JNew c args) =
+  parens (text "new" <+> text c <> tupled (map (prettyExpr' basePrec (i,j)) args))
 
-pprExpr p (i,j) (JMethod e m args r) = sorry "Core.pprExpr: JMethod"
+prettyExpr' _ i (JMethod name m args _) = methodStr name <> dot <> text m <> tupled (map (prettyExpr' basePrec i) args)
+  where
+    methodStr (Src.Static x) = text x
+    methodStr (Src.NonStatic x) = prettyExpr' (6,PrecMinus) i x
 
-pprExpr p (i,j) (JField e m r) = sorry "Core.pprExpr: JField"
+prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
+  where
+    fieldStr (Src.Static x) = text x
+    fieldStr (Src.NonStatic x) = prettyExpr' (6,PrecMinus) i x
 
-pprExpr p (i,j) (Seq es) = semiBraces (map (pprExpr p (i,j)) es)
+prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 
-pprExpr p (i,j) (Fix f t1 t) =
-  parens
-    (text "fix" <+> pprVar j <+>
-     parens (pprVar (succ j) <+> colon <+> pprType p i t1) <+>
-     colon <+>
-     pprType p i t <> dot <$$>
-     indent 2 (pprExpr p (i, j + 2) (f j (j + 1))))
+prettyExpr' p (i,j) (Fix f t1 t)
+  = parens $ group $ hang 2 $
+      text "fix" <+> prettyVar j <+>
+      parens (prettyVar (j + 1) <+> colon <+> prettyType' p i t1) <+>
+      colon <+> prettyType' p i t <> dot <$>
+      prettyExpr' p (i, j + 2) (f j (j + 1))
 
-pprExpr p (i,j) (Let bind body)
-  = text "let" <$$>
-    indent 2 (pprVar j <+> equals <+> pprExpr p (i,succ j) bind) <$$>
-    text "in" <$$>
-    indent 2 (pprExpr p (i, succ j) (body j))
+prettyExpr' _ (i,j) (Let _ b e) =
+  text "let" <+> prettyVar j <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
+  prettyExpr' basePrec (i, j + 1) (e j)
 
-pprExpr p (i,j) (LetRec sigs binds body)
-  = text "let" <+> text "rec" <$$>
-    vcat (intersperse (text "and") (map (indent 2) ppr_binds)) <$$>
-    text "in" <$$>
-    ppr_body
+prettyExpr' p (i,j) (LetRec sigs binds body)
+  = text "let" <+> text "rec" <$>
+    vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$>
+    text "in" <$>
+    pretty_body
   where
     n   = length sigs
     ids = [i..(i+n-1)]
-    ppr_ids   = map pprVar ids
-    ppr_sigs  = map (pprType p i) sigs
-    ppr_defs  = map (pprExpr p (i, j + n)) (binds ids)
-    ppr_binds = zipWith3 (\ppr_id ppr_sig ppr_def ->
-                  ppr_id <+> colon <+> ppr_sig <$$> indent 2 (equals <+> ppr_def))
-                  ppr_ids ppr_sigs ppr_defs
-    ppr_body  = pprExpr p (i, j + n) (body ids)
+    pretty_ids   = map prettyVar ids
+    pretty_sigs  = map (prettyType' p i) sigs
+    pretty_defs  = map (prettyExpr' p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->
+                  pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
+                  pretty_ids pretty_sigs pretty_defs
+    pretty_body  = prettyExpr' p (i, j + n) (body ids)
 
-pprExpr p (i,j) (Merge e1 e2) =
-  parens $ pprExpr p (i,j) e1 <+> dcomma <+> pprExpr p (i,j) e2
+prettyExpr' p (i,j) (Merge e1 e2) =
+  parens $ prettyExpr' p (i,j) e1 <+> dcomma <+> prettyExpr' p (i,j) e2
 
-pprExpr p (i,j) (Record (l,e))          = lbrace <> text l <> equals <> pprExpr basePrec (i,j) e <> rbrace
-pprExpr p (i,j) (RecordAccess e l)      = pprExpr p (i,j) e <> dot <> text l
-pprExpr p (i,j) (RecordUpdate e (l,e1)) = pprExpr p (i,j) e <+> text "with" <+> pprExpr p (i,j) (Record (l,e1))
+prettyExpr' _ (i,j) (RecordLit (l, e))       = lbrace <+> text l <+> equals <+> prettyExpr' basePrec (i,j) e <+> rbrace
+prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> text l
+prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordLit (l, e1))
+prettyExpr' _ (i,j) (Lazy e)                 = char '\'' <> parens (prettyExpr' basePrec (i,j) e)
 
-fsubstTT :: (Int, Type Int) -> Type Int -> Type Int
-fsubstTT (x,r) (TyVar a)
-  | a == x                 = r
-  | otherwise              = TyVar a
-fsubstTT (x,r) (Fun t1 t2) = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
-fsubstTT (x,r) (Forall f)  = Forall (\a -> fsubstTT (x,r) (f a))
-fsubstTT (x,r) (JClass c)  = JClass c
-fsubstTT (x,r) (And t1 t2) = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 
-fsubstTE :: (Int, Type Int) -> Expr Int Int -> Expr Int Int
-fsubstTE (x,r) (Var a)       = Var a
-fsubstTE (x,r) (Lit n)       = Lit n
-fsubstTE (x,r) (BLam g)      = BLam (fsubstTE (x,r) . g)
-fsubstTE (x,r) (Lam t f)     = Lam (fsubstTT (x,r) t) (fsubstTE (x,r) . f)
-fsubstTE (x,r) (TApp e t)    = TApp (fsubstTE (x,r) e) (fsubstTT (x,r) t)
-fsubstTE (x,r) (App e1 e2)   = App (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
-fsubstTE (x,r) (Merge e1 e2) = Merge (fsubstTE (x,r) e1) (fsubstTE (x,r) e2)
-
-fsubstEE :: (Int, Expr Int Int) -> Expr Int Int -> Expr Int Int
-fsubstEE (x,r)
-  = go
-  where
-    go (Var a)
-      | a == x                        = r
-      | otherwise                     = Var a
-    go (Lam t f)                      = Lam t (go . f)
-    go (App e1 e2)                    = App (go e1) (go e2)
-    go (BLam f)                       = BLam (go . f )
-    go (TApp e t)                     = TApp (go e) t
-    go (Lit n)                        = Lit n
-    go (If prd b1 b2)                 = If (go prd) (go b1) (go b2)
-    go (PrimOp e1 op e2)              = PrimOp (go e1) op (go e2)
-    go (Tuple es)                     = Tuple (map go es)
-    go (Proj i e)                     = Proj i (go e)
-    go (Fix f t1 t)                   = Fix (\x' x1 -> go (f x' x1)) t1 t
-    go (JNewObj s args)               = JNewObj s (map go args)
-    go (JMethod (Right e)  m args ret) = JMethod (Right (go e)) m (map go args) ret
-    go (JMethod (Left c) m args ret)  = JMethod (Left c)     m (map go args) ret
-    go (JField (Right e) f ret)       = JField (Right (go e)) f ret
-    go (JField (Left c) f ret)        = JField (Left c)     f ret
-    go (Seq es)                       = Seq (map go es)
-    go (Merge e1 e2)                  = Merge (go e1) (go e2)
-    go (Let bind body)                = Let (go bind) (\e -> go (body e))
-    go (LetRec sigs binds body)       = LetRec sigs (\ids -> map go (binds ids)) (\ids -> go (body ids))
-
-isSystemfType :: Type t -> Bool
-isSystemfType = sorry "Core.isSystemfType"
-
-isSystemfExpr :: Expr t e -> Bool
-isSystemfExpr = sorry "Core.isSystemfExpr"
-
-opReturnType :: Src.Operator -> Type t
-opReturnType (Src.Arith _)   = JClass "java.lang.Integer"
-opReturnType (Src.Compare _) = JClass "java.lang.Boolean"
-opReturnType (Src.Logic _)   = JClass "java.lang.Boolean"
+javaInt :: Type t
+javaInt = JClass "java.lang.Integer"

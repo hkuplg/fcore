@@ -28,7 +28,9 @@ cabal.sandbox.config
 cabal.config
 
 ### Java ###
+/*.java
 testsuite/*.java
+Main.java
 *.class
 
 ### vim ###
@@ -39,6 +41,17 @@ Session.vim
 .netrwhist
 *~
 
+### Emacs ###
+# -*- mode: gitignore; -*-
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
 .hdevtools.sock
 
 *.log
@@ -47,3 +60,8 @@ formalization/*.pdf
 *.aux
 
 TAGS
+Main.java
+.git
+
+### OS X ###
+.DS_Store

@@ -1,5 +1,5 @@
 name:                   systemfcompiler
-version:                0.1.0.0
+version:                0.1.0.1
 category:               Language
 stability:              experimental
 build-type:             Simple
@@ -24,10 +24,11 @@ executable f2j
                         mtl == 2.1.2,
                         network == 2.4.1.2,
                         bytestring == 0.10.0.2,
+                        template-haskell == 2.8.0.0,
                         file-embed
   build-tools:          alex >= 3.0.5,
                         happy >= 1.18.10
-  other-modules:        Lexer, Parser
+  other-modules:        Lexer, Parser, Assertions
   ghc-options:          -Wall
                         -fno-warn-missing-signatures
                         -fno-warn-unused-matches

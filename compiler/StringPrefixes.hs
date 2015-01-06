@@ -1,12 +1,24 @@
 module StringPrefixes where
 
-import Data.List
+namespace :: String
+namespace = "f2j."
 
-listlast = Data.List.last
 -- field and closures
+
+localvarstr :: String
 localvarstr = "x"
--- results of if statements
+
+ifresultstr :: String
 ifresultstr = "ifres"
+
 -- temporary vars
+tempvarstr :: String
 tempvarstr = "temp"
-closureInput = "x"
+
+-- Closure input field
+closureInput :: String
+closureInput = "arg"
+
+-- Closure out field
+closureOutput :: String
+closureOutput = "res"

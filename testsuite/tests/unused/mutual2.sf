@@ -1,0 +1,2 @@
+let rec = /\A. (fix (rec : ((A -> A) -> A -> A) -> (A -> A)). \f. f (rec f)) : forall A. ((A -> A) -> A -> A) -> (A -> A) in
+rec Int (\ (fact : Int -> Int). \(n : Int). if n == 0 then 1 else n * fact (n - 1)) 10

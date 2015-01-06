@@ -10,6 +10,7 @@ import Parser       (reader)
 import TypeCheck    (typeCheck)
 import Desugar      (desugar)
 import Simplify     (simplify)
+import PartialEvaluator (peval)
 
 import Translations (compileN, compileAO, compileS)
 
@@ -22,7 +23,7 @@ import System.Process
 
 import qualified Data.List as List      (isSuffixOf)
 
-testCasesPath = "testsuite/tests/pipeline"
+testCasesPath = "testsuite/tests/run-pass"
 
 -- java compilation + run
 compileAndRun name compileF exp =
@@ -40,7 +41,7 @@ esf2sf expr =
   do res <- TypeCheck.typeCheck expr
      case res of
        Left typeError     -> error $ show ({- Text.PrettyPrint.Leijen.pretty -} typeError)
-       Right (tcExpr, _t) -> return ((simplify . desugar) tcExpr)
+       Right (tcExpr, _t) -> return ((peval . simplify . desugar) tcExpr)
 
 testAbstractSyn compilation (name, ast, expectedOutput) =
   it ("should compile and run " ++ name ++ " and get \"" ++ expectedOutput ++ "\"") $

@@ -21,7 +21,7 @@ spec :: Spec
 
 spec =
   describe "typeCheck" $ do
-    failingCases <- runIO (discoverTestCases "testsuite/tests/typecheck/should_fail")
+    failingCases <- runIO (discoverTestCases "testsuite/tests/compile-fail")
     forM_ failingCases (\(name, source) ->
       it ("should reject " ++ name) $ do
         (typeCheck . reader) source >>= (\either -> either `shouldSatisfy` hasError))

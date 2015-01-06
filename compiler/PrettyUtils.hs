@@ -1,37 +1,30 @@
-module PrettyUtils
-  ( -- Type classes
-    Outputable(..)
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
-  , PrecLevel
-  , PrecDelta(..)
-  , Prec
-  , basePrec
-
-  , parensIf
-
-    -- Pretty printing combinators
-  , arrow, forall, ampersand, lambda, biglambda, dcomma
-
-  , pprTVar, pprVar
-  ) where
+module PrettyUtils where
 
 import Text.PrettyPrint.Leijen
 import Data.Char (ord, chr)
 
-class Outputable a where
-  ppr :: a -> Doc
-  ppr = pprPrec basePrec
+-- class Outputable a where
+--   pretty :: a -> Doc
+--   pretty = prettyPrec basePrec
 
-  pprPrec   :: Prec -> a -> Doc
-  pprPrec _ = ppr
+--   prettyPrec   :: Prec -> a -> Doc
+--   prettyPrec _ = PrettyUtils.pretty
 
-arrow, forall, ampersand, lambda, biglambda, dcomma :: Doc
 arrow     = text "->"
 forall    = text "forall"
 ampersand = text "&"
 lambda    = text "\\"
 biglambda = text "/\\"
 dcomma    = text ",,"
+unit      = text "()"
+
+bquote :: Doc
+bquote = char '`'
+
+bquotes :: Doc -> Doc
+bquotes = enclose bquote bquote
 
 type PrecLevel = Int
 data PrecDelta = PrecMinus | PrecPlus
@@ -49,11 +42,14 @@ parensIf (envLevel, envDelta) myLevel doc
       PrecMinus -> doc
   | otherwise           = doc
 
-pprTVar, pprVar :: Int -> Doc
-pprTVar = pprVarFrom 'A'
-pprVar  = pprVarFrom 'a'
+prettyTVar, prettyVar :: Int -> Doc
+prettyTVar = prettyVarFrom 'A'
+prettyVar  = prettyVarFrom 'a'
 
-pprVarFrom :: Char -> Int -> Doc
-pprVarFrom c n
+prettyNVar :: String -> Int -> Doc
+prettyNVar n j = prettyVar j <> (if n == "_" then empty else char '/' <> text n)
+
+prettyVarFrom :: Char -> Int -> Doc
+prettyVarFrom c n
   | n < 26    = text [chr (ord c + n)]
   | otherwise = text (c : show n)

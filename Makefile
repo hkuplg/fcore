@@ -1,7 +1,7 @@
 # General project-wide tasks
 
-srcdir="compiler"
-testdir="testsuite"
+srcdir=compiler
+testdir=testsuite
 
 .PHONY : compiler
 compiler :
@@ -9,8 +9,15 @@ compiler :
 	./select-cabal.sh
 	cabal install
 
+.PHONY : smt
+smt :
+	cd runtime; ant
+	./select-cabal.sh
+	cabal install -f Z3
+
 .PHONY : test
-test : parsers
+test :
+	make parsers
 	cp runtime/runtime.jar .
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
 
@@ -25,6 +32,7 @@ guard :
 
 .PHONY : clean
 clean :
-	rm -f *.class *.jar
+	rm -f *.class *.jar Main.java
+	rm -f $(testdir)/tests/run-pass/*.java
 	cd compiler; make clean
 	cd runtime; ant clean

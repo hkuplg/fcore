@@ -3,7 +3,6 @@ module CoreSpec where
 import Test.Hspec
 
 import Core
-import Simplify
 
 -- `main` is here so that this module can be run from GHCi on its own.  It is
 -- not needed for automatic spec discovery.
@@ -13,15 +12,15 @@ main = hspec spec
 -- /\A. /\B. \(x : A). \(y : B). x
 konst :: Expr Int Int
 konst = BLam (\a -> BLam (\b ->
-          Lam (TyVar a) (\x -> Lam (TyVar b) (\y -> Var x))))
+          lam (TVar a) (\x -> lam (TVar b) (\y -> var x))))
 
 -- forall A. forall B. A -> B -> A
 typeOfKonst :: Type Int
-typeOfKonst = Forall (\a -> Forall (\b -> TyVar a `Fun` (TyVar b `Fun` TyVar a)))
+typeOfKonst = Forall (\a -> Forall (\b -> TVar a `Fun` (TVar b `Fun` TVar a)))
 
 -- /\A. (x : A). x
 ident :: Expr Int Int
-ident = BLam (\a -> Lam (TyVar a) (\x -> Var x))
+ident = BLam (\a -> lam (TVar a) (\x -> var x))
 
 spec :: Spec
 spec =
