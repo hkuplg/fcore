@@ -1,1 +1,1 @@
-add 1 2
+m3_sub (m2_id Int 3) (m2_id Int 4)

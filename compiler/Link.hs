@@ -17,16 +17,16 @@ linkModule :: [FilePath] -> IO String
 linkModule [] = return ""
 linkModule (x:xs) = do
   contM <- readFile x
-  let content = breakLine contM
+  let content = breakLine contM (dropExtension x)
   rest <- linkModule xs
   return (content ++ rest)
 
-breakLine :: String -> String
-breakLine content = let list = lines content in addByLine list
+breakLine :: String -> String -> String
+breakLine content name = let list = lines content in addByLine list name
 
-addByLine :: [String] -> String
-addByLine [] = ""
-addByLine (x:xs) = x ++ "\nand\n" ++ (addByLine xs) 
+addByLine :: [String] -> String -> String
+addByLine [] _ = ""
+addByLine (x:xs) name = name ++ "_" ++ x ++ "\nand\n" ++ (addByLine xs name) 
 
 concatenate :: [String] -> String
 concatenate [] = ""
