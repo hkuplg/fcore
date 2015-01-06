@@ -67,7 +67,7 @@ eval (PrimOp e1 op e2) =
                S.Compare J.NotEq -> VBool $ a /= b
                -- _ -> simplified
          _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
-eval g@(Fix f _ _) = VFun (\n -> eval $ f (eval g) n)
+eval g@(Fix _ _ f _ _) = VFun (\n -> eval $ f (eval g) n)
 eval (LetRec _ binds body) = eval . body . fix $ map eval . binds
 eval _ = panic "Can not be evaled"
 
@@ -150,7 +150,7 @@ seval (Let _ e f) = seval . f $ seval e
 seval (App e1 e2) = treeApply (seval e1) (seval e2)
 seval (BLam f) =  seval $ f ()
 seval (TApp e _) = seval e
-seval g@(Fix f t _) = Exp $ SFun (\n -> seval $ f (seval g) n) (etype2stype t)
+seval g@(Fix _ _ f t _) = Exp $ SFun (\n -> seval $ f (seval g) n) (etype2stype t)
 seval (LetRec _ binds body) = seval . body . fix $ map seval . binds
 seval _ = error "seval: not supported"
 

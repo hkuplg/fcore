@@ -16,6 +16,7 @@ module Core
   , joinType
   , var
   , lam
+  , fix
   , prettyType
   , prettyExpr
   , javaInt
@@ -55,11 +56,13 @@ data Expr t e
 
   -- Binders we have: λ, fix, letrec, and Λ
   | Lam Src.Name (Type t) (e -> Expr t e)
-  | Fix (e -> e -> Expr t e)
+  | Fix Src.Name Src.Name
+        (e -> e -> Expr t e)
         (Type t)  -- t1
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
+      -- <name>: Fix funcName paraName func paraType returnType
   | Let Src.Name (Expr t e) (e -> Expr t e)
   | LetRec [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
@@ -127,7 +130,7 @@ mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)
 mapVar g h (BLam f)                  = BLam (mapVar g h . f)
-mapVar g h (Fix f t1 t)              = Fix (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
+mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ts bs e)          = LetRec (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
@@ -172,6 +175,9 @@ var = Var "_"
 
 lam :: Type t -> (e -> Expr t e) -> Expr t e
 lam = Lam "_"
+
+fix :: (e -> e -> Expr t e) -> Type t -> Type t -> Expr t e
+fix = Fix "_" "_"
 
 -- instance Show (Type Index) where
 --   show = show . pretty
@@ -231,11 +237,11 @@ prettyExpr = prettyExpr' basePrec (0, 0)
 
 prettyExpr' :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
-prettyExpr' _ _ (Var _ x) = prettyVar x
+prettyExpr' _ _ (Var n _) = text n
 
-prettyExpr' p (i,j) (Lam _ t f)
+prettyExpr' p (i,j) (Lam n t f)
   = parensIf p 2 $ group $ hang 2 $
-      lambda <+> parens (prettyVar j <+> colon <+> prettyType' basePrec i t) <> dot <$>
+      lambda <+> parens (text n <+> colon <+> prettyType' basePrec i t) <> dot <$>
       prettyExpr' (2,PrecMinus) (i, j + 1) (f j)
 
 prettyExpr' p (i,j) (App e1 e2)
@@ -294,15 +300,15 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 
-prettyExpr' p (i,j) (Fix f t1 t)
+prettyExpr' p (i,j) (Fix n1 n2 f t1 t)
   = parens $ group $ hang 2 $
-      text "fix" <+> prettyVar j <+>
-      parens (prettyVar (j + 1) <+> colon <+> prettyType' p i t1) <+>
+      text "fix" <+> text n1 <+>
+      parens (text n2 <+> colon <+> prettyType' p i t1) <+>
       colon <+> prettyType' p i t <> dot <$>
       prettyExpr' p (i, j + 2) (f j (j + 1))
 
-prettyExpr' _ (i,j) (Let _ b e) =
-  text "let" <+> prettyVar j <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
+prettyExpr' _ (i,j) (Let n b e) =
+  text "let" <+> text n <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
   prettyExpr' basePrec (i, j + 1) (e j)
 
 prettyExpr' p (i,j) (LetRec sigs binds body)

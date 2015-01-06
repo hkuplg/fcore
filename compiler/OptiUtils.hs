@@ -20,7 +20,7 @@ joinExpr (If e1 e2 e3) = If (joinExpr e1) (joinExpr e2) (joinExpr e3)
 joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (Proj i e) = Proj i (joinExpr e)
-joinExpr (Fix f t1 t2) = Fix (\e1 e2 -> joinExpr (f (var e1) (var e2))) t1 t2
+joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (var e1) (var e2))) t1 t2
 joinExpr (Let n bind body) = Let n (joinExpr bind) (\e -> joinExpr (body (var e)))
 joinExpr (LetRec s b1 b2) =
   LetRec s
@@ -39,7 +39,7 @@ mapExpr f e =
       Var _ x -> e
       Lit l -> e
       Lam n t g -> Lam n t (\x -> f . g $ x)
-      Fix g t1 t -> Fix (\e1 e2 -> f $ g e1 e2) t1 t
+      Fix n1 n2 g t1 t -> Fix n1 n2 (\e1 e2 -> f $ g e1 e2) t1 t
       Let n bind body -> Let n (f bind) (\x -> f . body $ x)
       LetRec sigs binds body ->
           LetRec sigs

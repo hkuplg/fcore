@@ -27,7 +27,7 @@ instance Show (Type t) where
 
 tailFact :: Expr t e
 tailFact
-  = Fix (\tail_fact acc ->
+  = fix (\tail_fact acc ->
       lam javaInt (\n ->
         If (var n `eq` zero)
            (var acc)
@@ -35,14 +35,14 @@ tailFact
     javaInt (javaInt `Fun` javaInt)
 
 testTail :: Expr t e
-testTail = App (Fix (\f n -> If (var n `eq` zero)
+testTail = App (fix (\f n -> If (var n `eq` zero)
                            one
                            (var f `App` (var n `sub` one)))
                javaInt
                (javaInt `Fun` javaInt)) one
 
 fact :: Expr t (Expr t e)
-fact = Fix (\f n -> If (var n `eq` zero)
+fact = fix (\f n -> If (var n `eq` zero)
                        one
                        (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
@@ -50,7 +50,7 @@ fact = Fix (\f n -> If (var n `eq` zero)
 
 tailFactLike :: Expr t e
 tailFactLike
-  = Fix (\tail_fact acc ->
+  = fix (\tail_fact acc ->
       lam javaInt (\n ->
                     If (var n `eq` zero)
                     (var acc)

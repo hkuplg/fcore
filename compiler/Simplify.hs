@@ -113,7 +113,7 @@ infer' _    _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
 infer' _    _ _ (Lit  S.UnitLit)    = Unit
 infer' this i j (Lam _ t f)         = Fun t (this i (j+1) (f (j,t)))
 infer' this i j (BLam f)            = Forall (\a -> fsubstTT i (TVar a) $ this (i+1) j (f i))
-infer' _    _ _ (Fix _ t1 t)        = Fun t1 t
+infer' _    _ _ (Fix _ _ _ t1 t)    = Fun t1 t
 infer' this i j (Let _ b e)         = this i (j+1) (e (j, this i j b))
 infer' this i j (LetRec ts _ e)     = this i (j+n) (e (zip [j..j+n-1] ts)) where n = length ts
 infer' this i j (App f _)           = t12                where Fun _ t12 = this i j f
@@ -148,7 +148,7 @@ transExpr' _ _    _ _ (Var _ (x,_))     = var x
 transExpr' _ _    _ _ (Lit l)           = Lit l
 transExpr' _ this i j (Lam n t f)       = Lam n (transType i t) (\x -> fsubstEE j (var x) body') where (_, body') = this i     (j+1) (f (j, t))
 transExpr' _ this i j (BLam f)          = BLam (\a -> fsubstTE i (TVar a) body')               where (_, body') = this (i+1) j     (f i)
-transExpr' _ this i j (Fix f t1 t)      = Fix (\x x1 -> (fsubstEE j (var x) . fsubstEE (j+1) (var x1)) body') t1' t'
+transExpr' _ this i j (Fix n1 n2 f t1 t)      = Fix n1 n2 (\x x1 -> (fsubstEE j (var x) . fsubstEE (j+1) (var x1)) body') t1' t'
   where
     (_, body') = this i (j+2) (f (j, Fun t1 t) (j+1, t1))
     t1'        = transType i t1

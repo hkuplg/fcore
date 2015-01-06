@@ -140,8 +140,8 @@ desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
   C.App
       (C.Lam "_"
           (transType d t)
-          (\f' -> desugarExpr (d, addToEnv [(f,C.Var f f')] g) body))
-      (C.Fix
+          (\f' -> desugarExpr (d, addToEnv [(f, C.Var f f')] g) body))
+      (C.Fix f x1
           (\f' x1' -> desugarExpr (d, addToEnv [(f, C.Var f f'), (x1, C.Var x1 x1')] g) peeled_e)
           (transType d t1)
           (transType d t2))
@@ -167,7 +167,8 @@ desugarLetRecToFixEncoded (d,g) = go
           (C.Lam "_"
               (C.Fun (C.JClass "java.lang.Integer") (transType d tupled_ts))
               (\y -> desugarExpr (d, g' y `Map.union` g) e))
-          (C.Fix
+          (C.Fix "_" "_"
+              -- Names ignored. Unused.
               (\y _dummy -> desugarExpr (d, g' y `Map.union` g) tupled_es)
               (C.JClass "java.lang.Integer")
               (transType d tupled_ts))
