@@ -1,4 +1,10 @@
-{-# LANGUAGE RankNTypes, FlexibleInstances, FlexibleContexts, TypeOperators, MultiParamTypeClasses, ConstraintKinds, ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds       #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeOperators         #-}
 
 module UnboxTransCFJava where
 
@@ -20,6 +26,43 @@ instance (:<) (UnboxTranslate m) (Translate m) where
 
 instance (:<) (UnboxTranslate m) (UnboxTranslate m) where
    up              = id
+
+getS3L :: MonadState Int m
+   => Translate m
+   -> J.Exp
+   -> J.Exp
+   -> TScope Int
+   -> J.Type
+   -> Type Int
+   -> m ([J.BlockStmt],TransJavaExp)
+getS3L this j1 j2 retTyp ctempCastTyp argT =
+{-
+ArgSet(Long, LHS, RHS) = LHS.larg = (Long) RHS;
+ArgSet(∀∆.T, LHS, RHS) = LHS.oarg = RHS;
+ArgSet(α, LHS, RHS) = LHS.larg = (Long) RHS; LHS.oarg = RHS;
+SET
+f .apply ();
+⟨T3⟩xf = (⟨T3⟩) f.RES;}
+-}
+     do  (n :: Int) <- get
+         put (n+2)
+         let f = localvarstr ++ show n
+         let xf = localvarstr ++ show (n+1)
+         let fexp = left . var $ f
+         let fd = localVar ctempCastTyp (varDecl f j1)
+         let fs = [assignField (fieldAccExp fexp closureInput) j2]
+         typT1 <- javaType (up this) argT
+         let assigns = case argT of CFInt -> [assignField (fieldAccExp fexp closureInputL) (cast typT1 j2)]
+                                    TVar _ -> [assignField (fieldAccExp fexp closureInputL) (cast typT1 j2),assignField (fieldAccExp fexp closureInputO) j2]
+                                    _ -> [assignField (fieldAccExp fexp closureInputO) j2]
+         (castBox,typ) <- chooseCastBox this (scope2ctyp retTyp)
+         apply <- genApply this fexp retTyp xf typ ctempCastTyp
+         let flag = ctempCastTyp == objClassTy
+         let fout = fieldAccess fexp (if flag then closureOutputO else closureOutputL)
+
+         res <- genRes (up this) retTyp [castBox xf fout]
+         let r = fd : fs ++ apply ++ res
+         return (r, var xf)
 
 transUnbox :: (MonadState Int m, selfType :< UnboxTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (UnboxTranslate m)
 transUnbox this super =
@@ -50,16 +93,21 @@ transUnbox this super =
                           aType <- javaType (up this) typ
                           return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
                      _ -> translateM super e
+                     {-
+                     ⟨T1⟩x2 = (⟨T1⟩) x1.ARG; S;
+                     OUT
+                     OutSet(Long, RHS) = lres = (Long) RHS; OutSet(∀∆.T, RHS) = ores = RHS;
+                     OutSet(α, RHS) = lres = (Long) RHS; ores = RHS;
+                     -}
               ,translateScopeM = \e m -> case e of
                     Type t g ->
                       do n <- get
                          let (x1,x2) = maybe (n + 1,n + 2) (\(i,_) -> (i,n+1)) m -- decide whether we have found the fixpoint closure or not
                          put (x2 + 1)
                          let nextInClosure = g (x2,t)
-
                          typT1 <- javaType (up this) t
                          let flag = typT1 == objClassTy
-                         let accessField = fieldAccess (left $ var (localvarstr ++ show x1)) closureInput
+                         let accessField = fieldAccess (left $ var (localvarstr ++ show x1)) (if flag then closureInputO else closureInputL)
                          let xf = localFinalVar typT1 (varDecl (localvarstr ++ show x2)
                                                                (if flag
                                                                    then accessField
@@ -72,11 +120,30 @@ transUnbox this super =
               ,translateApply =
                     \m1 m2 ->
                       do (s1, j1',Forall (Type _ g)) <- m1
-                         (s2,j2,_) <- m2
+                         (s2,j2,t2) <- m2
                          let retTyp = g ()
                          j1 <- genClosureVar (up this) (getArity retTyp) j1'
-                         (s3,nje3) <- getS3 (up this) j1 (unwrap j2) retTyp closureType
+                         (s3,nje3) <- getS3L (up this) j1 (unwrap j2) retTyp closureType t2
                          return (s2 ++ s1 ++ s3,nje3,scope2ctyp retTyp)
+              ,translateScopeTyp =
+                           \x1 f initVars _ otherStmts closureClass ->
+                           do  b <- genClone (up this)
+                               (ostmts,oexpr,t1) <- otherStmts
+                               typT1 <- javaType (up this) (scope2ctyp t1)
+
+                               let assigns = case (scope2ctyp t1) of CFInt -> [assign (name [closureOutputL]) (cast typT1 $ unwrap oexpr)]
+                                                                     TVar _ -> [assign (name [closureOutputL]) (cast typT1 $ unwrap oexpr),assign (name [closureOutputO]) (unwrap oexpr)]
+                                                                     _ -> [assign (name [closureOutputO]) (unwrap oexpr)]
+                               let fc = f
+                               return ([localClassDecl ("Fun" ++ show fc)
+                                 closureClass
+                                 (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
+                                 (varDecl (localvarstr ++ show x1) J.This)]
+                                 (initVars ++ ostmts ++ assigns)
+                                 fc
+                                 b
+                                 (classTy closureClass))]
+                                 ,t1)
               ,javaType = \typ ->
                             case typ of
                               CFInt -> return $ J.PrimType J.LongT
