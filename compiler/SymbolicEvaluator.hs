@@ -34,7 +34,7 @@ eval (App e1 e2) =
     case eval e1 of
       VFun f -> f (eval e2)
       _ -> panic "e1 is not a function"
-eval (BLam f) = eval (f ())
+eval (BLam _ f) = eval (f ())
 eval (TApp e1 _) = eval e1
 eval (If e1 e2 e3) =
        case eval e1 of
@@ -148,7 +148,7 @@ seval (PrimOp e1 op e2) =
 seval (Lam _ t f) = Exp $ SFun (seval . f) (etype2stype t)
 seval (Let _ e f) = seval . f $ seval e
 seval (App e1 e2) = treeApply (seval e1) (seval e2)
-seval (BLam f) =  seval $ f ()
+seval (BLam _ f) =  seval $ f ()
 seval (TApp e _) = seval e
 seval g@(Fix _ _ f t _) = Exp $ SFun (\n -> seval $ f (seval g) n) (etype2stype t)
 seval (LetRec _ binds body) = seval . body . fix $ map seval . binds

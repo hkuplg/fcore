@@ -13,7 +13,7 @@ joinExpr :: Expr t (Expr t e) -> Expr t e
 joinExpr (Var _ x) = x
 joinExpr (Lam n t1 e1) = Lam n t1 (\ee -> joinExpr (e1 (var ee)))
 joinExpr (App e1 e2) = App (joinExpr e1) (joinExpr e2)
-joinExpr (BLam t1) = BLam (\t2 -> joinExpr (t1 t2))
+joinExpr (BLam n t1) = BLam n (\t2 -> joinExpr (t1 t2))
 joinExpr (TApp e t) = TApp (joinExpr e) t
 joinExpr (Lit s) = Lit s
 joinExpr (If e1 e2 e3) = If (joinExpr e1) (joinExpr e2) (joinExpr e3)
@@ -45,7 +45,7 @@ mapExpr f e =
           LetRec sigs
                  (\es -> map f $ binds es)
                  (\es -> f $ body es)
-      BLam g -> BLam (\x -> f . g $ x)
+      BLam n g -> BLam n (\x -> f . g $ x)
       App e1 e2 -> App (f e1) (f e2)
       TApp e t -> TApp (f e) t
       If e1 e2 e3 -> If (f e1) (f e2) (f e3)

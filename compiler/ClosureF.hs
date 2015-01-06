@@ -138,7 +138,7 @@ groupLambda2 (FLam t f) tenv env =
 -}
 
 groupLambda :: C.Expr t e -> EScope t e
-groupLambda (C.BLam f)  = Kind (\a -> groupLambda (f a))
+groupLambda (C.BLam _ f)  = Kind (\a -> groupLambda (f a))
 groupLambda (C.Lam _ t f) = Type (ftyp2ctyp t) (\x -> groupLambda (f x))
 groupLambda e          = Body (fexp2cexp e)
 

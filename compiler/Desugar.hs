@@ -52,7 +52,7 @@ desugarExpr (d, g) = go
     go (Lam (x, t) e)    = C.Lam x
                                (transType d t)
                                (\x' -> desugarExpr (d, Map.insert x (C.Var x x') g) e)
-    go (BLam a e)        = C.BLam (\a' -> desugarExpr (Map.insert a a' d, g) e)
+    go (BLam a e)        = C.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
     go Let{..}           = panic "Desugar.desugarExpr: Let"
     go (LetOut _ [] e)   = go e
     go (Merge e1 e2)     = C.Merge (go e1) (go e2)

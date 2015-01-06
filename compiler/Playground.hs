@@ -105,7 +105,7 @@ sf2c n fname = do
       _ -> return (peval . desugar $ tcheckedSrc)
 
 mconst =
-  (BLam (\a ->
+  (bLam (\a ->
     lam (TVar a) (\x ->
        lam (TVar a) (\y ->
           var x
@@ -114,7 +114,7 @@ mconst =
   ))
 
 notail2 =
-  BLam (\a ->
+  bLam (\a ->
     lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
       lam (TVar a) (\x ->
         lam (TVar a) (\y ->
@@ -123,7 +123,7 @@ notail2 =
 program2 = App (App (App (TApp notail2 (JClass "java.lang.Integer")) (TApp mconst (JClass "java.lang.Integer"))) (Lit (S.Int 5))) (Lit (S.Int 6))
 
 notail4 =
-  BLam (\a ->
+  bLam (\a ->
     lam ( Fun (Fun (TVar a) (TVar a)) (Fun (Fun (TVar a) (TVar a)) (TVar a))) (\g ->
       lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
         lam (TVar a) (\x ->

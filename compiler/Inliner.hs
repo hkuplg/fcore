@@ -9,7 +9,7 @@ inliner :: Expr t (Expr t e) -> Expr t e
 inliner (Var _ x) = x
 inliner (Lam n t1 e1) = Lam n t1 (\ee -> inliner (e1 (var ee)))
 inliner (App e1 e2) = App (inliner e1) (inliner e2)
-inliner (BLam t1) = BLam (\t2 -> inliner (t1 t2))
+inliner (BLam n t1) = BLam n (\t2 -> inliner (t1 t2))
 inliner (TApp e t) = TApp (inliner e) t
 inliner (Lit s) = Lit s
 inliner (If e1 e2 e3) = If (inliner e1) (inliner e2) (inliner e3)

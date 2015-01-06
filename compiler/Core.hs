@@ -17,6 +17,7 @@ module Core
   , var
   , lam
   , fix
+  , bLam
   , prettyType
   , prettyExpr
   , javaInt
@@ -67,7 +68,7 @@ data Expr t e
   | LetRec [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
-  | BLam (t -> Expr t e)
+  | BLam Src.Name (t -> Expr t e)
 
   | App  (Expr t e) (Expr t e)
   | TApp (Expr t e) (Type t)
@@ -129,7 +130,7 @@ mapVar :: (Src.Name -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr 
 mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)
-mapVar g h (BLam f)                  = BLam (mapVar g h . f)
+mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
 mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ts bs e)          = LetRec (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
@@ -178,6 +179,9 @@ lam = Lam "_"
 
 fix :: (e -> e -> Expr t e) -> Type t -> Type t -> Expr t e
 fix = Fix "_" "_"
+
+bLam :: (t -> Expr t e) -> Expr t e
+bLam = BLam "_"
 
 -- instance Show (Type Index) where
 --   show = show . pretty
@@ -248,9 +252,9 @@ prettyExpr' p (i,j) (App e1 e2)
   = parensIf p 4 $
       group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e1 <$> prettyExpr' (4,PrecPlus) (i,j) e2
 
-prettyExpr' p (i,j) (BLam f) =
+prettyExpr' p (i,j) (BLam n f) =
   parensIf p 2
-    (biglambda <+> prettyTVar i <> dot <+>
+    (biglambda <+> text n <> dot <+>
      prettyExpr' (2,PrecMinus) (succ i, j) (f i))
 
 prettyExpr' p (i,j) (TApp e t) =
