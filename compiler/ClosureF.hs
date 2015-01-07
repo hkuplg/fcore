@@ -110,7 +110,7 @@ fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2ce
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
 fexp2cexp (C.Let n bind body)        = Let (fexp2cexp bind) (\e -> fexp2cexp $ body e)
-fexp2cexp (C.LetRec ts f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
+fexp2cexp (C.LetRec ts _ f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
 fexp2cexp (C.Fix _ _ f t1 t2) =
   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
   in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g

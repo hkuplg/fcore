@@ -17,8 +17,9 @@ inliner (PrimOp e1 o e2) = PrimOp (inliner e1) o (inliner e2)
 inliner (Tuple es) = Tuple (map inliner es)
 inliner (Proj i e) = Proj i (inliner e)
 inliner (Fix n1 n2 f t1 t2) = Fix n1 n2 (\name n -> joinExpr $ f (joinExpr $ lam t1 (f (var name))) (var n)) t1 t2
-inliner (LetRec f es1 es2) =
+inliner (LetRec f n es1 es2) =
   LetRec f
+         (\es -> n $ map var es)
          (\es -> map joinExpr . es1 . map joinExpr . es1 $ map var es)
          (\es -> joinExpr . es2 $ map var es)
 inliner (JNew name es) = JNew name (map inliner es)

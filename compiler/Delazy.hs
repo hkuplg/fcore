@@ -45,7 +45,7 @@ infer' this s i j (Lam t f)           = s $ Fun t (this s i (j+1) (f (j,t)))
 infer' this s i j (BLam _ f)          = Forall (\a -> fsubstTT i (TVar a) $  $ this s (i+1) j (f i))
 infer' _    s _ _ (Fix _ _ _ t1 t)    = Fun t1 t
 infer' this s i j (Let b e)           = this s i (j+1) (e (j, this s i j b))
-infer' this s i j (LetRec ts _ e)     = this s i (j+n) (e (zip [j..j+n-1] (map s ts))) where n = length ts
+infer' this s i j (LetRec ts _ _ e)     = this s i (j+n) (e (zip [j..j+n-1] (map s ts))) where n = length ts
 infer' this s i j (App f _)           = s $ t12 where Fun _ t12 = this s i j f
 infer' this s i j (TApp f t)          = s $ joinType ((unsafeCoerce g :: t -> Type t) t) where Forall g  = this i j f
 infer' this s i j (If _ b1 _)         = this s i j b1
@@ -81,9 +81,10 @@ transExpr' _ this i j (Fix n1 n2 f t1 t)      = Fix n1 n2 (\x x1 -> (fsubstEE j 
 transExpr' super this i j (Let b e) = Let b' (\x -> fsubstEE j (Var x) (snd (this i (j+1) (e (j, super i j b)))))
   where
     (_,b') = this i j b
-transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
+transExpr' _     this i j (LetRec ts ns bs e) = LetRec ts' ns' bs' e'
   where
     ts'           = map (transType i) ts
+    ns'           = \fs' -> ns fs_with_ts
     bs'           = \fs' -> map (subst fs fs') bs_body'
     e'            = \fs' -> subst fs fs' e_body'
     (_, bs_body') = unzip (map (transExpr i (j+n)) (bs fs_with_ts))

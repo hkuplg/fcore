@@ -190,10 +190,11 @@ desugarLetRecToFixEncoded (d,g) = go
 -- Convert from: LetOut RecFlag [(Name, Type, Expr (Name,Type))] (Expr (Name,Type))
 -- To:           LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
 desugarLetRecToLetRec :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
-desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec sigs' binds' body'
+desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec sigs' names' binds' body'
   where
     (ids, sigs, defs) = unzip3 binds
     sigs'  = map (transType d) sigs
+    names' ids' = ids
     binds' ids' = map (desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g)) defs
     body'  ids' = desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g) body
 
