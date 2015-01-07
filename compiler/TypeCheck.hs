@@ -294,11 +294,13 @@ infer (Let rec_flag binds e) =
 
 infer (LetOut{..}) = panic "TypeCheck.infer: LetOut"
 
+-- JNew, JMethod, and JField
+
 infer (JNew c args)
-  = do checkClassName c -- TODO: Needed?
+  = do checkClassName c
        (args', arg_cs) <- mapAndUnzipM inferAgainstAnyJClass args
-       checkNew c arg_cs
-       return (JNew c args', JType $ JClass c)
+       checkConstruction c arg_cs
+       return (JNew c args', JType (JClass c))
 
 infer (JMethod callee m args _)
   = case callee of
@@ -362,7 +364,7 @@ infer (RecordAccess e l) =
      return (RecordAccess e' l, fromJust (lookup (Just l) (fields t)))
 
 infer (RecordUpdate e fs) =
-  do (es', ts) <- mapAndUnzipM infer (map snd fs)
+  do (es', _ts) <- mapAndUnzipM infer (map snd fs)
      (e', t) <- infer e
      return (RecordUpdate e' (zip (map fst fs) es'), t)
 
@@ -445,6 +447,8 @@ unlessIO test do_this
   = do ok <- liftIO test
        unless ok do_this
 
+-- Client library of typeserver API
+
 checkClassName :: ClassName -> Checker ()
 checkClassName c
   = do memoized_java_classes <- getMemoizedJavaClasses
@@ -455,8 +459,8 @@ checkClassName c
                then memoizeJavaClass c
                else throwError (NoSuchClass c)
 
-checkNew :: ClassName -> [ClassName] -> Checker ()
-checkNew c args
+checkConstruction :: ClassName -> [ClassName] -> Checker ()
+checkConstruction c args
   = do h <- getTypeServer
        unlessIO (hasConstructor h c args) $
          throwError (NoSuchConstructor c args)
@@ -480,6 +484,7 @@ checkFieldAccess callee f
          Just return_class -> return return_class
     where
        (static_flag, c) = unwrapJCallee callee
+
 
 evalType :: Type -> Checker Type
 evalType (TVar a)
