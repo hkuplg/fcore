@@ -1,0 +1,13 @@
+-- object algebra example without intersecion types
+
+type ExpAlg E = {
+  lit : Int -> E,
+  add : E -> E -> E
+};
+let evalAlg = {
+  lit = \(x : Int). x,
+  add = \(x : Int). \(y : Int). x + y
+};
+let exp1 E (alg : ExpAlg E) = alg.lit 5;
+let exp2 E (alg : ExpAlg E) = (alg.add $ exp1 E alg) (alg.lit 2);
+exp2 Int evalAlg

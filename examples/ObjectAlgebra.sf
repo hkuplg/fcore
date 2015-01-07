@@ -1,3 +1,5 @@
+-- full object algebra example
+
 type ExpAlg E = {
   lit : Int -> E,
   add : E -> E -> E
