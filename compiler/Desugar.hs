@@ -24,12 +24,12 @@ type TVarMap t  = Map.Map Name t
 type VarMap t e = Map.Map Name (C.Expr t e)
 
 transType :: TVarMap t -> Type -> C.Type t
-transType d (TVar a)     = C.TVar (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
+transType d (TVar a)     = C.TVar a (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
 transType _ (JType (JClass c))   = C.JClass c
 transType _ (JType (JPrim c))   = C.JClass c
 transType d (Fun t1 t2)  = C.Fun (transType d t1) (transType d t2)
 transType d (Product ts) = C.Product (map (transType d) ts)
-transType d (Forall a t) = C.Forall (\a' -> transType (Map.insert a a' d) t)
+transType d (Forall a t) = C.Forall a (\a' -> transType (Map.insert a a' d) t)
 transType d (And t1 t2)  = C.And (transType d t1) (transType d t2)
 transType d (Record fs)  =
                 case fs  of

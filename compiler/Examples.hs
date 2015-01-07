@@ -94,7 +94,7 @@ evenOddEncodedTy :: Type t
 evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` javaBool]
 
 konstTy :: Type t
-konstTy = Forall (\a -> Forall (\b -> Fun (TVar a) (Fun (TVar b) (TVar a))))
+konstTy = Forall "konst" (\a -> Forall (\b -> Fun (tVar a) (Fun (tVar b) (tVar a))))
 
 callByValue = lam javaInt (\x -> Seq [println (var x), intLit 0])
 callByName  = lam (Thunk javaInt) (\x -> Seq [println (var x), intLit 0])

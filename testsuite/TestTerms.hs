@@ -39,31 +39,31 @@ fiboApp = App fibo (Lit (S.Int 10))
 -- /\A. \(x:A) . x
 
 idF1Str = "/\\A. \\(x:A). x"
-idF = bLam (\a -> lam (TVar a) (\x -> var x))
+idF = bLam (\a -> lam (tVar a) (\x -> var x))
 
 -- /\A . (\(f : A -> A) . \(x : A) . f x) (idF A)
 
 idF2Str = "/\\A. (\\(f : A -> A). \\(x : A). f x) (idF A)"
-idF2 = bLam (\a -> App (lam (Fun (TVar a) (TVar a)) (\f -> lam (TVar a) (\x -> App (var f) (var x)))) (TApp idF (TVar a)))
+idF2 = bLam (\a -> App (lam (Fun (tVar a) (tVar a)) (\f -> lam (tVar a) (\x -> App (var f) (var x)))) (TApp idF (tVar a)))
 
 -- /\A . \(x:A) . (idF A) x
 
 idF3Str = "/\\A . \\(x:A) . (idF A) x"
-idF3 = bLam (\a -> lam (TVar a) (\x -> App (TApp idF (TVar a)) (var x) ))
+idF3 = bLam (\a -> lam (tVar a) (\x -> App (TApp idF (tVar a)) (var x) ))
 
 notailStr = "/\\A. \\(f : A -> (A -> A)). \\(g : A -> A). \\(x : A). (f x) (g x)"
 notail =
   bLam (\a ->
-    lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
-      lam (Fun (TVar a) (TVar a)) (\g ->
-        lam (TVar a) (\x ->
+    lam (Fun (tVar a) (Fun (tVar a) (tVar a))) (\f ->
+      lam (Fun (tVar a) (tVar a)) (\g ->
+        lam (tVar a) (\x ->
           App (App (var f) (var x)) (App (var g) (var x)) ))))
 
 constStr = "/\\A . \\(x : A) . \\(y : A) . x"
 const =
   bLam (\a ->
-    lam (TVar a) (\x ->
-       lam (TVar a) (\y ->
+    lam (tVar a) (\x ->
+       lam (tVar a) (\y ->
           var x
        )
     )
@@ -73,8 +73,8 @@ const =
 -- /\A . \(x : A) . notail A (const A) (idF A) x
 program1 =
   bLam (\a ->
-    lam (TVar a) (\x ->
-       App (App (App (TApp notail (TVar a)) (TApp const (TVar a))) (TApp idF (TVar a))) (var x)
+    lam (tVar a) (\x ->
+       App (App (App (TApp notail (tVar a)) (TApp const (tVar a))) (TApp idF (tVar a))) (var x)
     )
   )
 
@@ -87,9 +87,9 @@ intapp = TApp idF (JClass "java.lang.Integer")
 notail2Str = "/\\A. \\(f : A -> (A -> A)). \\(x : A). \\(y : A). (f x) ((f y) y)"
 notail2 =
   bLam (\a ->
-    lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
-      lam (TVar a) (\x ->
-        lam (TVar a) (\y ->
+    lam (Fun (tVar a) (Fun (tVar a) (tVar a))) (\f ->
+      lam (tVar a) (\x ->
+        lam (tVar a) (\y ->
           App (App (var f) (var x)) (App (App (var f) (var y)) (var y)) ))))
 
 
@@ -102,10 +102,10 @@ constNum = App (App (TApp const (JClass "java.lang.Integer")) (Lit (S.Int 10))) 
 notail3Str = "/\\A. \\(f : A -> (A -> A)). \\(g : A -> (A -> A)). \\(x : A). \\(y : A). (f x) ((g y) y)"
 notail3 =
   bLam (\a ->
-    lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
-      lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\g ->
-        lam (TVar a) (\x ->
-          lam (TVar a) (\y ->
+    lam (Fun (tVar a) (Fun (tVar a) (tVar a))) (\f ->
+      lam (Fun (tVar a) (Fun (tVar a) (tVar a))) (\g ->
+        lam (tVar a) (\x ->
+          lam (tVar a) (\y ->
             App (App (var f) (var x)) (App (App (var g) (var y)) (var y)) )))))
 
 program3 = App (App (App (App (TApp notail3 (JClass "java.lang.Integer")) (TApp const (JClass "java.lang.Integer"))) (TApp const (JClass "java.lang.Integer"))) (Lit (S.Int 5))) (Lit (S.Int 6))
@@ -113,10 +113,10 @@ program3 = App (App (App (App (TApp notail3 (JClass "java.lang.Integer")) (TApp 
 notail4Str = "/\\A. \\(g : ((A -> A) -> (A -> A)) -> A). \\(f : A -> (A -> A)). \\(x : A). \\(y : A). (g (f x)) (f y)"
 notail4 =
   bLam (\a ->
-    lam ( Fun (Fun (TVar a) (TVar a)) (Fun (Fun (TVar a) (TVar a)) (TVar a))) (\g ->
-      lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
-        lam (TVar a) (\x ->
-          lam (TVar a) (\y ->
+    lam ( Fun (Fun (tVar a) (tVar a)) (Fun (Fun (tVar a) (tVar a)) (tVar a))) (\g ->
+      lam (Fun (tVar a) (Fun (tVar a) (tVar a))) (\f ->
+        lam (tVar a) (\x ->
+          lam (tVar a) (\y ->
             App (App (var g) (App (var f) (var x))) (App (var f) (var y)))))))
 
 summaStr= "\\(x : Int -> Int). \\(y : Int -> Int). (x 0) + (y 0)"

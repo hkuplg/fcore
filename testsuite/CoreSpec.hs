@@ -12,15 +12,15 @@ main = hspec spec
 -- /\A. /\B. \(x : A). \(y : B). x
 konst :: Expr Int Int
 konst = bLam (\a -> bLam (\b ->
-          lam (TVar a) (\x -> lam (TVar b) (\y -> var x))))
+          lam (tVar a) (\x -> lam (tVar b) (\y -> var x))))
 
 -- forall A. forall B. A -> B -> A
 typeOfKonst :: Type Int
-typeOfKonst = Forall (\a -> Forall (\b -> TVar a `Fun` (TVar b `Fun` TVar a)))
+typeOfKonst = Forall (\a -> Forall (\b -> tVar a `Fun` (tVar b `Fun` tVar a)))
 
 -- /\A. (x : A). x
 ident :: Expr Int Int
-ident = bLam (\a -> lam (TVar a) (\x -> var x))
+ident = bLam (\a -> lam (tVar a) (\x -> var x))
 
 spec :: Spec
 spec =
