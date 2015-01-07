@@ -20,6 +20,7 @@ import StringPrefixes			(namespace)
 import Loop
 import qualified Environment as Env
 import qualified History as Hist
+import FileIO 				(TransMethod (Naive))
 
 runtimeBytes :: Data.ByteString.ByteString
 runtimeBytes = $(embedFile "../runtime/runtime.jar")
@@ -37,7 +38,7 @@ main = do
      hSetBuffering outP LineBuffering
      liftIO printHelp
      runInputT defaultSettings 
-	       (Loop.loop (inP, outP) (0, compileAO, "applyOpt") 
+	       (Loop.loop (inP, outP) (0, compileN, [Naive]) 
 		          Map.empty Env.empty Hist.empty 0 False False False 0)
      terminateProcess proch
      

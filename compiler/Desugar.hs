@@ -24,12 +24,12 @@ type TVarMap t  = Map.Map Name t
 type VarMap t e = Map.Map Name (C.Expr t e)
 
 transType :: TVarMap t -> Type -> C.Type t
-transType d (TVar a)     = C.TVar (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
+transType d (TVar a)     = C.TVar a (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
 transType _ (JType (JClass c))   = C.JClass c
 transType _ (JType (JPrim c))   = C.JClass c
 transType d (Fun t1 t2)  = C.Fun (transType d t1) (transType d t2)
 transType d (Product ts) = C.Product (map (transType d) ts)
-transType d (Forall a t) = C.Forall (\a' -> transType (Map.insert a a' d) t)
+transType d (Forall a t) = C.Forall a (\a' -> transType (Map.insert a a' d) t)
 transType d (And t1 t2)  = C.And (transType d t1) (transType d t2)
 transType d (Record fs)  =
                 case fs  of
@@ -52,7 +52,7 @@ desugarExpr (d, g) = go
     go (Lam (x, t) e)    = C.Lam x
                                (transType d t)
                                (\x' -> desugarExpr (d, Map.insert x (C.Var x x') g) e)
-    go (BLam a e)        = C.BLam (\a' -> desugarExpr (Map.insert a a' d, g) e)
+    go (BLam a e)        = C.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
     go Let{..}           = panic "Desugar.desugarExpr: Let"
     go (LetOut _ [] e)   = go e
     go (Merge e1 e2)     = C.Merge (go e1) (go e2)
@@ -140,8 +140,8 @@ desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
   C.App
       (C.Lam "_"
           (transType d t)
-          (\f' -> desugarExpr (d, addToEnv [(f,C.Var f f')] g) body))
-      (C.Fix
+          (\f' -> desugarExpr (d, addToEnv [(f, C.Var f f')] g) body))
+      (C.Fix f x1
           (\f' x1' -> desugarExpr (d, addToEnv [(f, C.Var f f'), (x1, C.Var x1 x1')] g) peeled_e)
           (transType d t1)
           (transType d t2))
@@ -167,7 +167,8 @@ desugarLetRecToFixEncoded (d,g) = go
           (C.Lam "_"
               (C.Fun (C.JClass "java.lang.Integer") (transType d tupled_ts))
               (\y -> desugarExpr (d, g' y `Map.union` g) e))
-          (C.Fix
+          (C.Fix "_" "_"
+              -- Names ignored. Unused.
               (\y _dummy -> desugarExpr (d, g' y `Map.union` g) tupled_es)
               (C.JClass "java.lang.Integer")
               (transType d tupled_ts))
@@ -189,12 +190,13 @@ desugarLetRecToFixEncoded (d,g) = go
 -- Convert from: LetOut RecFlag [(Name, Type, Expr (Name,Type))] (Expr (Name,Type))
 -- To:           LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
 desugarLetRecToLetRec :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
-desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec sigs' binds' body'
+desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec names' sigs' binds' body'
   where
     (ids, sigs, defs) = unzip3 binds
-    sigs'  = map (transType d) sigs
-    binds' ids' = map (desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g)) defs
-    body'  ids' = desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g) body
+    names'            = ids
+    sigs'             = map (transType d) sigs
+    binds' ids'       = map (desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g)) defs
+    body'  ids'       = desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g) body
 
 desugarLetRecToLetRec _ _ = panic "Desugar.desugarLetRecToLetRec"
 
