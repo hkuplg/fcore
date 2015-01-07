@@ -56,6 +56,7 @@ import JavaUtils
   "new"     { Tnew }
 
   "module"  { Tmodule }
+  "end"     { Tend }
 
   INT      { Tint $$ }
   STRING   { Tstring $$ }
@@ -104,6 +105,10 @@ import JavaUtils
 
 -- The parser rules of GHC may come in handy:
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
+
+-- Modules
+module :: { Module Name }
+  : "module" module_name semi_binds "end"  { Module $2 $3 }
 
 module_name :: { Name }
   : UPPERID  { $1 }
@@ -167,6 +172,7 @@ expr :: { Expr Name }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | infixexpr                           { $1 }
+    | module expr              		  { LetModule $1 $2 }
 
 infixexpr :: { Expr Name }
     : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
@@ -266,6 +272,10 @@ maybe_sig :: { Maybe Type }
 and_binds :: { [Bind Name] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
+
+semi_binds :: { [Bind Name] }
+    : bind                      { [$1]  }
+    | bind ";" and_binds      { $1:$3 }
 
 recflag :: { RecFlag }
   : "rec"       { Rec }
