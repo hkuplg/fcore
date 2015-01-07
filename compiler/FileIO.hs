@@ -1,4 +1,5 @@
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables
+           , DeriveDataTypeable #-}
 
 module FileIO where
 
@@ -12,11 +13,27 @@ import qualified Control.Exception as E
 import Data.Char
 import Data.List.Split
 import Data.List
+import Data.Data
+import Data.Typeable
 
 import Translations
 
+data TransMethod = Apply
+                 | Naive
+                 | Stack
+                 | Unbox
+                 | StackAU1
+                 | StackAU2
+                 | BenchN
+                 | BenchS
+                 | BenchNA
+                 | BenchSA
+                 | BenchSAI1
+                 | BenchSAI2
+                 deriving (Eq, Show, Data, Typeable, Ord)
+
 type Connection = (Handle, Handle)
-type CompileOpt = (Int, Compilation, String)
+type CompileOpt = (Int, Compilation, [TransMethod])
 
 wrap :: Connection -> CompileOpt -> Bool -> String -> IO ()
 wrap (inP, outP) opt flagS name = do
