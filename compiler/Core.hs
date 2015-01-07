@@ -14,6 +14,7 @@ module Core
   , fsubstTE
   , fsubstEE
   , joinType
+  , tVar
   , var
   , lam
   , fix
@@ -36,11 +37,11 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 data Type t
-  = TVar t                 -- a
-  | JClass ClassName       -- C
-  | Fun (Type t) (Type t)  -- t1 -> t2
-  | Forall (t -> Type t)   -- forall a. t
-  | Product [Type t]       -- (t1, ..., tn)
+  = TVar Src.Name t                -- a
+  | JClass ClassName               -- C
+  | Fun (Type t) (Type t)          -- t1 -> t2
+  | Forall Src.Name (t -> Type t)  -- forall a. t
+  | Product [Type t]               -- (t1, ..., tn)
   | Unit
 
   | And (Type t) (Type t)  -- t1 & t2
@@ -65,8 +66,8 @@ data Expr t e
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
   | Let Src.Name (Expr t e) (e -> Expr t e)
-  | LetRec [Type t]             -- Signatures
-           ([e] -> [Src.Name])  -- Names
+  | LetRec [Src.Name]           -- Names
+           [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
   | BLam Src.Name (t -> Expr t e)
@@ -106,21 +107,21 @@ type ValueContext t e = Map.Map e (Type t)
 type Index = Int
 
 alphaEq :: Int -> Type Index -> Type Index -> Bool
-alphaEq _ (TVar a)     (TVar b)     = a == b
+alphaEq _ (TVar _ a)   (TVar _ b)   = a == b
 alphaEq _ (JClass c)   (JClass d)   = c == d
 alphaEq i (Fun s1 s2)  (Fun t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
-alphaEq i (Forall f)   (Forall g)   = alphaEq (succ i) (f i) (g i)
+alphaEq i (Forall _ f) (Forall _ g) = alphaEq (succ i) (f i) (g i)
 alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq i) `all` zip ss ts
 alphaEq _  Unit     Unit            = True
 alphaEq i (And s1 s2)  (And t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
 alphaEq i (Thunk t1)   (Thunk t2)   = alphaEq i t1 t2
 alphaEq _ _            _            = False
 
-mapTVar :: (t -> Type t) -> Type t -> Type t
-mapTVar g (TVar a)       = g a
+mapTVar :: (Src.Name -> t -> Type t) -> Type t -> Type t
+mapTVar g (TVar n a)     = g n a
 mapTVar _ (JClass c)     = JClass c
 mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
-mapTVar g (Forall f)     = Forall (mapTVar g . f)
+mapTVar g (Forall n f)   = Forall n (mapTVar g . f)
 mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
 mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
@@ -134,7 +135,7 @@ mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)
 mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
 mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
-mapVar g h (LetRec ts ns bs e)       = LetRec (map h ts) ns (map (mapVar g h) . bs) (mapVar g h . e)
+mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
@@ -152,7 +153,7 @@ mapVar g h (RecordUpdate e (l1,e1))  = RecordUpdate (mapVar g h e) (l1, mapVar g
 mapVar g h (Lazy e)                  = Lazy (mapVar g h e)
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
-fsubstTT x r = mapTVar (\a -> if a == x then r else TVar a)
+fsubstTT x r = mapTVar (\n a -> if a == x then r else TVar n a)
 
 fsubstTE :: Eq t => t -> Type t -> Expr t e -> Expr t e
 fsubstTE x r = mapVar Var (fsubstTT x r)
@@ -162,15 +163,18 @@ fsubstEE x r = mapVar (\n a -> if a == x then r else Var n a) id
 
 
 joinType :: Type (Type t) -> Type t
-joinType (TVar a)         = a
+joinType (TVar n a)       = a
 joinType (JClass c)       = JClass c
 joinType (Fun t1 t2)      = Fun (joinType t1) (joinType t2)
-joinType (Forall g)       = Forall (joinType . g . TVar)
+joinType (Forall n g)     = Forall n (joinType . g . TVar "_") -- Right?
 joinType (Product ts)     = Product (map joinType ts)
-joinType  Unit        = Unit
+joinType  Unit            = Unit
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
-joinType (Record (l,t)) = Record (l, joinType t)
+joinType (Record (l,t))   = Record (l, joinType t)
 joinType (Thunk t)        = Thunk (joinType t)
+
+tVar :: t -> Type t
+tVar = TVar "_"
 
 var :: e -> Expr t e
 var = Var "_"
@@ -195,15 +199,15 @@ prettyType = prettyType' basePrec 0
 
 prettyType' :: Prec -> Index -> Type Index -> Doc
 
-prettyType' _ _ (TVar a)     = prettyTVar a
+prettyType' _ _ (TVar n a)   = text n
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2
     (prettyType' (2,PrecPlus) i t1 <+> arrow <+> prettyType' (2,PrecMinus) i t2)
 
-prettyType' p i (Forall f)   =
+prettyType' p i (Forall n f)   =
   parensIf p 1
-    (forall <+> prettyTVar i <> dot <+>
+    (forall <+> text n <> dot <+>
      prettyType' (1,PrecMinus) (succ i) (f i))
 
 prettyType' _ i (Product ts) = parens $ hcat (intersperse comma (map (prettyType' basePrec i) ts))
@@ -226,10 +230,10 @@ prettyType' _ i (Record (l,t)) = lbrace <+> text l <+> colon <+> prettyType' bas
 
 prettyType' p i (Thunk t) = squote <>
                              case t of
-                               Fun _ _  -> parens (prettyType' basePrec i t)
-                               Forall _ -> parens (prettyType' basePrec i t)
-                               And _ _  -> parens (prettyType' basePrec i t)
-                               _        -> prettyType' p i t
+                               Fun _ _    -> parens (prettyType' basePrec i t)
+                               Forall _ _ -> parens (prettyType' basePrec i t)
+                               And _ _    -> parens (prettyType' basePrec i t)
+                               _          -> prettyType' p i t
 
 -- instance Show (Expr Index Index) where
 --   show = show . pretty
@@ -316,7 +320,7 @@ prettyExpr' _ (i,j) (Let n b e) =
   text "let" <+> text n <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
   prettyExpr' basePrec (i, j + 1) (e j)
 
-prettyExpr' p (i,j) (LetRec sigs names binds body)
+prettyExpr' p (i,j) (LetRec names sigs binds body)
   = text "let" <+> text "rec" <$>
     vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$>
     text "in" <$>
@@ -324,7 +328,7 @@ prettyExpr' p (i,j) (LetRec sigs names binds body)
   where
     n   = length sigs
     ids = [i..(i+n-1)]
-    pretty_ids   = map text (names ids)
+    pretty_ids   = map text names
     pretty_sigs  = map (prettyType' p i) sigs
     pretty_defs  = map (prettyExpr' p (i, j + n)) (binds ids)
     pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->

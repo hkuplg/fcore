@@ -5,7 +5,7 @@
 
 module SymbolicEvaluator where
 
-import           Core
+import           Core                    hiding (fix)
 import qualified Language.Java.Syntax    as J (Op (..))
 import           Panic
 import           Prelude                 hiding (EQ, GT, LT)

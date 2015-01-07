@@ -24,12 +24,12 @@ type TVarMap t  = Map.Map Name t
 type VarMap t e = Map.Map Name (C.Expr t e)
 
 transType :: TVarMap t -> Type -> C.Type t
-transType d (TVar a)     = C.TVar (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
+transType d (TVar a)     = C.TVar a (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
 transType _ (JType (JClass c))   = C.JClass c
 transType _ (JType (JPrim c))   = C.JClass c
 transType d (Fun t1 t2)  = C.Fun (transType d t1) (transType d t2)
 transType d (Product ts) = C.Product (map (transType d) ts)
-transType d (Forall a t) = C.Forall (\a' -> transType (Map.insert a a' d) t)
+transType d (Forall a t) = C.Forall a (\a' -> transType (Map.insert a a' d) t)
 transType d (And t1 t2)  = C.And (transType d t1) (transType d t2)
 transType d (Record fs)  =
                 case fs  of
@@ -190,13 +190,13 @@ desugarLetRecToFixEncoded (d,g) = go
 -- Convert from: LetOut RecFlag [(Name, Type, Expr (Name,Type))] (Expr (Name,Type))
 -- To:           LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
 desugarLetRecToLetRec :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
-desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec sigs' names' binds' body'
+desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec names' sigs' binds' body'
   where
     (ids, sigs, defs) = unzip3 binds
-    sigs'  = map (transType d) sigs
-    names' ids' = ids
-    binds' ids' = map (desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g)) defs
-    body'  ids' = desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g) body
+    names'            = ids
+    sigs'             = map (transType d) sigs
+    binds' ids'       = map (desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g)) defs
+    body'  ids'       = desugarExpr (d, zipWith (\f f' -> (f, C.Var f f')) ids ids' `addToVarMap` g) body
 
 desugarLetRecToLetRec _ _ = panic "Desugar.desugarLetRecToLetRec"
 

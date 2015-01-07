@@ -65,8 +65,8 @@ plus2 = (App (lam (Fun javaInt (Fun javaInt javaInt)) (\e -> (App (App (var e) o
 evenOdd :: Expr t e
 evenOdd
   = LetRec
+      ["even", "odd"]
       [(Fun javaInt javaBool), (Fun javaInt javaBool)]
-      (\ids -> ["even", "odd"])
       (\ids ->
          [ lam javaInt (\n -> If (var n `eq` zero) true  (App (var (ids !! 1)) (var n `sub` one)))
          , lam javaInt (\n -> If (var n `eq` zero) false (App (var (ids !! 0)) (var n `sub` one)))])
@@ -107,8 +107,8 @@ sf2c n fname = do
 
 mconst =
   (bLam (\a ->
-    lam (TVar a) (\x ->
-       lam (TVar a) (\y ->
+    lam (tVar a) (\x ->
+       lam (tVar a) (\y ->
           var x
        )
     )
@@ -116,19 +116,19 @@ mconst =
 
 notail2 =
   bLam (\a ->
-    lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
-      lam (TVar a) (\x ->
-        lam (TVar a) (\y ->
+    lam (Fun (tVar a) (Fun (tVar a) (tVar a))) (\f ->
+      lam (tVar a) (\x ->
+        lam (tVar a) (\y ->
           App (App (var f) (var x)) (App (App (var f) (var y)) (var y)) ))))
 
 program2 = App (App (App (TApp notail2 (JClass "java.lang.Integer")) (TApp mconst (JClass "java.lang.Integer"))) (Lit (S.Int 5))) (Lit (S.Int 6))
 
 notail4 =
   bLam (\a ->
-    lam ( Fun (Fun (TVar a) (TVar a)) (Fun (Fun (TVar a) (TVar a)) (TVar a))) (\g ->
-      lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
-        lam (TVar a) (\x ->
-          lam (TVar a) (\y ->
+    lam ( Fun (Fun (tVar a) (tVar a)) (Fun (Fun (tVar a) (tVar a)) (tVar a))) (\g ->
+      lam (Fun (tVar a) (Fun (tVar a) (tVar a))) (\f ->
+        lam (tVar a) (\x ->
+          lam (tVar a) (\y ->
             App (App (var g) (App (var f) (var x))) (App (var f) (var y)))))))
 
 summa =

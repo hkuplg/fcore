@@ -27,10 +27,10 @@ transTypeS i (Strict t) = Strict (transType i t)
 transTypeS i (Lazy   t) = Strict (Fun (Strict UnitType) (transType i t))
 
 transType :: Index -> Type Index -> Type Index
-transType _ (TVar a)         = TVar a
+transType _ (TVar n a)       = TVar n a
 transType _ (JClass c)       = JClass c
 transType i (Fun t1 t2)      = Fun (transTypeS i t1) (transType i t2)
-transType i (Forall f)       = Forall (\a -> transType (i + 1) $ fsubstTT i (TVar a) (f i))
+transType i (Forall n f)     = Forall n (\a -> transType (i + 1) $ fsubstTT i (TVar "" a) (f i))
 transType i (Product ts)     = Product (map (transType i) ts)
 transType _  UnitType        = UnitType
 
@@ -42,12 +42,12 @@ infer' _    s _ _ (Lit (S.Boolean _)) = s (JClass "java.lang.Boolean")
 infer' _    s _ _ (Lit (S.Char _))    = s (JClass "java.lang.Character")
 infer' _    s _ _ (Lit  S.Unit)       = s UnitType
 infer' this s i j (Lam t f)           = s $ Fun t (this s i (j+1) (f (j,t)))
-infer' this s i j (BLam _ f)          = Forall (\a -> fsubstTT i (TVar a) $  $ this s (i+1) j (f i))
+infer' this s i j (BLam n f)          = Forall n (\a -> fsubstTT i (TVar "" a) $  $ this s (i+1) j (f i))
 infer' _    s _ _ (Fix _ _ _ t1 t)    = Fun t1 t
 infer' this s i j (Let b e)           = this s i (j+1) (e (j, this s i j b))
-infer' this s i j (LetRec ts _ _ e)     = this s i (j+n) (e (zip [j..j+n-1] (map s ts))) where n = length ts
+infer' this s i j (LetRec _ ts _ e)     = this s i (j+n) (e (zip [j..j+n-1] (map s ts))) where n = length ts
 infer' this s i j (App f _)           = s $ t12 where Fun _ t12 = this s i j f
-infer' this s i j (TApp f t)          = s $ joinType ((unsafeCoerce g :: t -> Type t) t) where Forall g  = this i j f
+infer' this s i j (TApp f t)          = s $ joinType ((unsafeCoerce g :: t -> Type t) t) where Forall n g  = this i j f
 infer' this s i j (If _ b1 _)         = this s i j b1
 infer' _    s _ _ (PrimOp _ op _)     = s $ case op of S.Arith _   -> JClass "java.lang.Integer"
                                                        S.Compare _ -> JClass "java.lang.Boolean"
@@ -72,7 +72,7 @@ transExpr'
 transExpr' _ _    _ _ (Var (x,_))       = Var x
 transExpr' _ _    _ _ (Lit l)           = Lit l
 transExpr' _ this i j (Lam t f)         = Lam (transTypeS i t) (\x -> fsubstEE j (Var x) body') where (_, body') = this i (j+1) (f (j, unS t))
-transExpr' _ this i j (BLam n f)        = BLam n (\a -> fsubstTE i (TVar a) body')               where (_, body') = this (i+1) j (f i)
+transExpr' _ this i j (BLam n f)        = BLam n (\a -> fsubstTE i (TVar "" a) body')               where (_, body') = this (i+1) j (f i)
 transExpr' _ this i j (Fix n1 n2 f t1 t)      = Fix n1 n2 (\x x1 -> (fsubstEE j (Var x) . fsubstEE (j+1) (Var x1)) body') t1' t'
   where
     (_, body') = this i (j+2) (f (j, Fun t1 t) (j+1, unS t1))
@@ -81,10 +81,10 @@ transExpr' _ this i j (Fix n1 n2 f t1 t)      = Fix n1 n2 (\x x1 -> (fsubstEE j 
 transExpr' super this i j (Let b e) = Let b' (\x -> fsubstEE j (Var x) (snd (this i (j+1) (e (j, super i j b)))))
   where
     (_,b') = this i j b
-transExpr' _     this i j (LetRec ts ns bs e) = LetRec ts' ns' bs' e'
+transExpr' _     this i j (LetRec ns ts bs e) = LetRec ns' ts' bs' e'
   where
     ts'           = map (transType i) ts
-    ns'           = \fs' -> ns fs_with_ts
+    ns'           = ns
     bs'           = \fs' -> map (subst fs fs') bs_body'
     e'            = \fs' -> subst fs fs' e_body'
     (_, bs_body') = unzip (map (transExpr i (j+n)) (bs fs_with_ts))
