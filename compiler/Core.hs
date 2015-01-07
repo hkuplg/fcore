@@ -65,8 +65,8 @@ data Expr t e
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
   | Let Src.Name (Expr t e) (e -> Expr t e)
-  | LetRec [Type t]             -- Signatures
-           ([e] -> [Src.Name])  -- Names
+  | LetRec [Src.Name]           -- Names
+           [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
   | BLam Src.Name (t -> Expr t e)
@@ -134,7 +134,7 @@ mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)
 mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
 mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
-mapVar g h (LetRec ts ns bs e)       = LetRec (map h ts) ns (map (mapVar g h) . bs) (mapVar g h . e)
+mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
@@ -316,7 +316,7 @@ prettyExpr' _ (i,j) (Let n b e) =
   text "let" <+> text n <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
   prettyExpr' basePrec (i, j + 1) (e j)
 
-prettyExpr' p (i,j) (LetRec sigs names binds body)
+prettyExpr' p (i,j) (LetRec names sigs binds body)
   = text "let" <+> text "rec" <$>
     vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$>
     text "in" <$>
@@ -324,7 +324,7 @@ prettyExpr' p (i,j) (LetRec sigs names binds body)
   where
     n   = length sigs
     ids = [i..(i+n-1)]
-    pretty_ids   = map text (names ids)
+    pretty_ids   = map text names
     pretty_sigs  = map (prettyType' p i) sigs
     pretty_defs  = map (prettyExpr' p (i, j + n)) (binds ids)
     pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->

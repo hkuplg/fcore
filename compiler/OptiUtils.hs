@@ -22,9 +22,8 @@ joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (Proj i e) = Proj i (joinExpr e)
 joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (var e1) (var e2))) t1 t2
 joinExpr (Let n bind body) = Let n (joinExpr bind) (\e -> joinExpr (body (var e)))
-joinExpr (LetRec s n b1 b2) =
-  LetRec s
-         (\es -> n (map var es))
+joinExpr (LetRec n s b1 b2) =
+  LetRec n s
          (\es -> map joinExpr (b1 (map var es)))
          (\es -> joinExpr (b2 (map var es)))
 joinExpr (JNew name es) = JNew name (map joinExpr es)
@@ -42,8 +41,8 @@ mapExpr f e =
       Lam n t g -> Lam n t (\x -> f . g $ x)
       Fix n1 n2 g t1 t -> Fix n1 n2 (\e1 e2 -> f $ g e1 e2) t1 t
       Let n bind body -> Let n (f bind) (\x -> f . body $ x)
-      LetRec sigs names binds body ->
-          LetRec sigs names
+      LetRec names sigs binds body ->
+          LetRec names sigs
                  (\es -> map f $ binds es)
                  (\es -> f $ body es)
       BLam n g -> BLam n (\x -> f . g $ x)

@@ -65,8 +65,8 @@ plus2 = (App (lam (Fun javaInt (Fun javaInt javaInt)) (\e -> (App (App (var e) o
 evenOdd :: Expr t e
 evenOdd
   = LetRec
+      ["even", "odd"]
       [(Fun javaInt javaBool), (Fun javaInt javaBool)]
-      (\ids -> ["even", "odd"])
       (\ids ->
          [ lam javaInt (\n -> If (var n `eq` zero) true  (App (var (ids !! 1)) (var n `sub` one)))
          , lam javaInt (\n -> If (var n `eq` zero) false (App (var (ids !! 0)) (var n `sub` one)))])
