@@ -233,7 +233,8 @@ infer (App e1 e2)
                            unless (dethunk t2' `subtype` dethunk t11') $
                              throwError
                                (General
-                                  (bquotes (pretty e1) <+> text "expects an argument of type at least" <+> bquotes (pretty t11) <> comma <+>
+                                  (bquotes (pretty e1) <+> text "expects an argument of type" <+>
+                                   bquotes (pretty t11) <+> text "or a subtype of that" <> comma <+>
                                    text "but the argument" <+> bquotes (pretty e2) <+> text "has type" <+> pretty t2))
                            return (App e1' e2', t12)
          _         -> throwError (General (bquotes (pretty e1) <+> text "is of type" <+> bquotes (pretty t1) <> text "; it cannot be applied"))

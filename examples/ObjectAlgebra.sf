@@ -13,7 +13,7 @@ let subEvalAlg = evalAlg ,, {
   sub = \(x : Int). \(y : Int). x + y
 };
 let exp1 E (alg : ExpAlg E)    = alg.lit 5;
-let exp2 E (alg : SubExpAlg E) = alg.sub $ (exp1 E) $ (alg.lit 2);
+let exp2 E (alg : SubExpAlg E) = (alg.sub $ exp1 E alg) (alg.lit 2);
 -- The dollar sign is used to tell the compiler:
 -- Hey, this is really an application, not a method call!
 exp2 Int subEvalAlg
