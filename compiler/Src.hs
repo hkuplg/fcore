@@ -236,6 +236,10 @@ freeTVars (OpApp t1 t2) = Set.union (freeTVars t1) (freeTVars t2)
 
 instance Pretty Type where
   pretty (TVar a)     = text a
+  pretty (JType (JClass "java.lang.Integer"))   = text "Int"
+  pretty (JType (JClass "java.lang.String"))    = text "String"
+  pretty (JType (JClass "java.lang.Boolean"))   = text "Bool"
+  pretty (JType (JClass "java.lang.Character")) = text "Char"
   pretty (JType (JClass c))   = text c
   pretty (JType (JPrim c))   = text c
   pretty Unit         = text "Unit"
