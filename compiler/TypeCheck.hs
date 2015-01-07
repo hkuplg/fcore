@@ -334,6 +334,7 @@ infer (JField callee f _)
                   if ret_c == "char"
                     then return (JField (NonStatic e') f ret_c, JType $ JPrim "char")
                     else return (JField (NonStatic e') f ret_c, JType $ JClass ret_c)
+             And t1 t2 -> return (RecordAccess e' f, fromJust (lookup (Just f) (fields t1 ++ fields t2)))
              _          -> throwError
                            (General
                             (bquotes (pretty e) <+> text "has type" <+> bquotes (pretty t) <>
