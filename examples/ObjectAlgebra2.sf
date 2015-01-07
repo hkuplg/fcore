@@ -1,4 +1,4 @@
--- object algebra example without intersecion types
+-- Object algebra example without intersecion types
 
 type ExpAlg E = {
   lit : Int -> E,
