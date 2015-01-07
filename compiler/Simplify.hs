@@ -80,7 +80,7 @@ coerce i (Fun t1 t2) (Fun t3 t4) =
                  (\f -> lam (transType i t3) ((App c2 .  App (var f) . App c1) . var)))
 coerce i (Forall f) (Forall g) =
   do c <- coerce (i + 1) (f i) (g i)
-     return (lam (transType i (Forall f)) (\f' -> BLam ((App c . TApp (var f')) . TVar)))
+     return (lam (transType i (Forall f)) (\f' -> bLam ((App c . TApp (var f')) . TVar)))
 coerce i (Product ss) (Product ts)
   | length ss /= length ts = Nothing
   | otherwise =
@@ -112,10 +112,10 @@ infer' _    _ _ (Lit (S.Bool _))    = JClass "java.lang.Boolean"
 infer' _    _ _ (Lit (S.Char _))    = JClass "java.lang.Character"
 infer' _    _ _ (Lit  S.UnitLit)    = Unit
 infer' this i j (Lam _ t f)         = Fun t (this i (j+1) (f (j,t)))
-infer' this i j (BLam f)            = Forall (\a -> fsubstTT i (TVar a) $ this (i+1) j (f i))
-infer' _    _ _ (Fix _ t1 t)        = Fun t1 t
+infer' this i j (BLam _ f)          = Forall (\a -> fsubstTT i (TVar a) $ this (i+1) j (f i))
+infer' _    _ _ (Fix _ _ _ t1 t)    = Fun t1 t
 infer' this i j (Let _ b e)         = this i (j+1) (e (j, this i j b))
-infer' this i j (LetRec ts _ e)     = this i (j+n) (e (zip [j..j+n-1] ts)) where n = length ts
+infer' this i j (LetRec ts _ _ e)     = this i (j+n) (e (zip [j..j+n-1] ts)) where n = length ts
 infer' this i j (App f _)           = t12                where Fun _ t12 = this i j f
 infer' this i j (TApp f t)          = joinType ((unsafeCoerce g :: t -> Type t) t) where Forall g  = this i j f
 infer' this i j (If _ b1 _)         = this i j b1
@@ -147,8 +147,8 @@ transExpr'
 transExpr' _ _    _ _ (Var _ (x,_))     = var x
 transExpr' _ _    _ _ (Lit l)           = Lit l
 transExpr' _ this i j (Lam n t f)       = Lam n (transType i t) (\x -> fsubstEE j (var x) body') where (_, body') = this i     (j+1) (f (j, t))
-transExpr' _ this i j (BLam f)          = BLam (\a -> fsubstTE i (TVar a) body')               where (_, body') = this (i+1) j     (f i)
-transExpr' _ this i j (Fix f t1 t)      = Fix (\x x1 -> (fsubstEE j (var x) . fsubstEE (j+1) (var x1)) body') t1' t'
+transExpr' _ this i j (BLam n f)        = BLam n (\a -> fsubstTE i (TVar a) body')               where (_, body') = this (i+1) j     (f i)
+transExpr' _ this i j (Fix n1 n2 f t1 t)      = Fix n1 n2 (\x x1 -> (fsubstEE j (var x) . fsubstEE (j+1) (var x1)) body') t1' t'
   where
     (_, body') = this i (j+2) (f (j, Fun t1 t) (j+1, t1))
     t1'        = transType i t1
@@ -156,9 +156,10 @@ transExpr' _ this i j (Fix f t1 t)      = Fix (\x x1 -> (fsubstEE j (var x) . fs
 transExpr' super this i j (Let n b e) = Let n b' (\x -> fsubstEE j (var x) (snd (this i (j+1) (e (j, super i j b)))))
   where
     (_,b') = this i j b
-transExpr' _     this i j (LetRec ts bs e) = LetRec ts' bs' e'
+transExpr' _     this i j (LetRec ts ns bs e) = LetRec ts' ns' bs' e'
   where
     ts'           = map (transType i) ts
+    ns' fs'       = ns fs_with_ts -- Right?
     bs' fs'       = map (subst fs fs') bs_body'
     e'  fs'       = subst fs fs' e_body'
     (_, bs_body') = unzip (map (transExpr i (j+n)) (bs fs_with_ts))

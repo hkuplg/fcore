@@ -27,7 +27,7 @@ instance Show (Type t) where
 
 tailFact :: Expr t e
 tailFact
-  = Fix (\tail_fact acc ->
+  = fix (\tail_fact acc ->
       lam javaInt (\n ->
         If (var n `eq` zero)
            (var acc)
@@ -35,14 +35,14 @@ tailFact
     javaInt (javaInt `Fun` javaInt)
 
 testTail :: Expr t e
-testTail = App (Fix (\f n -> If (var n `eq` zero)
+testTail = App (fix (\f n -> If (var n `eq` zero)
                            one
                            (var f `App` (var n `sub` one)))
                javaInt
                (javaInt `Fun` javaInt)) one
 
 fact :: Expr t (Expr t e)
-fact = Fix (\f n -> If (var n `eq` zero)
+fact = fix (\f n -> If (var n `eq` zero)
                        one
                        (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
@@ -50,7 +50,7 @@ fact = Fix (\f n -> If (var n `eq` zero)
 
 tailFactLike :: Expr t e
 tailFactLike
-  = Fix (\tail_fact acc ->
+  = fix (\tail_fact acc ->
       lam javaInt (\n ->
                     If (var n `eq` zero)
                     (var acc)
@@ -66,6 +66,7 @@ evenOdd :: Expr t e
 evenOdd
   = LetRec
       [(Fun javaInt javaBool), (Fun javaInt javaBool)]
+      (\ids -> ["even", "odd"])
       (\ids ->
          [ lam javaInt (\n -> If (var n `eq` zero) true  (App (var (ids !! 1)) (var n `sub` one)))
          , lam javaInt (\n -> If (var n `eq` zero) false (App (var (ids !! 0)) (var n `sub` one)))])
@@ -105,7 +106,7 @@ sf2c n fname = do
       _ -> return (peval . desugar $ tcheckedSrc)
 
 mconst =
-  (BLam (\a ->
+  (bLam (\a ->
     lam (TVar a) (\x ->
        lam (TVar a) (\y ->
           var x
@@ -114,7 +115,7 @@ mconst =
   ))
 
 notail2 =
-  BLam (\a ->
+  bLam (\a ->
     lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
       lam (TVar a) (\x ->
         lam (TVar a) (\y ->
@@ -123,7 +124,7 @@ notail2 =
 program2 = App (App (App (TApp notail2 (JClass "java.lang.Integer")) (TApp mconst (JClass "java.lang.Integer"))) (Lit (S.Int 5))) (Lit (S.Int 6))
 
 notail4 =
-  BLam (\a ->
+  bLam (\a ->
     lam ( Fun (Fun (TVar a) (TVar a)) (Fun (Fun (TVar a) (TVar a)) (TVar a))) (\g ->
       lam (Fun (TVar a) (Fun (TVar a) (TVar a))) (\f ->
         lam (TVar a) (\x ->

@@ -16,6 +16,8 @@ module Core
   , joinType
   , var
   , lam
+  , fix
+  , bLam
   , prettyType
   , prettyExpr
   , javaInt
@@ -55,16 +57,19 @@ data Expr t e
 
   -- Binders we have: λ, fix, letrec, and Λ
   | Lam Src.Name (Type t) (e -> Expr t e)
-  | Fix (e -> e -> Expr t e)
+  | Fix Src.Name Src.Name
+        (e -> e -> Expr t e)
         (Type t)  -- t1
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
+      -- <name>: Fix funcName paraName func paraType returnType
   | Let Src.Name (Expr t e) (e -> Expr t e)
   | LetRec [Type t]             -- Signatures
+           ([e] -> [Src.Name])  -- Names
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
-  | BLam (t -> Expr t e)
+  | BLam Src.Name (t -> Expr t e)
 
   | App  (Expr t e) (Expr t e)
   | TApp (Expr t e) (Type t)
@@ -126,10 +131,10 @@ mapVar :: (Src.Name -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr 
 mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)
-mapVar g h (BLam f)                  = BLam (mapVar g h . f)
-mapVar g h (Fix f t1 t)              = Fix (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
+mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
+mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
-mapVar g h (LetRec ts bs e)          = LetRec (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
+mapVar g h (LetRec ts ns bs e)       = LetRec (map h ts) ns (map (mapVar g h) . bs) (mapVar g h . e)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
@@ -172,6 +177,12 @@ var = Var "_"
 
 lam :: Type t -> (e -> Expr t e) -> Expr t e
 lam = Lam "_"
+
+fix :: (e -> e -> Expr t e) -> Type t -> Type t -> Expr t e
+fix = Fix "_" "_"
+
+bLam :: (t -> Expr t e) -> Expr t e
+bLam = BLam "_"
 
 -- instance Show (Type Index) where
 --   show = show . pretty
@@ -231,20 +242,20 @@ prettyExpr = prettyExpr' basePrec (0, 0)
 
 prettyExpr' :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
-prettyExpr' _ _ (Var _ x) = prettyVar x
+prettyExpr' _ _ (Var n _) = text n
 
-prettyExpr' p (i,j) (Lam _ t f)
+prettyExpr' p (i,j) (Lam n t f)
   = parensIf p 2 $ group $ hang 2 $
-      lambda <+> parens (prettyVar j <+> colon <+> prettyType' basePrec i t) <> dot <$>
+      lambda <+> parens (text n <+> colon <+> prettyType' basePrec i t) <> dot <$>
       prettyExpr' (2,PrecMinus) (i, j + 1) (f j)
 
 prettyExpr' p (i,j) (App e1 e2)
   = parensIf p 4 $
       group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e1 <$> prettyExpr' (4,PrecPlus) (i,j) e2
 
-prettyExpr' p (i,j) (BLam f) =
+prettyExpr' p (i,j) (BLam n f) =
   parensIf p 2
-    (biglambda <+> prettyTVar i <> dot <+>
+    (biglambda <+> text n <> dot <+>
      prettyExpr' (2,PrecMinus) (succ i, j) (f i))
 
 prettyExpr' p (i,j) (TApp e t) =
@@ -294,18 +305,18 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 
-prettyExpr' p (i,j) (Fix f t1 t)
+prettyExpr' p (i,j) (Fix n1 n2 f t1 t)
   = parens $ group $ hang 2 $
-      text "fix" <+> prettyVar j <+>
-      parens (prettyVar (j + 1) <+> colon <+> prettyType' p i t1) <+>
+      text "fix" <+> text n1 <+>
+      parens (text n2 <+> colon <+> prettyType' p i t1) <+>
       colon <+> prettyType' p i t <> dot <$>
       prettyExpr' p (i, j + 2) (f j (j + 1))
 
-prettyExpr' _ (i,j) (Let _ b e) =
-  text "let" <+> prettyVar j <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
+prettyExpr' _ (i,j) (Let n b e) =
+  text "let" <+> text n <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
   prettyExpr' basePrec (i, j + 1) (e j)
 
-prettyExpr' p (i,j) (LetRec sigs binds body)
+prettyExpr' p (i,j) (LetRec sigs names binds body)
   = text "let" <+> text "rec" <$>
     vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$>
     text "in" <$>
@@ -313,7 +324,7 @@ prettyExpr' p (i,j) (LetRec sigs binds body)
   where
     n   = length sigs
     ids = [i..(i+n-1)]
-    pretty_ids   = map prettyVar ids
+    pretty_ids   = map text (names ids)
     pretty_sigs  = map (prettyType' p i) sigs
     pretty_defs  = map (prettyExpr' p (i, j + n)) (binds ids)
     pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->
