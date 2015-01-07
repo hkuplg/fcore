@@ -393,11 +393,10 @@ inferAgainstAnyJClass expr
        case dethunk ty of
         JType (JPrim "char") -> return (expr', "java.lang.Character")
         JType (JClass c) -> return (expr', c)
-        _ -> throwError $ General (bquotes (pretty expr) <+> text "has type" <+> bquotes (pretty ty) <> comma <+> text "but is expected to be of some Java class")
-
-inferAgainstMaybe :: Expr Name -> Maybe Type -> Checker (Expr (Name,Type), Type)
-inferAgainstMaybe e Nothing  = infer e
-inferAgainstMaybe e (Just t) = inferAgainst e t
+        _ -> throwError $
+             General
+             (bquotes (pretty expr) <+> text "has type" <+> bquotes (pretty ty) <> comma <+>
+              text "but is expected to be of some Java class")
 
 -- f A1 ... An (x1:T1) ... (xn:Tn) = e
 inferBind :: Bind Name -> Checker (Name, Type, Expr (Name,Type))
