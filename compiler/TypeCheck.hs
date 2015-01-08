@@ -191,11 +191,14 @@ kind d (Record fs)  = justStarIffAllHaveKindStar d (map snd fs)
 kind d (ListOf t)   = kind d t
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Thunk t)    = kind d t
-kind d (OpAbs _x t) = do -- Restriction compared to F_omega: x can only have kind *
-  maybe_k <- kind d t
+
+-- (K-Abs)
+kind d (OpAbs x t) = do -- Restriction compared to F_omega: x can only have kind *
+  maybe_k <- kind (Map.insert x (Star, Nothing) d) t
   case maybe_k of
     Nothing -> return Nothing
     Just k  -> return $ Just (KArrow Star k)
+
 -- \Delta |- T1 :: K11 => K12  \Delta |- T2 :: K11
 -- -------------------------------------------- (K-App)
 -- \Delta |- T1 T2 :: K12
