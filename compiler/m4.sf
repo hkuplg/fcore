@@ -1,0 +1,4 @@
+module M4
+  --id (x:Int): forall A. A -> A = /\A. \(x:A). x;
+  id A (x:A) : A = x
+end
