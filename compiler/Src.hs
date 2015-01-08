@@ -45,6 +45,7 @@ type Label      = Name
 
 data Module id = Module id [Bind id] deriving (Eq, Show)
 
+-- Kinds K := * | K -> K
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
 
 data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
@@ -60,8 +61,11 @@ data Type
   | And Type Type
   | Record [(Label, Type)]
   | Thunk Type
-  | OpAbs Name Type -- Type level abstraction
-  | OpApp Type Type -- Type level application
+
+  -- Type synonyms
+  | OpAbs Name Type -- Type-level abstraction: "type T A = t" becomes "type T = \A. t", and "\A. t" is the abstraction.
+  | OpApp Type Type -- Type-level application: t1 t2
+
   | ListOf Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
@@ -102,7 +106,11 @@ data Expr id
   | RecordUpdate (Expr id) [(Label, Expr id)]
   | LetModule (Module id) (Expr id)
   | ModuleAccess ModuleName Name
-  | Type Name [Name] Type (Expr id)
+  | Type -- type T A1 .. An = t in e
+      Name      -- T         -- Name of type constructor
+      [Name]    -- A1 ... An -- Type parameters
+      Type      -- t         -- RHS of the equal sign
+      (Expr id) -- e         -- The rest of the expression
   deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
@@ -125,8 +133,8 @@ instance Functor JCallee where
   fmap _ (Static c)    = Static c
   fmap f (NonStatic e) = NonStatic (f e)
 
-type TypeContext  = Map.Map Name Kind
-type ValueContext = Map.Map Name Type
+type TypeContext  = Map.Map Name Kind -- Delta
+type ValueContext = Map.Map Name Type -- Gamma
 
 -- Type equivalence(s) and subtyping
 

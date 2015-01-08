@@ -176,6 +176,7 @@ applyTSubst s (Fun t1 t2)  = Fun (applyTSubst s t1) (applyTSubst s t2)
 applyTSubst s (Forall a t) = Forall a (applyTSubst s' t) where s' = Map.delete a s
 applyTSubst _ _            = sorry "TypeCheck.applyTSubst"
 
+-- Kinding
 kind :: TypeContext -> Type -> IO (Maybe Kind)
 kind d (TVar a)     = return (Map.lookup a d)
 -- kind _ (JClass c)   = undefined
@@ -188,15 +189,15 @@ kind d (Record fs)  = justStarIffAllHaveKindStar d (map snd fs)
 kind d (ListOf t)   = kind d t
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Thunk t)    = kind d t
-kind d (OpApp t1 t2)
-  = do maybe_k1 <- kind d t1
-       case maybe_k1 of
-         Just (KArrow k11 k12) ->
-           do maybe_k2 <- kind d t2
-              case maybe_k2 of
-                Just k2 | k2 == k11 -> return (Just k12)
-                _ -> return Nothing
-         _ -> return Nothing
+-- \Delta |- T1 :: K11 => K12  \Delta |- T2 :: K11
+-- -------------------------------------------- (K-App)
+-- \Delta |- T1 T2 :: K12
+kind d (OpApp t1 t2) = do
+  maybe_k1 <- kind d t1
+  maybe_k2 <- kind d t2
+  case (maybe_k1, maybe_k2) of
+    (Just (KArrow k11 k12), Just k2) | k2 == k11 -> return (Just k12)
+    _ -> return Nothing
 
 justStarIffAllHaveKindStar :: TypeContext -> [Type] -> IO (Maybe Kind)
 justStarIffAllHaveKindStar d ts
@@ -228,8 +229,8 @@ infer (App e1 e2)
   = do (e1', t1) <- infer e1
        (e2', t2) <- infer e2
        case t1 of
-         Fun t11 t12 -> do t11' <- evalType t11
-                           t2'  <- evalType t2
+         Fun t11 t12 -> do t11' <- expandType t11
+                           t2'  <- expandType t2
                            unless (dethunk t2' `subtype` dethunk t11') $
                              throwError
                                (General
@@ -377,12 +378,21 @@ infer (LetModule (Module m binds) e) =
      infer $ Let NonRec [Bind m [] [] letrec Nothing] e
 infer (ModuleAccess m f) = infer (RecordAccess (Var m) f)
 
-infer (Type tid params rhs e)
+-- Type synonyms
+infer (Type t params rhs e) -- type T A1 ... An = t in e
   = do checkDupNames params
-       withLocalTVars [(tid, (k params, pullRight params rhs))] (infer e)
+       withLocalTVars [(t, (k params, pullRight params rhs))] $ infer e
   where k []     = Star
         k (_:as) = KArrow Star (k as)
-        pullRight as t = foldr OpAbs t as
+
+-- | "Pull" the type params at the LHS of the equal sign to the right.
+-- A (high-level) example:
+--   A B t  ->  \A. \B. t
+-- Another concrete example:
+--   ghci> pullRight ["A", "B"] (JType (JClass "java.lang.Integer"))
+--   OpAbs "A" (OpAbs "B" (JType (JClass "java.lang.Integer")))
+pullRight :: [Name] -> Type -> Type
+pullRight params t = foldr OpAbs t params
 
 inferAgainst :: Expr Name -> Type -> Checker (Expr (Name,Type), Type)
 inferAgainst expr expected_ty
@@ -407,7 +417,7 @@ inferBind :: Bind Name -> Checker (Name, Type, Expr (Name,Type))
 inferBind bind
   = do bind' <- checkBindLHS bind
        (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, TVar a))) (bindTargs bind')) $
-                                  do expandedBindArgs <- mapM (\(x,t) -> do { t' <- evalType t; return (x,t') }) (bindArgs bind')
+                                  do expandedBindArgs <- mapM (\(x,t) -> do { t' <- expandType t; return (x,t') }) (bindArgs bind')
                                      withLocalVars expandedBindArgs (infer (bindRhs bind'))
        return ( (bindId bind')
               , wrap Forall (bindTargs bind') (wrap Fun (map snd (bindArgs bind')) bindRhsTy)
@@ -420,7 +430,7 @@ checkBindLHS bind@Bind{..}
        bindArgs' <- withLocalTVars (map (\a -> (a, (Star, TVar a))) bindTargs) $
          forM bindArgs (\(x, t) ->
           do --checkType t
-             t' <- evalType t
+             t' <- expandType t
              return (x,t'))
        return bind { bindArgs = bindArgs' }
 
@@ -487,39 +497,39 @@ checkFieldAccess callee f
     where
        (static_flag, c) = unwrapJCallee callee
 
-
-evalType :: Type -> Checker Type
-evalType (TVar a)
+-- | Expand the type.
+expandType :: Type -> Checker Type
+expandType (TVar a)
   = do typeContext <- getTypeContext
        case Map.lookup a typeContext of
          Nothing      -> return (TVar a)
-         Just (_, t') -> if t' == TVar a then return t' else evalType t'
-evalType (JType (JClass c)) = return (JType $ JClass c)
-evalType Unit       = return Unit
-evalType (Fun t1 t2)
-  = do t1' <- evalType t1
-       t2' <- evalType t2
+         Just (_, t') -> if t' == TVar a then return t' else expandType t'
+expandType (JType t) = return (JType t)
+expandType Unit       = return Unit
+expandType (Fun t1 t2)
+  = do t1' <- expandType t1
+       t2' <- expandType t2
        return (Fun t1' t2')
-evalType (Forall a t)
-  = do t' <- withLocalTVars [(a, (Star, TVar a))] (evalType t)
+expandType (Forall a t)
+  = do t' <- withLocalTVars [(a, (Star, TVar a))] (expandType t)
        return (Forall a t')
-evalType (Product ts)
-  = do ts' <- mapM evalType ts
+expandType (Product ts)
+  = do ts' <- mapM expandType ts
        return (Product ts')
-evalType (Record fs)
-  = do ts' <- mapM (evalType . snd) fs
+expandType (Record fs)
+  = do ts' <- mapM (expandType . snd) fs
        return (Record (zip (map fst fs) ts'))
-evalType (ListOf t)
-  = do t' <- evalType t
+expandType (ListOf t)
+  = do t' <- expandType t
        return (ListOf t')
-evalType (And t1 t2)
-  = do t1' <- evalType t1
-       t2' <- evalType t2
+expandType (And t1 t2)
+  = do t1' <- expandType t1
+       t2' <- expandType t2
        return (And t1' t2')
-evalType (Thunk t)
-  = do t' <- evalType t
+expandType (Thunk t)
+  = do t' <- expandType t
        return (Thunk t')
-evalType (OpApp (TVar t1) t2)
+expandType (OpApp (TVar t1) t2)
   = do typeContext <- getTypeContext
        case Map.lookup t1 typeContext of
          Just (_, OpAbs param t) -> return (fsubstTT (param, t2) t)
@@ -537,12 +547,13 @@ srcLitType UnitLit    = Unit
 
 checkDupNames :: [Name] -> Checker ()
 checkDupNames names
-  = case findDup names of
+  = case findOneDup names of
       Nothing   -> return ()
       Just name -> throwError (ConflictingDefinitions name)
 
-findDup :: Ord a => [a] -> Maybe a
-findDup xs = go xs Set.empty
+-- | Find one instance of duplicate in a list.
+findOneDup :: Ord a => [a] -> Maybe a
+findOneDup xs = go xs Set.empty
   where
     go []      _ = Nothing
     go (x:xs') s = if Set.member x s
