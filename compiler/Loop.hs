@@ -12,6 +12,7 @@ import System.Directory			(removeFile, doesFileExist)
 import System.FilePath			(dropExtension)
 
 import Control.Monad.Error		(liftIO)
+import Control.Concurrent		(threadDelay)
 import qualified Control.Exception as E
 
 import Data.Char
@@ -39,45 +40,54 @@ import Link
 import Z3Backend
 #endif
 
-loop :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Int -> InputT IO ()
-loop handle opt val_cxt env hist index flagH flagT flagS num = do
+loop :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Int -> InputT IO ()
+loop handle opt val_cxt env hist histOld index flagH flagT flagS num = do
 	let max = length hist
 	case flagH of
 	  True  -> case (index == max)  of
-	    True  -> loop handle opt val_cxt env hist 0 False flagT flagS num
+	    True  -> do
+	      let hist = histOld
+	      loop handle opt val_cxt env hist histOld 0 False flagT flagS num
 	    False -> do
-	      let cmd = (reverse hist) !! index
+	      let newHist = if (hist == histOld) then reverse hist else hist
+	      let cmd = newHist !! index 
+	      liftIO (threadDelay $ 1000000)
 	      outputStrLn ""
 	      outputStrLn ("Replaying: " ++ cmd)
-	      runCMD handle opt val_cxt env hist (index+1) True flagT flagS num cmd
+	      runCMD handle opt val_cxt env hist histOld (index+1) True flagT flagS num cmd
 	  False -> do
 	    msg <- getInputLine "f2ji> "
 	    case msg of
 	      Nothing    -> return ()
-	      Just ""    -> loop handle opt val_cxt env hist 0 False flagT flagS num
+	      Just ""    -> loop handle opt val_cxt env hist histOld 0 
+	                         False flagT flagS num
 	      Just input -> do
 	        case input of
-		  ":replay" -> runCMD handle opt val_cxt env hist 0
+		  ":replay" -> runCMD handle opt val_cxt env hist histOld 0
 		  	              False flagT flagS num input
+		  ":replay default" -> runCMD handle opt val_cxt env hist histOld 0
+		  	                      False flagT flagS num input
 	          other     -> do
 		    let histNew = Hist.insert hist input
-	            runCMD handle opt val_cxt env histNew 0
+		    let histOld = histNew
+	            runCMD handle opt val_cxt env histNew histOld 0
 		           False flagT flagS num input
 
-runCMD :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Int -> String -> InputT IO ()
-runCMD handle opt val_ctx env hist index flagH flagT flagS num msg = do
+runCMD :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Int -> String -> InputT IO ()
+runCMD handle opt val_ctx env hist histOld index flagH flagT flagS num msg = do
 	case (stripPrefix ":" msg) of
 	  Just input ->
 		case parseMsg msg of
 		  Left err   ->  outputStrLn "Parse error"
-		  Right line -> processCMD handle opt val_ctx env hist index
+		  Right line -> processCMD handle opt val_ctx env hist histOld index
 		  			   flagH flagT flagS num line
 	  Nothing   -> do
 	  	result <- liftIO (checkType val_ctx msg)
 		case result of
 		  Left typeErr 	      -> do
 			outputStrLn (show typeErr)
-			loop handle opt val_ctx env hist index flagH flagT flagS num
+			loop handle opt val_ctx env hist histOld index 
+			     flagH flagT flagS num
 		  Right (tchecked, t) -> do
 			let filename = "main_" ++ (show num) ++ ".sf"
 			let bind = Env.reverseEnv env
@@ -87,23 +97,23 @@ runCMD handle opt val_ctx env hist index flagH flagT flagS num msg = do
 			exist <- liftIO (doesFileExist filename)
 			if exist
 		  	  then do liftIO (removeFile filename)
-			    	  loop handle opt val_ctx env hist index
+			    	  loop handle opt val_ctx env hist histOld index
 				       flagH flagT flagS (num+1)
-		    	  else loop handle opt val_ctx env hist index
+		    	  else loop handle opt val_ctx env hist histOld index
 				    flagH flagT flagS (num+1)
 
-processCMD :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Int -> [String] -> InputT IO ()
-processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
+processCMD :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Int -> [String] -> InputT IO ()
+processCMD handle opt val_ctx env hist histOld index flagH flagT flagS num (x:xs) = do
 	case x of
 	  ":help" -> do
 		liftIO printHelp
-		loop handle opt val_ctx env hist index
+		loop handle opt val_ctx env hist histOld index
 		     flagH flagT flagS num
 	  ":run" -> do
 		case getCMD xs of
 		  Just filename -> liftIO (wrapFlag handle opt flagT flagS filename)
 	      	  Nothing       ->  outputStrLn "Invalid input"
-		loop handle opt val_ctx env hist index flagH flagT flagS num
+		loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 	  ":link" -> do
 	  	let (list1,modList) = splitAt 2 xs
 		let file = head list1
@@ -112,7 +122,7 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
 		liftIO (Link.link file content)
   		let newFile = (dropExtension file) ++ "c.sf"
   		outputStrLn (newFile ++ " generated!")
-		loop handle opt val_ctx env hist index flagH flagT flagS num
+		loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 #ifdef Z3
 -- #if MIN_VERSION_z3(0,3,2)
           ":se" -> do
@@ -121,7 +131,7 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
 		    expr <- liftIO (OptiUtils.sf2core filename)
 		    liftIO $ solve expr
 		  Nothing 	-> outputStrLn "Invalid input"
-		loop handle opt val_ctx env hist index flagH flagT flagS num
+		loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 #endif
 	  ":expr" -> do
 	  	case getCMD xs of
@@ -129,7 +139,7 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
 		    expr <- liftIO (OptiUtils.sf2core filename)
 		    outputStrLn (show (Core.prettyExpr expr))
 		  Nothing 	-> outputStrLn "Invalid input"
-		loop handle opt val_ctx env hist index flagH flagT flagS num
+		loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 	  ":set" -> case getCMD xs of
 	 	Just "method" -> do
 		  let (y:ys)= xs
@@ -138,22 +148,23 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
 		  case result of
 		    Left (_ :: E.SomeException) -> do
 		      outputStrLn "Invalid method"
-		      loop handle opt val_ctx env hist index flagH flagT flagS num
+		      loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 		    Right optNew 		-> do
-		      loop handle optNew val_ctx env hist index flagH flagT flagS num
+		      loop handle optNew val_ctx env hist histOld index 
+		           flagH flagT flagS num
 		_	      -> do
 		  outputStrLn "Invalid input"
-		  loop handle opt val_ctx env hist index flagH flagT flagS num
+		  loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 	  ":quit" -> return ()
 	  ":let"  -> do
 	  	if (length xs) < 3
 		  then do
 		    outputStrLn "Parse error: no space around \"=\"/Too few input"
-                    loop handle opt val_ctx env hist index flagH flagT flagS num
+                    loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 		  else if (xs !! 1) /= "="
 		    then do
 		      outputStrLn "Parse error: no space around \"=\""
-                      loop handle opt val_ctx env hist index flagH flagT flagS num
+                      loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 		    else do
 		      let (var, exp) = Env.createPair xs
 		      --outputStrLn exp
@@ -162,12 +173,13 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
 		        Left  typeErr	  -> do
 		          --outputStrLn "typeCheck error!"
 		          outputStrLn (show typeErr)
-			  loop handle opt val_ctx env hist index flagH flagT flagS num
+			  loop handle opt val_ctx env hist histOld index 
+			       flagH flagT flagS num
 		        Right (tchecked, t) -> do
 		          let val_ctx_new = Map.insert var t val_ctx
 			  --outputStrLn (show val_ctx_new)
 	  	      	  let envNew = Env.insert (var, exp) env
-		          loop handle opt val_ctx_new envNew hist index
+		          loop handle opt val_ctx_new envNew hist histOld index
 			       flagH flagT flagS num
 	  ":type" -> do
 	  	case getCMD xs of
@@ -175,31 +187,31 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
 		    Just t  -> outputStrLn (show (pretty t))
 		    Nothing -> outputStrLn "variable not found"
 		  Nothing  ->  outputStrLn "Too few input"
-		loop handle opt val_ctx env hist index flagH flagT flagS num
+		loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 	  ":show" -> case getCMD xs of
 	        Just "time"   -> do
 		  let (y:ys) = xs
 		  case getCMD ys of
-		    Just "on"  -> loop handle opt val_ctx env hist index
+		    Just "on"  -> loop handle opt val_ctx env hist histOld index
 				       flagH True flagS num
-		    Just "off" -> loop handle opt val_ctx env hist index
+		    Just "off" -> loop handle opt val_ctx env hist histOld index
 				       flagH False flagS num
 		    _	     -> do
 		      outputStrLn "Invalid option for :set time"
-               	      loop handle opt val_ctx env hist index flagH flagT flagS num
+               	      loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 	  	Just "file"   -> do
 		  let (y:ys) = xs
 		  case getCMD ys of
-		    Just "on"  -> loop handle opt val_ctx env hist index
+		    Just "on"  -> loop handle opt val_ctx env hist histOld index
 		                  flagH flagT True num
-		    Just "off" -> loop handle opt val_ctx env hist index
+		    Just "off" -> loop handle opt val_ctx env hist histOld index
 				  flagH flagT False num
 		    _          -> do
 		      outputStrLn "Invalid option for :show file"
-		      loop handle opt val_ctx env hist index flagH flagT flagS num
+		      loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 	  	Just "env"    -> do
 		  outputStrLn ("[" ++ Env.showPrettyEnv env ++ "]")
-		  loop handle opt val_ctx env hist index flagH flagT flagS num
+		  loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 		Just "method" -> do
 		  let (num, compile, method) = opt
 		  outputStrLn ("Currently using: " ++ show method)
@@ -218,7 +230,7 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
 		  outputStrLn "benchsai2"
 		  outputStrLn "---------------------------"
 		  outputStrLn "Default: naive"
-		  loop handle opt val_ctx env hist index flagH flagT flagS num
+		  loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 		Just input -> do
 		  exist <- liftIO (doesFileExist input)
 		  case exist of
@@ -226,18 +238,27 @@ processCMD handle opt val_ctx env hist index flagH flagT flagS num (x:xs) = do
 		   	content <- liftIO (readFile input)
 		        outputStrLn content
 		    False -> outputStrLn "Invalid input"
-		  loop handle opt val_ctx env hist index flagH flagT flagS num
+		  loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 		Nothing    -> do
 		  outputStrLn "Too few input"
-		  loop handle opt val_ctx env hist index flagH flagT flagS num
-	  ":clear"  -> loop handle opt Map.empty Env.empty hist index
+		  loop handle opt val_ctx env hist histOld index flagH flagT flagS num
+	  ":clear"  -> loop handle opt Map.empty Env.empty hist histOld index
 	  	            flagH flagT flagS num
-	  ":replay" -> do
+	  ":replay" -> case getCMD xs of 
+	      Nothing -> do
 	  	let envNew = Env.empty
 		--outputStrLn (show hist)
-		loop handle opt val_ctx envNew hist 0 True flagT flagS num
-	  input	  -> do outputStrLn $ "Command not recognized: " ++ input
-	  	        loop handle opt val_ctx env hist index flagH flagT flagS num
+		loop handle opt val_ctx envNew hist histOld 0 True flagT flagS num
+	      Just "default" -> do
+	        cmd <- liftIO (readFile "default.txt")
+		let histOld = hist
+		let hist = lines cmd
+		--outputStrLn (show hist)
+		loop handle opt val_ctx env hist histOld 0 True flagT flagS num
+	      Just input -> outputStrLn "Invalid option for :replay!"
+	  input	  -> do 
+	    outputStrLn $ "Command not recognized: " ++ input
+	    loop handle opt val_ctx env hist histOld index flagH flagT flagS num
 
 getCMD :: [String] -> Maybe String
 getCMD xs = case xs of
@@ -302,6 +323,7 @@ printHelp = do
 	putStrLn ":let var = expr       Bind expr to var"
 	putStrLn ":type var             Show the type of var"
 	putStrLn ":replay               Replay all previous user commands"
+	putStrLn ":replay default       Replay commands from default.txt"
 	putStrLn ":clear                Clear environment"
 	putStrLn ":quit                 Quit f2ji"
 	putStrLn ""
