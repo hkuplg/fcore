@@ -32,7 +32,7 @@ import Panic
 
 import qualified Language.Java.Syntax as J (Op(..))
 -- import qualified Language.Java.Pretty as P
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 
 import Data.Data
 import Data.List (intersperse)
@@ -133,8 +133,9 @@ instance Functor JCallee where
   fmap _ (Static c)    = Static c
   fmap f (NonStatic e) = NonStatic (f e)
 
-type TypeContext  = Map.Map Name Kind -- Delta
-type ValueContext = Map.Map Name Type -- Gamma
+type TypeContext  = Map.Map Name (Kind, Maybe Type) -- Delta
+-- For type synonyms, `Maybe Type` holds their type-level definitions.
+type ValueContext = Map.Map Name Type               -- Gamma
 
 -- Type equivalence(s) and subtyping
 
@@ -257,6 +258,7 @@ instance Pretty Type where
   pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
   pretty (Record fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
   pretty (Thunk t)    = squote <> parens (pretty t)
+  pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (ListOf a)   = brackets $ pretty a
 

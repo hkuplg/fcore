@@ -23,7 +23,7 @@ import qualified Src as S
 import Mixin
 import Panic
 
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 
 import Data.Maybe    (fromMaybe)
 import Control.Monad (zipWithM)

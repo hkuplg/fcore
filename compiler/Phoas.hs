@@ -1,7 +1,7 @@
 module Phoas where
 
 import PrettyUtils
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 
 data Type t = TVar t | Int | Fun (Type t) (Type t) | Forall (t -> Type t)
 

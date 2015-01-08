@@ -4,10 +4,10 @@ import Data.List.Split
 
 import Parser
 import Src
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 
 type Env = [(String, Exp)]
-type Exp = (String, Src.Expr Src.Name)    
+type Exp = (String, Src.Expr Src.Name)
 
 empty :: Env
 empty = []
@@ -20,7 +20,7 @@ createExp [] = ""
 createExp (x:xs) = x ++ " " ++ createExp xs
 
 -- y is "="
--- Sample input: ["x", "=", "y" , "+", "2"] 
+-- Sample input: ["x", "=", "y" , "+", "2"]
 -- Sample output: splitOn ["="] xs ~> [["x"], ["y", "+", "2"]]
 -- Sample output: ("x", "y+2")
 createPair :: [String] -> (String, String)
@@ -33,8 +33,8 @@ reverseEnv env = reverse env
 
 createBindEnv :: Env -> String
 createBindEnv [] = ""
-createBindEnv ((var,(str,expr)) : xs) = "let " ++ var ++ " = " ++ str 
-			   		++ " in " ++ createBindEnv xs   
+createBindEnv ((var,(str,expr)) : xs) = "let " ++ var ++ " = " ++ str
+			   		++ " in " ++ createBindEnv xs
 searchEnv :: String -> Env -> Bool
 searchEnv var env = case lookup var env of
 			Nothing  -> False
@@ -42,7 +42,7 @@ searchEnv var env = case lookup var env of
 
 showPrettyEnv :: Env -> String
 showPrettyEnv [] = ""
-showPrettyEnv ((var, (str, expr)) : xs) = "(" ++ show var ++ ", " 
+showPrettyEnv ((var, (str, expr)) : xs) = "(" ++ show var ++ ", "
 				              ++ show (pretty expr)
 				   	      ++ "); " ++ showPrettyEnv xs
 

@@ -21,7 +21,7 @@ import qualified Data.Map as Map
 
 import TypeCheck
 import Src hiding (wrap)
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 import Translations
 import JavaUtils
 import qualified OptiUtils		(sf2core)
@@ -255,7 +255,7 @@ getOpt ms = case ms of
 	["apply"] 		-> return (0, compileAO, [Apply, Naive])
 	["apply", "unbox"]	-> return (0, compileAoptUnbox, [Apply, Naive, Unbox])
 	["apply", "stack"]  	-> return (0, compileS, [Apply, Naive, Stack])
-	["apply", "stack", "unbox"] 
+	["apply", "stack", "unbox"]
 			        -> return (0, compileSAU, [Apply, Naive, Stack, Unbox])
 	["stackau1"] 		-> return (1, compileSAU, [Naive, StackAU1])
 	["stackau2"] 		-> return (2, compileSAU, [Naive, StackAU2])
@@ -267,7 +267,7 @@ getOpt ms = case ms of
 	--["benchSA"]	 	-> return (0, (compileBS True), [BenchSA])
 	--["benchSAI1"]		-> return (1, (compileBS True), [BenchSAI1])
 	--["benchSAI2"] 		-> return (2, (compileBS True), [BenchSAI2])
-	_			-> error "invalid method" 
+	_			-> error "invalid method"
 
 wrapFlag :: Connection -> CompileOpt -> Bool -> Bool -> String -> IO ()
 wrapFlag handle opt flagT flagS filename = case flagT of
@@ -293,8 +293,8 @@ printHelp = do
 	putStrLn "Commands:"
 	putStrLn ":help                 Display help manual"
 	putStrLn ":run <sourceFile>     Compile and run sourceFile"
-	putStrLn ":link <sourceFile> -m <module1> <module2> ..." 
-	putStrLn "                      Link sourceFile with modules" 
+	putStrLn ":link <sourceFile> -m <module1> <module2> ..."
+	putStrLn "                      Link sourceFile with modules"
 	putStrLn ":expr <sourceFile>    Show core expression of the file"
 #ifdef Z3
 	putStrLn ":se <sourceFile>      Symbolically evaluate the file"

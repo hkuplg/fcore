@@ -2,7 +2,7 @@
 
 module PrettyUtils where
 
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 import Data.Char (ord, chr)
 
 -- class Outputable a where
@@ -25,6 +25,13 @@ bquote = char '`'
 
 bquotes :: Doc -> Doc
 bquotes = enclose bquote bquote
+
+prettyError :: Doc
+prettyError = (bold . dullred) (text "error" <> colon)
+
+prettyCode :: Doc -> Doc
+prettyCode = bold . bquotes
+
 
 type PrecLevel = Int
 data PrecDelta = PrecMinus | PrecPlus

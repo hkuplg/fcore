@@ -29,7 +29,7 @@ import JvmTypeQuery
 import Panic
 import StringPrefixes
 
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 
 import System.IO
 import System.Process
@@ -58,7 +58,7 @@ typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
 withTypeServer :: (Connection -> IO a) -> IO a
 withTypeServer do_this =
   do cp <- getClassPath
-     let p = (proc "java" ["-cp", cp, (namespace ++ "TypeServer")])
+     let p = (proc "java" ["-cp", cp, namespace ++ "TypeServer"])
                { std_in = CreatePipe, std_out = CreatePipe }
      (Just inp, Just out, _, proch) <- createProcess p
      hSetBuffering inp NoBuffering
@@ -69,8 +69,8 @@ withTypeServer do_this =
 
 data TcEnv
   = TcEnv
-  { tceTypeContext     :: Map.Map Name (Kind, Type)
-  , tceValueContext    :: Map.Map Name Type
+  { tceTypeContext     :: TypeContext
+  , tceValueContext    :: ValueContext
   , tceTypeserver   :: Connection
   , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
@@ -104,6 +104,7 @@ data TypeError
   | NotInScopeTVar Name
   | NotInScopeVar   Name
   | ProjectionOfNonProduct
+  | NotWellKinded Type
 
   -- Java-specific type errors
   | NoSuchClass       ClassName
@@ -113,9 +114,10 @@ data TypeError
   deriving (Show)
 
 instance Pretty TypeError where
-  pretty (General doc)      = text "error:" <+> doc
-  pretty (NotInScopeTVar a) = text "error:" <+> text "type" <+> bquotes (text a) <+> text "is not in scope"
-  pretty e                  = text "error:" <+> text (show e)
+  pretty (General doc)      = prettyError <+> doc
+  pretty (NotInScopeTVar a) = prettyError <+> text "type" <+> prettyCode (text a) <+> text "is not in scope"
+  pretty (NotWellKinded t)  = prettyError <+> prettyCode (pretty t) <+> text "is not well-kinded"
+  pretty e                  = prettyError <+> text (show e)
 
 instance Error TypeError where
   -- strMsg
@@ -144,7 +146,7 @@ memoizeJavaClass c
        memoized_java_classes <- getMemoizedJavaClasses
        setTcEnv TcEnv{ tceMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
 
-withLocalTVars :: [(Name, (Kind, Type))] -> Checker a -> Checker a
+withLocalTVars :: [(Name, (Kind, Maybe Type))] -> Checker a -> Checker a
 withLocalTVars tvars do_this
   = do delta <- getTypeContext
        let delta' = Map.fromList tvars `Map.union` delta
@@ -178,17 +180,22 @@ applyTSubst _ _            = sorry "TypeCheck.applyTSubst"
 
 -- Kinding
 kind :: TypeContext -> Type -> IO (Maybe Kind)
-kind d (TVar a)     = return (Map.lookup a d)
--- kind _ (JClass c)   = undefined
-kind _ (JType c)    = undefined
+kind d (TVar a)     = case Map.lookup a d of Nothing     -> return Nothing
+                                             Just (k, _) -> return (Just k)
+kind _ (JType _)    = return (Just Star) -- TODO
 kind _  Unit        = return (Just Star)
 kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
-kind d (Forall a t) = kind d' t where d' = Map.insert a Star d
+kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, Nothing) d
 kind d (Product ts) = justStarIffAllHaveKindStar d ts
 kind d (Record fs)  = justStarIffAllHaveKindStar d (map snd fs)
 kind d (ListOf t)   = kind d t
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Thunk t)    = kind d t
+kind d (OpAbs _x t) = do -- Restriction compared to F_omega: x can only have kind *
+  maybe_k <- kind d t
+  case maybe_k of
+    Nothing -> return Nothing
+    Just k  -> return $ Just (KArrow Star k)
 -- \Delta |- T1 :: K11 => K12  \Delta |- T2 :: K11
 -- -------------------------------------------- (K-App)
 -- \Delta |- T1 T2 :: K12
@@ -198,6 +205,7 @@ kind d (OpApp t1 t2) = do
   case (maybe_k1, maybe_k2) of
     (Just (KArrow k11 k12), Just k2) | k2 == k11 -> return (Just k12)
     _ -> return Nothing
+kind _ t = sorry (show t)
 
 justStarIffAllHaveKindStar :: TypeContext -> [Type] -> IO (Maybe Kind)
 justStarIffAllHaveKindStar d ts
@@ -234,14 +242,14 @@ infer (App e1 e2)
                            unless (dethunk t2' `subtype` dethunk t11') $
                              throwError
                                (General
-                                  (bquotes (pretty e1) <+> text "expects an argument of type" <+>
-                                   bquotes (pretty t11) <+> text "or a subtype of that" <> comma <+>
-                                   text "but the argument" <+> bquotes (pretty e2) <+> text "has type" <+> pretty t2))
+                                  (prettyCode (pretty e1) <+> text "expects an argument of type" <+>
+                                   prettyCode (pretty t11) <+> text "or a subtype of that" <> comma <+>
+                                   text "but the argument" <+> prettyCode (pretty e2) <+> text "has type" <+> pretty t2))
                            return (App e1' e2', t12)
-         _         -> throwError (General (bquotes (pretty e1) <+> text "is of type" <+> bquotes (pretty t1) <> text "; it cannot be applied"))
+         _         -> throwError (General (prettyCode (pretty e1) <+> text "is of type" <+> prettyCode (pretty t1) <> text "; it cannot be applied"))
 
 infer (BLam a e)
-  = do (e', t) <- withLocalTVars [(a, (Star, TVar a))] (infer e)
+  = do (e', t) <- withLocalTVars [(a, (Star, Nothing))] (infer e)
        return (BLam a e', Forall a t)
 
 infer (TApp e targ)
@@ -309,7 +317,7 @@ infer (JMethod callee m args _)
       Static c ->
         do (args', arg_cs) <- mapAndUnzipM inferAgainstAnyJClass args
            ret_c <- checkMethodCall (Static c) m arg_cs
-           if (ret_c == "char")
+           if ret_c == "char"
              then return (JMethod (Static c) m args' ret_c, JType $ JPrim "char")
              else return (JMethod (Static c) m args' ret_c, JType $ JClass ret_c)
       NonStatic e ->
@@ -339,7 +347,7 @@ infer (JField callee f _)
              And t1 t2 -> return (RecordAccess e' f, fromJust (lookup (Just f) (fields t1 ++ fields t2)))
              _          -> throwError
                            (General
-                            (bquotes (pretty e) <+> text "has type" <+> bquotes (pretty t) <>
+                            (prettyCode (pretty e) <+> text "has type" <+> prettyCode (pretty t) <>
                              text ", which does not support the dot notation"))
 
 infer (Seq es) = do
@@ -354,7 +362,7 @@ infer (Merge e1 e2) =
 infer (PrimList l) =
       do (es, ts) <- mapAndUnzipM infer l
          case ts of [] -> return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
-                    _  -> if all (`alphaEq` (ts !! 0)) ts
+                    _  -> if all (`alphaEq` head ts) ts
                             then return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
                             else throwError $ General (text "Primitive List Type Mismatch" <+> text (show (PrimList l)))
 
@@ -378,12 +386,18 @@ infer (LetModule (Module m binds) e) =
      infer $ Let NonRec [Bind m [] [] letrec Nothing] e
 infer (ModuleAccess m f) = infer (RecordAccess (Var m) f)
 
--- Type synonyms
-infer (Type t params rhs e) -- type T A1 ... An = t in e
+-- Type synonyms: type T A1 ... An = t in e
+-- First make sure that A1 ... An are distinct.
+-- Then rewrite to "type T = \A1. ... An. t in e" and kind-check \A1. ... \An. t.
+infer (Type t params rhs e)
   = do checkDupNames params
-       withLocalTVars [(t, (k params, pullRight params rhs))] $ infer e
-  where k []     = Star
-        k (_:as) = KArrow Star (k as)
+       typeContext <- getTypeContext
+       maybe_kind <- liftIO $ kind typeContext pulledRight
+       case maybe_kind of
+         Nothing -> throwError $ NotWellKinded pulledRight
+         Just k  -> withLocalTVars [(t, (k, Just pulledRight))] $ infer e
+  where
+    pulledRight = pullRight params rhs
 
 -- | "Pull" the type params at the LHS of the equal sign to the right.
 -- A (high-level) example:
@@ -409,17 +423,17 @@ inferAgainstAnyJClass expr
         JType (JClass c) -> return (expr', c)
         _ -> throwError $
              General
-             (bquotes (pretty expr) <+> text "has type" <+> bquotes (pretty ty) <> comma <+>
+             (prettyCode (pretty expr) <+> text "has type" <+> prettyCode (pretty ty) <> comma <+>
               text "but is expected to be of some Java class")
 
 -- f A1 ... An (x1:T1) ... (xn:Tn) = e
 inferBind :: Bind Name -> Checker (Name, Type, Expr (Name,Type))
 inferBind bind
   = do bind' <- checkBindLHS bind
-       (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, TVar a))) (bindTargs bind')) $
+       (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, Nothing))) (bindTargs bind')) $
                                   do expandedBindArgs <- mapM (\(x,t) -> do { t' <- expandType t; return (x,t') }) (bindArgs bind')
                                      withLocalVars expandedBindArgs (infer (bindRhs bind'))
-       return ( (bindId bind')
+       return ( bindId bind'
               , wrap Forall (bindTargs bind') (wrap Fun (map snd (bindArgs bind')) bindRhsTy)
               , wrap BLam (bindTargs bind') (wrap Lam (bindArgs bind') bindRhs'))
 
@@ -427,7 +441,7 @@ checkBindLHS :: Bind Name -> Checker (Bind Name)
 checkBindLHS bind@Bind{..}
   = do checkDupNames bindTargs
        checkDupNames [x | (x, _) <- bindArgs]
-       bindArgs' <- withLocalTVars (map (\a -> (a, (Star, TVar a))) bindTargs) $
+       bindArgs' <- withLocalTVars (map (\a -> (a, (Star, Nothing))) bindTargs) $
          forM bindArgs (\(x, t) ->
           do --checkType t
              t' <- expandType t
@@ -502,8 +516,9 @@ expandType :: Type -> Checker Type
 expandType (TVar a)
   = do typeContext <- getTypeContext
        case Map.lookup a typeContext of
-         Nothing      -> return (TVar a)
-         Just (_, t') -> if t' == TVar a then return t' else expandType t'
+         Nothing            -> return (TVar a)
+         Just (_, Nothing)  -> return (TVar a)
+         Just (_, Just def) -> expandType def
 expandType (JType t) = return (JType t)
 expandType Unit       = return Unit
 expandType (Fun t1 t2)
@@ -511,7 +526,7 @@ expandType (Fun t1 t2)
        t2' <- expandType t2
        return (Fun t1' t2')
 expandType (Forall a t)
-  = do t' <- withLocalTVars [(a, (Star, TVar a))] (expandType t)
+  = do t' <- withLocalTVars [(a, (Star, Nothing))] (expandType t)
        return (Forall a t')
 expandType (Product ts)
   = do ts' <- mapM expandType ts
@@ -532,7 +547,7 @@ expandType (Thunk t)
 expandType (OpApp (TVar t1) t2)
   = do typeContext <- getTypeContext
        case Map.lookup t1 typeContext of
-         Just (_, OpAbs param t) -> return (fsubstTT (param, t2) t)
+         Just (_, Just (OpAbs param t)) -> return (fsubstTT (param, t2) t)
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)

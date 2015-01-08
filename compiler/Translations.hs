@@ -49,7 +49,7 @@ import           Language.Java.Pretty
 import qualified Language.Java.Syntax as J
 import           Prelude hiding (exp)
 import           System.Exit (exitFailure)
-import           Text.PrettyPrint.Leijen
+import           Text.PrettyPrint.ANSI.Leijen
 
 -- import Control.Monad.Trans.Error (runErrorT)
 
@@ -161,7 +161,7 @@ sf2java num optDump compilation className src =
      result <- readSrc `seq` (typeCheck readSrc)
      case result of
        Left typeError ->
-         do print (Text.PrettyPrint.Leijen.pretty typeError)
+         do print (Text.PrettyPrint.ANSI.Leijen.pretty typeError)
             exitFailure -- TODO: Ugly
        Right (tcheckedSrc, _t)   ->
          do when (optDump == DumpTChecked) $ print tcheckedSrc
