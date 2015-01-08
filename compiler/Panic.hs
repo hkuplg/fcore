@@ -10,7 +10,7 @@ module Panic
   , panicOnSameDataCons
   ) where
 
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 import Control.Exception
 import Data.Data
 

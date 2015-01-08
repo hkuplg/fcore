@@ -10,7 +10,7 @@ import JavaUtils
 import Panic
 
 import PrettyUtils
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 import qualified Language.Java.Pretty (prettyPrint)
 import Data.List (intersperse)
 

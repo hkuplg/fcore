@@ -1,4 +1,6 @@
--- The desugarer: turning the source language into System F (with intersection types).
+-- The desugarer turns the source language into System F (with intersection
+-- types), including the removal of type synonyms. No desugaring should happen
+-- before this stage.
 
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wall #-}

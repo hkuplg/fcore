@@ -17,7 +17,7 @@ import Z3Backend
 import PrettyUtils
 import OptiUtils
 
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 
 import Unsafe.Coerce
 

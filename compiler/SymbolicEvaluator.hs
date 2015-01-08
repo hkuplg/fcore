@@ -13,7 +13,7 @@ import qualified Src                     as S
 import Control.Monad.Fix (fix)
 import Data.IntSet hiding (map)
 -- import           PrettyUtils
--- import           Text.PrettyPrint.Leijen
+-- import           Text.PrettyPrint.ANSI.Leijen
 -- import DataTypes
 
 data Value = VInt Integer
