@@ -45,7 +45,7 @@ type Label      = Name
 
 data Module id = Module id [Bind id] deriving (Eq, Show)
 
--- Kinds K := * | K -> K
+-- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
 
 data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)

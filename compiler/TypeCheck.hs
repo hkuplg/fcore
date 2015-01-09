@@ -192,22 +192,25 @@ kind d (ListOf t)   = kind d t
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Thunk t)    = kind d t
 
--- (K-Abs)
-kind d (OpAbs x t) = do -- Restriction compared to F_omega: x can only have kind *
+-- Δ,x::* ⊢ t :: k
+-- -------------------- (K-Abs) Restriction compared to F_omega: x can only have kind *
+-- Δ ⊢ λx. t :: * => k
+kind d (OpAbs x t) = do
   maybe_k <- kind (Map.insert x (Star, Nothing) d) t
   case maybe_k of
     Nothing -> return Nothing
     Just k  -> return $ Just (KArrow Star k)
 
--- \Delta |- T1 :: K11 => K12  \Delta |- T2 :: K11
--- -------------------------------------------- (K-App)
--- \Delta |- T1 T2 :: K12
+-- Δ ⊢ t1 :: k11 => k12  Δ ⊢ t2 :: k11
+-- ------------------------------------ (K-App)
+-- Δ ⊢ t1 t2 :: k12
 kind d (OpApp t1 t2) = do
   maybe_k1 <- kind d t1
   maybe_k2 <- kind d t2
   case (maybe_k1, maybe_k2) of
     (Just (KArrow k11 k12), Just k2) | k2 == k11 -> return (Just k12)
     _ -> return Nothing
+
 kind _ t = sorry (show t)
 
 justStarIffAllHaveKindStar :: TypeContext -> [Type] -> IO (Maybe Kind)
