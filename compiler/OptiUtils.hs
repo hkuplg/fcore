@@ -32,6 +32,9 @@ joinExpr (JMethod jc m es cn) =
 joinExpr (JField jc fn cn) = JField (fmap joinExpr jc) fn cn
 joinExpr (Seq es) = Seq (map joinExpr es)
 joinExpr (Merge e1 e2) = Merge (joinExpr e1) (joinExpr e2)
+joinExpr (RecordLit (l,e)) = RecordLit (l, joinExpr e)
+joinExpr (RecordElim e l) = RecordElim (joinExpr e) l
+joinExpr (RecordUpdate e1 (l,e2)) = RecordUpdate (joinExpr e1) (l, joinExpr e2)
 
 mapExpr :: (Expr t e -> Expr t e) -> Expr t e -> Expr t e
 mapExpr f e =
@@ -57,6 +60,9 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Seq es -> Seq $ map f es
       Merge e1 e2 -> Merge (f e1) (f e2)
+      RecordLit (l,e) -> RecordLit (l, f e)
+      RecordElim e l -> RecordElim (f e) l
+      RecordUpdate e1 (l,e2) -> RecordUpdate (f e1) (l, f e2)
 
 sf2core :: String -> IO (Expr t e)
 sf2core fname = do
