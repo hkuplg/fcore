@@ -21,6 +21,13 @@ test :
 	cp runtime/runtime.jar .
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
 
+.PHONY : test2
+test2 : 
+	make parsers
+	ghc -o FileLoad $(srcdir)/FileLoad.hs -i$(srcdir)
+	./FileLoad
+	rm $(srcdir)/*.o $(srcdir)/*.hi $(srcdir)/*.dyn_hi $(srcdir)/*.dyn_o
+
 .PHONY : parsers
 parsers :
 	cd $(srcdir) && make && cd ..
