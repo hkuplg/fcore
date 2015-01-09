@@ -17,6 +17,8 @@ import Data.Maybe       (fromMaybe)
 import Data.List        (intercalate)
 import StringPrefixes
 
+import Text.PrettyPrint.ANSI.Leijen
+
 import qualified Data.Map as Map
 
 desugar :: Expr (Name,Type) -> C.Expr t e
@@ -39,6 +41,7 @@ transType d (Record fs)  =
                   _        -> transType d (Record (take (length fs - 1) fs)) `C.And` C.Record (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = C.Unit
 transType i (Thunk t)    = C.Thunk (transType i t)
+transType _ t            = prettySorry "Desugar.transType" (pretty t)
 
 desugarExpr :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarExpr (d, g) = go
