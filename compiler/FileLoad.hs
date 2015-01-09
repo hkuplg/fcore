@@ -28,10 +28,10 @@ runtimeBytes = $(embedFile "runtime/runtime.jar")
 
 initReplEnv ::[String] -> IO ()
 initReplEnv xs =  do      
-     exists <- doesFileExist =<< getRuntimeJarPath
-     existsCur <- doesFileExist "./runtime.jar"
-     unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
-     fileExist "runtime.jar"
+     --exists <- doesFileExist =<< getRuntimeJarPath
+     --existsCur <- doesFileExist "./runtime.jar"
+     --unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
+     --fileExist "runtime.jar"
      let p = (proc "java" ["-cp", "runtime.jar:.", (namespace ++ "FileServer")])
                   {std_in = CreatePipe, std_out = CreatePipe}
      (Just inP, Just outP, _, proch) <- createProcess p

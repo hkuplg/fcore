@@ -24,6 +24,7 @@ test :
 .PHONY : test2
 test2 : 
 	make parsers
+	cp runtime/runtime.jar .
 	ghc -o FileLoad $(srcdir)/FileLoad.hs -i$(srcdir)
 	./FileLoad
 	rm $(srcdir)/*.o $(srcdir)/*.hi $(srcdir)/*.dyn_hi $(srcdir)/*.dyn_o
