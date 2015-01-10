@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module FileLoad where
+module Main where
 
 import System.IO
 import System.Process
@@ -21,34 +21,34 @@ import FileIO
 import JavaUtils
 import StringPrefixes			(namespace)
 
-testCasesPath = "../testsuite/tests/run-pass/"
+testCasesPath = "testsuite/tests/run-pass/"
 
 runtimeBytes :: Data.ByteString.ByteString
-runtimeBytes = $(embedFile "../runtime/runtime.jar")
+runtimeBytes = $(embedFile "runtime/runtime.jar")
 
 initReplEnv ::[String] -> IO ()
 initReplEnv xs =  do      
-     exists <- doesFileExist =<< getRuntimeJarPath
-     existsCur <- doesFileExist "./runtime.jar"
-     unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
-     fileExist "runtime.jar"
+     --exists <- doesFileExist =<< getRuntimeJarPath
+     --existsCur <- doesFileExist "./runtime.jar"
+     --unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
+     --fileExist "runtime.jar"
      let p = (proc "java" ["-cp", "runtime.jar:.", (namespace ++ "FileServer")])
                   {std_in = CreatePipe, std_out = CreatePipe}
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP NoBuffering
      hSetBuffering outP NoBuffering
-     loadFile inP outP "Naive" compileN xs
-     loadFile inP outP "Apply" compileAO xs
-     loadFile inP outP "Stack" compileS xs
+     loadFile inP outP [Naive] compileN xs
+     loadFile inP outP [Naive, Apply] compileAO xs
+     loadFile inP outP [Naive, Stack] compileSN xs
      terminateProcess proch
 
-loadFile :: Handle -> Handle -> String -> Compilation -> [String] -> IO ()
+loadFile :: Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO ()
 loadFile inP outP method opt xs = do
     putStrLn "-------------------------------------"
-    putStrLn ("Compileation Option: " ++ method)
+    putStrLn ("Compileation Option: " ++ show (method))
     loadAll inP outP method opt xs
    
-loadAll ::  Handle -> Handle -> String -> Compilation -> [String] -> IO ()
+loadAll ::  Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO ()
 loadAll _ _ _ _ [] = return () 
 loadAll inP outP method opt (x:xs) = do
     putStrLn ("Running " ++ (takeFileName x))
