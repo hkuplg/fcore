@@ -99,7 +99,8 @@ data TypeError
   | ConflictingDefinitions Name
   | ExpectJClass
   | IndexTooLarge
-  | Mismatch { expectedTy :: Type, actualTy :: Type }
+  | TypeMismatch (Expr Name) Type Type
+  | KindMismatch Type Kind Kind
   | MissingRHSAnnot
   | NotInScopeTVar Name
   | NotInScopeVar   Name
@@ -115,9 +116,17 @@ data TypeError
 
 instance Pretty TypeError where
   pretty (General doc)      = prettyError <+> doc
-  pretty (NotInScopeTVar a) = prettyError <+> text "type" <+> prettyCode (text a) <+> text "is not in scope"
-  pretty (NotWellKinded t)  = prettyError <+> prettyCode (pretty t) <+> text "is not well-kinded"
-  pretty e                  = prettyError <+> text (show e)
+  pretty (NotInScopeTVar a) = prettyError <+> text "type" <+> code (text a) <+> text "is not in scope"
+  pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
+  pretty (KindMismatch t expected actual) =
+    prettyError <+> text "kind mismatch in" <+> code (pretty t) <> colon <$>
+    indent 2 (text "expected:" <+> code (pretty expected) <$>
+              text "actual:  " <+> code (pretty actual))
+  pretty (TypeMismatch e expected actual) =
+    prettyError <+> text "type mismatch in" <+> code (pretty e) <> colon <$>
+    indent 2 (text "expected:" <+> code (pretty expected) <$>
+              text "actual:  " <+> code (pretty actual))
+  pretty e = prettyError <+> text (show e)
 
 instance Error TypeError where
   -- strMsg
@@ -178,11 +187,10 @@ applyTSubst s (Fun t1 t2)  = Fun (applyTSubst s t1) (applyTSubst s t2)
 applyTSubst s (Forall a t) = Forall a (applyTSubst s' t) where s' = Map.delete a s
 applyTSubst _ _            = sorry "TypeCheck.applyTSubst"
 
--- Kinding
+-- | Kinding.
 kind :: TypeContext -> Type -> IO (Maybe Kind)
 kind d (TVar a)     = case Map.lookup a d of Nothing     -> return Nothing
                                              Just (k, _) -> return (Just k)
-kind _ (JType _)    = return (Just Star) -- TODO
 kind _  Unit        = return (Just Star)
 kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, Nothing) d
@@ -211,7 +219,7 @@ kind d (OpApp t1 t2) = do
     (Just (KArrow k11 k12), Just k2) | k2 == k11 -> return (Just k12)
     _ -> return Nothing
 
-kind _ t = sorry (show t)
+kind _ t = return (Just Star) -- TODO
 
 justStarIffAllHaveKindStar :: TypeContext -> [Type] -> IO (Maybe Kind)
 justStarIffAllHaveKindStar d ts
@@ -225,6 +233,7 @@ hasKindStar d t
   = do k <- kind d t
        return (k == Just Star)
 
+-- | Typing.
 infer :: Expr Name -> Checker (Expr (Name,Type), Type)
 infer (Var name)
   = do value_ctxt <- getValueContext
@@ -243,16 +252,10 @@ infer (App e1 e2)
   = do (e1', t1) <- infer e1
        (e2', t2) <- infer e2
        case t1 of
-         Fun t11 t12 -> do t11' <- expandType t11
-                           t2'  <- expandType t2
-                           unless (dethunk t2' `subtype` dethunk t11') $
-                             throwError
-                               (General
-                                  (prettyCode (pretty e1) <+> text "expects an argument of type" <+>
-                                   prettyCode (pretty t11) <+> text "or a subtype of that" <> comma <+>
-                                   text "but the argument" <+> prettyCode (pretty e2) <+> text "has type" <+> pretty t2))
+         Fun t11 t12 -> do unless (dethunk t2 `subtype` dethunk t11) $
+                             throwError $ TypeMismatch e2 t11 t2
                            return (App e1' e2', t12)
-         _         -> throwError (General (prettyCode (pretty e1) <+> text "is of type" <+> prettyCode (pretty t1) <> text "; it cannot be applied"))
+         _         -> throwError (General (code (pretty e1) <+> text "is of type" <+> code (pretty t1) <> text "; it cannot be applied"))
 
 infer (BLam a e)
   = do (e', t) <- withLocalTVars [(a, (Star, Nothing))] (infer e)
@@ -353,7 +356,7 @@ infer (JField callee f _)
              And t1 t2 -> return (RecordAccess e' f, fromJust (lookup (Just f) (fields t1 ++ fields t2)))
              _          -> throwError
                            (General
-                            (prettyCode (pretty e) <+> text "has type" <+> prettyCode (pretty t) <>
+                            (code (pretty e) <+> text "has type" <+> code (pretty t) <>
                              text ", which does not support the dot notation"))
 
 infer (Seq es) = do
@@ -419,7 +422,7 @@ inferAgainst expr expected_ty
   = do (expr', actual_ty) <- infer expr
        if actual_ty `alphaEq` expected_ty
           then return (expr', actual_ty)
-          else throwError (Mismatch expected_ty actual_ty)
+          else throwError (TypeMismatch expr expected_ty actual_ty)
 
 inferAgainstAnyJClass :: Expr Name -> Checker (Expr (Name,Type), ClassName)
 inferAgainstAnyJClass expr
@@ -429,30 +432,34 @@ inferAgainstAnyJClass expr
         JType (JClass c) -> return (expr', c)
         _ -> throwError $
              General
-             (prettyCode (pretty expr) <+> text "has type" <+> prettyCode (pretty ty) <> comma <+>
+             (code (pretty expr) <+> text "has type" <+> code (pretty ty) <> comma <+>
               text "but is expected to be of some Java class")
 
--- f A1 ... An (x1:T1) ... (xn:Tn) = e
+-- | Check "f A1 ... An (x1:T1) ... (xn:Tn) = e"
 inferBind :: Bind Name -> Checker (Name, Type, Expr (Name,Type))
 inferBind bind
   = do bind' <- checkBindLHS bind
        (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, Nothing))) (bindTargs bind')) $
-                                  do expandedBindArgs <- mapM (\(x,t) -> do { t' <- expandType t; return (x,t') }) (bindArgs bind')
+                                  do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindArgs bind')
                                      withLocalVars expandedBindArgs (infer (bindRhs bind'))
        return ( bindId bind'
               , wrap Forall (bindTargs bind') (wrap Fun (map snd (bindArgs bind')) bindRhsTy)
               , wrap BLam (bindTargs bind') (wrap Lam (bindArgs bind') bindRhs'))
 
+-- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
+-- First make sure the names of type params and those of value params are distinct, respectively.
+-- Then check and expand the types of value params.
 checkBindLHS :: Bind Name -> Checker (Bind Name)
-checkBindLHS bind@Bind{..}
+checkBindLHS Bind{..}
   = do checkDupNames bindTargs
-       checkDupNames [x | (x, _) <- bindArgs]
+       checkDupNames (map fst bindArgs)
        bindArgs' <- withLocalTVars (map (\a -> (a, (Star, Nothing))) bindTargs) $
-         forM bindArgs (\(x, t) ->
-          do --checkType t
-             t' <- expandType t
-             return (x,t'))
-       return bind { bindArgs = bindArgs' }
+                    -- Restriction: type params have kind *
+                    do d <- getTypeContext
+                       forM bindArgs (\(x,t) ->
+                         do checkType t
+                            return (x, expandType d t))
+       return Bind { bindArgs = bindArgs', .. }
 
 collectBindNameSigs :: [Bind Name] -> Checker [(Name, Type)]
 collectBindNameSigs
@@ -464,15 +471,19 @@ collectBindNameSigs
                                     wrap Fun [ty |  (_,ty) <- bindArgs]
                                     rhsTy))
 
+-- | Check that a type has kind *.
 checkType :: Type -> Checker ()
-checkType t
-  = case t of
-      JType (JClass c) -> checkClassName c
-      _        ->
-        do type_ctxt <- getTypeContext
-           let free_ty_vars = freeTVars t `Set.difference` Set.fromList (map fst (filter (\(_,(k,_)) -> k == Star) (Map.toList type_ctxt)))
-           unless (Set.null free_ty_vars) $
-             throwError (NotInScopeTVar (head (Set.toList free_ty_vars)))
+checkType t =
+  case t of
+    JType (JClass c) -> checkClassName c
+    JType (JPrim _)  -> prettySorry "TypeCheck.checkType" (pretty t)
+    _ -> do
+      delta <- getTypeContext
+      maybe_kind <- liftIO $ kind delta t
+      case maybe_kind of
+        Nothing   -> throwError (NotWellKinded t)
+        Just Star -> return ()
+        Just k    -> throwError (KindMismatch t Star k)
 
 unlessIO :: (Monad m, MonadIO m) => IO Bool -> m () -> m ()
 unlessIO test do_this
@@ -517,43 +528,34 @@ checkFieldAccess callee f
     where
        (static_flag, c) = unwrapJCallee callee
 
--- | Expand the type.
-expandType :: Type -> Checker Type
-expandType (TVar a)
-  = do typeContext <- getTypeContext
-       case Map.lookup a typeContext of
-         Nothing            -> return (TVar a)
-         Just (_, Nothing)  -> return (TVar a)
-         Just (_, Just def) -> expandType def
-expandType (JType t) = return (JType t)
-expandType Unit       = return Unit
-expandType (Fun t1 t2)
-  = do t1' <- expandType t1
-       t2' <- expandType t2
-       return (Fun t1' t2')
-expandType (Forall a t)
-  = do t' <- withLocalTVars [(a, (Star, Nothing))] (expandType t)
-       return (Forall a t')
-expandType (Product ts)
-  = do ts' <- mapM expandType ts
-       return (Product ts')
-expandType (Record fs)
-  = do ts' <- mapM (expandType . snd) fs
-       return (Record (zip (map fst fs) ts'))
-expandType (ListOf t)
-  = do t' <- expandType t
-       return (ListOf t')
-expandType (And t1 t2)
-  = do t1' <- expandType t1
-       t2' <- expandType t2
-       return (And t1' t2')
-expandType (Thunk t)
-  = do t' <- expandType t
-       return (Thunk t')
-expandType (OpApp (TVar t1) t2)
-  = do typeContext <- getTypeContext
-       case Map.lookup t1 typeContext of
-         Just (_, Just (OpAbs param t)) -> return (fsubstTT (param, t2) t)
+-- | Recursively expand all type synonyms. The given type must be well-kinded.
+expandType :: TypeContext -> Type -> Type
+
+-- Interesting cases:
+expandType d (TVar a)
+  = case Map.lookup a d of
+      Nothing            -> prettyPanic "TypeCheck.expandType:TVar" (pretty (TVar a))
+      Just (_, Nothing)  -> TVar a
+      Just (_, Just def) -> expandType d def
+expandType d (OpAbs x t) = OpAbs x (expandType (Map.insert x (Star, Nothing) d) t)
+expandType d (OpApp t1 t2)
+  = let t1' = expandType d t1
+        t2' = expandType d t2
+    in
+    case t1' of
+      OpAbs x t -> fsubstTT (x,t2') t
+
+-- Uninteresting cases:
+expandType _ (JType t)    = JType t
+expandType _ Unit         = Unit
+expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
+expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, Nothing) d) t)
+expandType d (Product ts) = Product (map (expandType d) ts)
+expandType d (Record fs)  = Record (map (\(l,t) -> (l, expandType d t)) fs)
+expandType d (ListOf t)   = ListOf (expandType d t)
+expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
+expandType d (Thunk t)    = Thunk (expandType d t)
+
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)
