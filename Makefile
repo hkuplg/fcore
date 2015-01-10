@@ -25,9 +25,7 @@ test :
 test2 : 
 	make parsers
 	cp runtime/runtime.jar .
-	ghc -o FileLoad $(srcdir)/FileLoad.hs -i$(srcdir)
-	./FileLoad
-	rm $(srcdir)/*.o $(srcdir)/*.hi $(srcdir)/*.dyn_hi $(srcdir)/*.dyn_o
+	runhaskell -i$(srcdir) $(srcdir)/FileLoad.hs
 
 .PHONY : parsers
 parsers :
