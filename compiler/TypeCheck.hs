@@ -102,8 +102,7 @@ data TypeError
   | TypeMismatch (Expr Name) Type Type
   | KindMismatch Type Kind Kind
   | MissingRHSAnnot
-  | NotInScopeTVar Name
-  | NotInScopeVar   Name
+  | NotInScope Name
   | ProjectionOfNonProduct
   | NotWellKinded Type
 
@@ -116,7 +115,7 @@ data TypeError
 
 instance Pretty TypeError where
   pretty (General doc)      = prettyError <+> doc
-  pretty (NotInScopeTVar a) = prettyError <+> text "type" <+> code (text a) <+> text "is not in scope"
+  pretty (NotInScope x)  = prettyError <+> code (text x) <+> text "is not in scope"
   pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
   pretty (KindMismatch t expected actual) =
     prettyError <+> text "kind mismatch in" <+> code (pretty t) <> colon <$>
@@ -239,7 +238,7 @@ infer (Var name)
   = do value_ctxt <- getValueContext
        case Map.lookup name value_ctxt of
          Just t  -> return (Var (name,t), t)
-         Nothing -> throwError (NotInScopeVar name)
+         Nothing -> throwError (NotInScope name)
 
 infer (Lit lit) = return (Lit lit, srcLitType lit)
 
