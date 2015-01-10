@@ -29,8 +29,9 @@ bquotes = enclose bquote bquote
 prettyError :: Doc
 prettyError = (bold . dullred) (text "error" <> colon)
 
-prettyCode :: Doc -> Doc
-prettyCode = bold . bquotes
+-- | Prettify a document as code.
+code :: Doc -> Doc
+code = bold
 
 
 type PrecLevel = Int
