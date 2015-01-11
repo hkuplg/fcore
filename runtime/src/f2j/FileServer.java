@@ -28,7 +28,7 @@ public class FileServer {
             fileManager.getJavaFileObjectsFromFiles(Arrays.asList(files));
 
         //String [] compileOptions = new String[] {"-classpath", cp};
-	String [] compileOptions = new String[] {"-classpath", "runtime.jar:."};
+	String [] compileOptions = new String[] {"-classpath", "runtime/runtime.jar:."};
 	//String [] compileOptions = new String[] {};
         Iterable<String> compilationOptions = Arrays.asList(compileOptions);
 

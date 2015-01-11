@@ -24,7 +24,6 @@ test :
 .PHONY : test2
 test2 : 
 	make parsers
-	cp runtime/runtime.jar .
 	runhaskell -i$(srcdir) $(srcdir)/FileLoad.hs
  
 .PHONY : parsers
