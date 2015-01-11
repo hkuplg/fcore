@@ -33,7 +33,7 @@ initReplEnv xs =  do
      --unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
      --fileExist "runtime.jar"
      cp <- getClassPath
-     let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer")])
+     let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP NoBuffering
