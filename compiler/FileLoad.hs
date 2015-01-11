@@ -23,8 +23,8 @@ import StringPrefixes			(namespace)
 
 testCasesPath = "testsuite/tests/run-pass/"
 
-runtimeBytes :: Data.ByteString.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
+-- runtimeBytes :: Data.ByteString.ByteString
+-- runtimeBytes = $(embedFile "runtime/runtime.jar")
 
 initReplEnv ::[String] -> IO ()
 initReplEnv xs =  do      
@@ -32,7 +32,8 @@ initReplEnv xs =  do
      --existsCur <- doesFileExist "./runtime.jar"
      --unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
      --fileExist "runtime.jar"
-     let p = (proc "java" ["-cp", "runtime.jar:.", (namespace ++ "FileServer")])
+     cp <- getClassPath
+     let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer")])
                   {std_in = CreatePipe, std_out = CreatePipe}
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP NoBuffering

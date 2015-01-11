@@ -74,8 +74,8 @@ optionsSpec = Options
 getOpts :: IO Options
 getOpts = cmdArgs optionsSpec -- cmdArgs :: Data a => a -> IO a
 
-runtimeBytes :: Data.ByteString.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
+-- runtimeBytes :: Data.ByteString.ByteString
+-- runtimeBytes = $(embedFile "runtime/runtime.jar")
 
 main :: IO ()
 main = do
@@ -84,9 +84,9 @@ main = do
   Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
 
   -- Write the bytes of runtime.jar to file
-  exists <- doesFileExist =<< getRuntimeJarPath
-  existsCur <- doesFileExist "./runtime.jar"
-  unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
+  -- exists <- doesFileExist =<< getRuntimeJarPath
+  -- existsCur <- doesFileExist "./runtime.jar"
+  -- unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod

@@ -19,13 +19,20 @@ type MethodName = String
 type FieldName  = String
 
 getRuntimeJarPath :: IO FilePath
-getRuntimeJarPath
-  = do home <- getHomeDirectory
-       return $ home </> ".cabal/share/systemfcompiler-0.1.0.1/runtime/runtime.jar"
+getRuntimeJarPath =
+  do home <- getHomeDirectory
+     return $
+       home </> ".cabal/share/systemfcompiler-0.1.0.1/runtime/runtime.jar" ++
+       ":" ++
+       home </>
+       "Library/Haskell/share/ghc-7.8.3-x86_64/systemfcompiler-0.1.0.1/runtime/runtime.jar" ++
+       ":" ++
+       home </>
+       "Library/Haskell/share/ghc-7.6.3-x86_64/systemfcompiler-0.1.0.1/runtime/runtime.jar"
 
 getClassPath :: IO FilePath
 getClassPath = do r <- getRuntimeJarPath
-                  return $ r ++ ":./runtime.jar:."
+                  return $ r ++ ":."
 
 -- Given the path to the source file,
 -- infer the output path for the corresponding Java source.
@@ -49,6 +56,6 @@ runJava srcPath = do
     let workDir = takeDirectory srcPath
     setCurrentDirectory workDir
     cp <- getClassPath
-    system $ "java -cp " ++ currDir ++ "/runtime.jar:" ++ cp ++ " " ++ takeBaseName srcPath
+    system $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
     system "rm *.class"
     setCurrentDirectory currDir
