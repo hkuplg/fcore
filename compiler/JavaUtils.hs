@@ -5,30 +5,31 @@ module JavaUtils
   , getClassPath
   , compileJava, runJava
   , inferOutputPath, inferClassName
+  , writeRuntimeToTemp
   , ClassName, MethodName, FieldName
   ) where
 
 import StringUtils       (capitalize)
 
 import System.FilePath   (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>))
-import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)
+import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory, getTemporaryDirectory)
 import System.Process    (system)
+import Data.ByteString as B
 
 type ClassName  = String
 type MethodName = String
 type FieldName  = String
 
+
+writeRuntimeToTemp :: B.ByteString -> IO ()
+writeRuntimeToTemp bytes = do tempdir <- getTemporaryDirectory
+                              let tempFile = tempdir </> "runtime.jar"
+                              B.writeFile tempFile bytes
+
 getRuntimeJarPath :: IO FilePath
 getRuntimeJarPath =
-  do home <- getHomeDirectory
-     return $
-       home </> ".cabal/share/systemfcompiler-0.1.0.1/runtime/runtime.jar" ++
-       ":" ++
-       home </>
-       "Library/Haskell/share/ghc-7.8.3-x86_64/systemfcompiler-0.1.0.1/runtime/runtime.jar" ++
-       ":" ++
-       home </>
-       "Library/Haskell/share/ghc-7.6.3-x86_64/systemfcompiler-0.1.0.1/runtime/runtime.jar"
+  do tempdir <- getTemporaryDirectory
+     return (tempdir </> "runtime.jar")
 
 getClassPath :: IO FilePath
 getClassPath = do r <- getRuntimeJarPath
