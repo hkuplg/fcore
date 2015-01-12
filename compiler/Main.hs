@@ -18,14 +18,10 @@ import MonadLib
 import Translations
 
 import System.Console.CmdArgs -- Neil Mitchell's CmdArgs library
-import System.Directory          (doesFileExist)
 import System.Environment        (getArgs, withArgs)
 import System.FilePath           (takeBaseName)
 import System.IO
-
-import Data.FileEmbed            (embedFile)
 import Data.List                 (sort, group)
-import qualified Data.ByteString (ByteString, writeFile)
 
 type CompileOpt = (Int, Compilation)
 
@@ -74,9 +70,6 @@ optionsSpec = Options
 getOpts :: IO Options
 getOpts = cmdArgs optionsSpec -- cmdArgs :: Data a => a -> IO a
 
-runtimeBytes :: Data.ByteString.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
-
 main :: IO ()
 main = do
   rawArgs <- getArgs
@@ -84,10 +77,7 @@ main = do
   Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
 
   -- Write the bytes of runtime.jar to temp directory
-  -- exists <- doesFileExist =<< getRuntimeJarPath
-  -- existsCur <- doesFileExist "./runtime.jar"
-  -- Data.ByteString.writeFile "./runtime.jar" runtimeBytes
-  writeRuntimeToTemp runtimeBytes
+  writeRuntimeToTemp
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod

@@ -22,15 +22,9 @@ import qualified Environment as Env
 import qualified History as Hist
 import FileIO 				(TransMethod (Naive))
 
--- runtimeBytes :: Data.ByteString.ByteString
--- runtimeBytes = $(embedFile "runtime/runtime.jar")
-
 main :: IO ()
 main = do 
-     -- exists <- doesFileExist =<< getRuntimeJarPath
-     -- existsCur <- doesFileExist "./runtime.jar"
-     -- unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
-     -- fileExist "runtime.jar"
+     writeRuntimeToTemp
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}

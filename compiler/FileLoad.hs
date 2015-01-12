@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Main where
 
 import System.IO
@@ -23,15 +21,9 @@ import StringPrefixes			(namespace)
 
 testCasesPath = "testsuite/tests/run-pass/"
 
--- runtimeBytes :: Data.ByteString.ByteString
--- runtimeBytes = $(embedFile "runtime/runtime.jar")
-
 initReplEnv ::[String] -> IO ()
-initReplEnv xs =  do      
-     --exists <- doesFileExist =<< getRuntimeJarPath
-     --existsCur <- doesFileExist "./runtime.jar"
-     --unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
-     --fileExist "runtime.jar"
+initReplEnv xs =  do
+     writeRuntimeToTemp
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
