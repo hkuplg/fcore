@@ -36,7 +36,7 @@ import System.Process
 
 import Control.Monad.Error
 
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromMaybe)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
 
@@ -352,7 +352,10 @@ infer (JField callee f _)
                   if ret_c == "char"
                     then return (JField (NonStatic e') f ret_c, JType $ JPrim "char")
                     else return (JField (NonStatic e') f ret_c, JType $ JClass ret_c)
-             And t1 t2 -> return (RecordAccess e' f, fromJust (lookup (Just f) (fields t1 ++ fields t2)))
+             And t1 t2 -> return (RecordAccess e' f
+                                 , fromMaybe
+                                     (panic "99170a65")
+                                     (lookup (Just f) (fields t1 ++ fields t2)))
              _          -> throwError
                            (General
                             (code (pretty e) <+> text "has type" <+> code (pretty t) <>
@@ -380,7 +383,10 @@ infer (RecordLit fs) =
 
 infer (RecordAccess e l) =
   do (e', t) <- infer e
-     return (RecordAccess e' l, fromJust (lookup (Just l) (fields t)))
+     return (RecordAccess e' l
+            , fromMaybe
+                (prettyPanic "b2a43c51" (pretty (RecordAccess e l)))
+                (lookup (Just l) (fields t)))
 
 infer (RecordUpdate e fs) =
   do (es', _ts) <- mapAndUnzipM infer (map snd fs)
