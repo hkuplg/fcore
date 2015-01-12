@@ -1,21 +1,25 @@
--- full object algebra example
+-- Full object algebra example
+-- http://i.cs.hku.hk/~bruno/papers/FOPOA.pdf
 
-type ExpAlg E = {
-  lit : Int -> E,
-  add : E -> E -> E
+type ExpAlg E = { lit : Int -> E, add : E -> E -> E };
+let evalAlg = { lit = \(x : Int). x, add = \(x : Int). \(y : Int). x + y };
+type SubExpAlg E = (ExpAlg E) & { sub : E -> E -> E };
+let subEvalAlg = evalAlg ,, { sub = \(x : Int). \(y : Int). x - y };
+let printAlg = {
+  lit = \(x : Int). x.toString(),
+  add = \(x : String). \(y : String). x.toString().concat(" + ").concat(y.toString()),
+  sub = \(x : String). \(y : String). x.toString().concat(" - ").concat(y.toString())
 };
-let evalAlg = {
-  lit = \(x : Int). x,
-  add = \(x : Int). \(y : Int). x + y
-};
-type SubExpAlg E = (ExpAlg E) & {
-  sub : E -> E -> E
-};
-let subEvalAlg = evalAlg ,, {
-  sub = \(x : Int). \(y : Int). x + y
-};
-let exp1 E (alg : ExpAlg E)    = alg.lit 5;
-let exp2 E (alg : SubExpAlg E) = (alg.sub $ exp1 E alg) (alg.lit 2);
--- The dollar sign is used to tell the compiler:
--- Hey, this is really an application, not a method call!
-exp2 Int subEvalAlg
+let exp1 E (f : ExpAlg E)    = (f.dd $ f.lit 6) (f.lit 6);
+let exp2 E (f : SubExpAlg E) = (f.sub $ exp1 E f) (f.lit 2);
+
+-- exp2 Int subEvalAlg
+-- exp2 String printAlg
+
+let merge A B (alg1 : ExpAlg A) (alg2 : ExpAlg B) = {
+  lit = \(x : Int). alg1.lit x ,, alg2.lit x,
+  add = \(x : A & B). \(y : A & B). alg1.add x y ,, alg2.add x y
+}
+in
+let newAlg = merge Int String subEvalAlg printAlg in
+(\(x: String). x) (exp1 (Int & String) newAlg)
