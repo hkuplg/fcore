@@ -43,8 +43,8 @@ tokens :-
     \,\,        { \_ _ -> Tmerge }
     with        { \_ _ -> Twith }
     \'          { \_ _ -> Tquote }
-    this        { \_ _ -> Tthis }
-    super       { \_ _ -> Tsuper }
+    -- this        { \_ _ -> Tthis }
+    -- super       { \_ _ -> Tsuper }
     type        { \_ _ -> Ttype }
     let         { \_ _ -> Tlet }
     rec         { \_ _ -> Trec }
@@ -102,7 +102,8 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tdollar | Tandtype | Tmerge | Twith | Tquote | Tthis | Tsuper
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tdollar | Tandtype | Tmerge | Twith | Tquote
+           --| Tthis | Tsuper
            | Ttype | Tlet | Trec | Teq | Tand | Tin
            | Tjavaclass String
            | Tnew
