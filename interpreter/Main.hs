@@ -21,16 +21,22 @@ import Loop
 import qualified Environment as Env
 import qualified History as Hist
 import FileIO 				(TransMethod (Naive))
+import qualified Data.ByteString as B
+import System.Directory (getTemporaryDirectory)
+import System.FilePath ((</>))
 
--- runtimeBytes :: Data.ByteString.ByteString
--- runtimeBytes = $(embedFile "runtime/runtime.jar")
+runtimeBytes :: B.ByteString
+runtimeBytes = $(embedFile "runtime/runtime.jar")
+
+writeRuntimeToTemp :: IO ()
+writeRuntimeToTemp =
+  do tempdir <- getTemporaryDirectory
+     let tempFile = tempdir </> "runtime.jar"
+     B.writeFile tempFile runtimeBytes
 
 main :: IO ()
-main = do 
-     -- exists <- doesFileExist =<< getRuntimeJarPath
-     -- existsCur <- doesFileExist "./runtime.jar"
-     -- unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
-     -- fileExist "runtime.jar"
+main = do
+     writeRuntimeToTemp
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}

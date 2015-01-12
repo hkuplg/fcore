@@ -1,16 +1,12 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Client where
 
 import System.Console.Haskeline		(runInputT, defaultSettings)
 import System.IO
 import System.Process hiding (runCommand)
-import System.Directory			(removeFile, doesFileExist)
+import System.Directory			(doesFileExist)
 
 import Control.Monad.Error
 
-import Data.FileEmbed			(embedFile)
-import qualified Data.ByteString 	(ByteString, writeFile)
 import qualified Data.Map as Map
 
 import Translations
@@ -22,15 +18,8 @@ import qualified Environment as Env
 import qualified History as Hist
 import FileIO 				(TransMethod (Naive))
 
--- runtimeBytes :: Data.ByteString.ByteString
--- runtimeBytes = $(embedFile "../runtime/runtime.jar")
-
 main :: IO ()
 main = do 
-     -- exists <- doesFileExist =<< getRuntimeJarPath
-     -- existsCur <- doesFileExist "./runtime.jar"
-     -- unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
-     -- fileExist "runtime.jar"
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}

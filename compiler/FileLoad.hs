@@ -1,37 +1,36 @@
 {-# LANGUAGE TemplateHaskell #-}
-
 module Main where
 
 import System.IO
 import System.Process
-import System.Directory			(removeFile, doesFileExist, getDirectoryContents)
+import System.Directory			(doesFileExist, getDirectoryContents)
 import System.FilePath			(takeFileName)
 import System.TimeIt			(timeIt)
 
-import Data.Char
-import Data.List
-import Data.FileEmbed			(embedFile)
-import qualified Data.ByteString 	(ByteString, writeFile)
 import Data.Time			(getCurrentTime, diffUTCTime)
-
-import Control.Monad.Error
 
 import Translations
 import FileIO
 import JavaUtils
 import StringPrefixes			(namespace)
+import qualified Data.ByteString as B
+import Data.FileEmbed (embedFile)
+import System.Directory (getTemporaryDirectory)
+import System.FilePath ((</>))
+
+runtimeBytes :: B.ByteString
+runtimeBytes = $(embedFile "runtime/runtime.jar")
+
+writeRuntimeToTemp :: IO ()
+writeRuntimeToTemp =
+  do tempdir <- getTemporaryDirectory
+     let tempFile = tempdir </> "runtime.jar"
+     B.writeFile tempFile runtimeBytes
 
 testCasesPath = "testsuite/tests/run-pass/"
 
--- runtimeBytes :: Data.ByteString.ByteString
--- runtimeBytes = $(embedFile "runtime/runtime.jar")
-
 initReplEnv ::[String] -> IO ()
-initReplEnv xs =  do      
-     --exists <- doesFileExist =<< getRuntimeJarPath
-     --existsCur <- doesFileExist "./runtime.jar"
-     --unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
-     --fileExist "runtime.jar"
+initReplEnv xs =  do
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
@@ -70,6 +69,7 @@ addFilePath (x:xs) = (testCasesPath ++ x) : (addFilePath xs)
 
 main :: IO ()
 main = do
+  writeRuntimeToTemp
   start <- getCurrentTime
   xs <- getDirectoryContents testCasesPath
   let (x:y:ys) = xs 

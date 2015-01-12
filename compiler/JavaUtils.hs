@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 
 module JavaUtils
@@ -5,26 +6,18 @@ module JavaUtils
   , getClassPath
   , compileJava, runJava
   , inferOutputPath, inferClassName
-  , writeRuntimeToTemp
   , ClassName, MethodName, FieldName
   ) where
 
-import StringUtils       (capitalize)
+import StringUtils (capitalize)
 
-import System.FilePath   (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>))
-import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory, getTemporaryDirectory)
-import System.Process    (system)
-import Data.ByteString as B
+import System.Directory (setCurrentDirectory, getCurrentDirectory, getTemporaryDirectory)
+import System.FilePath (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>))
+import System.Process (system)
 
 type ClassName  = String
 type MethodName = String
 type FieldName  = String
-
-
-writeRuntimeToTemp :: B.ByteString -> IO ()
-writeRuntimeToTemp bytes = do tempdir <- getTemporaryDirectory
-                              let tempFile = tempdir </> "runtime.jar"
-                              B.writeFile tempFile bytes
 
 getRuntimeJarPath :: IO FilePath
 getRuntimeJarPath =
