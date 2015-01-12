@@ -6,7 +6,6 @@
            , RankNTypes
            , TypeOperators
            , RecordWildCards
-           , TemplateHaskell
            #-}
 
 module Main (main, TransMethod) where
@@ -18,11 +17,11 @@ import MonadLib
 import Translations
 import Link
 
+import Data.List (sort, group)
 import System.Console.CmdArgs -- Neil Mitchell's CmdArgs library
-import System.Environment        (getArgs, withArgs)
-import System.FilePath           (takeBaseName)
+import System.Environment (getArgs, withArgs)
+import System.FilePath (takeBaseName)
 import System.IO
-import Data.List                 (sort, group)
 
 type CompileOpt = (Int, Compilation)
 
@@ -51,25 +50,49 @@ data TransMethod = Apply
                  deriving (Eq, Show, Data, Typeable, Ord)
 
 optionsSpec :: Options
-optionsSpec = Options
-  { optCompile = False &= explicit &= name "c" &= name "compile" &= help "Compile Java source"
-  , optCompileAndRun = False &= explicit &= name "r" &= name "run" &= help "Compile & run Java source"
-  , optDump = NoDump &= explicit &= name "d" &= name "dump" &= typ "TYPE"
-           &= help ("Dump intermediate representations; " ++
-                    "options: `core`, `simplecore`, `closuref`")
-  , optSourceFiles = [] &= args &= typ "SOURCE FILES"
-  , optModules = [] &= explicit &= name "l" &= name "module" &= typ "MODULE"
-		    &= help "Link modules to the source file"
-  , optTransMethod = [] &= explicit &= name "m" &= name "method" &= typ "METHOD"
-                  &= help ("Translations method." ++
-                           "Can be either 'naive', 'apply', 'stack', and/or 'unbox'" ++
-                           "(use without quotes)." ++
-                           "The default is 'naive'.")
-  , optVerbose = False &= explicit &= name "v" &= name "verbose" &= help "Verbose"
-  }
-  &= helpArg [explicit, name "help", name "h"]
-  &= program "f2j"
-  &= summary "SystemF to Java compiler"
+optionsSpec =
+  Options {optCompile =
+             False &= explicit &=
+             name "c" &=
+             name "compile" &=
+             help "Compile Java source"
+          ,optCompileAndRun =
+             False &= explicit &=
+             name "r" &=
+             name "run" &=
+             help "Compile & run Java source"
+          ,optDump =
+             NoDump &= explicit &=
+             name "d" &=
+             name "dump" &=
+             typ "TYPE" &=
+             help ("Dump intermediate representations; " ++
+                   "options: `core`, `simplecore`, `closuref`")
+          ,optSourceFiles =
+             [] &= args &=
+             typ "SOURCE FILES"
+          ,optModules =
+             [] &= explicit &=
+             name "l" &=
+             name "module" &=
+             typ "MODULE" &=
+             help "Link modules to the source file"
+          ,optTransMethod =
+             [] &= explicit &=
+             name "m" &=
+             name "method" &=
+             typ "METHOD" &=
+             help ("Translations method." ++ "Can be either 'naive', 'apply', 'stack', and/or 'unbox'" ++
+                                             "(use without quotes)." ++
+                                             "The default is 'naive'.")
+          ,optVerbose =
+             False &= explicit &=
+             name "v" &=
+             name "verbose" &=
+             help "Verbose"} &=
+  helpArg [explicit,name "help",name "h"] &=
+  program "f2j" &=
+  summary "SystemF to Java compiler"
 
 getOpts :: IO Options
 getOpts = cmdArgs optionsSpec -- cmdArgs :: Data a => a -> IO a
@@ -83,16 +106,16 @@ main = do
   -- Write the bytes of runtime.jar to temp directory
   writeRuntimeToTemp
   forM_ optSourceFiles (\source_path ->
-    do let source_path_new = if (length optModules == 0) then source_path else (takeBaseName source_path) ++ "c.sf"
+    do let source_path_new = if null optModules then source_path else takeBaseName source_path ++ "c.sf"
        let output_path      = inferOutputPath source_path_new
            translate_method = optTransMethod
-	   modList	    = optModules
+           modList          = optModules
            sort_and_rmdups  = map head . group . sort . (++) [Naive]
        (num, opt) <- getOpt (sort_and_rmdups translate_method)
-       when (length optModules > 0) $
+       unless (null optModules) $
          do content <- Link.linkModule modList
-	    putStrLn "Linking..."
-	    Link.link source_path content
+            putStrLn "Linking..."
+            Link.link source_path content
             putStrLn (source_path_new ++ " generated!")
        putStrLn (takeBaseName source_path_new ++ " using " ++ show (sort_and_rmdups translate_method))
        putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
