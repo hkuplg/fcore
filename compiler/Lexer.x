@@ -103,7 +103,7 @@ tokens :-
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tdollar | Tandtype | Tmerge | Twith | Tquote
-           --| Tthis | Tsuper
+           -- | Tthis | Tsuper
            | Ttype | Tlet | Trec | Teq | Tand | Tin
            | Tjavaclass String
            | Tnew
