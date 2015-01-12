@@ -32,7 +32,6 @@ import JavaUtils
   "forall" { Tforall }
   "->"     { Tarrow }
   "."      { Tdot }
-  "$"      { Tdollar }
   "&"      { Tandtype }
   ",,"     { Tmerge }
   "with"   { Twith }
@@ -86,7 +85,6 @@ import JavaUtils
 %nonassoc EOF
 
 %right "in"
-%right "$"
 %right "->"
 %nonassoc "else"
 
@@ -178,7 +176,6 @@ expr :: { Expr Name }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | infixexpr                           { $1 }
     | module expr                   { LetModule $1 $2 }
-    | aexpr "$" expr                      { App $1 $3 }
 
 infixexpr :: { Expr Name }
     : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
