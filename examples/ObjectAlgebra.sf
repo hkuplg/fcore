@@ -10,8 +10,8 @@ let printAlg = {
   add = \(x : String). \(y : String). x.toString().concat(" + ").concat(y.toString()),
   sub = \(x : String). \(y : String). x.toString().concat(" - ").concat(y.toString())
 };
-let exp1 E (f : ExpAlg E)    = (f.add $ f.lit 6) (f.lit 6);
-let exp2 E (f : SubExpAlg E) = (f.sub $ exp1 E f) (f.lit 2);
+let exp1 E (f : ExpAlg E)    = f.add (f.lit 6) (f.lit 6);
+let exp2 E (f : SubExpAlg E) = f.sub (exp1 E f) (f.lit 2);
 
 -- exp2 Int subEvalAlg
 -- exp2 String printAlg

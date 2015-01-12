@@ -210,7 +210,7 @@ aexpr :: { Expr Name }
     | module_name "." var       { ModuleAccess $1 $3 }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 }
-    | "{" recordlit_body "}"    { RecordLit $2 }
+    | "{" recordlit_body "}"    { RecordIntro $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }
     | "(" expr ")"              { $2 }
@@ -226,12 +226,32 @@ javaexpr :: { Expr Name }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
     | Empty                                       { JNew "f2j.FunctionalTree" [] }
     | Fork "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3}
+
     | JAVACLASS "." LOWERID "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
     | JAVACLASS "." LOWERID "()"                  { JMethod (Static $1) $3 [] undefined }
-    | JAVACLASS "." field                         { JField  (Static $1) $3 undefined }
-    | aexpr "." LOWERID "(" comma_exprs0 ")"      { JMethod (NonStatic $1) $3 $5 undefined }
-    | aexpr "." LOWERID "()"                      { JMethod (NonStatic $1) $3 [] undefined }
-    | aexpr "." field                             { JField  (NonStatic $1) $3 undefined }
+    | JAVACLASS "." LOWERID                       { JField  (Static $1) $3 undefined }
+    | JAVACLASS "." UPPERID                       { JField  (Static $1) $3 undefined } -- Constants
+
+    -- A dot can mean three things:
+    -- (1) method invocation
+    -- (2) field access
+    -- (3) record elimination
+
+    -- case length comma_exprs0
+    -- when 0: method invocation
+    --   (since the gap between the two parentheses distinguishes the string from the unit literal `()`)
+    -- when 1: method invocation or application (with a parenthesized argument)
+    -- else:   method invocation or application (with a tuple)
+    | aexpr "." LOWERID "(" comma_exprs0 ")"  { Dot $1 $3 (Just ($5, UnitImpossible)) }
+
+    -- method invocation or application
+    | aexpr "." LOWERID "()"                  { Dot $1 $3 (Just ([], UnitPossible)) }
+
+    -- field access or record elimination
+    | aexpr "." LOWERID                       { Dot $1 $3 Nothing }
+
+    -- Is this possible?
+    -- | aexpr "." UPPERID                    { Dot $1 $3 Nothing }
 
 recordlit_body :: { [(Label, Expr Name)] }
   : label "=" expr                     { [($1, $3)]  }
@@ -240,10 +260,6 @@ recordlit_body :: { [(Label, Expr Name)] }
 list_body :: { [Expr Name] }
     : "(" expr "::" list_body ")"  { $2:$4 }
     | "[" comma_exprs0 "]"         { $2 }
-
-field :: { Name }
-   : LOWERID { $1 }
-   | UPPERID { $1 }
 
 semi_exprs :: { [Expr Name] }
            : expr                { [$1] }

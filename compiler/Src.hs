@@ -9,7 +9,7 @@ module Src
   ( Module(..)
   , Kind(..)
   , Type(..)
-  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..), JVMType(..)
+  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..)
   , Label
   , TypeContext, ValueContext
   , Name
@@ -95,14 +95,21 @@ data Expr id
   | If (Expr id) (Expr id) (Expr id)    -- If expression
   | Let RecFlag [Bind id] (Expr id)     -- Let (rec) ... (and) ... in ...
   | LetOut RecFlag [(Name, Type, Expr (Name,Type))] (Expr (Name,Type)) -- Post typecheck only
+
+  | Dot (Expr id) Name (Maybe ([Expr id], UnitPossibility))
+  -- The flag `UnitPossibility` is only used when length of the argument list is
+  -- 0, to distinguish the different possible interpretations of `e.x ( )` and
+  -- `e.x ()` -- the latter can be an application (of unit literal to a record
+  -- elim), while the former cannot.
+
   | JNew ClassName [Expr id]
   | JMethod (JCallee (Expr id)) MethodName [Expr id] ClassName
   | JField  (JCallee (Expr id)) FieldName            ClassName
   | Seq [Expr id]
   | PrimList [Expr id]           -- New List
   | Merge (Expr id) (Expr id)
-  | RecordLit [(Label, Expr id)]
-  | RecordAccess (Expr id) Label
+  | RecordIntro [(Label, Expr id)]
+  | RecordElim (Expr id) Label
   | RecordUpdate (Expr id) [(Label, Expr id)]
   | LetModule (Module id) (Expr id)
   | ModuleAccess ModuleName Name
@@ -126,6 +133,7 @@ data Bind id = Bind
   } deriving (Eq, Show)
 
 data RecFlag = Rec | NonRec deriving (Eq, Show)
+data UnitPossibility = UnitPossible | UnitImpossible deriving (Eq, Show)
 
 data JCallee e = Static ClassName | NonStatic e deriving (Eq, Show)
 
@@ -313,7 +321,7 @@ instance (Show id, Pretty id) => Pretty (Expr id) where
                                     (NonStatic e') -> pretty e' <> dot <> text f
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
-  pretty (RecordLit fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
+  pretty (RecordIntro fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty e = text (show e)
 
 instance (Show id, Pretty id) => Pretty (Bind id) where

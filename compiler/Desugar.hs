@@ -61,12 +61,12 @@ desugarExpr (d, g) = go
     go Let{..}           = panic "Desugar.desugarExpr: Let"
     go (LetOut _ [] e)   = go e
     go (Merge e1 e2)     = C.Merge (go e1) (go e2)
-    go (RecordLit fs)       =
+    go (RecordIntro fs)       =
       case fs of
         []       -> panic "Desugar.desugarExpr: Record"
-        [(l,e)]  -> C.RecordLit (l, go e)
-        _        -> go (RecordLit (take (length fs - 1) fs)) `C.Merge` C.RecordLit (let (l,e) = last fs in (l,go e))
-    go (RecordAccess e l) = C.RecordElim (go e) l
+        [(l,e)]  -> C.RecordIntro (l, go e)
+        _        -> go (RecordIntro (take (length fs - 1) fs)) `C.Merge` C.RecordIntro (let (l,e) = last fs in (l,go e))
+    go (RecordElim e l) = C.RecordElim (go e) l
     go (RecordUpdate e fs) =
       case fs of
         [] -> go e

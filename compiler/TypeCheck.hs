@@ -105,6 +105,7 @@ data TypeError
   | NotInScope Name
   | ProjectionOfNonProduct
   | NotWellKinded Type
+  | NotMember Name Type
 
   -- Java-specific type errors
   | NoSuchClass       ClassName
@@ -126,6 +127,7 @@ instance Pretty TypeError where
     indent 2 (text "expected:" <+> code (pretty expected) <$>
               text "  actual:" <+> code (pretty actual))
   pretty (NoSuchClass c) = prettyError <+> text "no such class:" <+> code (text c)
+  pretty (NotMember x t) = prettyError <+> code (text x) <+> text "is not a member of" <+> code (pretty t)
   pretty e = prettyError <+> text (show e)
 
 instance Error TypeError where
@@ -313,6 +315,59 @@ infer (Let rec_flag binds e) =
 
 infer (LetOut{..}) = panic "TypeCheck.infer: LetOut"
 
+--  Case           Possible interpretations
+--  ---------------------------------------
+--  e.x            Field access, record elim
+--  e.x ( )        Method invocation
+--  e.x ()         Method invocation, application (of a unit lit)
+--  e.x (g y)      Method invocation, application
+--  e.x (g y,...)  Method invocation, application (of a tuple)
+
+-- In all the cases of application except the first, it is impossible for `e.x`
+-- to be a field access since field accesses cannot return something that
+-- accepts a value as its argument. So `e.x` can only be a method invocation.
+
+infer (Dot e x Nothing) =
+  do (_, t) <- infer e
+     case t of
+       JType (JClass _) -> infer (JField (NonStatic e) x undefined)
+       Record _         -> infer (RecordElim e x)
+       And _ _          -> infer (RecordElim e x)
+       _                -> throwError (NotMember x t)
+
+infer (Dot e x (Just (args, unitPossibility)))
+  | null args
+    = do (_, t) <- infer e
+         case unitPossibility of
+           -- e.x ( )
+           UnitImpossible ->
+             case t of
+               JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
+               _                -> throwError (NotMember x t)
+           -- e.x ()
+           UnitPossible ->
+             case t of
+               JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
+               Record _         -> infer (App (RecordElim e x) (Lit UnitLit))
+               And _ _          -> infer (App (RecordElim e x) (Lit UnitLit))
+               _                -> throwError (NotMember x t)
+  -- e.x (a)
+  | length args == 1
+    = do (_, t) <- infer e
+         case t of
+           JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
+           Record _         -> infer (App (RecordElim e x) (head args))
+           And _ _          -> infer (App (RecordElim e x) (head args))
+           _                -> throwError (NotMember x t)
+  -- e.x (a,...)
+  | otherwise
+    = do (_, t) <- infer e
+         case t of
+           JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
+           Record _         -> infer (App (RecordElim e x) (Tuple args))
+           And _ _          -> infer (App (RecordElim e x) (Tuple args))
+           _                -> throwError (NotMember x t)
+
 -- JNew, JMethod, and JField
 
 infer (JNew c args)
@@ -347,16 +402,16 @@ infer (JField callee f _)
       NonStatic e ->
         do (e', t) <- infer e
            case t of
-             Record _ -> infer (RecordAccess e f) -- Then the typechecker realized!
+             -- Record _ -> infer (RecordElim e f) -- Then the typechecker realized!
              JType (JClass c)   ->
                do ret_c   <- checkFieldAccess (NonStatic c) f
                   if ret_c == "char"
                     then return (JField (NonStatic e') f ret_c, JType $ JPrim "char")
                     else return (JField (NonStatic e') f ret_c, JType $ JClass ret_c)
-             And t1 t2 -> return (RecordAccess e' f
-                                 , fromMaybe
-                                     (panic "99170a65")
-                                     (lookup (Just f) (fields t1 ++ fields t2)))
+             -- And t1 t2 -> return (RecordElim e' f
+             --                     , fromMaybe
+             --                         (panic "99170a65")
+             --                         (lookup (Just f) (fields t1 ++ fields t2)))
              _          -> throwError
                            (General
                             (code (pretty e) <+> text "has type" <+> code (pretty t) <>
@@ -378,15 +433,15 @@ infer (PrimList l) =
                             then return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
                             else throwError $ General (text "Primitive List Type Mismatch" <+> text (show (PrimList l)))
 
-infer (RecordLit fs) =
+infer (RecordIntro fs) =
   do (es', ts) <- mapAndUnzipM infer (map snd fs)
-     return (RecordLit (zip (map fst fs) es'), Record (zip (map fst fs) ts))
+     return (RecordIntro (zip (map fst fs) es'), Record (zip (map fst fs) ts))
 
-infer (RecordAccess e l) =
+infer (RecordElim e l) =
   do (e', t) <- infer e
-     return (RecordAccess e' l
+     return (RecordElim e' l
             , fromMaybe
-                (prettyPanic "b2a43c51" (pretty (RecordAccess e l)))
+                (prettyPanic "b2a43c51" (pretty (RecordElim e l)))
                 (lookup (Just l) (fields t)))
 
 infer (RecordUpdate e fs) =
@@ -397,9 +452,9 @@ infer (RecordUpdate e fs) =
 -- Well, I know the desugaring is too early to happen here...
 infer (LetModule (Module m binds) e) =
   do let fs = map bindId binds
-     let letrec = Let Rec binds (RecordLit (map (\f -> (f, Var f)) fs))
+     let letrec = Let Rec binds (RecordIntro (map (\f -> (f, Var f)) fs))
      infer $ Let NonRec [Bind m [] [] letrec Nothing] e
-infer (ModuleAccess m f) = infer (RecordAccess (Var m) f)
+infer (ModuleAccess m f) = infer (RecordElim (Var m) f)
 
 -- Type synonyms: type T A1 ... An = t in e
 -- First make sure that A1 ... An are distinct.
