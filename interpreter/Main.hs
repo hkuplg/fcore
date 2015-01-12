@@ -21,9 +21,21 @@ import Loop
 import qualified Environment as Env
 import qualified History as Hist
 import FileIO 				(TransMethod (Naive))
+import qualified Data.ByteString as B
+import System.Directory (getTemporaryDirectory)
+import System.FilePath ((</>))
+
+runtimeBytes :: B.ByteString
+runtimeBytes = $(embedFile "runtime/runtime.jar")
+
+writeRuntimeToTemp :: IO ()
+writeRuntimeToTemp =
+  do tempdir <- getTemporaryDirectory
+     let tempFile = tempdir </> "runtime.jar"
+     B.writeFile tempFile runtimeBytes
 
 main :: IO ()
-main = do 
+main = do
      writeRuntimeToTemp
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])

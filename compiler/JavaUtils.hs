@@ -6,14 +6,11 @@ module JavaUtils
   , getClassPath
   , compileJava, runJava
   , inferOutputPath, inferClassName
-  , writeRuntimeToTemp
   , ClassName, MethodName, FieldName
   ) where
 
 import StringUtils (capitalize)
 
-import Data.ByteString as B
-import Data.FileEmbed (embedFile)
 import System.Directory (setCurrentDirectory, getCurrentDirectory, getTemporaryDirectory)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>))
 import System.Process (system)
@@ -21,15 +18,6 @@ import System.Process (system)
 type ClassName  = String
 type MethodName = String
 type FieldName  = String
-
-runtimeBytes :: B.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
-
-writeRuntimeToTemp :: IO ()
-writeRuntimeToTemp =
-  do tempdir <- getTemporaryDirectory
-     let tempFile = tempdir </> "runtime.jar"
-     B.writeFile tempFile runtimeBytes
 
 getRuntimeJarPath :: IO FilePath
 getRuntimeJarPath =

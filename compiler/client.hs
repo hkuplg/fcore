@@ -3,12 +3,10 @@ module Client where
 import System.Console.Haskeline		(runInputT, defaultSettings)
 import System.IO
 import System.Process hiding (runCommand)
-import System.Directory			(removeFile, doesFileExist)
+import System.Directory			(doesFileExist)
 
 import Control.Monad.Error
 
-import Data.FileEmbed			(embedFile)
-import qualified Data.ByteString 	(ByteString, writeFile)
 import qualified Data.Map as Map
 
 import Translations
@@ -22,7 +20,6 @@ import FileIO 				(TransMethod (Naive))
 
 main :: IO ()
 main = do 
-     writeRuntimeToTemp
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
