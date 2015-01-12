@@ -127,7 +127,9 @@ instance Pretty TypeError where
     indent 2 (text "expected:" <+> code (pretty expected) <$>
               text "  actual:" <+> code (pretty actual))
   pretty (NoSuchClass c) = prettyError <+> text "no such class:" <+> code (text c)
-  pretty (NotMember x t) = prettyError <+> code (text x) <+> text "is not a member of" <+> code (pretty t)
+  pretty (NotMember x t) =
+    prettyError <+> code (text x) <+>
+    text "is not a member of the type" <+> code (pretty t)
   pretty e = prettyError <+> text (show e)
 
 instance Error TypeError where
