@@ -1,4 +1,5 @@
-type Arr A B = A -> B;
+type Arrow A B = A -> B;
+type Arr = Arrow;
 type BinaryOp A = Arr A (Arr A A);
 type Pair A B = (A,B);
 type PairInt = Pair Int;

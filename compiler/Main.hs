@@ -83,14 +83,15 @@ main = do
   -- If the user did not specify any arguments, pretend as "--help" was given
   Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
 
-  -- Write the bytes of runtime.jar to file
-  exists <- doesFileExist =<< getRuntimeJarPath
-  existsCur <- doesFileExist "./runtime.jar"
-  unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes
+  -- Write the bytes of runtime.jar to temp directory
+  -- exists <- doesFileExist =<< getRuntimeJarPath
+  -- existsCur <- doesFileExist "./runtime.jar"
+  -- Data.ByteString.writeFile "./runtime.jar" runtimeBytes
+  writeRuntimeToTemp runtimeBytes
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod
-           sort_and_rmdups  = map head . group . sort . ((++) [Naive])
+           sort_and_rmdups  = map head . group . sort . (++) [Naive]
        putStrLn (takeBaseName source_path ++ " using " ++ show (sort_and_rmdups translate_method))
        putStrLn ("  Compiling to Java source code ( " ++ output_path ++ " )")
        (num, opt) <- getOpt (sort_and_rmdups translate_method)
