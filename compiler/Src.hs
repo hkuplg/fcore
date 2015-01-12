@@ -263,7 +263,7 @@ instance Pretty Type where
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
   pretty (Forall a t) = parens $ forall <+> text a <> dot <+> pretty t
   pretty (Product ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
-  pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
+  pretty (And t1 t2)  = pretty t1 <> text "&" <> pretty t2
   pretty (Record fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
   pretty (Thunk t)    = squote <> parens (pretty t)
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
