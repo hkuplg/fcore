@@ -34,12 +34,12 @@ concatenate :: [String] -> String
 concatenate [] = ""
 concatenate (x:xs) = x ++ "\n" ++ concatenate xs
 
-main = do
+{-main = do
   putStr "File: "
   file <- getLine
   putStr "Modules: "
   mod <- getLine
   let modList = splitOn " " mod
   content <- linkModule modList
-  link file content  
+  link file content-}  
   
