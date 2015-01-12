@@ -120,11 +120,12 @@ instance Pretty TypeError where
   pretty (KindMismatch t expected actual) =
     prettyError <+> text "kind mismatch in" <+> code (pretty t) <> colon <$>
     indent 2 (text "expected:" <+> code (pretty expected) <$>
-              text "actual:  " <+> code (pretty actual))
+              text "  actual:" <+> code (pretty actual))
   pretty (TypeMismatch e expected actual) =
     prettyError <+> text "type mismatch in" <+> code (pretty e) <> colon <$>
     indent 2 (text "expected:" <+> code (pretty expected) <$>
-              text "actual:  " <+> code (pretty actual))
+              text "  actual:" <+> code (pretty actual))
+  pretty (NoSuchClass c) = prettyError <+> text "no such class:" <+> code (text c)
   pretty e = prettyError <+> text (show e)
 
 instance Error TypeError where
