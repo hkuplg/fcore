@@ -404,16 +404,11 @@ infer (JField callee f _)
       NonStatic e ->
         do (e', t) <- infer e
            case t of
-             -- Record _ -> infer (RecordElim e f) -- Then the typechecker realized!
              JType (JClass c)   ->
                do ret_c   <- checkFieldAccess (NonStatic c) f
                   if ret_c == "char"
                     then return (JField (NonStatic e') f ret_c, JType $ JPrim "char")
                     else return (JField (NonStatic e') f ret_c, JType $ JClass ret_c)
-             -- And t1 t2 -> return (RecordElim e' f
-             --                     , fromMaybe
-             --                         (panic "99170a65")
-             --                         (lookup (Just f) (fields t1 ++ fields t2)))
              _          -> throwError
                            (General
                             (code (pretty e) <+> text "has type" <+> code (pretty t) <>
@@ -444,7 +439,7 @@ infer (RecordElim e l) =
      return (RecordElim e' l
             , fromMaybe
                 (prettyPanic "b2a43c51" (pretty (RecordElim e l)))
-                (lookup (Just l) (fields t)))
+                (Map.lookup l (recordFields t)))
 
 infer (RecordUpdate e fs) =
   do (es', _ts) <- mapAndUnzipM infer (map snd fs)
