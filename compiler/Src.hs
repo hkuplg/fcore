@@ -203,8 +203,8 @@ data IntersectionBias = LeftBiased | RightBiased
 intersectionBias :: IntersectionBias
 intersectionBias = LeftBiased
 
--- | Returns the record fields of a type. Note that a type may not be a record
--- itself in order for it to have fields.
+-- | Returns the record fields of a type. Note that a type does not have to be a
+-- record by itself in order for it to have fields.
 --
 -- Examples (in pseudo-code):
 --   recordFields(String) = {}
