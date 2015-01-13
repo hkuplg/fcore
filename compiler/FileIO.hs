@@ -6,7 +6,7 @@ module FileIO where
 import System.IO
 import System.Process hiding (runCommand)
 import System.Directory			(removeFile, doesFileExist)
-import System.FilePath			(dropExtension)
+import System.FilePath			(dropExtension, dropFileName, takeFileName)
 
 import qualified Control.Exception as E
 import Control.Monad			(when)
@@ -55,7 +55,8 @@ getClassName (x : xs) = (toUpper x) : xs
 send :: Handle -> CompileOpt -> Bool -> FilePath -> IO Bool 
 send h (n, opt, method) flagS f = do 
 	contents <- readFile f
-	let className = getClassName (dropExtension f)
+	let path = dropFileName f
+	let className = getClassName (dropExtension (takeFileName f))
 	result <- E.try (sf2java n NoDump opt className contents)
 	case result of 
 	  Left  (_ :: E.SomeException) -> do 

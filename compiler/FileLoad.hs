@@ -52,8 +52,8 @@ loadAll ::  Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO (
 loadAll _ _ _ _ [] = return () 
 loadAll inP outP method opt (x:xs) = do
     putStrLn ("Running " ++ (takeFileName x))
-    send inP (0, opt, method) False x
-    receiveMsg outP
+    let compileOpt = (0, opt, method)
+    wrap (inP, outP) compileOpt False x 
     loadAll inP outP method opt xs 
   
 fileExist :: String -> IO ()
