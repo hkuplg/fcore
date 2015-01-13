@@ -19,7 +19,7 @@ module Src
   , dethunk
   , alphaEq
   , subtype
-  , fields
+  , recordFields
   , freeTVars
   , fsubstTT
   , wrap
@@ -194,24 +194,40 @@ desugarMultiRecord []         = panic "Src.desugarMultiRecordTy"
 desugarMultiRecord [(l,t)]    = Record [(l,t)]
 desugarMultiRecord ((l,t):fs) = Record [(l,t)] `And` desugarMultiRecord fs
 
-fields :: Type -> [(Maybe Label, Type)]
-fields t
-  = case t of
-      TVar _            -> unlabeledField
-      -- JClass _          -> unlabeledField
-      JType _           -> unlabeledField
-      Fun _ _           -> unlabeledField
-      Forall _ _        -> unlabeledField
-      Product _         -> unlabeledField
-      Unit              -> unlabeledField
-      Record []         -> panic "Src.fields"
-      Record [(l1,t1)]  -> [(Just l1, t1)]
-      Record fs@(_:_:_) -> fields (desugarMultiRecord fs)
-      ListOf _          -> unlabeledField
-      (And t1 t2)       -> fields t1 ++ fields t2
-      Thunk t1          -> fields t1
+data IntersectionBias = LeftBiased | RightBiased
 
-    where unlabeledField = [(Nothing, t)]
+-- If a record contains more than one field with the same label, the first field
+-- for the label is preferred. For example, `{ age = 3, age = 8 }.age` evaluates
+-- to 3. This configuration should be consistent with the corresponding one in
+-- the simplifier.
+intersectionBias :: IntersectionBias
+intersectionBias = LeftBiased
+
+-- | Returns the record fields of a type. Note that a type may not be a record
+-- itself in order for it to have fields.
+--
+-- Examples (in pseudo-code):
+--   recordFields(String) = {}
+--   recordFields(String&{name:String, age:Int}) = {"name" => String, "age" => Int}
+recordFields :: Type -> Map.Map Label Type
+recordFields (Record fs) =
+  case intersectionBias of
+    -- `Map.fromList` is right-biased.
+    -- For example:
+    --   ghci> Map.fromList [(1,"one"),(1,"yat")]
+    --   fromList [(1,"yat")]
+    LeftBiased  -> Map.fromList (reverse fs)
+    RightBiased -> Map.fromList fs
+recordFields (And t1 t2) =
+  case intersectionBias of
+    -- But `Map.union` is left-biased.
+    -- For example:
+    --   ghci> Map.fromList [(1,"one")] `Map.union` Map.fromList [(1,"yat")]
+    --   fromList [(1,"one")]
+    LeftBiased  -> recordFields t1 `Map.union` recordFields t2
+    RightBiased -> recordFields t2 `Map.union` recordFields t1
+recordFields (Thunk t) = recordFields t
+recordFields _         = Map.empty
 
 -- Free variable substitution
 
