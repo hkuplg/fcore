@@ -1,0 +1,14 @@
+type Exp = { eval : Int };
+let lit (n:Int) = { eval = n };
+let add (e1:Exp) (e2:Exp) = { eval = e1.eval + e2.eval };
+type ExpExt = Exp & { print : String };
+let litExt (n:Int) = lit n ,, { print = n.toString() };
+let addExt (e1:ExpExt) (e2:ExpExt) = add e1 e2 ,, { print = e1.print.concat(" + ").concat(e2.print) };
+let e1 = addExt (litExt 2) (litExt 3);
+let e2 = add (lit 2) (lit 4);
+let f (e:Exp) = e.eval;
+let g (e:ExpExt) = e.eval;
+let sub (e1:Exp) (e2:Exp) = { eval = e1.eval - e2.eval };
+-- Type error
+-- g e2
+(sub e1 e2).eval
