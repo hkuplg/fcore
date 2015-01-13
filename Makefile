@@ -24,7 +24,7 @@ test :
 .PHONY : test2
 test2 : 
 	make parsers
-	runhaskell -i$(srcdir) $(srcdir)/FileLoad.hs
+	runhaskell -i$(srcdir) FileLoad.hs
  
 .PHONY : parsers
 parsers :

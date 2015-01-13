@@ -44,8 +44,8 @@ wrap (inP, outP) opt flagS name = do
 	    putStrLn (name ++ "does not exist")
 	    return ()
   	  else do
-	    error <- send inP opt flagS name
-	    case error of 
+	    correct <- send inP opt flagS name
+	    case correct of 
 	      True  -> receiveMsg outP
 	      False -> return ()
 
