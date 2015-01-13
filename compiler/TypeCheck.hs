@@ -127,6 +127,23 @@ instance Pretty TypeError where
     indent 2 (text "expected:" <+> code (pretty expected) <$>
               text "  actual:" <+> code (pretty actual))
   pretty (NoSuchClass c) = prettyError <+> text "no such class:" <+> code (text c)
+
+  pretty (NoSuchMethod (NonStatic c) m cs) =
+    prettyError <+> text "no such method" <+> code (text m) <+>
+    text "on" <+> code (pretty (JType (JClass c))) <+>
+    text "with parameters of type" <+> commas (map (code . pretty . JType . JClass) cs)
+  pretty (NoSuchMethod (Static c) m cs) =
+    prettyError <+> text "no such static method" <+> code (text m) <+>
+    text "on" <+> code (pretty (JType (JClass c))) <+>
+    text "with parameters of type" <+> commas (map (code . pretty . JType . JClass) cs)
+
+  pretty (NoSuchField (NonStatic c) f) =
+    prettyError <+> text "no such field" <+> code (text f) <+>
+    text "on" <+> code (pretty (JType (JClass c)))
+  pretty (NoSuchField (Static c) f) =
+    prettyError <+> text "no such static field" <+> code (text f) <+>
+    text "on" <+> code (pretty (JType (JClass c)))
+
   pretty (NotMember x t) =
     prettyError <+> code (text x) <+>
     text "is not a member of the type" <+> code (pretty t)
@@ -404,15 +421,12 @@ infer (JField callee f _)
       NonStatic e ->
         do (e', t) <- infer e
            case t of
-             JType (JClass c)   ->
+             JType (JClass c) ->
                do ret_c   <- checkFieldAccess (NonStatic c) f
                   if ret_c == "char"
                     then return (JField (NonStatic e') f ret_c, JType $ JPrim "char")
                     else return (JField (NonStatic e') f ret_c, JType $ JClass ret_c)
-             _          -> throwError
-                           (General
-                            (code (pretty e) <+> text "has type" <+> code (pretty t) <>
-                             text ", which does not support the dot notation"))
+             _ -> throwError (NotMember f t)
 
 infer (Seq es) = do
   (es', ts) <- mapAndUnzipM infer es
