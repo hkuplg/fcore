@@ -6,9 +6,10 @@ module FileIO where
 import System.IO
 import System.Process hiding (runCommand)
 import System.Directory			(removeFile, doesFileExist)
-import System.FilePath			(takeFileName)
+import System.FilePath			(dropExtension)
 
 import qualified Control.Exception as E
+import Control.Monad			(when)
 
 import Data.Char
 import Data.List.Split
@@ -37,44 +38,37 @@ type CompileOpt = (Int, Compilation, [TransMethod])
 
 wrap :: Connection -> CompileOpt -> Bool -> String -> IO ()
 wrap (inP, outP) opt flagS name = do
-	send inP opt flagS name 
 	exist <- doesFileExist name
-	if exist
-	  then receiveMsg outP
-	  else return ()
-
-send :: Handle -> CompileOpt -> Bool -> String -> IO () 
-send h opt flagS name = do 
-	exist <- doesFileExist name
-	if not exist 
+	if not exist
 	  then do
-	    putStrLn (name ++ " does not exist")
+	    putStrLn (name ++ "does not exist")
 	    return ()
-	  else do
-	    let className = getClassName name
-	    sfToJava h opt flagS name
+  	  else do
+	    error <- send inP opt flagS name
+	    case error of 
+	      True  -> receiveMsg outP
+	      False -> return ()
 
 getClassName :: String -> String
-getClassName (x : xs) = (toUpper x) : (takeWhile (/= '.') xs)
+getClassName (x : xs) = (toUpper x) : xs
 
-sfToJava :: Handle -> CompileOpt -> Bool -> FilePath -> IO ()
-sfToJava h (n, opt, method) flagS f = do 
+send :: Handle -> CompileOpt -> Bool -> FilePath -> IO Bool 
+send h (n, opt, method) flagS f = do 
 	contents <- readFile f
-	--putStrLn contents
-	let className = getClassName (takeFileName f)
+	let className = getClassName (dropExtension f)
 	result <- E.try (sf2java n NoDump opt className contents)
 	case result of 
 	  Left  (_ :: E.SomeException) -> do 
 	  	putStrLn "invalid expression sf2Java"
-		removeFile f
+		return False
 	  Right javaFile	       -> do 
 	  	sendMsg h (className ++ ".java")
 		let file = javaFile ++ "\n" ++  "//end of file"
 	  	sendFile h file
-	  	case flagS of 
-	    	  True -> do putStrLn contents
-	  	  	     putStrLn file
-	    	  False -> return () 
+	  	when flagS $  
+		  do putStrLn contents
+	  	     putStrLn file
+		return True
 	
 receiveMsg :: Handle -> IO () 
 receiveMsg h = do

@@ -293,11 +293,10 @@ getOpt ms = case ms of
 wrapFlag :: Connection -> CompileOpt -> Bool -> Bool -> String -> IO ()
 wrapFlag handle opt flagT flagS filename = case flagT of
 	True  -> --timeIt (wrap handle opt flagS filename)
-	  do
-	    start <- getCPUTime
-	    wrap handle opt flagS filename
-	    end <- getCPUTime
-	    putStrLn ("CPU time: " ++ (show ((end - start) `div` 1000)) ++ "ns")
+	  do start <- getCPUTime
+	     wrap handle opt flagS filename
+	     end <- getCPUTime
+	     putStrLn ("CPU time: " ++ (show ((end - start) `div` 1000)) ++ "ns")
 	False -> wrap handle opt flagS filename
 
 checkType :: ValueContext -> String -> IO (Either TypeError (Src.Expr (Name, Type), Type))
