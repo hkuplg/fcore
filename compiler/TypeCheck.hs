@@ -303,8 +303,10 @@ infer (BLam a e)
 infer (TApp e targ)
   = do (e', t) <- infer e
        checkType targ
+       d <- getTypeContext
+       let targ' = expandType d targ
        case t of
-         Forall a t1 -> return (TApp e' targ, fsubstTT (a, targ) t1)
+         Forall a t1 -> return (TApp e' targ', fsubstTT (a, targ') t1)
          _           -> sorry "TypeCheck.infer: TApp"
 
 infer (Tuple es)
@@ -539,7 +541,7 @@ inferBind bind
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.
 -- Then check and expand the types of value params.
-checkBindLHS :: ReaderBind -> Checker (ReaderBind)
+checkBindLHS :: ReaderBind -> Checker ReaderBind
 checkBindLHS Bind{..}
   = do checkDupNames bindTargs
        checkDupNames (map fst bindArgs)

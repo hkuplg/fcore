@@ -95,10 +95,10 @@ data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
 data Expr id ty
   = Var id                                    -- Variable
   | Lit Lit                                   -- Literals
-  | Lam (Name, Type) (Expr id ty)             -- Lambda
+  | Lam (Name, ty) (Expr id ty)             -- Lambda
   | App  (Expr id ty) (Expr id ty)            -- Application
   | BLam Name (Expr id ty)                    -- Big lambda
-  | TApp (Expr id ty) Type                    -- Type application
+  | TApp (Expr id ty) ty                    -- Type application
   | Tuple [Expr id ty]                        -- Tuples
   | Proj (Expr id ty) Int                     -- Tuple projection
   | PrimOp (Expr id ty) Operator (Expr id ty) -- Primitive operation
@@ -127,10 +127,10 @@ data Expr id ty
   | LetModule (Module id ty) (Expr id ty)
   | ModuleAccess ModuleName Name
   | Type -- type T A1 .. An = t in e
-      Name      -- T         -- Name of type constructor
-      [Name]    -- A1 ... An -- Type parameters
-      Type      -- t         -- RHS of the equal sign
-      (Expr id ty) -- e      -- The rest of the expression
+      Name         -- T         -- Name of type constructor
+      [Name]       -- A1 ... An -- Type parameters
+      ReaderType   -- t         -- RHS of the equal sign
+      (Expr id ty) -- e         -- The rest of the expression
   deriving (Eq, Show)
 
 type ReaderExpr  = Expr ReaderId  ReaderType
@@ -297,7 +297,7 @@ instance Pretty Type where
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (ListOf a)   = brackets $ pretty a
 
-instance (Show id, Pretty id) => Pretty (Expr id ty) where
+instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Var x) = pretty x
   pretty (Lit (Int n))     = integer n
   pretty (Lit (String n))  = string n
@@ -343,7 +343,7 @@ instance (Show id, Pretty id) => Pretty (Expr id ty) where
   pretty (RecordIntro fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty e = text (show e)
 
-instance (Show id, Pretty id) => Pretty (Bind id ty) where
+instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
   pretty Bind{..} =
     pretty bindId <+>
     hsep (map pretty bindTargs) <+>
