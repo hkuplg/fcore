@@ -13,6 +13,8 @@ But here we have to handle such cases.-}
 
 module TypeCheck
   ( typeCheck
+  , TypeContext
+  , ValueContext
 
   -- For REPL
   , typeCheckWithEnv
@@ -34,23 +36,37 @@ import Text.PrettyPrint.ANSI.Leijen
 import System.IO
 import System.Process
 
+import Control.Arrow       (second)
 import Control.Monad.Error
 
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (fromMaybe)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
 
 import Prelude hiding (pred)
 
+-- Type and value contexts
+
+-- `TypeValue` is what's put inside a type context.
+data TypeValue
+  = TerminalType -- Terminal types, e.g., the `a` of `forall a. `
+  | NonTerminalType ReaderType
+    -- Non-terminal types, i.e. type synoyms. `ReaderType` holds the RHS to the
+    -- equal sign of type synonym definitions.
+
+type TypeContext  = Map.Map ReaderId (Kind, TypeValue) -- Delta
+-- For type synonyms, `Maybe expandedType` holds their type-level definitions.
+type ValueContext = Map.Map ReaderId ExpandedType       -- Gamma
+
 type Connection = (Handle, Handle)
 
-typeCheck :: Expr Name -> IO (Either TypeError (Expr (Name,Type), Type))
+typeCheck :: ReaderExpr -> IO (Either TypeError (CheckedExpr, ExpandedType))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnv type_server) . runErrorT . infer) e)
 
 -- Temporary hack for REPL
-typeCheckWithEnv :: ValueContext -> Expr Name -> IO (Either TypeError (Expr (Name,Type), Type))
+typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either TypeError (CheckedExpr, ExpandedType))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . infer) e)
@@ -99,12 +115,13 @@ data TypeError
   | ConflictingDefinitions Name
   | ExpectJClass
   | IndexTooLarge
-  | TypeMismatch (Expr Name) Type Type
-  | KindMismatch Type Kind Kind
+  | TypeMismatch Type Type
+  | KindMismatch Kind Kind
   | MissingRHSAnnot
   | NotInScope Name
   | ProjectionOfNonProduct
   | NotWellKinded Type
+  | NotMember Name Type
 
   -- Java-specific type errors
   | NoSuchClass       ClassName
@@ -117,14 +134,35 @@ instance Pretty TypeError where
   pretty (General doc)      = prettyError <+> doc
   pretty (NotInScope x)  = prettyError <+> code (text x) <+> text "is not in scope"
   pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
-  pretty (KindMismatch t expected actual) =
-    prettyError <+> text "kind mismatch in" <+> code (pretty t) <> colon <$>
+  pretty (KindMismatch expected actual) =
+    prettyError <+> text "kind mismatch" <> colon <$>
     indent 2 (text "expected:" <+> code (pretty expected) <$>
-              text "actual:  " <+> code (pretty actual))
-  pretty (TypeMismatch e expected actual) =
-    prettyError <+> text "type mismatch in" <+> code (pretty e) <> colon <$>
+              text "  actual:" <+> code (pretty actual))
+  pretty (TypeMismatch expected actual) =
+    prettyError <+> text "type mismatch" <> colon <$>
     indent 2 (text "expected:" <+> code (pretty expected) <$>
-              text "actual:  " <+> code (pretty actual))
+              text "  actual:" <+> code (pretty actual))
+  pretty (NoSuchClass c) = prettyError <+> text "no such class:" <+> code (text c)
+
+  pretty (NoSuchMethod (NonStatic c) m cs) =
+    prettyError <+> text "no such method" <+> code (text m) <+>
+    text "on" <+> code (pretty (JType (JClass c))) <+>
+    text "with parameters of type" <+> commas (map (code . pretty . JType . JClass) cs)
+  pretty (NoSuchMethod (Static c) m cs) =
+    prettyError <+> text "no such static method" <+> code (text m) <+>
+    text "on" <+> code (pretty (JType (JClass c))) <+>
+    text "with parameters of type" <+> commas (map (code . pretty . JType . JClass) cs)
+
+  pretty (NoSuchField (NonStatic c) f) =
+    prettyError <+> text "no such field" <+> code (text f) <+>
+    text "on" <+> code (pretty (JType (JClass c)))
+  pretty (NoSuchField (Static c) f) =
+    prettyError <+> text "no such static field" <+> code (text f) <+>
+    text "on" <+> code (pretty (JType (JClass c)))
+
+  pretty (NotMember x t) =
+    prettyError <+> code (text x) <+>
+    text "is not a member of the type" <+> code (pretty t)
   pretty e = prettyError <+> text (show e)
 
 instance Error TypeError where
@@ -154,7 +192,7 @@ memoizeJavaClass c
        memoized_java_classes <- getMemoizedJavaClasses
        setTcEnv TcEnv{ tceMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
 
-withLocalTVars :: [(Name, (Kind, Maybe Type))] -> Checker a -> Checker a
+withLocalTVars :: [(ReaderId, (Kind, TypeValue))] -> Checker a -> Checker a
 withLocalTVars tvars do_this
   = do delta <- getTypeContext
        let delta' = Map.fromList tvars `Map.union` delta
@@ -165,7 +203,7 @@ withLocalTVars tvars do_this
        setTcEnv TcEnv { tceTypeContext = delta, ..}
        return r
 
-withLocalVars :: [(Name, Type)]-> Checker a -> Checker a
+withLocalVars :: [(ReaderId, ExpandedType)]-> Checker a -> Checker a
 withLocalVars vars do_this
   = do gamma <- getValueContext
        let gamma' = Map.fromList vars `Map.union` gamma
@@ -192,7 +230,7 @@ kind d (TVar a)     = case Map.lookup a d of Nothing     -> return Nothing
                                              Just (k, _) -> return (Just k)
 kind _  Unit        = return (Just Star)
 kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
-kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, Nothing) d
+kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, TerminalType) d
 kind d (Product ts) = justStarIffAllHaveKindStar d ts
 kind d (Record fs)  = justStarIffAllHaveKindStar d (map snd fs)
 kind d (ListOf t)   = kind d t
@@ -203,7 +241,7 @@ kind d (Thunk t)    = kind d t
 -- -------------------- (K-Abs) Restriction compared to F_omega: x can only have kind *
 -- Δ ⊢ λx. t :: * => k
 kind d (OpAbs x t) = do
-  maybe_k <- kind (Map.insert x (Star, Nothing) d) t
+  maybe_k <- kind (Map.insert x (Star, TerminalType) d) t
   case maybe_k of
     Nothing -> return Nothing
     Just k  -> return $ Just (KArrow Star k)
@@ -233,7 +271,7 @@ hasKindStar d t
        return (k == Just Star)
 
 -- | Typing.
-infer :: Expr Name -> Checker (Expr (Name,Type), Type)
+infer :: ReaderExpr -> Checker (CheckedExpr, ExpandedType)
 infer (Var name)
   = do value_ctxt <- getValueContext
        case Map.lookup name value_ctxt of
@@ -244,20 +282,22 @@ infer (Lit lit) = return (Lit lit, srcLitType lit)
 
 infer (Lam (x1,t1) e)
   = do checkType t1
-       (e', t) <- withLocalVars [(x1,t1)] (infer e)
-       return (Lam (x1,t1) e', Fun t1 t)
+       d <- getTypeContext
+       let t1' = expandType d t1
+       (e', t') <- withLocalVars [(x1,t1')] (infer e)
+       return (Lam (x1,t1') e', Fun t1' t')
 
 infer (App e1 e2)
   = do (e1', t1) <- infer e1
        (e2', t2) <- infer e2
        case t1 of
          Fun t11 t12 -> do unless (dethunk t2 `subtype` dethunk t11) $
-                             throwError $ TypeMismatch e2 t11 t2
+                             throwError $ TypeMismatch t11 t2
                            return (App e1' e2', t12)
          _         -> throwError (General (code (pretty e1) <+> text "is of type" <+> code (pretty t1) <> text "; it cannot be applied"))
 
 infer (BLam a e)
-  = do (e', t) <- withLocalTVars [(a, (Star, Nothing))] (infer e)
+  = do (e', t) <- withLocalTVars [(a, (Star, TerminalType))] (infer e)
        return (BLam a e', Forall a t)
 
 infer (TApp e targ)
@@ -312,6 +352,59 @@ infer (Let rec_flag binds e) =
 
 infer (LetOut{..}) = panic "TypeCheck.infer: LetOut"
 
+--  Case           Possible interpretations
+--  ---------------------------------------
+--  e.x            Field access, record elim
+--  e.x ( )        Method invocation
+--  e.x ()         Method invocation, application (of a unit lit)
+--  e.x (g y)      Method invocation, application
+--  e.x (g y,...)  Method invocation, application (of a tuple)
+
+-- In all the cases of application except the first, it is impossible for `e.x`
+-- to be a field access since field accesses cannot return something that
+-- accepts a value as its argument. So `e.x` can only be a method invocation.
+
+infer (Dot e x Nothing) =
+  do (_, t) <- infer e
+     case t of
+       JType (JClass _) -> infer (JField (NonStatic e) x undefined)
+       Record _         -> infer (RecordElim e x)
+       And _ _          -> infer (RecordElim e x)
+       _                -> throwError (NotMember x t)
+
+infer (Dot e x (Just (args, unitPossibility)))
+  | null args
+    = do (_, t) <- infer e
+         case unitPossibility of
+           -- e.x ( )
+           UnitImpossible ->
+             case t of
+               JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
+               _                -> throwError (NotMember x t)
+           -- e.x ()
+           UnitPossible ->
+             case t of
+               JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
+               Record _         -> infer (App (RecordElim e x) (Lit UnitLit))
+               And _ _          -> infer (App (RecordElim e x) (Lit UnitLit))
+               _                -> throwError (NotMember x t)
+  -- e.x (a)
+  | length args == 1
+    = do (_, t) <- infer e
+         case t of
+           JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
+           Record _         -> infer (App (RecordElim e x) (head args))
+           And _ _          -> infer (App (RecordElim e x) (head args))
+           _                -> throwError (NotMember x t)
+  -- e.x (a,...)
+  | otherwise
+    = do (_, t) <- infer e
+         case t of
+           JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
+           Record _         -> infer (App (RecordElim e x) (Tuple args))
+           And _ _          -> infer (App (RecordElim e x) (Tuple args))
+           _                -> throwError (NotMember x t)
+
 -- JNew, JMethod, and JField
 
 infer (JNew c args)
@@ -346,17 +439,12 @@ infer (JField callee f _)
       NonStatic e ->
         do (e', t) <- infer e
            case t of
-             Record _ -> infer (RecordAccess e f) -- Then the typechecker realized!
-             JType (JClass c)   ->
+             JType (JClass c) ->
                do ret_c   <- checkFieldAccess (NonStatic c) f
                   if ret_c == "char"
                     then return (JField (NonStatic e') f ret_c, JType $ JPrim "char")
                     else return (JField (NonStatic e') f ret_c, JType $ JClass ret_c)
-             And t1 t2 -> return (RecordAccess e' f, fromJust (lookup (Just f) (fields t1 ++ fields t2)))
-             _          -> throwError
-                           (General
-                            (code (pretty e) <+> text "has type" <+> code (pretty t) <>
-                             text ", which does not support the dot notation"))
+             _ -> throwError (NotMember f t)
 
 infer (Seq es) = do
   (es', ts) <- mapAndUnzipM infer es
@@ -374,13 +462,16 @@ infer (PrimList l) =
                             then return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
                             else throwError $ General (text "Primitive List Type Mismatch" <+> text (show (PrimList l)))
 
-infer (RecordLit fs) =
+infer (RecordIntro fs) =
   do (es', ts) <- mapAndUnzipM infer (map snd fs)
-     return (RecordLit (zip (map fst fs) es'), Record (zip (map fst fs) ts))
+     return (RecordIntro (zip (map fst fs) es'), Record (zip (map fst fs) ts))
 
-infer (RecordAccess e l) =
+infer (RecordElim e l) =
   do (e', t) <- infer e
-     return (RecordAccess e' l, fromJust (lookup (Just l) (fields t)))
+     return (RecordElim e' l
+            , fromMaybe
+                (prettyPanic "b2a43c51" (pretty (RecordElim e l)))
+                (Map.lookup l (recordFields t)))
 
 infer (RecordUpdate e fs) =
   do (es', _ts) <- mapAndUnzipM infer (map snd fs)
@@ -390,9 +481,9 @@ infer (RecordUpdate e fs) =
 -- Well, I know the desugaring is too early to happen here...
 infer (LetModule (Module m binds) e) =
   do let fs = map bindId binds
-     let letrec = Let Rec binds (RecordLit (map (\f -> (f, Var f)) fs))
+     let letrec = Let Rec binds (RecordIntro (map (\f -> (f, Var f)) fs))
      infer $ Let NonRec [Bind m [] [] letrec Nothing] e
-infer (ModuleAccess m f) = infer (RecordAccess (Var m) f)
+infer (ModuleAccess m f) = infer (RecordElim (Var m) f)
 
 -- Type synonyms: type T A1 ... An = t in e
 -- First make sure that A1 ... An are distinct.
@@ -403,7 +494,7 @@ infer (Type t params rhs e)
        maybe_kind <- liftIO $ kind typeContext pulledRight
        case maybe_kind of
          Nothing -> throwError $ NotWellKinded pulledRight
-         Just k  -> withLocalTVars [(t, (k, Just pulledRight))] $ infer e
+         Just k  -> withLocalTVars [(t, (k, NonTerminalType pulledRight))] $ infer e
   where
     pulledRight = pullRight params rhs
 
@@ -416,14 +507,14 @@ infer (Type t params rhs e)
 pullRight :: [Name] -> Type -> Type
 pullRight params t = foldr OpAbs t params
 
-inferAgainst :: Expr Name -> Type -> Checker (Expr (Name,Type), Type)
+inferAgainst :: ReaderExpr-> Type -> Checker (CheckedExpr, Type)
 inferAgainst expr expected_ty
   = do (expr', actual_ty) <- infer expr
        if actual_ty `alphaEq` expected_ty
           then return (expr', actual_ty)
-          else throwError (TypeMismatch expr expected_ty actual_ty)
+          else throwError (TypeMismatch expected_ty actual_ty)
 
-inferAgainstAnyJClass :: Expr Name -> Checker (Expr (Name,Type), ClassName)
+inferAgainstAnyJClass :: ReaderExpr -> Checker (CheckedExpr, ClassName)
 inferAgainstAnyJClass expr
   = do (expr', ty) <- infer expr
        case dethunk ty of
@@ -435,10 +526,10 @@ inferAgainstAnyJClass expr
               text "but is expected to be of some Java class")
 
 -- | Check "f A1 ... An (x1:T1) ... (xn:Tn) = e"
-inferBind :: Bind Name -> Checker (Name, Type, Expr (Name,Type))
+inferBind :: ReaderBind -> Checker (Name, Type, CheckedExpr)
 inferBind bind
   = do bind' <- checkBindLHS bind
-       (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, Nothing))) (bindTargs bind')) $
+       (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTargs bind')) $
                                   do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindArgs bind')
                                      withLocalVars expandedBindArgs (infer (bindRhs bind'))
        return ( bindId bind'
@@ -448,11 +539,11 @@ inferBind bind
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.
 -- Then check and expand the types of value params.
-checkBindLHS :: Bind Name -> Checker (Bind Name)
+checkBindLHS :: ReaderBind -> Checker (ReaderBind)
 checkBindLHS Bind{..}
   = do checkDupNames bindTargs
        checkDupNames (map fst bindArgs)
-       bindArgs' <- withLocalTVars (map (\a -> (a, (Star, Nothing))) bindTargs) $
+       bindArgs' <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) bindTargs) $
                     -- Restriction: type params have kind *
                     do d <- getTypeContext
                        forM bindArgs (\(x,t) ->
@@ -460,7 +551,7 @@ checkBindLHS Bind{..}
                             return (x, expandType d t))
        return Bind { bindArgs = bindArgs', .. }
 
-collectBindNameSigs :: [Bind Name] -> Checker [(Name, Type)]
+collectBindNameSigs :: [ReaderBind] -> Checker [(Name, Type)]
 collectBindNameSigs
   = mapM (\ Bind{..} ->
             case bindRhsAnnot of
@@ -482,7 +573,7 @@ checkType t =
       case maybe_kind of
         Nothing   -> throwError (NotWellKinded t)
         Just Star -> return ()
-        Just k    -> throwError (KindMismatch t Star k)
+        Just k    -> throwError (KindMismatch Star k)
 
 unlessIO :: (Monad m, MonadIO m) => IO Bool -> m () -> m ()
 unlessIO test do_this
@@ -533,10 +624,10 @@ expandType :: TypeContext -> Type -> Type
 -- Interesting cases:
 expandType d (TVar a)
   = case Map.lookup a d of
-      Nothing            -> prettyPanic "TypeCheck.expandType:TVar" (pretty (TVar a))
-      Just (_, Nothing)  -> TVar a
-      Just (_, Just def) -> expandType d def
-expandType d (OpAbs x t) = OpAbs x (expandType (Map.insert x (Star, Nothing) d) t)
+      Nothing                       -> prettyPanic "TypeCheck.expandType:TVar" (pretty (TVar a))
+      Just (_, TerminalType)        -> TVar a
+      Just (_, NonTerminalType def) -> expandType d def
+expandType d (OpAbs x t) = OpAbs x (expandType (Map.insert x (Star, TerminalType) d) t)
 expandType d (OpApp t1 t2)
   = let t1' = expandType d t1
         t2' = expandType d t2
@@ -548,9 +639,9 @@ expandType d (OpApp t1 t2)
 expandType _ (JType t)    = JType t
 expandType _ Unit         = Unit
 expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
-expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, Nothing) d) t)
+expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalType) d) t)
 expandType d (Product ts) = Product (map (expandType d) ts)
-expandType d (Record fs)  = Record (map (\(l,t) -> (l, expandType d t)) fs)
+expandType d (Record fs)  = Record (map (second (expandType d)) fs)
 expandType d (ListOf t)   = ListOf (expandType d t)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
 expandType d (Thunk t)    = Thunk (expandType d t)

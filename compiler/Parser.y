@@ -32,7 +32,6 @@ import JavaUtils
   "forall" { Tforall }
   "->"     { Tarrow }
   "."      { Tdot }
-  "$"      { Tdollar }
   "&"      { Tandtype }
   ",,"     { Tmerge }
   "with"   { Twith }
@@ -86,7 +85,6 @@ import JavaUtils
 %nonassoc EOF
 
 %right "in"
-%right "$"
 %right "->"
 %nonassoc "else"
 
@@ -109,31 +107,31 @@ import JavaUtils
 -- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
 
 -- Modules
-module :: { Module Name }
+module :: { ReaderModule }
   : "module" module_name semi_binds "end"  { Module $2 $3 }
 
-module_name :: { Name }
+module_name :: { ReaderId }
   : UPPERID  { $1 }
 
 -- Types
 
-type :: { Type }
+type :: { ReaderType }
   : "forall" tvar "." type   { Forall $2 $4 }
   | monotype                 { $1 }
 
-monotype :: { Type }
+monotype :: { ReaderType }
   : intertype "->" monotype  { Fun $1 $3 }
   | intertype                { $1 }
 
-intertype :: { Type }
+intertype :: { ReaderType }
   : ftype "&" intertype      { And $1 $3 }
   | ftype                    { $1 }
 
-ftype :: { Type }
+ftype :: { ReaderType }
   : ftype atype              { OpApp $1 $2 }
   | atype                    { $1 }
 
-atype :: { Type }
+atype :: { ReaderType }
   : tvar                     { TVar $1 }
   | JAVACLASS                { JType (JClass $1) }
   | "Unit"                   { Unit }
@@ -142,27 +140,27 @@ atype :: { Type }
   | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
 
-product_body :: { [Type] }
+product_body :: { [ReaderType] }
   : type "," type             { $1:[$3] }
   | type "," product_body     { $1:$3   }
 
-record_body :: { [(Label, Type)] }
+record_body :: { [(Label, ReaderType)] }
   : label ":" type                  { [($1, $3)]  }
   | label ":" type "," record_body  { ($1, $3):$5 }
 
 label :: { Label }
   : LOWERID                  { $1 }
 
-tvars :: { [Name] }
+tvars :: { [ReaderId] }
   : {- empty -}              { []    }
   | tvar tvars               { $1:$2 }
 
-tvar :: { Name }
+tvar :: { ReaderId }
   : UPPERID                  { $1 }
 
 -- Expressions
 
-expr :: { Expr Name }
+expr :: { ReaderExpr }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
     | "\\" arg "." expr                   { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
@@ -178,9 +176,8 @@ expr :: { Expr Name }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | infixexpr                           { $1 }
     | module expr                   { LetModule $1 $2 }
-    | aexpr "$" expr                      { App $1 $3 }
 
-infixexpr :: { Expr Name }
+infixexpr :: { ReaderExpr }
     : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
     | infixexpr "/"  infixexpr  { PrimOp $1 (Arith J.Div)    $3 }
     | infixexpr "%"  infixexpr  { PrimOp $1 (Arith J.Rem)    $3 }
@@ -197,12 +194,12 @@ infixexpr :: { Expr Name }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
     | fexpr                     { $1 }
 
-fexpr :: { Expr Name }
+fexpr :: { ReaderExpr }
     : fexpr aexpr        { App  $1 $2 }
     | fexpr atype        { TApp $1 $2 }
     | aexpr              { $1 }
 
-aexpr :: { Expr Name }
+aexpr :: { ReaderExpr }
     : var                       { Var $1 }
     | lit                       { $1 }
     | "(" comma_exprs2 ")"      { Tuple $2 }
@@ -210,58 +207,74 @@ aexpr :: { Expr Name }
     | module_name "." var       { ModuleAccess $1 $3 }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 }
-    | "{" recordlit_body "}"    { RecordLit $2 }
+    | "{" recordlit_body "}"    { RecordIntro $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }
     | "(" expr ")"              { $2 }
 
-lit :: { Expr Name }
+lit :: { ReaderExpr }
     : INT                       { Lit (Int $1)    }
     | STRING                    { Lit (String $1) }
     | BOOL                      { Lit (Bool $1)   }
     | CHAR                      { Lit (Char $1)   }
     | "()"                      { Lit UnitLit     }
 
-javaexpr :: { Expr Name }
+javaexpr :: { ReaderExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
     | Empty                                       { JNew "f2j.FunctionalTree" [] }
     | Fork "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3}
+
     | JAVACLASS "." LOWERID "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
     | JAVACLASS "." LOWERID "()"                  { JMethod (Static $1) $3 [] undefined }
-    | JAVACLASS "." field                         { JField  (Static $1) $3 undefined }
-    | aexpr "." LOWERID "(" comma_exprs0 ")"      { JMethod (NonStatic $1) $3 $5 undefined }
-    | aexpr "." LOWERID "()"                      { JMethod (NonStatic $1) $3 [] undefined }
-    | aexpr "." field                             { JField  (NonStatic $1) $3 undefined }
+    | JAVACLASS "." LOWERID                       { JField  (Static $1) $3 undefined }
+    | JAVACLASS "." UPPERID                       { JField  (Static $1) $3 undefined } -- Constants
 
-recordlit_body :: { [(Label, Expr Name)] }
+    -- A dot can mean three things:
+    -- (1) method invocation
+    -- (2) field access
+    -- (3) record elimination
+
+    -- case length comma_exprs0
+    -- when 0: method invocation
+    --   (since the gap between the two parentheses distinguishes the string from the unit literal `()`)
+    -- when 1: method invocation or application (with a parenthesized argument)
+    -- else:   method invocation or application (with a tuple)
+    | aexpr "." LOWERID "(" comma_exprs0 ")"  { Dot $1 $3 (Just ($5, UnitImpossible)) }
+
+    -- method invocation or application
+    | aexpr "." LOWERID "()"                  { Dot $1 $3 (Just ([], UnitPossible)) }
+
+    -- field access or record elimination
+    | aexpr "." LOWERID                       { Dot $1 $3 Nothing }
+
+    -- Is this possible?
+    -- | aexpr "." UPPERID                    { Dot $1 $3 Nothing }
+
+recordlit_body :: { [(Label, ReaderExpr)] }
   : label "=" expr                     { [($1, $3)]  }
   | label "=" expr "," recordlit_body  { ($1, $3):$5 }
 
-list_body :: { [Expr Name] }
+list_body :: { [ReaderExpr] }
     : "(" expr "::" list_body ")"  { $2:$4 }
     | "[" comma_exprs0 "]"         { $2 }
 
-field :: { Name }
-   : LOWERID { $1 }
-   | UPPERID { $1 }
-
-semi_exprs :: { [Expr Name] }
+semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
            | expr ";" semi_exprs { $1:$3 }
 
-comma_exprs0 :: { [Expr Name] }
+comma_exprs0 :: { [ReaderExpr] }
     : {- empty -}             { []    }
     | comma_exprs1            { $1    }
 
-comma_exprs1 :: { [Expr Name] }
+comma_exprs1 :: { [ReaderExpr] }
     : expr                    { [$1]  }
     | expr "," comma_exprs1   { $1:$3 }
 
-comma_exprs2 :: { [Expr Name] }
+comma_exprs2 :: { [ReaderExpr] }
     : expr "," expr           { [$1,$3]  }
     | expr "," comma_exprs2   { $1:$3     }
 
-bind :: { Bind Name }
+bind :: { ReaderBind }
     : var tvars args maybe_sig "=" expr
         { Bind { bindId       = $1
                , bindTargs    = $2
@@ -271,15 +284,15 @@ bind :: { Bind Name }
                }
         }
 
-maybe_sig :: { Maybe Type }
+maybe_sig :: { Maybe ReaderType }
   : ":" type     { Just $2 }
   | {- empty -} { Nothing }
 
-and_binds :: { [Bind Name] }
+and_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
 
-semi_binds :: { [Bind Name] }
+semi_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
     | bind ";" and_binds      { $1:$3 }
 
@@ -287,16 +300,16 @@ recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
 
-arg :: { (Name, Type) }
+arg :: { (ReaderId, ReaderType) }
     : "(" var ":" type ")"       { ($2, $4) }
     | "()"                       { ("_", Unit) }
     | "(" arg ")"                { $2 }
 
-args :: { [(Name, Type)] }
+args :: { [(ReaderId, ReaderType)] }
     : {- empty -}               { []    }
     | arg args  { $1:$2 }
 
-var :: { Name }
+var :: { ReaderId }
     : LOWERID           { $1 }
 
 {
@@ -311,7 +324,7 @@ instance Monad P where
 parseError :: [Token] -> P a
 parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
 
-reader :: String -> Expr Name
+reader :: String -> ReaderExpr
 reader src = case (parseExpr . lexer) src of
                  POk expr   -> expr
                  PError msg -> error msg

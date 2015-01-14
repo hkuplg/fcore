@@ -6,26 +6,24 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module Src
-  ( Module(..)
+  ( Module(..), ReaderModule
   , Kind(..)
-  , Type(..)
-  , Expr(..), Bind(..), RecFlag(..), Lit(..), Operator(..), JCallee(..), JVMType(..)
-  , Label
-  , TypeContext, ValueContext
-  , Name
-  -- , RdrExpr
-  -- , TcBinds
-  -- , TcExpr
+  , Type(..), ReaderType, ExpandedType
+  , Expr(..), ReaderExpr, CheckedExpr
+  , Bind(..), ReaderBind
+  , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
+  , Name, ReaderId, CheckedId
   , dethunk
   , alphaEq
   , subtype
-  , fields
+  , recordFields
   , freeTVars
   , fsubstTT
   , wrap
   , opPrec
   ) where
 
+import Config
 import JavaUtils
 import PrettyUtils
 import Panic
@@ -34,16 +32,23 @@ import qualified Language.Java.Syntax as J (Op(..))
 -- import qualified Language.Java.Pretty as P
 import Text.PrettyPrint.ANSI.Leijen
 
+import Control.Arrow (second)
+
 import Data.Data
 import Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-type Name       = String
+type Name      = String
+type ReaderId  = Name
+type CheckedId = (ReaderId, ExpandedType)
+
 type ModuleName = Name
 type Label      = Name
 
-data Module id = Module id [Bind id] deriving (Eq, Show)
+data Module id ty = Module id [Bind id ty] deriving (Eq, Show)
+
+type ReaderModule = Module ReaderId ReaderType
 
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
@@ -72,6 +77,11 @@ data Type
   -- `alphaEq` and `subtype` below.
   deriving (Eq, Show, Data, Typeable)
 
+-- Different stages of types.
+
+type ReaderType   = Type
+type ExpandedType = Type
+
 data Lit -- Data constructor names match Haskell types
   = Int Integer
   | String String
@@ -82,60 +92,70 @@ data Lit -- Data constructor names match Haskell types
 
 data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
 
-data Expr id
-  = Var id                              -- Variable
-  | Lit Lit                             -- Literals
-  | Lam (Name, Type) (Expr id)          -- Lambda
-  | App  (Expr id) (Expr id)            -- Application
-  | BLam Name (Expr id)                 -- Big lambda
-  | TApp (Expr id) Type                 -- Type application
-  | Tuple [Expr id]                     -- Tuples
-  | Proj (Expr id) Int                  -- Tuple projection
-  | PrimOp (Expr id) Operator (Expr id) -- Primitive operation
-  | If (Expr id) (Expr id) (Expr id)    -- If expression
-  | Let RecFlag [Bind id] (Expr id)     -- Let (rec) ... (and) ... in ...
-  | LetOut RecFlag [(Name, Type, Expr (Name,Type))] (Expr (Name,Type)) -- Post typecheck only
-  | JNew ClassName [Expr id]
-  | JMethod (JCallee (Expr id)) MethodName [Expr id] ClassName
-  | JField  (JCallee (Expr id)) FieldName            ClassName
-  | Seq [Expr id]
-  | PrimList [Expr id]           -- New List
-  | Merge (Expr id) (Expr id)
-  | RecordLit [(Label, Expr id)]
-  | RecordAccess (Expr id) Label
-  | RecordUpdate (Expr id) [(Label, Expr id)]
-  | LetModule (Module id) (Expr id)
+data Expr id ty
+  = Var id                                    -- Variable
+  | Lit Lit                                   -- Literals
+  | Lam (Name, Type) (Expr id ty)             -- Lambda
+  | App  (Expr id ty) (Expr id ty)            -- Application
+  | BLam Name (Expr id ty)                    -- Big lambda
+  | TApp (Expr id ty) Type                    -- Type application
+  | Tuple [Expr id ty]                        -- Tuples
+  | Proj (Expr id ty) Int                     -- Tuple projection
+  | PrimOp (Expr id ty) Operator (Expr id ty) -- Primitive operation
+  | If (Expr id ty) (Expr id ty) (Expr id ty) -- If expression
+  | Let RecFlag [Bind id ty] (Expr id ty)     -- Let (rec) ... (and) ... in ...
+  | LetOut                                    -- Post typecheck only
+      RecFlag
+      [(Name, Type, Expr (Name,ExpandedType) ExpandedType)]
+      (Expr (Name,ExpandedType) ExpandedType)
+
+  | Dot (Expr id ty) Name (Maybe ([Expr id ty], UnitPossibility))
+  -- The flag `UnitPossibility` is only used when length of the argument list is
+  -- 0, to distinguish the different possible interpretations of `e.x ( )` and
+  -- `e.x ()` -- the latter can be an application (of unit literal to a record
+  -- elim), while the former cannot.
+
+  | JNew ClassName [Expr id ty]
+  | JMethod (JCallee (Expr id ty)) MethodName [Expr id ty] ClassName
+  | JField  (JCallee (Expr id ty)) FieldName            ClassName
+  | Seq [Expr id ty]
+  | PrimList [Expr id ty]           -- New List
+  | Merge (Expr id ty) (Expr id ty)
+  | RecordIntro [(Label, Expr id ty)]
+  | RecordElim (Expr id ty) Label
+  | RecordUpdate (Expr id ty) [(Label, Expr id ty)]
+  | LetModule (Module id ty) (Expr id ty)
   | ModuleAccess ModuleName Name
   | Type -- type T A1 .. An = t in e
       Name      -- T         -- Name of type constructor
       [Name]    -- A1 ... An -- Type parameters
       Type      -- t         -- RHS of the equal sign
-      (Expr id) -- e         -- The rest of the expression
+      (Expr id ty) -- e      -- The rest of the expression
   deriving (Eq, Show)
 
--- type RdrExpr = Expr Name
+type ReaderExpr  = Expr ReaderId  ReaderType
+type CheckedExpr = Expr CheckedId ExpandedType
 -- type TcExpr  = Expr TcId
 -- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
 
-data Bind id = Bind
+data Bind id ty = Bind
   { bindId       :: id             -- Identifier
   , bindTargs    :: [Name]         -- Type arguments
   , bindArgs     :: [(Name, Type)] -- Arguments, each annotated with a type
-  , bindRhs      :: Expr id        -- RHS to the "="
+  , bindRhs      :: Expr id ty     -- RHS to the "="
   , bindRhsAnnot :: Maybe Type     -- Type of the RHS
   } deriving (Eq, Show)
 
+type ReaderBind = Bind Name ReaderType
+
 data RecFlag = Rec | NonRec deriving (Eq, Show)
+data UnitPossibility = UnitPossible | UnitImpossible deriving (Eq, Show)
 
 data JCallee e = Static ClassName | NonStatic e deriving (Eq, Show)
 
 instance Functor JCallee where
   fmap _ (Static c)    = Static c
   fmap f (NonStatic e) = NonStatic (f e)
-
-type TypeContext  = Map.Map Name (Kind, Maybe Type) -- Delta
--- For type synonyms, `Maybe Type` holds their type-level definitions.
-type ValueContext = Map.Map Name Type               -- Gamma
 
 -- Type equivalence(s) and subtyping
 
@@ -186,24 +206,31 @@ desugarMultiRecord []         = panic "Src.desugarMultiRecordTy"
 desugarMultiRecord [(l,t)]    = Record [(l,t)]
 desugarMultiRecord ((l,t):fs) = Record [(l,t)] `And` desugarMultiRecord fs
 
-fields :: Type -> [(Maybe Label, Type)]
-fields t
-  = case t of
-      TVar _            -> unlabeledField
-      -- JClass _          -> unlabeledField
-      JType _           -> unlabeledField
-      Fun _ _           -> unlabeledField
-      Forall _ _        -> unlabeledField
-      Product _         -> unlabeledField
-      Unit              -> unlabeledField
-      Record []         -> panic "Src.fields"
-      Record [(l1,t1)]  -> [(Just l1, t1)]
-      Record fs@(_:_:_) -> fields (desugarMultiRecord fs)
-      ListOf _          -> unlabeledField
-      (And t1 t2)       -> fields t1 ++ fields t2
-      Thunk t1          -> fields t1
-
-    where unlabeledField = [(Nothing, t)]
+-- | Returns the record fields of a type. Note that a type does not have to be a
+-- record by itself in order for it to have fields. (See the second example
+-- below.)
+-- Examples (in pseudo-code):
+--   recordFields(String) = {}
+--   recordFields(String&{name:String, age:Int}) = {"name" => String, "age" => Int}
+recordFields :: Type -> Map.Map Label Type
+recordFields (Record fs) =
+  case intersectionBias of
+    -- `Map.fromList` is right-biased.
+    -- For example:
+    --   ghci> Map.fromList [(1,"one"),(1,"yat")]
+    --   fromList [(1,"yat")]
+    LeftBiased  -> Map.fromList (reverse fs)
+    RightBiased -> Map.fromList fs
+recordFields (And t1 t2) =
+  case intersectionBias of
+    -- But `Map.union` is left-biased.
+    -- For example:
+    --   ghci> Map.fromList [(1,"one")] `Map.union` Map.fromList [(1,"yat")]
+    --   fromList [(1,"one")]
+    LeftBiased  -> recordFields t1 `Map.union` recordFields t2
+    RightBiased -> recordFields t2 `Map.union` recordFields t1
+recordFields (Thunk t) = recordFields t
+recordFields _         = Map.empty
 
 -- Free variable substitution
 
@@ -221,7 +248,7 @@ fsubstTT (x,r) (Forall a t)
   | otherwise                  = Forall a (fsubstTT (x,r) t)
 fsubstTT (x,r) (ListOf a)      = ListOf (fsubstTT (x,r) a)
 fsubstTT (_,_) Unit            = Unit
-fsubstTT (x,r) (Record fs)     = Record (map (\(l1,t1) -> (l1, fsubstTT (x,r) t1)) fs)
+fsubstTT (x,r) (Record fs)     = Record (map (second (fsubstTT (x,r))) fs)
 fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Thunk t1)      = Thunk (fsubstTT (x,r) t1)
 fsubstTT (x,r) (OpAbs a t)
@@ -248,7 +275,7 @@ freeTVars (OpApp t1 t2) = Set.union (freeTVars t1) (freeTVars t2)
 -- Pretty printers
 
 instance Pretty Kind where
-  pretty Star = char '*'
+  pretty Star           = char '*'
   pretty (KArrow k1 k2) = parens (pretty k1 <+> text "=>" <+> pretty k2)
 
 instance Pretty Type where
@@ -263,14 +290,14 @@ instance Pretty Type where
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
   pretty (Forall a t) = parens $ forall <+> text a <> dot <+> pretty t
   pretty (Product ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
-  pretty (And t1 t2)  = parens (pretty t1 <+> text "&" <+> pretty t2)
+  pretty (And t1 t2)  = pretty t1 <> text "&" <> pretty t2
   pretty (Record fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
   pretty (Thunk t)    = squote <> parens (pretty t)
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (ListOf a)   = brackets $ pretty a
 
-instance (Show id, Pretty id) => Pretty (Expr id) where
+instance (Show id, Pretty id) => Pretty (Expr id ty) where
   pretty (Var x) = pretty x
   pretty (Lit (Int n))     = integer n
   pretty (Lit (String n))  = string n
@@ -313,10 +340,10 @@ instance (Show id, Pretty id) => Pretty (Expr id) where
                                     (NonStatic e') -> pretty e' <> dot <> text f
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
-  pretty (RecordLit fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
+  pretty (RecordIntro fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty e = text (show e)
 
-instance (Show id, Pretty id) => Pretty (Bind id) where
+instance (Show id, Pretty id) => Pretty (Bind id ty) where
   pretty Bind{..} =
     pretty bindId <+>
     hsep (map pretty bindTargs) <+>

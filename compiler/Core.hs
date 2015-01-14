@@ -92,7 +92,7 @@ data Expr t e
   | Seq [Expr t e]
 
   | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
-  | RecordLit    (Src.Label, Expr t e)
+  | RecordIntro    (Src.Label, Expr t e)
   | RecordElim   (Expr t e) Src.Label
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
   | Lazy (Expr t e)
@@ -147,7 +147,7 @@ mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
-mapVar g h (RecordLit (l, e))        = RecordLit (l, mapVar g h e)
+mapVar g h (RecordIntro (l, e))        = RecordIntro (l, mapVar g h e)
 mapVar g h (RecordElim e l)          = RecordElim (mapVar g h e) l
 mapVar g h (RecordUpdate e (l1,e1))  = RecordUpdate (mapVar g h e) (l1, mapVar g h e1)
 mapVar g h (Lazy e)                  = Lazy (mapVar g h e)
@@ -339,9 +339,9 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
 prettyExpr' p (i,j) (Merge e1 e2) =
   parens $ prettyExpr' p (i,j) e1 <+> dcomma <+> prettyExpr' p (i,j) e2
 
-prettyExpr' _ (i,j) (RecordLit (l, e))       = lbrace <+> text l <+> equals <+> prettyExpr' basePrec (i,j) e <+> rbrace
+prettyExpr' _ (i,j) (RecordIntro (l, e))       = lbrace <+> text l <+> equals <+> prettyExpr' basePrec (i,j) e <+> rbrace
 prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> text l
-prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordLit (l, e1))
+prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordIntro (l, e1))
 prettyExpr' _ (i,j) (Lazy e)                 = char '\'' <> parens (prettyExpr' basePrec (i,j) e)
 
 
