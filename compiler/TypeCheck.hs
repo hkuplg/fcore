@@ -347,7 +347,7 @@ infer (Let rec_flag binds e) =
   do checkDupNames (map bindId binds)
      binds' <- case rec_flag of
                  NonRec -> mapM inferBind binds
-                 Rec    -> do sigs <- collectBindNameSigs binds
+                 Rec    -> do sigs <- collectBindIdSigs binds
                               withLocalVars sigs (mapM inferBind binds)
      (e', t) <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (infer e)
      return (LetOut rec_flag binds' e', t)
@@ -553,15 +553,16 @@ checkBindLHS Bind{..}
                             return (x, expandType d t))
        return Bind { bindArgs = bindArgs', .. }
 
-collectBindNameSigs :: [ReaderBind] -> Checker [(Name, Type)]
-collectBindNameSigs
+collectBindIdSigs :: [ReaderBind] -> Checker [(Name, Type)]
+collectBindIdSigs
   = mapM (\ Bind{..} ->
             case bindRhsAnnot of
               Nothing    -> throwError MissingRHSAnnot
-              Just rhsTy -> return (bindId,
-                                    wrap Forall bindTargs $
-                                    wrap Fun [ty |  (_,ty) <- bindArgs]
-                                    rhsTy))
+              Just rhsTy -> do d <- getTypeContext
+                               return (bindId,
+                                       wrap Forall bindTargs $
+                                       wrap Fun [expandType (foldr (\a d' -> Map.insert a (Star, TerminalType) d') d bindTargs) ty |  (_,ty) <- bindArgs]
+                                       rhsTy))
 
 -- | Check that a type has kind *.
 checkType :: Type -> Checker ()
