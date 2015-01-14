@@ -364,8 +364,10 @@ infer (LetOut{..}) = panic "TypeCheck.infer: LetOut"
 
 -- In all the cases of application except the first, it is impossible for `e.x`
 -- to be a field access since field accesses cannot return something that
--- accepts a value as its argument. So `e.x` can only be a method invocation.
+-- accepts a value as its argument (But with Java 8 lambdas? TODO.). So `e.x`
+-- can only be a method invocation.
 
+-- e.x
 infer (Dot e x Nothing) =
   do (_, t) <- infer e
      case t of
@@ -374,38 +376,39 @@ infer (Dot e x Nothing) =
        And _ _          -> infer (RecordElim e x)
        _                -> throwError (NotMember x t)
 
-infer (Dot e x (Just (args, unitPossibility)))
-  | null args
-    = do (_, t) <- infer e
-         case unitPossibility of
-           -- e.x ( )
-           UnitImpossible ->
-             case t of
-               JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
-               _                -> throwError (NotMember x t)
-           -- e.x ()
-           UnitPossible ->
-             case t of
-               JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
-               Record _         -> infer (App (RecordElim e x) (Lit UnitLit))
-               And _ _          -> infer (App (RecordElim e x) (Lit UnitLit))
-               _                -> throwError (NotMember x t)
-  -- e.x (a)
-  | length args == 1
-    = do (_, t) <- infer e
-         case t of
-           JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
-           Record _         -> infer (App (RecordElim e x) (head args))
-           And _ _          -> infer (App (RecordElim e x) (head args))
-           _                -> throwError (NotMember x t)
-  -- e.x (a,...)
-  | otherwise
-    = do (_, t) <- infer e
-         case t of
-           JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
-           Record _         -> infer (App (RecordElim e x) (Tuple args))
-           And _ _          -> infer (App (RecordElim e x) (Tuple args))
-           _                -> throwError (NotMember x t)
+-- e.x ( )
+infer (Dot e x (Just ([], UnitImpossible))) =
+  do (_, t) <- infer e
+     case t of
+       JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
+       _                -> throwError (NotMember x t)
+
+-- e.x ()
+infer (Dot e x (Just ([], UnitPossible))) =
+  do (_, t) <- infer e
+     case t of
+       JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
+       Record _         -> infer (App (RecordElim e x) (Lit UnitLit))
+       And _ _          -> infer (App (RecordElim e x) (Lit UnitLit))
+       _                -> throwError (NotMember x t)
+
+-- e.x (a)
+infer (Dot e x (Just ([arg], _))) =
+  do (_, t) <- infer e
+     case t of
+       JType (JClass _) -> infer (JMethod (NonStatic e) x [arg] undefined)
+       Record _         -> infer (App (RecordElim e x) arg)
+       And _ _          -> infer (App (RecordElim e x) arg)
+       _                -> throwError (NotMember x t)
+
+-- e.x (a,...)
+infer (Dot e x (Just (args, _))) =
+  do (_, t) <- infer e
+     case t of
+       JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
+       Record _         -> infer (App (RecordElim e x) (Tuple args))
+       And _ _          -> infer (App (RecordElim e x) (Tuple args))
+       _                -> throwError (NotMember x t)
 
 -- JNew, JMethod, and JField
 
