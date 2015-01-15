@@ -42,7 +42,7 @@ transType _  Unit          = Unit
 transType i (And a1 a2)    = Product [transType i a1, transType i a2]
 transType i (Record (_,t)) = transType i t
 transType i (Thunk t)      = Fun Unit (transType i t)
-transType _ _ t@(Datatype _ _) = t
+transType _ t@(Datatype _ _) = t
 
 -- Subtyping
 
