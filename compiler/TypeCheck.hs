@@ -549,11 +549,13 @@ collectBindIdSigs
   = mapM (\ Bind{..} ->
             case bindRhsAnnot of
               Nothing    -> throwError MissingRHSAnnot
-              Just rhsTy -> do d <- getTypeContext
-                               return (bindId,
-                                       wrap Forall bindTargs $
-                                       wrap Fun [expandType (foldr (\a d' -> Map.insert a (Star, TerminalType) d') d bindTargs) ty |  (_,ty) <- bindArgs]
-                                       rhsTy))
+              Just rhsTy ->
+                do d <- getTypeContext
+                   let d' = foldr (\a acc -> Map.insert a (Star, TerminalType) acc) d bindTargs
+                   return (bindId,
+                           wrap Forall bindTargs $
+                           wrap Fun [expandType d' ty |  (_,ty) <- bindArgs]
+                           rhsTy))
 
 -- | Check that a type has kind *.
 checkType :: Type -> Checker ()
