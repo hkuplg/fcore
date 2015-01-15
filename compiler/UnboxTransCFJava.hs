@@ -37,12 +37,19 @@ getS3L :: MonadState Int m
    -> m ([J.BlockStmt],TransJavaExp)
 getS3L this j1 j2 retTyp ctempCastTyp argT =
 {-
-ArgSet(Long, LHS, RHS) = LHS.larg = (Long) RHS;
-ArgSet(∀∆.T, LHS, RHS) = LHS.oarg = RHS;
-ArgSet(α, LHS, RHS) = LHS.larg = (Long) RHS; LHS.oarg = RHS;
+SET := ArgSet(T2, f, J2, J2′ ) OUTSAVE :=OutSave(T3,f,xf,x′f)
+
+OutSave(Long,f,ob,pr)=longpr=f.ires; Objectob;
+OutSave(∀∆.T, f, ob, pr) = Function ob = (Function) f.ores; long pr;
+OutSave(α,f,ob,pr) = long pr = f.ires; Object ob = f.ores;
+ArgSet(Long, f, pr, ob) = f .larg = pr;
+ArgSet(∀∆.T, f, pr, ob) = f .oarg = ob;
+ArgSet(α, f, pr, ob) = f .larg = pr; f .oarg = ob;
+
+Function f = J1 ;
 SET
 f .apply ();
-⟨T3⟩xf = (⟨T3⟩) f.RES;}
+OUTSAVE }
 -}
      do  (n :: Int) <- get
          put (n+2)
@@ -94,10 +101,18 @@ transUnbox this super =
                           return (s1 ++ s2 ++ [localVar aType (varDecl newVarName je)],var newVarName,typ)
                      _ -> translateM super e
                      {-
-                     ⟨T1⟩x2 = (⟨T1⟩) x1.ARG; S;
+                     SET := ArgSave(T1, f, x2, x3) OUT := OutSet(T,J,J′)
+
+                     ArgSave(Long, f, ob, pr) = long pr = f .iarg;
+                     ArgSave(∀∆.T, f, ob, pr) = Function ob = (Function) f.oarg;
+                     ArgSave(α,f,ob,pr) = long pr = f.iarg; Object ob = f.oarg;
+                     OutSet(Long, pr, ob) = lres = pr;
+                     OutSet(∀∆.T, pr, ob) = ores = ob;
+                     OutSet(α, pr, ob) = lres = pr; ores = ob;
+
+                     SET
+                     S;
                      OUT
-                     OutSet(Long, RHS) = lres = (Long) RHS; OutSet(∀∆.T, RHS) = ores = RHS;
-                     OutSet(α, RHS) = lres = (Long) RHS; ores = RHS;
                      -}
               ,translateScopeM = \e m -> case e of
                     Type t g ->
