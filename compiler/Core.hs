@@ -37,10 +37,10 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 data Type t
-  = TVar Src.Name t                -- a
+  = TVar Src.ReaderId t                -- a
   | JClass ClassName               -- C
   | Fun (Type t) (Type t)          -- t1 -> t2
-  | Forall Src.Name (t -> Type t)  -- forall a. t
+  | Forall Src.ReaderId (t -> Type t)  -- forall a. t
   | Product [Type t]               -- (t1, ..., tn)
   | Unit
 
@@ -53,24 +53,24 @@ data Type t
     -- George if you're not sure.
 
 data Expr t e
-  = Var Src.Name e
+  = Var Src.ReaderId e
   | Lit Src.Lit
 
   -- Binders we have: λ, fix, letrec, and Λ
-  | Lam Src.Name (Type t) (e -> Expr t e)
-  | Fix Src.Name Src.Name
+  | Lam Src.ReaderId (Type t) (e -> Expr t e)
+  | Fix Src.ReaderId Src.ReaderId
         (e -> e -> Expr t e)
         (Type t)  -- t1
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
-  | Let Src.Name (Expr t e) (e -> Expr t e)
-  | LetRec [Src.Name]           -- Names
+  | Let Src.ReaderId (Expr t e) (e -> Expr t e)
+  | LetRec [Src.ReaderId]           -- Names
            [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
-  | BLam Src.Name (t -> Expr t e)
+  | BLam Src.ReaderId (t -> Expr t e)
 
   | App  (Expr t e) (Expr t e)
   | TApp (Expr t e) (Type t)
@@ -117,7 +117,7 @@ alphaEq i (And s1 s2)  (And t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
 alphaEq i (Thunk t1)   (Thunk t2)   = alphaEq i t1 t2
 alphaEq _ _            _            = False
 
-mapTVar :: (Src.Name -> t -> Type t) -> Type t -> Type t
+mapTVar :: (Src.ReaderId -> t -> Type t) -> Type t -> Type t
 mapTVar g (TVar n a)     = g n a
 mapTVar _ (JClass c)     = JClass c
 mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
@@ -128,7 +128,7 @@ mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
 mapTVar g (Thunk t)      = Thunk (mapTVar g t)
 
-mapVar :: (Src.Name -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
+mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)

@@ -101,7 +101,7 @@ variable renaming. An example:
           tupled_es = Tuple es
 
           -- Substitution: fi -> y._(i-1)
-          g' y = Map.fromList $
+          g' y = Map.fromList $ -- `Map.fromList` is right-biased.
                    zipWith (\f i -> (f, C.Proj i (C.Var f y)))
                            fs
                            [1..length bs]
@@ -184,7 +184,7 @@ desugarLetRecToFixEncoded (d,g) = go
                 tupled_ts = Product ts
 
                 -- Substitution: fi -> (y 0)._(i-1)
-                g' y = Map.fromList $
+                g' y = Map.fromList $ -- `Map.fromList` is right-biased.
                          zipWith
                              -- TODO: better var name
                            (\f i -> (f, C.Proj i (C.App (C.Var f y) (C.Lit (Int 0)))))
