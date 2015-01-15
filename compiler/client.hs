@@ -29,7 +29,7 @@ main = do
      liftIO printHelp
      runInputT defaultSettings 
 	       (Loop.loop (inP, outP) (0, compileN, [Naive]) 
-		          Map.empty Env.empty Hist.empty Hist.empty 0 False False False 0)
+		          Map.empty Env.empty Hist.empty Hist.empty 0 False False False False 0)
      terminateProcess proch
      
 fileExist :: String -> IO ()
