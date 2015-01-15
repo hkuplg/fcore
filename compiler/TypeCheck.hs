@@ -196,6 +196,7 @@ withLocalTVars :: [(ReaderId, (Kind, TypeValue))] -> Checker a -> Checker a
 withLocalTVars tvars do_this
   = do delta <- getTypeContext
        let delta' = Map.fromList tvars `Map.union` delta
+                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
        TcEnv {..} <- getTcEnv
        setTcEnv TcEnv { tceTypeContext = delta', ..}
        r <- do_this
@@ -207,6 +208,7 @@ withLocalVars :: [(ReaderId, ExpandedType)]-> Checker a -> Checker a
 withLocalVars vars do_this
   = do gamma <- getValueContext
        let gamma' = Map.fromList vars `Map.union` gamma
+                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
        TcEnv {..} <- getTcEnv
        setTcEnv TcEnv { tceValueContext = gamma', ..}
        r <- do_this
