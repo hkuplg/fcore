@@ -461,10 +461,9 @@ infer (RecordIntro fs) =
 
 infer (RecordElim e l) =
   do (e', t) <- infer e
-     return (RecordElim e' l
-            , fromMaybe
-                (prettyPanic "b2a43c51" (pretty (RecordElim e l)))
-                (Map.lookup l (recordFields t)))
+     case Map.lookup l (recordFields t) of
+       Just t1 -> return (RecordElim e' l, t1)
+       Nothing -> throwError (NotMember l t)
 
 infer (RecordUpdate e fs) =
   do (es', _ts) <- mapAndUnzipM infer (map snd fs)
