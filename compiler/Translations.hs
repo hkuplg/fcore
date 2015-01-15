@@ -21,6 +21,7 @@ module Translations
     , compileAoptUnbox
     , compileSU
     , sf2java
+    , sf2java2
     , compilesf2java
     , DumpOption(..)
     ) where
@@ -171,6 +172,29 @@ sf2java num optDump compilation className src =
                                1 -> peval . inliner . simplify $ core
                                2 -> peval . inliner . inliner . simplify $ core
                                _ -> peval . simplify $ core
+            -- let simpleCore = simplify core
+            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
+            when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore))
+            let (cu, _) = compilation className simpleCore
+            return $ prettyPrint cu
+
+sf2java2 :: Bool -> Int -> DumpOption -> Compilation -> ClassName -> String -> IO String
+sf2java2 flag num optDump compilation className src =
+  do let readSrc = Parser.reader src
+     when (optDump == DumpParsed) $ print readSrc
+     result <- readSrc `seq` (typeCheck readSrc)
+     case result of
+       Left typeError ->
+         do print (Text.PrettyPrint.ANSI.Leijen.pretty typeError)
+            exitFailure -- TODO: Ugly
+       Right (tcheckedSrc, _t)   ->
+         do when (optDump == DumpTChecked) $ print tcheckedSrc
+            let core = desugar tcheckedSrc
+            when (optDump == DumpCore) $ print (Core.prettyExpr core)
+            let simpleCore = case num of
+                               1 -> peval . inliner . simplify $ core
+                               2 -> peval . inliner . inliner . simplify $ core
+                               _ -> if flag then peval . simplify $ core else peval $ core
             -- let simpleCore = simplify core
             when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
             when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore))

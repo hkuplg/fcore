@@ -130,7 +130,7 @@ infer' _    _ _ (JMethod _ _ _ c)   = JClass c
 infer' _    _ _ (JField _ _ c)      = JClass c
 infer' this i j (Seq es)            = this i j (last es)
 infer' this i j (Merge e1 e2)       = And (this i j e1) (this i j e2)
-infer' this i j (RecordLit (l,e))   = Record (l, this i j e)
+infer' this i j (RecordIntro (l,e))   = Record (l, this i j e)
 infer' this i j (RecordElim e l1)   = t1 where Just (_,t1) = getter i (this i j e) l1
 infer' this i j (RecordUpdate e _)  = this i j e
 infer' this i j (Lazy e)            = Thunk (this i j e)
@@ -212,7 +212,7 @@ transExpr' _ this i j (JMethod callee m args ret)
 transExpr' _ this i j (JField callee m ret)        = JField (fmap (snd . this i j) callee) m ret
 transExpr' _ this i j (Seq es)                     = Seq (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (Merge e1 e2)                = Tuple [snd (this i j e1), snd (this i j e2)]
-transExpr' _ this i j (RecordLit (_,e))            = snd (this i j e)
+transExpr' _ this i j (RecordIntro (_,e))            = snd (this i j e)
 transExpr' super this i j (RecordElim e l1)        = App c (snd (this i j e)) where Just (c, _) = getter i (super i j e) l1
 transExpr' super this i j (RecordUpdate e (l1,e1)) = App c (snd (this i j e)) where Just (c, _) = putter i (super i j e) l1 (snd (this i j e1))
 transExpr' _ this i j (Lazy e)                     = lam Unit (\_ -> snd (this i j e))

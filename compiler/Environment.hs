@@ -7,7 +7,7 @@ import Src
 import Text.PrettyPrint.ANSI.Leijen
 
 type Env = [(String, Exp)]
-type Exp = (String, Src.Expr Src.Name)
+type Exp = (String, Src.ReaderExpr)
 
 empty :: Env
 empty = []
@@ -25,8 +25,8 @@ createExp (x:xs) = x ++ " " ++ createExp xs
 -- Sample output: ("x", "y+2")
 createPair :: [String] -> (String, String)
 createPair xs = (var, exp) where
-	var = ((splitOn ["="] xs) !! 0) !! 0
-	exp = createExp ((splitOn ["="] xs) !! 1)
+        var = ((splitOn ["="] xs) !! 0) !! 0
+        exp = createExp ((splitOn ["="] xs) !! 1)
 
 reverseEnv :: Env -> Env
 reverseEnv env = reverse env
@@ -34,15 +34,14 @@ reverseEnv env = reverse env
 createBindEnv :: Env -> String
 createBindEnv [] = ""
 createBindEnv ((var,(str,expr)) : xs) = "let " ++ var ++ " = " ++ str
-			   		++ " in " ++ createBindEnv xs
+                                        ++ " in " ++ createBindEnv xs
 searchEnv :: String -> Env -> Bool
 searchEnv var env = case lookup var env of
-			Nothing  -> False
-			Just exp -> True
+                        Nothing  -> False
+                        Just exp -> True
 
 showPrettyEnv :: Env -> String
 showPrettyEnv [] = ""
 showPrettyEnv ((var, (str, expr)) : xs) = "(" ++ show var ++ ", "
-				              ++ show (pretty expr)
-				   	      ++ "); " ++ showPrettyEnv xs
-
+                                              ++ show (pretty expr)
+                                              ++ "); " ++ showPrettyEnv xs

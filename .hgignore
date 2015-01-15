@@ -14,6 +14,10 @@ systemf/.project
 runtime/
 runtime.jar
 
+# Ignore generated Java source files
+examples/*.java
+lib/*.java
+
 ### Haskell ###
 dist
 cabal-dev

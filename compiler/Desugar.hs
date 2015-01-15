@@ -21,7 +21,7 @@ import Text.PrettyPrint.ANSI.Leijen
 
 import qualified Data.Map as Map
 
-desugar :: Expr (Name,Type) -> C.Expr t e
+desugar :: CheckedExpr -> C.Expr t e
 desugar = desugarExpr (Map.empty, Map.empty)
 
 type TVarMap t  = Map.Map Name t
@@ -43,7 +43,7 @@ transType _ Unit         = C.Unit
 transType i (Thunk t)    = C.Thunk (transType i t)
 transType _ t            = prettySorry "Desugar.transType" (pretty t)
 
-desugarExpr :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
+desugarExpr :: (TVarMap t, VarMap t e) -> CheckedExpr -> C.Expr t e
 desugarExpr (d, g) = go
   where
     go (Var (x,_t))      = fromMaybe (panic "Desugar.desugarExpr: Var") (Map.lookup x g)
@@ -61,12 +61,12 @@ desugarExpr (d, g) = go
     go Let{..}           = panic "Desugar.desugarExpr: Let"
     go (LetOut _ [] e)   = go e
     go (Merge e1 e2)     = C.Merge (go e1) (go e2)
-    go (RecordLit fs)       =
+    go (RecordIntro fs)       =
       case fs of
         []       -> panic "Desugar.desugarExpr: Record"
-        [(l,e)]  -> C.RecordLit (l, go e)
-        _        -> go (RecordLit (take (length fs - 1) fs)) `C.Merge` C.RecordLit (let (l,e) = last fs in (l,go e))
-    go (RecordAccess e l) = C.RecordElim (go e) l
+        [(l,e)]  -> C.RecordIntro (l, go e)
+        _        -> go (RecordIntro (take (length fs - 1) fs)) `C.Merge` C.RecordIntro (let (l,e) = last fs in (l,go e))
+    go (RecordElim e l) = C.RecordElim (go e) l
     go (RecordUpdate e fs) =
       case fs of
         [] -> go e
@@ -101,7 +101,7 @@ variable renaming. An example:
           tupled_es = Tuple es
 
           -- Substitution: fi -> y._(i-1)
-          g' y = Map.fromList $
+          g' y = Map.fromList $ -- `Map.fromList` is right-biased.
                    zipWith (\f i -> (f, C.Proj i (C.Var f y)))
                            fs
                            [1..length bs]
@@ -140,7 +140,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 
     go (Seq es) = C.Seq (map go es)
 
-desugarLetRecToFix :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
+desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> C.Expr t e
 desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
   C.App
       (C.Lam "_"
@@ -164,7 +164,7 @@ desugarLetRecToFix _ _ = panic "Desugar.desugarLetRecToFix"
 ~>  (\(y : Int -> (t1, ..., tn)). e[*])
       (fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*])
 -}
-desugarLetRecToFixEncoded :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
+desugarLetRecToFixEncoded :: (TVarMap t, VarMap t e) -> CheckedExpr -> C.Expr t e
 desugarLetRecToFixEncoded (d,g) = go
   where
     go (LetOut Rec bs@(_:_) e) =
@@ -184,7 +184,7 @@ desugarLetRecToFixEncoded (d,g) = go
                 tupled_ts = Product ts
 
                 -- Substitution: fi -> (y 0)._(i-1)
-                g' y = Map.fromList $
+                g' y = Map.fromList $ -- `Map.fromList` is right-biased.
                          zipWith
                              -- TODO: better var name
                            (\f i -> (f, C.Proj i (C.App (C.Var f y) (C.Lit (Int 0)))))
@@ -192,9 +192,9 @@ desugarLetRecToFixEncoded (d,g) = go
                            [1..length bs]
     go _ = panic "Desugar.desugarLetRecEncode"
 
--- Convert from: LetOut RecFlag [(Name, Type, Expr (Name,Type))] (Expr (Name,Type))
+-- Convert from: LetOut RecFlag [(Name, Type, CheckedExpr)] (CheckedExpr)
 -- To:           LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
-desugarLetRecToLetRec :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
+desugarLetRecToLetRec :: (TVarMap t, VarMap t e) -> CheckedExpr -> C.Expr t e
 desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec names' sigs' binds' body'
   where
     (ids, sigs, defs) = unzip3 binds
