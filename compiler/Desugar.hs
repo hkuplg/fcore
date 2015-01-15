@@ -143,7 +143,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> C.Expr t e
 desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
   C.App
-      (C.Lam "_"
+      (C.Lam f
           (transType d t)
           (\f' -> desugarExpr (d, addToEnv [(f, C.Var f f')] g) body))
       (C.Fix f x1
