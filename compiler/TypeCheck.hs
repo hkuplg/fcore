@@ -13,8 +13,6 @@ But here we have to handle such cases.-}
 
 module TypeCheck
   ( typeCheck
-  , TypeContext
-  , ValueContext
 
   -- For REPL
   , typeCheckWithEnv
@@ -36,7 +34,6 @@ import Text.PrettyPrint.ANSI.Leijen
 import System.IO
 import System.Process
 
-import Control.Arrow       (second)
 import Control.Monad.Error
 
 import Data.Maybe (fromMaybe)
@@ -45,28 +42,15 @@ import qualified Data.Set  as Set
 
 import Prelude hiding (pred)
 
--- Type and value contexts
-
--- `TypeValue` is what's put inside a type context.
-data TypeValue
-  = TerminalType -- Terminal types, e.g., the `a` of `forall a. `
-  | NonTerminalType ReaderType
-    -- Non-terminal types, i.e. type synoyms. `ReaderType` holds the RHS to the
-    -- equal sign of type synonym definitions.
-
-type TypeContext  = Map.Map ReaderId (Kind, TypeValue) -- Delta
--- For type synonyms, `Maybe expandedType` holds their type-level definitions.
-type ValueContext = Map.Map ReaderId ExpandedType       -- Gamma
-
 type Connection = (Handle, Handle)
 
-typeCheck :: ReaderExpr -> IO (Either TypeError (CheckedExpr, ExpandedType))
+typeCheck :: ReaderExpr -> IO (Either TypeError (CheckedExpr, Type))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnv type_server) . runErrorT . infer) e)
 
 -- Temporary hack for REPL
-typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either TypeError (CheckedExpr, ExpandedType))
+typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either TypeError (CheckedExpr, Type))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . infer) e)
@@ -204,7 +188,7 @@ withLocalTVars tvars do_this
        setTcEnv TcEnv { tceTypeContext = delta, ..}
        return r
 
-withLocalVars :: [(ReaderId, ExpandedType)]-> Checker a -> Checker a
+withLocalVars :: [(ReaderId, Type)]-> Checker a -> Checker a
 withLocalVars vars do_this
   = do gamma <- getValueContext
        let gamma' = Map.fromList vars `Map.union` gamma
@@ -273,7 +257,7 @@ hasKindStar d t
        return (k == Just Star)
 
 -- | Typing.
-infer :: ReaderExpr -> Checker (CheckedExpr, ExpandedType)
+infer :: ReaderExpr -> Checker (CheckedExpr, Type)
 infer (Var name)
   = do value_ctxt <- getValueContext
        case Map.lookup name value_ctxt of
@@ -293,7 +277,8 @@ infer (App e1 e2)
   = do (e1', t1) <- infer e1
        (e2', t2) <- infer e2
        case t1 of
-         Fun t11 t12 -> do unless (dethunk t2 `subtype` dethunk t11) $
+         Fun t11 t12 -> do d <- getTypeContext
+                           unless (subtype d (dethunk t2) (dethunk t11)) $
                              throwError $ TypeMismatch t11 t2
                            return (App e1' e2', t12)
          _         -> throwError (General (code (pretty e1) <+> text "is of type" <+> code (pretty t1) <> text "; it cannot be applied"))
@@ -465,9 +450,10 @@ infer (Merge e1 e2) =
 infer (PrimList l) =
       do (es, ts) <- mapAndUnzipM infer l
          case ts of [] -> return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
-                    _  -> if all (`alphaEq` head ts) ts
-                            then return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
-                            else throwError $ General (text "Primitive List Type Mismatch" <+> text (show (PrimList l)))
+                    _  -> do d <- getTypeContext
+                             if all (alphaEq d (head ts)) ts
+                               then return (PrimList es, JType $ JClass (namespace ++ "FunctionalList"))
+                               else throwError $ General (text "Primitive List Type Mismatch" <+> text (show (PrimList l)))
 
 infer (RecordIntro fs) =
   do (es', ts) <- mapAndUnzipM infer (map snd fs)
@@ -514,10 +500,11 @@ infer (Type t params rhs e)
 pullRight :: [Name] -> Type -> Type
 pullRight params t = foldr OpAbs t params
 
-inferAgainst :: ReaderExpr-> Type -> Checker (CheckedExpr, Type)
+inferAgainst :: ReaderExpr -> Type -> Checker (CheckedExpr, Type)
 inferAgainst expr expected_ty
   = do (expr', actual_ty) <- infer expr
-       if actual_ty `alphaEq` expected_ty
+       d <- getTypeContext
+       if alphaEq d actual_ty expected_ty
           then return (expr', actual_ty)
           else throwError (TypeMismatch expected_ty actual_ty)
 
@@ -625,34 +612,6 @@ checkFieldAccess callee f
          Just return_class -> return return_class
     where
        (static_flag, c) = unwrapJCallee callee
-
--- | Recursively expand all type synonyms. The given type must be well-kinded.
-expandType :: TypeContext -> Type -> Type
-
--- Interesting cases:
-expandType d (TVar a)
-  = case Map.lookup a d of
-      Nothing                       -> prettyPanic "TypeCheck.expandType:TVar" (pretty (TVar a))
-      Just (_, TerminalType)        -> TVar a
-      Just (_, NonTerminalType def) -> expandType d def
-expandType d (OpAbs x t) = OpAbs x (expandType (Map.insert x (Star, TerminalType) d) t)
-expandType d (OpApp t1 t2)
-  = let t1' = expandType d t1
-        t2' = expandType d t2
-    in
-    case t1' of
-      OpAbs x t -> fsubstTT (x,t2') t
-
--- Uninteresting cases:
-expandType _ (JType t)    = JType t
-expandType _ Unit         = Unit
-expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
-expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalType) d) t)
-expandType d (Product ts) = Product (map (expandType d) ts)
-expandType d (Record fs)  = Record (map (second (expandType d)) fs)
-expandType d (ListOf t)   = ListOf (expandType d t)
-expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
-expandType d (Thunk t)    = Thunk (expandType d t)
 
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)

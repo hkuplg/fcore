@@ -115,23 +115,23 @@ module_name :: { ReaderId }
 
 -- Types
 
-type :: { ReaderType }
+type :: { Type }
   : "forall" tvar "." type   { Forall $2 $4 }
   | monotype                 { $1 }
 
-monotype :: { ReaderType }
+monotype :: { Type }
   : intertype "->" monotype  { Fun $1 $3 }
   | intertype                { $1 }
 
-intertype :: { ReaderType }
+intertype :: { Type }
   : ftype "&" intertype      { And $1 $3 }
   | ftype                    { $1 }
 
-ftype :: { ReaderType }
+ftype :: { Type }
   : ftype atype              { OpApp $1 $2 }
   | atype                    { $1 }
 
-atype :: { ReaderType }
+atype :: { Type }
   : tvar                     { TVar $1 }
   | JAVACLASS                { JType (JClass $1) }
   | "Unit"                   { Unit }
@@ -140,11 +140,11 @@ atype :: { ReaderType }
   | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
 
-product_body :: { [ReaderType] }
+product_body :: { [Type] }
   : type "," type             { $1:[$3] }
   | type "," product_body     { $1:$3   }
 
-record_body :: { [(Label, ReaderType)] }
+record_body :: { [(Label, Type)] }
   : label ":" type                  { [($1, $3)]  }
   | label ":" type "," record_body  { ($1, $3):$5 }
 
@@ -284,7 +284,7 @@ bind :: { ReaderBind }
                }
         }
 
-maybe_sig :: { Maybe ReaderType }
+maybe_sig :: { Maybe Type }
   : ":" type     { Just $2 }
   | {- empty -} { Nothing }
 
@@ -300,12 +300,12 @@ recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
 
-arg :: { (ReaderId, ReaderType) }
+arg :: { (ReaderId, Type) }
     : "(" var ":" type ")"       { ($2, $4) }
     | "()"                       { ("_", Unit) }
     | "(" arg ")"                { $2 }
 
-args :: { [(ReaderId, ReaderType)] }
+args :: { [(ReaderId, Type)] }
     : {- empty -}               { []    }
     | arg args  { $1:$2 }
 
