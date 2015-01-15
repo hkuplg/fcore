@@ -1,6 +1,6 @@
 --> bc
 
-let getsubstr(s : java.lang.String) (from : Int) (to : Int) : java.lang.String =
+let getsubstr(s : String) (from : Int) (to : Int) : String =
     s.substring(from, to)
 in
-getsubstr("abcde")(1)(3)
+getsubstr "abcde"  1 3

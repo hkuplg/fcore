@@ -40,7 +40,7 @@ compileAndRun name compileF exp =
 esf2sf expr =
   do res <- TypeCheck.typeCheck expr
      case res of
-       Left typeError     -> error $ show ({- Text.PrettyPrint.Leijen.pretty -} typeError)
+       Left typeError     -> error $ show ({- Text.PrettyPrint.ANSI.Leijen.pretty -} typeError)
        Right (tcExpr, _t) -> return ((peval . simplify . desugar) tcExpr)
 
 testAbstractSyn compilation (name, ast, expectedOutput) =

@@ -5,7 +5,7 @@
 
 module SymbolicEvaluator where
 
-import           Core
+import           Core                    hiding (fix)
 import qualified Language.Java.Syntax    as J (Op (..))
 import           Panic
 import           Prelude                 hiding (EQ, GT, LT)
@@ -15,7 +15,7 @@ import Data.IntSet hiding (map, foldr)
 import Data.Maybe
 import Data.List (intercalate)
 -- import           PrettyUtils
--- import           Text.PrettyPrint.Leijen
+-- import           Text.PrettyPrint.ANSI.Leijen
 
 data Value = VInt Integer
            | VBool Bool
@@ -36,7 +36,7 @@ eval (App e1 e2) =
     case eval e1 of
       VFun f -> f (eval e2)
       _ -> panic "e1 is not a function"
-eval (BLam f) = eval (f ())
+eval (BLam _ f) = eval (f ())
 eval (TApp e1 _) = eval e1
 eval (If e1 e2 e3) =
        case eval e1 of
@@ -69,8 +69,8 @@ eval (PrimOp e1 op e2) =
                S.Compare J.NotEq -> VBool $ a /= b
                -- _ -> simplified
          _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
-eval g@(Fix f _ _) = VFun (\n -> eval $ f (eval g) n)
-eval (LetRec _ binds body) = eval . body . fix $ map eval . binds
+eval g@(Fix _ _ f _ _) = VFun (\n -> eval $ f (eval g) n)
+eval (LetRec _ _ binds body) = eval . body . fix $ map eval . binds
 eval (Constr c es) = VConstr (constrName c) (map eval es)
 eval (Case e alts) =
     case eval e of
@@ -158,10 +158,10 @@ seval (PrimOp e1 op e2) =
 seval (Lam _ t f) = Exp $ SFun (seval . f) (etype2stype t)
 seval (Let _ e f) = seval . f $ seval e
 seval (App e1 e2) = treeApply (seval e1) (seval e2)
-seval (BLam f) =  seval $ f ()
+seval (BLam _ f) =  seval $ f ()
 seval (TApp e _) = seval e
-seval g@(Fix f t _) = Exp $ SFun (\n -> seval $ f (seval g) n) (etype2stype t)
-seval (LetRec _ binds body) = seval . body . fix $ map seval . binds
+seval g@(Fix _ _ f t _) = Exp $ SFun (\n -> seval $ f (seval g) n) (etype2stype t)
+seval (LetRec _ _ binds body) = seval . body . fix $ map seval . binds
 seval (Constr c es) = mergeList (SConstr c) (map seval es)
 seval (Case e alts) = propagate (seval e) (Right (map (\(ConstrAlt c _ f) -> (c, seval . f)) alts))
 seval _ = error "seval: not supported"

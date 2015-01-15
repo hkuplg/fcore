@@ -11,7 +11,7 @@ public class FileServer {
 
     public final static int FILE_SIZE = 1022386;
 
-    public static void compile(String fileName)
+    public static void compile(String fileName, String cp)
     {
 	// Save source in .java file.
         File sourceFile = new File(fileName);
@@ -27,8 +27,8 @@ public class FileServer {
         Iterable<? extends JavaFileObject> compilationUnits =
             fileManager.getJavaFileObjectsFromFiles(Arrays.asList(files));
 
-        //String [] compileOptions = new String[] {"-classpath", cp};
-	String [] compileOptions = new String[] {"-classpath", "runtime.jar:."};
+        String [] compileOptions = new String[] {"-classpath", cp};
+	// String [] compileOptions = new String[] {"-classpath", "runtime/runtime.jar:."};
 	//String [] compileOptions = new String[] {};
         Iterable<String> compilationOptions = Arrays.asList(compileOptions);
 
@@ -39,9 +39,9 @@ public class FileServer {
 
     }
 
-    public static String compileLoad (String fileName)
-    {
-	compile(fileName);
+      public static String compileLoad (String fileName, String cp)
+      {
+        compile(fileName,cp);
 
         String className = "";
         int i = 0;
@@ -88,6 +88,7 @@ public class FileServer {
     public static void main (String [] args)
     {
         Scanner scanner = new Scanner(System.in);
+        String cp = args[0];
 
 	while(true){
 	  if(!scanner.hasNextLine()) break;
@@ -106,7 +107,7 @@ public class FileServer {
                 output.write(line);
             }
             output.close();
-	    String className = compileLoad(fileName);
+	    String className = compileLoad(fileName,cp);
 	    myFile.delete();
           } catch (Exception e) {
             e.printStackTrace();
