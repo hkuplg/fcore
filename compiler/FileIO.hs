@@ -36,15 +36,15 @@ data TransMethod = Apply
 type Connection = (Handle, Handle)
 type CompileOpt = (Int, Compilation, [TransMethod])
 
-wrap :: Connection -> CompileOpt -> Bool -> String -> IO ()
-wrap (inP, outP) opt flagS name = do
+wrap :: Connection -> CompileOpt -> Bool -> Bool -> String -> IO ()
+wrap (inP, outP) opt flagC flagS name = do
 	exist <- doesFileExist name
 	if not exist
 	  then do
 	    putStrLn (name ++ "does not exist")
 	    return ()
   	  else do
-	    correct <- send inP opt flagS name
+	    correct <- send inP opt flagC flagS name
 	    case correct of 
 	      True  -> receiveMsg outP
 	      False -> return ()
@@ -52,12 +52,12 @@ wrap (inP, outP) opt flagS name = do
 getClassName :: String -> String
 getClassName (x : xs) = (toUpper x) : xs
 
-send :: Handle -> CompileOpt -> Bool -> FilePath -> IO Bool 
-send h (n, opt, method) flagS f = do 
+send :: Handle -> CompileOpt -> Bool -> Bool -> FilePath -> IO Bool 
+send h (n, opt, method) flagC flagS f = do 
 	contents <- readFile f
 	let path = dropFileName f
 	let className = getClassName (dropExtension (takeFileName f))
-	result <- E.try (sf2java n NoDump opt className contents)
+	result <- E.try (sf2java2 flagC n NoDump opt className contents)
 	case result of 
 	  Left  (_ :: E.SomeException) -> do 
 	  	putStrLn "invalid expression sf2Java"
