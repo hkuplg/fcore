@@ -219,7 +219,7 @@ aexpr :: { Expr Name }
     | "{" recordlit_body "}"    { RecordLit $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }
-    | "{" constr_name aexprs "}"      { Constr $2 $3 }
+    | "{" constr_name aexprs "}"{ Constr (Constructor $2 []) $3 }
     | "(" expr ")"              { $2 }
 
 lit :: { Expr Name }
@@ -318,7 +318,7 @@ patterns :: { [Alt Name] }
     | pattern "|" patterns { $1:$3 }
 
 pattern :: { Alt Name }
-    : constr_name vars "->" expr { ConstrAlt $1 $2 $4 }
+    : constr_name vars "->" expr { ConstrAlt (Constructor $1 []) $2 $4 }
 
 {
 -- The monadic parser

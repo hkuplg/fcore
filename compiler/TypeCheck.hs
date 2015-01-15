@@ -278,10 +278,14 @@ infer (If pred b1 b2)
 
 infer (Let rec_flag binds e) =
   do checkDupNames (map bindId binds)
+     -- type_ctxt <- getTypeContext
+     -- when True $
+     --     throwError (General $ text (show type_ctxt))
      binds' <- case rec_flag of
                  NonRec -> mapM inferBind binds
                  Rec    -> do sigs <- collectBindNameSigs binds
                               withLocalVars sigs (mapM inferBind binds)
+     -- when True $ throwError (General $ text (show binds'))
      (e', t) <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (infer e)
      return (LetOut rec_flag binds' e', t)
 
@@ -374,80 +378,111 @@ infer (Type tid params rhs e)
         pullRight as t = foldr OpAbs t as
 
 infer (Data name cs e) =
-    do let names = map cname cs
+    do let names = map constrName cs
        checkDupNames names
        -- let dt = Datatype name names
        -- type_ctxt <- withLocalTVars [(name, (Star, dt))] getTypeContext
        type_ctxt <- getTypeContext
-       types <- mapM (mapM (lookupTVar type_ctxt name) . ctypes) cs
-       let types' = map (map (substSelf dt)) types
-           constrBindings = zip (map cname cs) (map (foldTypes dt) types)
-           dt = Datatype name constrBindings
+       -- types <- mapM (mapM (substTVar type_ctxt) . constrParams) cs
+
+       -- let dt = Datatype name constrBindings
+       --     type_ctxt' = Map.insert name (Star, dt) type_ctxt
+       --     types' = map (map (substTVar type_ctxt') . constrParams) cs
+       --     constrBindings = zip names (map (foldTypes dt) types')
+
+       let dt = Datatype name names
+           type_ctxt' = Map.insert name (Star, dt) type_ctxt
+           types' = map (map (substTVar type_ctxt') . constrParams) cs
+           constrBindings = zip names (map (foldTypes dt) types')
        withLocalTVars [(name, (Star, dt))] (withLocalVars constrBindings (infer e))
 
-    where ctypes (Constructor _ ts) = ts
-          cname (Constructor n _) = n
-
-          lookupTVar :: Map.Map Name (Kind, Type) -> Name -> Type -> Checker Type
-          lookupTVar ctxt self t =
+    where substTVar :: Map.Map Name (Kind, Type) -> Type -> Type
+          substTVar ctxt t =
               case t of
                 TVar n ->
-                    if n == self
-                    then return t
-                    else case Map.lookup n ctxt of
-                           Just (_, t') -> return t'
-                           _ -> throwError (NotInScopeTVar n)
-                _ -> return t
+                    case Map.lookup n ctxt of
+                           Just (_, t') -> t'
+                           _ -> t
+                _ -> t
 
-          substSelf :: Type -> Type -> Type
-          substSelf dt (TVar _) = dt
-          substSelf _ t = t
+    -- where substTVar :: Map.Map Name (Kind, Type) -> Name -> Type -> Checker Type
+    --       substTVar ctxt self t =
+    --           case t of
+    --             TVar n ->
+    --                 if n == self
+    --                 then return t
+    --                 else case Map.lookup n ctxt of
+    --                        Just (_, t') -> return t'
+    --                        _ -> throwError (NotInScopeTVar n)
+    --             _ -> return t
 
-infer (Constr n es) =
+          -- substSelf :: Type -> Type -> Type
+          -- substSelf dt (TVar _) = dt
+          -- substSelf _ t = t
+
+infer (Constr c es) =
     do value_ctxt <- getValueContext
+       let n = constrName c
        ts <- case Map.lookup n value_ctxt of
                   Just t -> return $ unfoldTypes t
                   Nothing -> throwError (NotInScopeConstr n)
        let (len_expected, len_actual) = (length ts - 1, length es)
        unless (len_expected == len_actual) $
               throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_expected <+> text "arguments, but has been given" <+> int len_actual)
-       (es', _) <- mapAndUnzipM (\(e,t) -> inferAgainst e t) (zip es ts)
-       return (Constr n es', last ts)
+       (es', _) <- mapAndUnzipM (\(e',t) -> inferAgainst e' t) (zip es ts)
+       return (Constr (Constructor n ts) es', last ts)
 
 infer (Case e alts) =
     do (e', t) <- infer e
        unless (isDatatype t) $
               throwError (General (bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"))
        value_ctxt <- getValueContext
-       let names = (\(Datatype _ nts) -> map fst nts) t
+       let ns = (\(Datatype _ xs) -> xs) t
+           constrs = map (\(ConstrAlt c _ _) -> c) alts
+       constrs' <- mapM (\c -> let n = constrName c
+                               in case Map.lookup n value_ctxt of
+                                    Just t' -> let ts = unfoldTypes t'
+                                               in if last ts `alphaEq` t
+                                                  then return $ Constructor n ts
+                                                  else throwError (Mismatch t t')
+                                    Nothing -> throwError (NotInScopeConstr n))
+                   constrs
+       -- let nts = (\(Datatype _ xs) -> xs) t
+       --     constrs = map (\(ConstrAlt c _ _) -> c) alts
+       -- -- Fill in the constrParams
+       -- constrs' <- mapM (\c -> let n = constrName c
+       --                      in case lookup n nts of
+       --                       Just ts -> return $ Constructor {constrName=n, constrParams=unfoldTypes ts}
+       --                       Nothing -> throwError (NotInScopeConstr n)) constrs
+       let alts' = zipWith substAltConstr alts constrs'
+
        (es, ts) <- mapAndUnzipM
-                   (\(ConstrAlt n ns e2) ->
-                        if n `elem` names
-                        then let ts = init . unfoldTypes . fromJust $ Map.lookup n value_ctxt
-                             in if length ts == length ns
-                                then withLocalVars (zip ns ts) (infer e2)
-                                else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
-                                                                     <+> text "arguments, bus has been given" <+> int (length ns))
-                        else throwError (NotInScopeConstr n))
-                   alts
-       let alts' = zipWith substAltExpr alts es
+                   (\(ConstrAlt c ns e2) ->
+                        let n = constrName c
+                            ts = init $ constrParams c
+                        in if length ts == length ns
+                           then withLocalVars (zip ns ts) (infer e2)
+                           else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
+                                                                     <+> text "arguments, bus has been given" <+> int (length ns)))
+                   alts'
+
        let resType = ts !! 0
        unless (all (`alphaEq` resType) ts) $
               throwError (General $ text "All the alternatives should be of the same type")
 
-       let allConstrs = Set.fromList names
-       let matchedConstrs = Set.fromList $ map altName alts
+       let allConstrs = Set.fromList ns
+       let matchedConstrs = Set.fromList $ map constrName constrs
        let unmatchedConstrs = allConstrs Set.\\ matchedConstrs
        unless (Set.null unmatchedConstrs) $
               throwError (General $ text "Pattern match(es) are non-exhaustive." <+> vcat (intersperse space (map (bquotes . text) (Set.elems unmatchedConstrs))))
-       return (Case e' alts', resType)
 
-    where substAltExpr (ConstrAlt n ns _) expr = ConstrAlt n ns expr
+       return (Case e' (zipWith substAltExpr alts' es), resType)
+
+    where substAltExpr (ConstrAlt c ns _) expr = ConstrAlt c ns expr
+          substAltConstr (ConstrAlt _ ns expr) c = ConstrAlt c ns expr
 
           isDatatype (Datatype _ _) = True
           isDatatype _ = False
-
-          altName (ConstrAlt n _ _) = n
 
 inferAgainst :: Expr Name -> Type -> Checker (Expr (Name,Type), Type)
 inferAgainst expr expected_ty
@@ -472,6 +507,12 @@ inferAgainstMaybe e (Just t) = inferAgainst e t
 inferBind :: Bind Name -> Checker (Name, Type, Expr (Name,Type))
 inferBind bind
   = do bind' <- checkBindLHS bind
+       -- type_ctxt <- getTypeContext
+       -- when True $
+       --   throwError (General $ text (show type_ctxt))
+       (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, TVar a))) (bindTargs bind')) $
+                                  do expandedBindArgs <- mapM (\(x,t) -> do { t' <- evalType t; return (x,t') }) (bindArgs bind')
+                                     withLocalVars expandedBindArgs (infer (bindRhs bind'))
        (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, TVar a))) (bindTargs bind')) $
                                   do expandedBindArgs <- mapM (\(x,t) -> do { t' <- evalType t; return (x,t') }) (bindArgs bind')
                                      withLocalVars expandedBindArgs (infer (bindRhs bind'))
@@ -483,6 +524,12 @@ checkBindLHS :: Bind Name -> Checker (Bind Name)
 checkBindLHS bind@Bind{..}
   = do checkDupNames bindTargs
        checkDupNames [x | (x, _) <- bindArgs]
+       bindArgs' <-
+         forM bindArgs (\(x, t) ->
+          do --checkType t
+             t' <- evalType t
+             return (x,t'))
+       -- when True $ throwError (General $ text $ show bindArgs')
        bindArgs' <- withLocalTVars (map (\a -> (a, (Star, TVar a))) bindTargs) $
          forM bindArgs (\(x, t) ->
           do --checkType t
@@ -586,7 +633,7 @@ evalType (OpApp (TVar t1) t2)
   = do typeContext <- getTypeContext
        case Map.lookup t1 typeContext of
          Just (_, OpAbs param t) -> return (fsubstTT (param, t2) t)
-evalType t@(Datatype _ _) = return t
+evalType t@(Datatype _ _) = return t -- TODO
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)

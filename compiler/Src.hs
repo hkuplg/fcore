@@ -66,7 +66,7 @@ data Type
   | OpAbs Name Type -- Type level abstraction
   | OpApp Type Type -- Type level application
   | ListOf Type
-  | Datatype Name [(Name, Type)]
+  | Datatype Name [Name]
 
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
@@ -110,13 +110,13 @@ data Expr id
   | Type Name [Name] Type (Expr id)
   | Data Name [Constructor] (Expr id)
   | Case (Expr id) [Alt id]
-  | Constr Name [Expr id]
+  | Constr Constructor [Expr id]
   deriving (Eq, Show)
 
-data Constructor = Constructor Name [Type]
+data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
                    deriving (Eq, Show)
 
-data Alt id = ConstrAlt Name [Name] (Expr id)
+data Alt id = ConstrAlt Constructor [Name] (Expr id)
             -- | Default (Expr id)
               deriving (Eq, Show)
 
@@ -312,7 +312,7 @@ instance (Show id, Pretty id) => Pretty (Expr id) where
                            pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (Constr n es) = text n <+> hcat (intersperse space (map pretty es))
+  pretty (Constr c es) = braces $ fillSep $ text (constrName c) : map pretty es
 
 instance (Show id, Pretty id) => Pretty (Bind id) where
   pretty Bind{..} =
@@ -328,16 +328,13 @@ instance Pretty RecFlag where
   pretty NonRec = empty
 
 instance Pretty Constructor where
-    pretty (Constructor n ts) = text n <+> hcat (intersperse space (map pretty ts))
+    pretty (Constructor n ts) = fillSep $ text n : map pretty ts
 
 instance (Show id, Pretty id) => Pretty (Alt id) where
-    pretty (ConstrAlt cname ns e2) = text cname <+> hcat (intersperse space (map text ns)) <+> arrow <+> pretty e2
+    pretty (ConstrAlt c ns e2) = fillSep (text (constrName c) : map text ns) <+> arrow <+> pretty e2
     -- pretty (Default e) = text "_" <+> arrow <+> pretty e
 
 -- Utilities
-
-intersperseBar :: [Doc] -> Doc
-intersperseBar = foldl1 (\acc x -> acc <$$> bar <+> x)
 
 wrap :: (b -> a -> a) -> [b] -> a -> a
 wrap cons xs t = foldr cons t xs

@@ -66,6 +66,6 @@ sf2core fname = do
      case result of
        Left typeError -> error $ show typeError
        Right (tcheckedSrc, _) ->
-             return . simplify . desugar $ tcheckedSrc
+             return . {-simplify . -}desugar $ tcheckedSrc
 
 fCore f str = sf2core str >>= (\e -> return $ f e)

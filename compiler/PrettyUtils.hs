@@ -54,3 +54,6 @@ prettyVarFrom :: Char -> Int -> Doc
 prettyVarFrom c n
   | n < 26    = text [chr (ord c + n)]
   | otherwise = text (c : show n)
+
+intersperseBar :: [Doc] -> Doc
+intersperseBar = foldl1 (\acc x -> acc <$$> bar <+> x)

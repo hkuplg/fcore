@@ -15,6 +15,7 @@ import Data.Maybe       (fromMaybe, fromJust)
 import Data.List        (intercalate)
 import StringPrefixes
 import Control.Monad.State.Lazy
+import Debug.Trace
 
 import qualified Data.Map as Map
 
@@ -38,27 +39,30 @@ transType d (Record fs)  =
                   _        -> transType d (Record (take (length fs - 1) fs)) `C.And` C.Record (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = C.Unit
 transType i (Thunk t)    = C.Thunk (transType i t)
-transType d (Datatype n nts) = C.Datatype n (zip ns ts')
-    where (ns, ts) = unzip nts
-          ts' = map (transType d) ts
+transType _ (Datatype n ns) = C.Datatype n ns
+-- transType d (Datatype n nts) = C.Datatype n (zip ns ts')
+--     where (ns, ts) = unzip nts
+--           ts' = map (transType d) ts
 
 desugarExpr :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarExpr (d, g) = go
   where
-    go (Var (x,_t))      = fromMaybe (panic "Desugar.desugarExpr: Var") (Map.lookup x g)
-    go (Lit lit)         = C.Lit lit
-    go (App e1 e2)       = C.App (go e1) (go e2)
-    go (TApp e t)        = C.TApp (go e) (transType d t)
-    go (Tuple es)        = C.Tuple (map go es)
-    go (Proj e i)        = C.Proj i (go e)
-    go (PrimOp e1 op e2) = C.PrimOp (go e1) op (go e2)
-    go (If e1 e2 e3)     = C.If (go e1) (go e2) (go e3)
-    go (Lam (x, t) e)    = C.Lam x
+    -- go (Var (x,_t))      = fromMaybe (panic $ "Desugar.desugarExpr: Var" ++ show (Map.keys g) ++ show x) (Map.lookup x g)
+    go (Var (x,_t))      = trace ("Var " ++ x ++ show (Map.keys g)) $ fromMaybe (panic "Desugar.desugarExpr: Var") (Map.lookup x g)
+    -- go (Var (x,_t))      = if x `elem` ["length", "xs", "ys", "y", "head"] then fromJust (Map.lookup x g) else panic $ "Desugar.desugarExpr: Var" ++ show (Map.keys g) ++ show x
+    go (Lit lit)         = trace ("Lit " ++ show (Map.keys g))$ C.Lit lit
+    go (App e1 e2)       = trace ("App " ++ show (Map.keys g))$ C.App (go e1) (go e2)
+    go (TApp e t)        = trace ("TApp " ++ show (Map.keys g))$ C.TApp (go e) (transType d t)
+    go (Tuple es)        = trace ("Tuple " ++ show (Map.keys g))$ C.Tuple (map go es)
+    go (Proj e i)        = trace ("Proj " ++ show (Map.keys g))$ C.Proj i (go e)
+    go (PrimOp e1 op e2) = trace ("PrimOp " ++ show (Map.keys g))$ C.PrimOp (go e1) op (go e2)
+    go (If e1 e2 e3)     = trace ("If " ++ show (Map.keys g))$ C.If (go e1) (go e2) (go e3)
+    go (Lam (x, t) e)    = trace ("Lam " ++ show (Map.keys g))$ C.Lam x
                                (transType d t)
                                (\x' -> desugarExpr (d, Map.insert x (C.Var x x') g) e)
-    go (BLam a e)        = C.BLam (\a' -> desugarExpr (Map.insert a a' d, g) e)
+    go (BLam a e)        = trace ("BLam " ++ show (Map.keys g))$ C.BLam (\a' -> desugarExpr (Map.insert a a' d, g) e)
     go Let{..}           = panic "Desugar.desugarExpr: Let"
-    go (LetOut _ [] e)   = go e
+    go (LetOut _ [] e)   = trace ("LetOut " ++ show (Map.keys g))$ go e
     go (Merge e1 e2)     = C.Merge (go e1) (go e2)
     go (RecordLit fs)       =
       case fs of
@@ -138,17 +142,18 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                                      x:xs -> C.JNew (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
 
     go (Seq es) = C.Seq (map go es)
-    -- go (Data n cs e) =
-    --     let names = map (\(Constructor s _) -> s) cs
-    --         dt = C.Datatype n names
-    --         c =
-    --     in desugarExpr (Map.insert (n)d, g `Map.union` Map.fromList ) e
-    go (Constr n es) = C.Constr n (map go es)
+    go (Data _ _ e) = go e
+    go (Constr c es) = trace ("Constr " ++ (constrName c) ++ show (Map.keys g))$ C.Constr (desugarConstructor c) (map go es)
+    go (Case e alts) = trace ("Case " ++ show (Map.keys g))$ C.Case (go e) (map desugarAlts alts)
 
-    go (Case e alts) = C.Case (go e) (map desugarAlts alts)
+    desugarConstructor (Constructor n ts) = C.Constructor n (map (transType d) ts)
+    desugarAlts (ConstrAlt c ns e) =
+        let c' = desugarConstructor c
+            f ns' = desugarExpr (d, zipWith (\n e' -> (n, C.Var n e')) ns ns' `addToVarMap` g) e
+        in C.ConstrAlt c' ns f
+        -- C.ConstrAlt (desugarConstructor c) ns (\es -> desugarExpr (d, zipWith (\n e' -> (n, C.Var n e')) ns es `addToVarMap` g) e)
 
-    desugarAlts (ConstrAlt n ns e) = C.ConstrAlt n ns (\es -> desugarExpr (d, g `Map.union` Map.fromList (map (\(x,x') -> (x, C.Var x x')) (zip ns es))) e)
-
+    -- desugarAlts (ConstrAlt c ns e) = C.ConstrAlt (desugarConstructor c) ns (\es -> desugarExpr (d, g `Map.union` (Map.fromList $ map (\(n,e') -> (n, C.Var n e')) (zip ns es))) e)
 
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> Expr (Name,Type) -> C.Expr t e
 desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
@@ -215,21 +220,3 @@ desugarLetRecToLetRec _ _ = panic "Desugar.desugarLetRecToLetRec"
 
 addToVarMap :: [(Name, C.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
-
--- data Supply = Supply {dataSupply :: [Int], constrSupply :: [Int]}
--- type DatatypesM = State Supply
-
--- newDataID :: DatatypesM Int
--- newDataID = state $ \s -> case dataSupply s of
---                             [] -> panic "data names exhausted"
---                             (x:xs) -> (x, s{dataSupply = xs})
-
--- newConstrID :: DatatypesM Int
--- newConstrID = state $ \s -> case constrSupply s of
---                             [] -> panic "constructor names exhausted"
---                             (x:xs) -> (x, s{constrSupply = xs})
-
--- newData :: [(Name, [Type t])] -> DatatypesM (Type t, [Constructor t])
--- newData cs =
---     do name <- newDataID
---        names <- mapM

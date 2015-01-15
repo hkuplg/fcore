@@ -12,7 +12,7 @@ import PartialEvaluator
 import Inliner
 import Translations
 import SymbolicEvaluator
-import Z3Backend
+-- import Z3Backend
 
 import PrettyUtils
 import OptiUtils
@@ -163,6 +163,11 @@ boolfun = lam (Fun javaBool javaBool) (\n -> If ((App (var n) true) `neq` (App (
 
 app_bool_fun = App boolfun inverse
 
+head' = lam (Fun (Datatype "MList" []) javaInt) (\x -> Case (var x) [ConstrAlt (Constructor "Nil" []) [] (\es -> zero), ConstrAlt (Constructor "Cons" [javaInt, Datatype "MList" []]) ["y", "ys"] (\es -> var (es !! 0))])
+nil = Constr (Constructor "Nil" []) []
+cons = Constr (Constructor "Cons" [javaInt, (Datatype "MList" [])]) [five, nil]
+head_nil = App head' nil
+head_cons = App head' cons
 
 
 javaBool     = JClass "java.lang.Boolean"

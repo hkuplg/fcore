@@ -42,7 +42,7 @@ transType _  Unit          = Unit
 transType i (And a1 a2)    = Product [transType i a1, transType i a2]
 transType i (Record (_,t)) = transType i t
 transType i (Thunk t)      = Fun Unit (transType i t)
-transType _ t@(Datatype _ _) = t
+transType _ _ t@(Datatype _ _) = t
 
 -- Subtyping
 
@@ -104,6 +104,8 @@ coerce i (And t1 t2) t3 =
         Just c  -> return (lam (transType i (And t1 t2)) (App c . Proj 2 . var))
 coerce i (Record (l1,t1)) (Record (l2,t2)) | l1 == l2  = coerce i t1 t2
                                            | otherwise = Nothing
+coerce i d@(Datatype n1 _) (Datatype n2 _) | n1 == n2    = return (lam (transType i d) var)
+                                           | otherwise = Nothing
 coerce _ _ _ = Nothing
 
 infer':: Class (Index -> Index -> Expr Index (Index, Type Index) -> Type Index)
@@ -135,7 +137,12 @@ infer' this i j (RecordLit (l,e))   = Record (l, this i j e)
 infer' this i j (RecordElim e l1)   = t1 where Just (_,t1) = getter i (this i j e) l1
 infer' this i j (RecordUpdate e _)  = this i j e
 infer' this i j (Lazy e)            = Thunk (this i j e)
-infer' this i j (Constr n es)       =
+infer' this i j (Case _ alts)       = inferAlt $ head alts
+    where inferAlt (ConstrAlt c _ e) =
+              let ts = constrParams c
+                  n = length ts
+              in this i (j+n) (e (zip [j..j+n-1] ts))
+infer' _ _ _ (Constr c _)       = last $ constrParams c
 
 infer :: Index -> Index -> Expr Index (Index, Type Index) -> Type Index
 infer = new infer'
@@ -192,6 +199,15 @@ transExpr' _ this i j (App e1 e2)
         let c = fromMaybe (prettyPanic "Simplify.transExpr'" panic_doc) (coerce i t2 t11)
         in App e1' (App c e2')
 
+transExpr' _ this i j (Constr (Constructor n ts) es) = Constr (Constructor n (map (transType i) ts)) (map (snd . this i j) es)
+transExpr' _ this i j (Case e alts)                = Case e' (map transAlt alts)
+    where (_,e') = this i j e
+          transAlt (ConstrAlt (Constructor n ts) ns f) =
+              let m = length ts
+                  js = [j..j+m-1]
+                  (_,f') = this i (j+m) (f (zip js ts))
+                  ts' = map (transType i) ts
+              in ConstrAlt (Constructor n ts') ns (\es -> foldl (\acc (j',x) -> fsubstEE j' (var x) acc) f' (zip js es))
 transExpr' _ this i j (TApp e t)                   = TApp (snd (this i j e)) (transType i t)
 transExpr' _ this i j (If p b1 b2)                 = If (snd (this i j p)) (snd (this i j b1)) (snd (this i j b2))
 transExpr' _ this i j (PrimOp e1 op e2)            = PrimOp (snd (this i j e1)) op (snd (this i j e2))

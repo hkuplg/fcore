@@ -8,7 +8,7 @@ module Core
   , TypeContext
   , ValueContext
   , Index
-  -- , Constructor(..)
+  , Constructor(..)
   , alphaEq
   , mapTVar
   , mapVar
@@ -46,14 +46,11 @@ data Type t
   | And (Type t) (Type t)  -- t1 & t2
   | Record (Src.Label, Type t)
   | Thunk (Type t)
-  | Datatype Src.Name [(Src.Name, Type t)]
-  -- | DataType {dataId :: Int, dataName :: String, dataCons :: [Constructor t]}
+  | Datatype Src.Name [Src.Name]
     -- Warning: If you ever add a case to this, you *must* also define the
     -- binary relations on your new case. Namely, add cases for your data
     -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
     -- George if you're not sure.
-
--- data Constructor t = Constructor {conId :: Int, conName :: String, conParamTypes :: [Type t], conType :: Type t}
 
 data Expr t e
   = Var Src.Name e
@@ -97,14 +94,13 @@ data Expr t e
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
   | Lazy (Expr t e)
 
-  | Constr Src.Name [Expr t e]
+  | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
-  -- | Case (Expr t e) [(Src.Name, ([Src.Name], [e] -> Expr t e))]
 
-data Alt t e = ConstrAlt Src.Name [Src.Name] ([e] -> Expr t e)
+data Alt t e = ConstrAlt (Constructor t) [Src.Name] ([e] -> Expr t e)
             -- | Default (Expr t e)
 
--- data Constructor t = Constructor Src.Name (Type t)
+data Constructor t = Constructor {constrName :: Src.Name, constrParams :: [Type t]}
 
 -- newtype Typ = HideTyp { revealTyp :: forall t. Type t } -- type of closed types
 
@@ -138,6 +134,7 @@ mapTVar _  Unit          = Unit
 mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
 mapTVar g (Thunk t)      = Thunk (mapTVar g t)
+mapTVar _ d@(Datatype _ _) = d
 
 mapVar :: (Src.Name -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
@@ -147,6 +144,10 @@ mapVar g h (BLam f)                  = BLam (mapVar g h . f)
 mapVar g h (Fix f t1 t)              = Fix (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ts bs e)          = LetRec (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
+mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
+    where c' = Constructor n (map h ts)
+mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
+    where mapAlt (ConstrAlt (Constructor n ts) ns f) = ConstrAlt (Constructor n (map h ts)) ns ((mapVar g h) . f)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
@@ -346,10 +347,13 @@ prettyExpr' _ (i,j) (RecordLit (l, e))       = lbrace <+> text l <+> equals <+> 
 prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> text l
 prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordLit (l, e1))
 prettyExpr' _ (i,j) (Lazy e)                 = char '\'' <> parens (prettyExpr' basePrec (i,j) e)
-prettyExpr' p (i,j) (Constr n es)          = text n <+> hcat (intersperse space  (map (prettyExpr' p (i,j)) es))
+prettyExpr' p (i,j) (Constr c es)            = braces $ fillSep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 prettyExpr' p (i,j) (Case e alts) =
-    text "case" <+> prettyExpr' p (i,j) e <+> text "of" <+> Src.intersperseBar pretty_alts
-    where pretty_alts = map (\(ConstrAlt n ns es) -> text n <+> prettyExpr' p (i, j+length n) (es [j..j+length n-1])) alts
+    hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)
+    where pretty_alt (ConstrAlt c ns es) =
+              let n = length ns
+                  ids = [j..j+n-1]
+              in fillSep (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
 prettyExpr' p (i,j) (LetRec sigs binds body)
   = text "let" <+> text "rec" <$>
     vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$>

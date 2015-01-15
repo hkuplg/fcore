@@ -3,15 +3,14 @@ module Z3Backend where
 import Control.Monad
 import Control.Monad.IO.Class (liftIO)
 import Z3.Monad hiding (Z3Env)
-import Data.IntMap (IntMap, (!), empty, insert)
+import Data.IntMap (IntMap, (!), empty, insert, union, fromList)
 import SymbolicEvaluator
 import Prelude hiding (EQ, GT, LT)
--- import DataTypes
 import Core
 
 data Z3Env = Z3Env { index :: Int
-                   , boolSort, intSort :: Sort
-                   -- , adtSort :: Sort
+                   , boolSort, intSort, adtSort :: Sort
+                   , constrFuns :: Constructor () -> (FuncDecl, [(Sort, FuncDecl)])
                    , symVars :: IntMap AST
                    , funVars :: IntMap FuncDecl
                    , target :: String -> SymValue -> Z3 ()
@@ -25,13 +24,14 @@ solve' stop e =
     evalZ3 $ do
       int <- mkIntSort
       bool <- mkBoolSort
-      -- adtSym <- mkStringSymbol "adtSort"
-      -- adt <- mkUninterpretedSort adtSym
+      adtSym <- mkStringSymbol "adtSort"
+      adt <- mkUninterpretedSort adtSym
+      cfs <- prelude (int,bool,adt)
 
       let (tree, i) = exec $ seval e
           env = Z3Env { index = i + 1
-                      , intSort = int, boolSort = bool
-                      -- , adtSort = adt
+                      , intSort = int, boolSort = bool , adtSort = adt
+                      , constrFuns = cfs
                       , symVars = empty
                       , funVars = empty
                       , target = defaultTarget
@@ -54,11 +54,36 @@ pathsZ3 env (NewSymVar i typ t) s stop =
                   (\x -> env{funVars = insert i x (funVars env)})
                   ast
        pathsZ3 env' t s stop
-pathsZ3 env (Fork l e r) s stop =
+pathsZ3 env (Fork e (Left (l,r))) s stop =
     do ast <- assertProjs env e
        local (assertCnstr ast >> whenSat (re l (s ++ " && " ++ show e) (stop - 1)))
        local (mkNot ast >>= assertCnstr >> whenSat (re r (s ++ " && not " ++ show e) (stop - 1)))
     where re = pathsZ3 env
+pathsZ3 env (Fork e (Right ts)) s stop =
+    do ast <- assertProjs env e
+       let assertConstr :: (Constructor (), [ExecutionTree] -> ExecutionTree) -> Z3 ()
+           assertConstr (c,f) = do
+             let cs@(cf,xs) = constrFuns env c
+                 nVars = length xs
+                 newNext = nextName env + nVars
+                 newNames = [nextName env..newNext-1]
+             newVars <- mapM [declareVarSort s n | ((s,_),n') <- zip xs newNames]
+
+             let varAsts = map snd newVars
+                 env' =  env {nextName = newNex, symVars = IntMap.union (IntMap.fromList newVars) (symVars env)}
+             app <- mkApp cf varAsts
+             astEq <- mkEq ast app
+             assertCnstr astEq
+
+             mapM (assertProj app) (zip (map snd xs) varAsts)
+             let e = f $ map mkExecTree newNames
+             whenSat $ pathsZ3 env' e (s ++ " && " ++ show e ++ " = " ++ constrName c ++ " " ++ unwords (map (("x"++) . show) newNames)) stop-1
+    where re = pathsZ3 env
+-- pathsZ3 env (Fork l e r) s stop =
+--     do ast <- assertProjs env e
+--        local (assertCnstr ast >> whenSat (re l (s ++ " && " ++ show e) (stop - 1)))
+--        local (mkNot ast >>= assertCnstr >> whenSat (re r (s ++ " && not " ++ show e) (stop - 1)))
+--     where re = pathsZ3 env
 
 stype2sort :: Z3Env -> SymType -> Sort
 stype2sort env TInt = intSort env
@@ -88,8 +113,14 @@ assertProj app (f, arg) =
        assertCnstr ast
 
 assertProjs :: Z3Env -> SymValue -> Z3 AST
-assertProjs Z3Env { symVars = vars, funVars = funs} v = go v
-    where go (SVar i _) = return $ vars ! i
+assertProjs Z3Env {constrFuns = cfs, symVars = vars, funVars = funs} v = go v
+    where go (SConstr c vs) =
+              do asts <- mapM go vs
+                 let (cf, cps) = cfs c
+                 ast <- mkApp cf asts
+                 mapM (assertProj ast) (zip (map snd cps) asts)
+                 return ast
+          go (SVar i _) = return $ vars ! i
           go (SInt i) = mkInt i
           go (SBool True) = mkTrue
           go (SBool False) = mkFalse
@@ -130,3 +161,55 @@ res2bool :: Result -> Bool
 res2bool Sat = True
 res2bool Unsat = False
 res2bool Undef = error "res2bool: Undef"
+
+prelude :: Sort -> Z3 ()
+prelude sorts dts =
+    cm <- mkConMapM (constrFun sorts) dts
+    mapM_ (mkPrelude cm) dts
+    showContext >>= liftIO . putStrLn
+    return cm
+
+-- Assert that constuctors are distinct
+mkPrelude :: -> Type () -> Z3 ()
+mkPrelude t = do
+    do ast <- forAll allSorts (\vars -> mkCon vars cons >>= mkDistinct)
+       assertCnstr ast
+    where allSorts = concatMap (constrFunSorts . cm) constrs
+          constrs = dt
+          mkConstr [] [] = return []
+          mkConstr vs (c:cs) =
+              do x <- mkApp (fst $ cm c) vs
+                 where (v)
+
+
+
+forAll :: [Sort] -> ([AST] -> Z3 AST) -> Z3 AST
+forAll [] = f []
+forAll sorts f = do
+  syms <- mapM (\(s,n) -> mkIntSymbol n >>= \sym -> return (sym,s))  $ zip sorts [0..]
+  bound <- mapM (\(s,n) -> mkBound n s) $ zip sorts [0..]
+  res <- f bound
+  uncurry (mkForall []) (unzip syms) res
+
+type ConstrFun = (FuncDecl, [(Sort, FuncDecl)])
+
+constrFunSorts :: ConstrFun -> [Sort]
+constrFunSorts = fst . unzip . snd
+
+constrFun :: (Sort,Sort,Sort) -> Constructor () ->  Z3 ConstrFun
+constrFun (int,bool,adt) c =
+    do s <- mkStringSymbol $ constrName c
+       let paramSorts = map dataSort (constrParams c)
+       fd <- mkFuncDecl s paramSorts adt
+       projectors <- mapM mkProjector (zip paramSorts [0..])
+       return (fd, zip paramSorts projectors)
+
+    where dataSort :: SymType -> Sort
+          dataSort TInt = int
+          dataSort TBool = bool
+          dataSort _ = adt
+
+          mkProjector :: (Sort, Int) -> Z3 FuncDecl
+          mkProjector (s,n) =
+              do sym <- mkStringSymbol $ "p" ++ show n ++ constrName c
+                 mkFuncDecl sym [adt] s
