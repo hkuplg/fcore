@@ -2,7 +2,7 @@ module Link where
 
 import System.IO
 import System.FilePath	(dropExtension)
-import Data.List.Split	(splitOn)
+-- import Data.List.Split	(splitOn)
 
 link :: FilePath -> String -> IO ()
 link file mod = do

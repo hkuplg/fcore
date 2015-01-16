@@ -8,6 +8,7 @@ import System.FilePath			(takeFileName)
 import System.TimeIt			(timeIt)
 
 import Data.Time			(getCurrentTime, diffUTCTime)
+import Control.Monad			(when)
 
 import Translations
 import FileIO
@@ -51,9 +52,11 @@ loadFile inP outP method opt xs = do
 loadAll ::  Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO ()
 loadAll _ _ _ _ [] = return () 
 loadAll inP outP method opt (x:xs) = do
-    putStrLn ("Running " ++ (takeFileName x))
-    send inP (0, opt, method) False x
-    receiveMsg outP
+    let compileOpt = (0, opt, method)
+    let name = takeFileName x
+    when (head name /= '.') $ 
+     do putStrLn ("Running " ++ name)
+        wrap (inP, outP) compileOpt True False x 
     loadAll inP outP method opt xs 
   
 fileExist :: String -> IO ()
@@ -71,7 +74,7 @@ main :: IO ()
 main = do
   writeRuntimeToTemp
   start <- getCurrentTime
-  xs <- getDirectoryContents testCasesPath
+  xs <- getDirectoryContents testCasesPath 
   let (x:y:ys) = xs 
   let zs = addFilePath ys
   putStrLn ""
