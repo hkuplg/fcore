@@ -317,14 +317,14 @@ prettyTree (Fork e (Left (l,r))) s stop =
     in (s2 <$$> s3, stop3)
 prettyTree (Fork e (Right ts)) s stop =
     foldr (\(c,f) (s', stop') ->
-               let (s'', stop'') = prettyTree (f fresh) (s <+> text "&&" <+> text (constrName c)) stop'
+               let (s'', stop'') = prettyTree (f fresh) (s <+> text "&&" <+> fillSep (text (constrName c) : genVars (length (constrParams c) - 1))) stop'
                in (s' <$$> s'', stop''))
        (empty, stop)
        ts
 prettyTree (NewSymVar _ _ t) s stop = prettyTree t s stop
 
 fresh = map (\n -> Exp (SVar n TInt)) [1..]
--- genVars n i = fillSep $ map (text . ("x"++) . show) [i..i+n-1]
+genVars n = map (text . ("x"++) . show) [1..n]
 
 fun e = fst . exec . seval $ e
 -- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
