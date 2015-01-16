@@ -10,12 +10,11 @@ import qualified Language.Java.Syntax    as J (Op (..))
 import           Panic
 import           Prelude                 hiding (EQ, GT, LT)
 import qualified Src                     as S
+import           Data.Maybe
+import           PrettyUtils
+import           Text.PrettyPrint.ANSI.Leijen
 import Control.Monad.Fix (fix)
-import Data.IntSet hiding (map, foldr)
-import Data.Maybe
-import Data.List (intercalate)
--- import           PrettyUtils
--- import           Text.PrettyPrint.ANSI.Leijen
+import Data.IntSet hiding (map, foldr, empty)
 
 data Value = VInt Integer
            | VBool Bool
@@ -272,112 +271,60 @@ apply f (Fork e (Left (l,r))) = Fork e $ Left (apply f l, apply f r)
 apply f (Fork e (Right ts)) = Fork e $ Right [(c, apply f . g)| (c,g) <- ts]
 apply f (NewSymVar i typ t) = NewSymVar i typ (apply f t)
 
-instance Show Value where
-    show (VFun _) = "<<func>>"
-    show (VInt x) = show x
-    show (VBool b) = show b
-    show (VConstr n vs) = n ++ " " ++ intercalate " " (map show vs)
+instance Pretty Value where
+    pretty (VFun _) = text "<<func>>"
+    pretty (VInt x) = integer x
+    pretty (VBool b) = bool b
+    pretty (VConstr n vs) = fillSep $ text n : (map pretty vs)
 
-instance Show Op where
-    show ADD = " + "
-    show MUL = " * "
-    show SUB = " - "
-    show DIV = " / "
-    show LT = " < "
-    show LE = " <= "
-    show GT = " > "
-    show GE = " >= "
-    show EQ = " == "
-    show NEQ = " /= "
-    show OR = " || "
-    show AND = " && "
+instance Pretty Op where
+    pretty op =
+        text $ case op of
+                 ADD -> "+"
+                 MUL -> "*"
+                 SUB -> "-"
+                 DIV -> "/"
+                 LT -> "<"
+                 LE -> "<="
+                 GT -> ">"
+                 GE -> ">="
+                 EQ -> "=="
+                 NEQ -> "/="
+                 OR -> "||"
+                 AND -> "&&"
 
-instance Show SymValue where
-    show (SVar i _) = "x" ++ show i
-    show (SInt i) = show i
-    show (SBool b) = show b
-    show (SApp e1 e2) = show e1 ++ " " ++ show e2
-    show (SOp op e1 e2) = "(" ++ show e1 ++ show op ++ show e2 ++ ")"
-    show (SFun _ _) = "<<fun>>"
-    show (SConstr c es) = (constrName c) ++ " " ++ intercalate " " (map show es)
+instance Pretty SymValue where
+    pretty (SVar i _) = text "x" <> int i
+    pretty (SInt i) = integer i
+    pretty (SBool b) = bool b
+    pretty (SApp e1 e2) = pretty e1 <+> pretty e2
+    pretty (SOp op e1 e2) = parens $ pretty e1 <+> pretty op <+> pretty e2
+    pretty (SFun _ _) = text "<<fun>>"
+    pretty (SConstr c es) = fillSep $ text (constrName c) : (map pretty es)
 
--- instance Pretty ExecutionTree where
-    -- pretty t = prettyTree t
+instance Pretty ExecutionTree where
+    pretty t = fst $ prettyTree t (text "True") 5
 
--- prettyTree :: ExecutionTree -> Doc
--- prettyTree t 0 = empty
--- prettyTree (Exp e) stop = imply <+> prettySymValue e <>
+-- type VarIndex = Int
 
-instance Show ExecutionTree where
-    show e = fst $ pp e "True" 5
-
-pp :: ExecutionTree -> String -> Int -> (String, Int)
-pp _ _ 0 = ("", 0)
-pp (Exp e) s stop = (s ++ " ==> " ++ show e ++ "\n", stop - 1)
-pp (Fork e (Left (l,r))) s stop =
-    let s1 = show e
-        (s2, stop2) = pp l (s ++ " && " ++ s1) stop
-        (s3, stop3) = pp r (s ++ " && " ++ "not (" ++ s1 ++ ")") stop2
-    in (s2 ++ s3, stop3)
-pp (Fork e (Right ts)) s stop =
+prettyTree :: ExecutionTree -> Doc -> Int -> (Doc, Int)
+prettyTree _ _ 0 = (empty, 0)
+prettyTree (Exp e) s stop = (s <+> evalTo <+> pretty e, stop - 1)
+prettyTree (Fork e (Left (l,r))) s stop =
+    let s1 = pretty e
+        (s2, stop2) = prettyTree l (s <+> text "&&" <+> s1) stop
+        (s3, stop3) = prettyTree r (s <+> text "&&" <+> neg s1) stop2
+    in (s2 <$$> s3, stop3)
+prettyTree (Fork e (Right ts)) s stop =
     foldr (\(c,f) (s', stop') ->
-               let (s'', stop'') = pp (f []) (s ++ " && " ++ constrName c) stop'
-               in (s'++s'', stop''))
-       ("", stop)
+               let (s'', stop'') = prettyTree (f fresh) (s <+> text "&&" <+> text (constrName c)) stop'
+               in (s' <$$> s'', stop''))
+       (empty, stop)
        ts
--- pp (Fork l e r) s stop =
---     let s1 = show e
---         (s2, stop2) = pp l (s ++ " && " ++ s1) stop
---         (s3, stop3) = pp r (s ++ " && " ++ "not (" ++ s1 ++ ")") stop2
---     in (s2 ++ s3, stop3)
-pp (NewSymVar _ _ t) s stop = pp t s stop
+prettyTree (NewSymVar _ _ t) s stop = prettyTree t s stop
 
--- prettyZ3 :: ExecutionTree -> String -> IntSet -> Int -> [String]
--- prettyZ3 _ _ _ 0 = []
--- prettyZ3 (Exp e) s vars stop = [s ++ "\n(check-sat)\n" ++ simplify e ++ "\n(pop)"]
--- prettyZ3 (Fork l e r) s vars stop =
---     let v1 = freeSVars e
---         undeclared = v1 `difference` vars
---         vars' = vars `union` undeclared
---         declared = unlines $ map declare $ toList undeclared
---         s1 = s ++ "\n" ++ declared
---         s2 = prettyZ3 l (s1 ++ assert e) vars' (stop - 1)
---         s3 = prettyZ3 r (s1 ++ assertNeg e) vars' (stop - 1)
---     in s2 ++ s3
-
--- prettyZ3SymValue :: SymValue -> String
--- prettyZ3SymValue (SOp op e1 e2) =
---     case op of
---       ADD -> "(+ " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       MUL -> "(* " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       SUB -> "(- " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       DIV -> "(/ " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       LT -> "(< " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       LE -> "(<= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       GT -> "(> " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       GE -> "(>= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       EQ -> "(= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       NEQ -> "(not (= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ "))"
---       OR -> "(or " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       AND -> "(and " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
--- prettyZ3SymValue (SFun _ _) = error "prettyZ3SymValue SFun"
--- prettyZ3SymValue e = show e
-
--- declare :: Int -> String
--- declare n = "(declare-const " ++ "x" ++ show n ++ "Int)"
-
--- assert, assertNeg :: SymValue -> String
--- assert e = "(assert " ++ prettyZ3SymValue e ++ ")"
--- assertNeg e = "(assert (not" ++ prettyZ3SymValue e ++ "))"
-
--- freeSVars :: SymValue -> IntSet
--- freeSVars (SVar i _) = singleton i
--- freeSVars (SOp _ e1 e2) = freeSVars e1 `union` freeSVars e2
--- freeSVars (SApp e1 e2) = freeSVars e1 `union` freeSVars e2
--- freeSVars _ = Data.IntSet.empty
-
--- simplify :: SymValue -> String
--- simplify e = "(simplify " ++ prettyZ3SymValue e ++ ")"
+fresh = map (\n -> Exp (SVar n TInt)) [1..]
+-- genVars n i = fillSep $ map (text . ("x"++) . show) [i..i+n-1]
 
 fun e = fst . exec . seval $ e
 -- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6

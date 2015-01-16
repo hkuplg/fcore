@@ -21,6 +21,7 @@ biglambda = text "/\\"
 dcomma    = text ",,"
 unit      = text "()"
 bar       = text "|"
+evalTo    = text "==>"
 
 bquote :: Doc
 bquote = char '`'
@@ -69,3 +70,6 @@ prettyVarFrom c n
 
 intersperseBar :: [Doc] -> Doc
 intersperseBar = foldl1 (\acc x -> acc <$$> bar <+> x)
+
+neg :: Doc -> Doc
+neg d = text "not" <+> parens d

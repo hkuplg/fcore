@@ -29,6 +29,12 @@ instance Show (Expr t e) where
 instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
+instance Show Value where
+    show = show . pretty
+
+instance Show ExecutionTree where
+    show = show . pretty
+
 -- let tailFact : Int -> Int -> Int
 --   = \(acc : Int). \(n : Int). if n == 0 then acc else tailFact (acc * n) (n - 1)
 -- in
@@ -163,13 +169,6 @@ multiple_if = lam (javaInt) (\n -> If ((var n) `eq` zero) (If ((App identity (va
 boolfun = lam (Fun javaBool javaBool) (\n -> If ((App (var n) true) `neq` (App (var n) true)) one negOne)
 
 app_bool_fun = App boolfun inverse
-
-head' = lam (Fun (Datatype "MList" []) javaInt) (\x -> Case (var x) [ConstrAlt (Constructor "Nil" []) [] (\es -> zero), ConstrAlt (Constructor "Cons" [javaInt, Datatype "MList" []]) ["y", "ys"] (\es -> var (es !! 0))])
-nil = Constr (Constructor "Nil" []) []
-cons = Constr (Constructor "Cons" [javaInt, (Datatype "MList" [])]) [five, nil]
-head_nil = App head' nil
-head_cons = App head' cons
-
 
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (S.Int 0)
