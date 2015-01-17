@@ -149,8 +149,9 @@ infer' this i j (F.Lazy e)            = F.Thunk (this i j e)
 infer :: Index -> Index -> F.Expr Index (Index, F.Type Index) -> F.Type Index
 infer = new infer'
 
+-- Is this right ????????????????? 
 instance (Type Index, Expr Index Index) <: F.Type Index where
-  up = fst
+  up = transType' 0 . fst
 
 transExpr'
   :: (Index -> Index -> F.Expr Index (Index, F.Type Index) -> F.Type Index)
