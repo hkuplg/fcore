@@ -473,7 +473,6 @@ infer (RecordUpdate e fs) =
 -- Well, I know the desugaring is too early to happen here...
 infer (LetModule (Module m binds) e) =
   do let fs = map bindId binds
-     --throwError $ General (text (show fs))
      let letrec = Let Rec binds (RecordIntro (map (\f -> (f, Var f)) fs))
      infer $ Let NonRec [Bind m [] [] letrec Nothing] e
 
