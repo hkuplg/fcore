@@ -120,6 +120,7 @@ data Expr id ty
   | RecordElim (Expr id ty) Label
   | RecordUpdate (Expr id ty) [(Label, Expr id ty)]
   | LetModule (Module id ty) (Expr id ty)
+  | Import Name (Expr id ty)
   | ModuleAccess ModuleName Name
   | Type -- type T A1 .. An = t in e
       Name         -- T         -- Name of type constructor

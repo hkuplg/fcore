@@ -57,6 +57,7 @@ import JavaUtils
 
   "module"  { Tmodule }
   "end"     { Tend }
+  "import"  { Timport }
 
   INT      { Tint $$ }
   STRING   { Tstring $$ }
@@ -176,6 +177,7 @@ expr :: { ReaderExpr }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | infixexpr                           { $1 }
     | module expr                   { LetModule $1 $2 }
+    | "import" tvar expr            { Import $2 $3 }
 
 infixexpr :: { ReaderExpr }
     : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }

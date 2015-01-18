@@ -473,9 +473,20 @@ infer (RecordUpdate e fs) =
 -- Well, I know the desugaring is too early to happen here...
 infer (LetModule (Module m binds) e) =
   do let fs = map bindId binds
+     --throwError $ General (text (show fs))
      let letrec = Let Rec binds (RecordIntro (map (\f -> (f, Var f)) fs))
      infer $ Let NonRec [Bind m [] [] letrec Nothing] e
+
 infer (ModuleAccess m f) = infer (RecordElim (Var m) f)
+
+infer (Import m e) = 
+  do env <- getValueContext
+     case Map.lookup m env of
+       Nothing -> throwError $ NotInScope m
+       Just r  -> 
+         do  (m', t) <- infer (Var m)
+	     let binds = createBinds m (Map.keys (recordFields t))
+             infer $ Let NonRec binds e
 
 -- Type synonyms: type T A1 ... An = t in e
 -- First make sure that A1 ... An are distinct.
@@ -498,6 +509,10 @@ infer (Type t params rhs e)
 --   OpAbs "A" (OpAbs "B" (JType (JClass "java.lang.Integer")))
 pullRight :: [Name] -> Type -> Type
 pullRight params t = foldr OpAbs t params
+
+createBinds :: Name -> [Label] -> [Bind ReaderId Type]
+createBinds _ [] = []
+createBinds m (x:xs) = (Bind x [] [] (ModuleAccess m x) Nothing) : createBinds m xs
 
 inferAgainst :: ReaderExpr -> Type -> Checker (CheckedExpr, Type)
 inferAgainst expr expected_ty

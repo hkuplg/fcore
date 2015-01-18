@@ -1,4 +1,4 @@
-{
+ {
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 module Lexer
@@ -64,6 +64,7 @@ tokens :-
     new         { \_ _ -> Tnew }
     module      { \_ _ -> Tmodule }
     end         { \_ _ -> Tend }
+    import      { \_ _ -> Timport }
 
     -- Literals
     $digit+                { \_ s -> Tint (read s) }
@@ -112,7 +113,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule | Tend
+           | Tmodule | Tend    | Timport
            | Temptytree | Tnonemptytree
            deriving (Eq, Show)
 

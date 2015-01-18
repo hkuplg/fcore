@@ -1,0 +1,13 @@
+module M4
+  add (a:Int) (b:Int) : Int = a + b;
+  sub (a:Int) (b:Int) : Int = a - b
+end
+
+module M3
+  id A (x:A) : A = x
+end
+
+import M4
+import M3
+
+sub (id Int 3) 4
