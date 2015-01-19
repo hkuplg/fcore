@@ -4,7 +4,7 @@ module JavaEDSL where
 
 import Language.Java.Syntax
 import StringPrefixes
-import Data.Char (isUpper)
+-- import Data.Char (isUpper)
 
 arrayTy :: Type -> Type
 arrayTy ty  = RefType (ArrayType ty)
@@ -131,14 +131,12 @@ right :: Either Name Exp -> Exp
 right (Right x) = x
 right (Left _) = error "this should be right (literal or method inv)"
 
-beginUpper :: [Ident] -> Bool
-beginUpper = any (\s -> case s of Ident s' -> isUpper (head s'))
+-- beginUpper :: [Ident] -> Bool
+-- beginUpper = any (\s -> case s of Ident s' -> isUpper (head s'))
 
 unwrap :: Either Name Exp -> Exp
 unwrap x = case x of
-            Left (Name xs) -> if beginUpper xs
-                              then instCreat (ClassType [(head xs, [])]) []
-                              else ExpName . Name $ xs
+            Left (Name xs) -> ExpName . Name $ xs
             Right e -> e
 
 extractVar :: Either Name Exp -> String

@@ -14,7 +14,7 @@ import           Panic
 import qualified Src as S
 import           StringPrefixes
 
-import           Data.Char (isDigit, isUpper)
+-- import           Data.Char (isDigit, isUpper)
 
 instance (:<) (Translate m) (Translate m) where
    up = id
@@ -148,8 +148,9 @@ trans self =
     -------------------------- :: cj-var
     Γ |-  x1 : T1 ~> x2 in {}
 -}
-              Var (i,t) -> if i < 0 then return ([], var $ "Fun" ++ show (negate i), t) -- TODO: negative denotes class variable
-                           else return ([],var (localvarstr ++ show i),t)
+              -- Var (i,t) -> if i < 0 then return ([], var $ "Fun" ++ show (negate i), t) -- TODO: negative denotes class variable
+              --              else return ([],var (localvarstr ++ show i),t)
+              Var (i,t) -> return ([],var (localvarstr ++ show i),t)
               Lit lit ->
                 case lit of
                   (S.Int i)    -> return ([], Right $ J.Lit (J.Int i),     JClass "java.lang.Integer")
@@ -387,7 +388,9 @@ trans self =
                    closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                    (cvar,t1) <- translateScopeTyp this x1 n [xf] nextInClosure (translateScopeM this nextInClosure Nothing) closureClass
 
-                   return (cvar,var ("Fun" ++  show n),Type t (const t1))
+                   let fstmt = [localVar closureType (varDecl (localvarstr ++ show n) (funInstCreate n))]
+
+                   return (cvar ++ fstmt,var (localvarstr ++ show n),Type t (const t1))
        ,translateApply =
           \m1 m2 ->
             do (s1, j1',Forall (Type _ g)) <- m1
@@ -404,18 +407,18 @@ trans self =
                genIfBody this m2 m3 (s1, j1) n
        ,translateLet =
             \(s1,j1,t1) body ->
-             if isLeft j1 && (isUpper . head . extractVar $ j1) -- test if class variable
-             then do let j1var = extractVar j1
-                     let n' = negate . read . filter isDigit $ j1var :: Int
-                     (s2, j2, t2) <- translateM this (body (n',t1))
-                     return (s1 ++ s2, j2, t2)
-             else do (n :: Int) <- get
-                     put (n + 1)
-                     (s2, j2, t2) <- translateM this (body (n,t1))
-                     let x = localvarstr ++ show n
-                     jt1 <- javaType this t1
-                     let xDecl = localFinalVar jt1 (varDecl x $ unwrap j1)
-                     return (s1 ++ [xDecl] ++ s2, j2, t2)
+             -- if isLeft j1 && (isUpper . head . extractVar $ j1) -- test if class variable
+             -- then do let j1var = extractVar j1
+             --         let n' = negate . read . filter isDigit $ j1var :: Int
+             --         (s2, j2, t2) <- translateM this (body (n',t1))
+             --         return (s1 ++ s2, j2, t2)
+             do (n :: Int) <- get
+                put (n + 1)
+                (s2, j2, t2) <- translateM this (body (n,t1))
+                let x = localvarstr ++ show n
+                jt1 <- javaType this t1
+                let xDecl = localVar jt1 (varDecl x $ unwrap j1)
+                return (s1 ++ [xDecl] ++ s2, j2, t2)
        ,translateScopeTyp =
           \x1 f initVars _ otherStmts closureClass ->
             do b <- genClone this
