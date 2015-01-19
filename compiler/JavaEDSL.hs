@@ -43,7 +43,7 @@ methodCall :: [String] -> [Argument] -> Stmt
 methodCall idents argu = ExpStmt (MethodInv (MethodCall (name idents) argu))
 
 applyMethodCall :: Exp -> Stmt
-applyMethodCall f = (classMethodCall f "apply" [])
+applyMethodCall f = classMethodCall f "apply" []
 
 applyCall :: BlockStmt
 applyCall = bStmt $ methodCall ["apply"] []
@@ -70,8 +70,8 @@ memberDecl :: MemberDecl -> Decl
 memberDecl = MemberDecl
 
 classDecl :: [Modifier] -> String -> ClassBody -> ClassDecl
-classDecl modi ident body =
-  ClassDecl modi (Ident ident) [] Nothing [] body
+classDecl modi ident =
+  ClassDecl modi (Ident ident) [] Nothing []
 
 classBody :: [Decl] -> ClassBody
 classBody = ClassBody
@@ -105,19 +105,20 @@ localClass nam body = LocalClass (ClassDecl [] (Ident nam) [] Nothing [] body)
 
 funInstCreate :: Int -> Exp
 funInstCreate i = instCreat fun []
-  where fun = (ClassType [(Ident ("Fun" ++ show i),[])])
+  where fun = ClassType [(Ident ("Fun" ++ show i),[])]
 
 closureBodyGen :: [Decl] -> [BlockStmt] -> Int -> Bool -> Type -> ClassBody
-closureBodyGen initDecls body idCF generateClone className =
-  classBody $ initDecls ++ [applyMethod] ++ if generateClone
-                                               then [cloneMethod]
-                                               else []
-  where applyMethod = MemberDecl $ methodDecl [Public] Nothing "apply" [] (Just (Block body))
-        cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
-        cloneBody = (block [localVar className (varDecl "c" (funInstCreate idCF))
-                    -- ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
-                    -- ,bStmt $ (applyMethodCall (left . var $ "c"))
-                    ,bStmt (Return (Just (cast className (left $ var "c"))))])
+closureBodyGen initDecls body idCF generateClone className = classBody $ initDecls ++ [applyMethod] ++ [cloneMethod | generateClone]
+  where
+    applyMethod = MemberDecl $ methodDecl [Public] Nothing "apply" [] (Just (Block body))
+    cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
+    cloneBody = block
+                  [ localVar className (varDecl "c" (funInstCreate idCF))
+                  ,
+                  -- ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
+                  -- ,bStmt $ (applyMethodCall (left . var $ "c"))
+                  bStmt (Return (Just (cast className (left $ var "c"))))
+                  ]
 
 mainArgType :: [FormalParam]
 mainArgType = [paramDecl (arrayTy $ classTy "String") "args"]
@@ -131,7 +132,7 @@ right (Right x) = x
 right (Left _) = error "this should be right (literal or method inv)"
 
 beginUpper :: [Ident] -> Bool
-beginUpper xs = or (map (\s -> case s of Ident s' -> isUpper (head s')) xs)
+beginUpper = any (\s -> case s of Ident s' -> isUpper (head s'))
 
 unwrap :: Either Name Exp -> Exp
 unwrap x = case x of
@@ -142,7 +143,7 @@ unwrap x = case x of
 
 extractVar :: Either Name Exp -> String
 extractVar x = case x of
-                Left (Name xs) -> case (head xs) of
+                Left (Name xs) -> case head xs of
                                    Ident xs' -> xs'
                 Right _ -> error "this should be a left (variable name)"
 
@@ -156,14 +157,14 @@ wrapperClass className stmts returnType mainbodyDef testArgType testBodyDef genT
   ClassTypeDecl
     (classDecl [Public]
                className
-               (classBody (applyMethod : mainMethod : if genTest then [testMethod] else [])))
+               (classBody (applyMethod : mainMethod : [testMethod | genTest])))
   where body = Just (block stmts)
         applyMethod = memberDecl $ methodDecl [Static] returnType "apply" [] body
         testMethod = memberDecl $ methodDecl [Public,Static] returnType "test" testArgType testBodyDef
         mainMethod  = memberDecl $ methodDecl [Public,Static] Nothing "main" mainArgType mainbodyDef
 
 annotation :: String -> Modifier
-annotation ann = Annotation (MarkerAnnotation {annName = Name [Ident ann]})
+annotation ann = Annotation MarkerAnnotation {annName = Name [Ident ann]}
 
 returnNull :: Maybe Block
-returnNull = (Just (Block [BlockStmt (Return (Just (Lit Null)))]))
+returnNull = Just (Block [BlockStmt (Return (Just (Lit Null)))])
