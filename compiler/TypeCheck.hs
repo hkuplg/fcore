@@ -457,7 +457,8 @@ infer (PrimList l) =
 
 infer (RecordIntro fs) =
   do (es', ts) <- mapAndUnzipM infer (map snd fs)
-     return (RecordIntro (zip (map fst fs) es'), Record (zip (map fst fs) ts))
+     let fs' = zip (map fst fs) ts
+     return (RecordIntro (zip (map fst fs) es'), foldl (\acc (l,t) -> And acc (Record [(l,t)])) (Record [head fs']) (tail fs'))
 
 infer (RecordElim e l) =
   do (e', t) <- infer e
@@ -518,16 +519,26 @@ inferAgainstAnyJClass expr
              (code (pretty expr) <+> text "has type" <+> code (pretty ty) <> comma <+>
               text "but is expected to be of some Java class")
 
--- | Check "f A1 ... An (x1:T1) ... (xn:Tn) = e"
+-- | Check "f A1 ... An (x1:T1) ... (xn:Tn) : t = e"
 inferBind :: ReaderBind -> Checker (Name, Type, CheckedExpr)
 inferBind bind
   = do bind' <- checkBindLHS bind
        (bindRhs', bindRhsTy) <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTargs bind')) $
                                   do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindArgs bind')
                                      withLocalVars expandedBindArgs (infer (bindRhs bind'))
-       return ( bindId bind'
-              , wrap Forall (bindTargs bind') (wrap Fun (map snd (bindArgs bind')) bindRhsTy)
-              , wrap BLam (bindTargs bind') (wrap Lam (bindArgs bind') bindRhs'))
+       case bindRhsAnnot bind' of
+         Nothing -> return ( bindId bind'
+                           , wrap Forall (bindTargs bind') (wrap Fun (map snd (bindArgs bind')) bindRhsTy)
+                           , wrap BLam (bindTargs bind') (wrap Lam (bindArgs bind') bindRhs'))
+         Just annot ->
+           withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTargs bind')) $
+             do checkType annot
+                d <- getTypeContext
+                if alphaEq d annot bindRhsTy
+                   then return (bindId bind'
+                               , wrap Forall (bindTargs bind') (wrap Fun (map snd (bindArgs bind')) bindRhsTy)
+                               , wrap BLam (bindTargs bind') (wrap Lam (bindArgs bind') bindRhs'))
+                   else throwError (TypeMismatch (expandType d annot) bindRhsTy)
 
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.
