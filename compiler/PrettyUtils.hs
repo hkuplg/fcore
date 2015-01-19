@@ -73,3 +73,6 @@ intersperseBar = foldl1 (\acc x -> acc <$$> bar <+> x)
 
 prependNot :: Doc -> Doc
 prependNot d = text "not" <+> d
+
+intersperseSpace :: [Doc] -> Doc
+intersperseSpace = hcat . (intersperse space)

@@ -218,7 +218,7 @@ prettyType = prettyType' basePrec 0
 
 prettyType' :: Prec -> Index -> Type Index -> Doc
 
-prettyType' _ _ (TVar n a)   = text n
+prettyType' _ _ (TVar n _)   = text n
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2
@@ -365,14 +365,14 @@ prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "w
 
 prettyExpr' _ (i,j) (Lazy e)                 = char '\'' <> parens (prettyExpr' basePrec (i,j) e)
 
-prettyExpr' p (i,j) (Constr c es)            = braces $ fillSep $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)
     where pretty_alt (ConstrAlt c ns es) =
               let n = length ns
                   ids = [j..j+n-1]
-              in fillSep (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
+              in intersperseSpace (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
 
 javaInt :: Type t
 javaInt = JClass "java.lang.Integer"

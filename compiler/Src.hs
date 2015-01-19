@@ -421,7 +421,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
                            pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (Constr c es) = braces $ fillSep $ text (constrName c) : map pretty es
+  pretty (Constr c es) = braces $ intersperseSpace $ text (constrName c) : map pretty es
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
@@ -438,10 +438,10 @@ instance Pretty RecFlag where
   pretty NonRec = empty
 
 instance Pretty Constructor where
-    pretty (Constructor n ts) = fillSep $ text n : map pretty ts
+    pretty (Constructor n ts) = intersperseSpace $ text n : map pretty ts
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
-    pretty (ConstrAlt c ns e2) = fillSep (text (constrName c) : map text ns) <+> arrow <+> pretty e2
+    pretty (ConstrAlt c ns e2) = intersperseSpace (text (constrName c) : map text ns) <+> arrow <+> pretty e2
     -- pretty (Default e) = text "_" <+> arrow <+> pretty e
 
 -- Utilities
