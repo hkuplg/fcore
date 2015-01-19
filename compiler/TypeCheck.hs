@@ -457,7 +457,8 @@ infer (PrimList l) =
 
 infer (RecordIntro fs) =
   do (es', ts) <- mapAndUnzipM infer (map snd fs)
-     return (RecordIntro (zip (map fst fs) es'), Record (zip (map fst fs) ts))
+     let fs' = zip (map fst fs) ts
+     return (RecordIntro (zip (map fst fs) es'), foldl (\acc (l,t) -> And acc (Record [(l,t)])) (Record [head fs']) (tail fs'))
 
 infer (RecordElim e l) =
   do (e', t) <- infer e

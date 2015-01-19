@@ -136,7 +136,8 @@ atype :: { Type }
   | JAVACLASS                { JType (JClass $1) }
   | "Unit"                   { Unit }
   | "(" product_body ")"     { Product $2 }
-  | "{" record_body "}"      { Record $2 }
+  -- TODO: desugaring might be too early. But the benefit is avoid a traversal of the type structure later.
+  | "{" record_body "}"      { foldl (\ acc (l,t) -> And acc (Record [(l,t)])) (Record [(head $2)]) (tail $2) }
   | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
 

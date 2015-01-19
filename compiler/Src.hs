@@ -204,7 +204,6 @@ dethunk :: Type -> Type
 dethunk (Thunk t) = dethunk t
 dethunk t         = t
 
-
 -- | Alpha equivalence.
 alphaEq :: TypeContext -> Type -> Type -> Bool
 alphaEq d t1 t2 = alphaEqS (expandType d t1) (expandType d t2)
@@ -221,8 +220,8 @@ alphaEqS (JType c)      (JType d)      = c == d
 alphaEqS (Fun t1 t2)    (Fun t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4
 alphaEqS (Forall a1 t1) (Forall a2 t2) = alphaEqS (fsubstTT (a2, TVar a1) t2) t1
 alphaEqS (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry (alphaEqS) `all` zip ts1 ts2
-alphaEqS (Record fs1)   (Record fs2)   = length fs1 == length fs2
-                                                  && (\((l1,t1),(l2,t2)) -> l1 == l2 && alphaEqS t1 t2) `all` zip fs1 fs2
+alphaEqS (Record [(l1,t1)]) (Record [(l2,t2)]) = l1 == l2 && alphaEqS t1 t2
+alphaEqS (Record fs1)   (Record fs2)           = alphaEqS (desugarMultiRecord fs1) (desugarMultiRecord fs2)
 alphaEqS (ListOf t1)    (ListOf t2)    = alphaEqS t1 t2
 alphaEqS (And t1 t2)    (And t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4
 alphaEqS Unit           Unit           = True
@@ -254,6 +253,17 @@ subtypeS t1             t2          = False `panicOnSameDataCons` ("Src.subtypeS
 
 
 -- Records
+
+-- TODO: refactor the following two functions
+
+desugarRecord :: Type -> Type
+desugarRecord (Record [(l,t)]) = Record [(l,t)]
+desugarRecord (Record fs)      = desugarMultiRecord fs
+desugarRecord (And t1 t2)      = And (desugarRecord t1) (desugarRecord t2)
+desugarRecord t                = t
+-- FIXME: incomplete cases
+
+
 
 desugarMultiRecord :: [(Label,Type)] -> Type
 desugarMultiRecord []         = panic "Src.desugarMultiRecordTy"
