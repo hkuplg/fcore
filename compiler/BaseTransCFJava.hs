@@ -201,9 +201,9 @@ trans self =
                      _ ->
                        panic "BaseTransCFJava.trans: expected tuple type"
 {-
-    E : ∀α∆.T2 ~> 􏰃J in S  ∆;T2 ⇓ T3
+    E : ∀α∆.T2 ~> J in S  ∆;T2 ⇓ T3
     -------------------------------- :: cj-tapp
-    Γ |- E T1 : T3[T1/α] ~> 􏰃J in S
+    Γ |- E T1 : T3[T1/α] ~> J in S
 -}
               TApp expr t -> -- type application just inherits existing flag
                 do n <- get
@@ -261,8 +261,8 @@ trans self =
                                                      (cast typ (J.ExpName (name [localvarstr ++ show n, tempvarstr]))))]
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
 {-
-    Γ |- E1 : ∀(x:T2)∆.T1 ~> 􏰃J1 in S1
-    Γ |- E2 : T2 ~> 􏰃J2 in S2
+    Γ |- E1 : ∀(x:T2)∆.T1 ~> J1 in S1
+    Γ |- E2 : T2 ~> J2 in S2
     ∆;T1 ⇓ T3     f,xf fresh
     ----------------------------------- :: cj-app
     Γ |- E1 E2 : T3 in S1⊎S2⊎S3
@@ -354,9 +354,9 @@ trans self =
                    return (s,je,Body t1)
 
 {-
-    Γα;∆ ⊢ E : T ~>􏰃 J in S
+    Γα;∆ ⊢ E : T ~> J in S
     ----------------------- :: cjd-bind2
-    Γ;α∆ ⊢ E : T ~>􏰃 J in S
+    Γ;α∆ ⊢ E : T ~> J in S
 -}
               Kind f ->
                 do n <- get
@@ -365,7 +365,7 @@ trans self =
                    return (s,je,Kind (\a -> substScope n (TVar a) t1))
 
 {-
-    Γ(y : T1 􏰀-> x2);∆ |- E : T ~> J in S
+    Γ(y : T1 -> x2);∆ |- E : T ~> J in S
     FC, x1, x2, f fresh
     ------------------------------------- :: cjd-bind1
     Γ;(y : T1)∆ |- E : T ~> f in S'
@@ -459,7 +459,7 @@ trans self =
                                                                  return (initClass tupleClassName, classTy tupleClassName)
                                   _ -> return (initClass "Object", objClassTy)
        ,getPrefix = return namespace
-       ,genClone = return False -- do not generate clone method
+       ,genClone = return True
        ,genTest = return False -- do not generate test method
        ,withApply = return True
        ,getBox = \_ -> return ""
