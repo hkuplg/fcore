@@ -32,6 +32,7 @@ import           BenchGenCF2J
 import           BenchGenStack
 import           ClosureF
 import qualified Core
+import qualified SystemFI
 import           Desugar (desugar)
 import           Inheritance
 import           Inliner
@@ -167,7 +168,7 @@ sf2java num optDump compilation className src =
        Right (tcheckedSrc, _t)   ->
          do when (optDump == DumpTChecked) $ print tcheckedSrc
             let core = desugar tcheckedSrc
-            when (optDump == DumpCore) $ print (Core.prettyExpr core)
+            when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
             let simpleCore = case num of
                                1 -> peval . inliner . simplify $ core
                                2 -> peval . inliner . inliner . simplify $ core
@@ -190,11 +191,13 @@ sf2java2 flag num optDump compilation className src =
        Right (tcheckedSrc, _t)   ->
          do when (optDump == DumpTChecked) $ print tcheckedSrc
             let core = desugar tcheckedSrc
-            when (optDump == DumpCore) $ print (Core.prettyExpr core)
+            when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
             let simpleCore = case num of
                                1 -> peval . inliner . simplify $ core
                                2 -> peval . inliner . inliner . simplify $ core
-                               _ -> if flag then peval . simplify $ core else peval $ core
+                               _ -> peval . simplify $ core
+                               -- Flag removed. As "core" and "simplecore" have different types now.
+                               -- _ -> if flag then peval . simplify $ core else peval $ core
             -- let simpleCore = simplify core
             when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
             when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore))

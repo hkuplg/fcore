@@ -4,19 +4,18 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module Simplify
---   ( simplify
---   , transType
---   , subtype'
---   , subtype
---   , coerce
---   , infer'
---   , infer
---   , transExpr'
---   , transExpr
---   , getter
---   , putter
---   ) where
-where
+  ( simplify
+  , transType
+  , subtype'
+  , subtype
+  , coerce
+  , infer'
+  , infer
+  , transExpr'
+  , transExpr
+  , getter
+  , putter
+  ) where
 
 import Core
 import qualified SystemFI    as F

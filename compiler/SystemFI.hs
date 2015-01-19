@@ -4,9 +4,9 @@
 module SystemFI
   ( Type(..)
   , Expr(..)
-  -- , TypeContext
-  -- , ValueContext
-  -- , Index
+  , TypeContext
+  , ValueContext
+  , Index
   , alphaEq
   , mapTVar
   , mapVar
@@ -21,7 +21,7 @@ module SystemFI
   , bLam
   , prettyType
   , prettyExpr
-  -- , javaInt
+  , javaInt
   ) where
 
 import qualified Src
