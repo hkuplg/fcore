@@ -73,14 +73,14 @@ transType' _  Unit          = F.Unit
 -- subtype' this i t1           (Thunk t2)  = this i t1 t2
 -- subtype' this i (Thunk t1)   t2          = this i t1 t2
 -- subtype' _    _ _ _                      = False
--- 
+--
 -- subtype :: Index -> Type Index -> Type Index -> Bool
 -- subtype = new subtype'
--- 
+--
 type Coercion t e = Expr t e
--- 
+--
 -- -- TVar "" Right?
-coerce :: Index -> Type Index -> Type Index -> Maybe (Coercion Index Index)
+coerce :: Index -> F.Type Index -> F.Type Index -> Maybe (Coercion Index Index)
 -- coerce i (TVar n a) (TVar _ b) | a == b    = return (lam (transType i (TVar n a)) var)
 --                                | otherwise = Nothing
 -- coerce i (JClass c) (JClass d) | c == d    = return (lam (transType i (JClass c)) var)
@@ -149,13 +149,13 @@ infer' this i j (F.Lazy e)            = F.Thunk (this i j e)
 infer :: Index -> Index -> F.Expr Index (Index, F.Type Index) -> F.Type Index
 infer = new infer'
 
--- Is this right ????????????????? 
-instance (Type Index, Expr Index Index) <: F.Type Index where
-  up = transType' 0 . fst
+-- Is this right ?????????????????
+instance (F.Type Index, Expr Index Index) <: F.Type Index where
+  up = {- transType' 0 . -} fst
 
 transExpr'
   :: (Index -> Index -> F.Expr Index (Index, F.Type Index) -> F.Type Index)
-  -> (Index -> Index -> F.Expr Index (Index, F.Type Index) -> (Type Int, Expr Index Index))
+  -> (Index -> Index -> F.Expr Index (Index, F.Type Index) -> (F.Type Index, Expr Index Index))
   -> Index  -> Index -> F.Expr Index (Index, F.Type Index) -> Expr Index Index
 transExpr' _ _    _ _ (F.Var _ (x,_))     = var x
 transExpr' _ _    _ _ (F.Lit l)           = Lit l
@@ -229,18 +229,18 @@ transExpr' super this i j (F.RecordElim e l1)        = App c (snd (this i j e)) 
 transExpr' super this i j (F.RecordUpdate e (l1,e1)) = App c (snd (this i j e)) where Just (c, _) = putter i (super i j e) l1 (snd (this i j e1))
 transExpr' _ this i j (F.Lazy e)                     = lam Unit (\_ -> snd (this i j e))
 
-transExpr :: Index -> Index -> F.Expr Index (Index, F.Type Index) -> (Type Index, Expr Index Index)
+transExpr :: Index -> Index -> F.Expr Index (Index, F.Type Index) -> (F.Type Index, Expr Index Index)
 transExpr i = new (infer' `with` transExpr'') i
   where
     transExpr'' :: Mixin
       (Index -> Index -> F.Expr Index (Index, F.Type Index) -> F.Type Index)
-      (Index -> Index -> F.Expr Index (Index, F.Type Index) -> (Type Index, Expr Index Index))
+      (Index -> Index -> F.Expr Index (Index, F.Type Index) -> (F.Type Index, Expr Index Index))
     transExpr'' super this i j e  = (fst (this i j e), transExpr' super this i j e)
 --  transExpr'' super this i j e  = (transType i (super i j e), transExpr' super this i j e)
 
-getter :: Index -> F.Type Index -> S.Label -> Maybe (Expr Index Index, Type Index)
+getter :: Index -> F.Type Index -> S.Label -> Maybe (Expr Index Index, F.Type Index)
 getter i (F.Record (l,t)) l1
-  | l1 == l   = Just (lam (transType i (F.Record (l,t))) var, transType i t)
+  | l1 == l   = Just (lam (transType i (F.Record (l,t))) var, t)
   | otherwise = Nothing
 getter i (F.And t1 t2) l
   = case getter i t2 l of
@@ -256,9 +256,9 @@ getter i (F.Thunk t1) l
        return (lam (transType i (F.Thunk t1)) (App c . force . var), t)
 getter _ _ _ = Nothing
 
-putter :: Index -> F.Type Index -> S.Label -> Expr Index Index -> Maybe (Expr Index Index, Type Index)
+putter :: Index -> F.Type Index -> S.Label -> F.Expr Index Index -> Maybe (Expr Index Index, F.Type Index)
 putter i (F.Record (l,t)) l1 e
-  | l1 == l   = Just (Simplify.const (transType i (F.Record (l,t))) e, transType i t)
+  | l1 == l   = Just (Simplify.const (transType i (F.Record (l,t))) e, t)
   | otherwise = Nothing
 putter i (F.And t1 t2) l e
   = case putter i t2 l e of
@@ -276,7 +276,7 @@ putter _ _ _ _ = Nothing
 
 wrap :: Expr t e -> Expr t e
 wrap e = lam Unit (Prelude.const e)
--- 
+--
 force :: Expr t e -> Expr t e
 force e = App e (Lit S.UnitLit)
 
