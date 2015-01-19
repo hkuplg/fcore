@@ -71,5 +71,5 @@ prettyVarFrom c n
 intersperseBar :: [Doc] -> Doc
 intersperseBar = foldl1 (\acc x -> acc <$$> bar <+> x)
 
-neg :: Doc -> Doc
-neg d = text "not" <+> parens d
+prependNot :: Doc -> Doc
+prependNot d = text "not" <+> d

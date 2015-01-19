@@ -14,7 +14,7 @@ import           Data.Maybe
 import           PrettyUtils
 import           Text.PrettyPrint.ANSI.Leijen
 import Control.Monad.Fix (fix)
-import Data.IntSet hiding (map, foldr, empty)
+import Data.IntSet hiding (map, foldl, empty)
 
 data Value = VInt Integer
            | VBool Bool
@@ -68,7 +68,7 @@ eval (PrimOp e1 op e2) =
                S.Compare J.NotEq -> VBool $ a /= b
                -- _ -> simplified
          _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
-eval g@(Fix _ _ f _ _) = VFun (\n -> eval $ f (eval g) n)
+eval g@(Fix _ _ f _ _) = VFun $ eval . f (eval g)
 eval (LetRec _ _ binds body) = eval . body . fix $ map eval . binds
 eval (Constr c es) = VConstr (constrName c) (map eval es)
 eval (Case e alts) =
@@ -85,13 +85,14 @@ data ExecutionTree = Exp SymValue
 data SymType = TInt
              | TBool
              | TFun [SymType] SymType
+             | TData S.Name [Constructor ()]
 
-data SymValue = SVar Int SymType -- free variables
+data SymValue = SVar S.Name Int SymType -- free variables
               | SInt Integer
               | SBool Bool
               | SApp SymValue SymValue
               | SOp Op SymValue SymValue
-              | SFun (ExecutionTree -> ExecutionTree) SymType
+              | SFun S.Name (ExecutionTree -> ExecutionTree) SymType
               | SConstr (Constructor ()) [SymValue]
 
 data Op = ADD
@@ -110,8 +111,8 @@ data Op = ADD
 -- Add index to SVars
 exec :: ExecutionTree -> (ExecutionTree, Int)
 exec e = go e 0
-    where go (Exp (SFun f t)) i =
-              case (go (f . Exp $ SVar i t) (i+1)) of
+    where go (Exp (SFun n f t)) i =
+              case (go (f . Exp $ SVar n i t) (i+1)) of
                 (e, i') -> (NewSymVar i t e, i')
           go e i = (e, i)
 
@@ -154,12 +155,12 @@ seval (PrimOp e1 op e2) =
     where e1' = seval e1
           e2' = seval e2
 
-seval (Lam _ t f) = Exp $ SFun (seval . f) (etype2stype t)
+seval (Lam n t f) = Exp $ SFun n (seval . f) (etype2stype t)
 seval (Let _ e f) = seval . f $ seval e
 seval (App e1 e2) = treeApply (seval e1) (seval e2)
 seval (BLam _ f) =  seval $ f ()
 seval (TApp e _) = seval e
-seval g@(Fix _ _ f t _) = Exp $ SFun (\n -> seval $ f (seval g) n) (etype2stype t)
+seval g@(Fix _ n f t _) = Exp $ SFun n (seval . f (seval g)) (etype2stype t)
 seval (LetRec _ _ binds body) = seval . body . fix $ map seval . binds
 seval (Constr c es) = mergeList (SConstr c) (map seval es)
 seval (Case e alts) = propagate (seval e) (Right (map (\(ConstrAlt c _ f) -> (c, seval . f)) alts))
@@ -257,8 +258,8 @@ merge f t1 (NewSymVar i typ t2) = NewSymVar i typ (merge f t1 t2)
 treeApply :: ExecutionTree -> ExecutionTree -> ExecutionTree
 treeApply (Exp e) t =
     case e of
-      SVar i typ -> apply (SApp (SVar i typ)) t
-      SFun f _ -> f t
+      SVar n i typ -> apply (SApp (SVar n i typ)) t
+      SFun _ f _ -> f t
 -- treeApply (Fork l e r) t = Fork (treeApply l t) e (treeApply r t)
 treeApply (Fork e (Left (l,r))) t = Fork e $ Left (treeApply l t, treeApply r t)
 treeApply (Fork e (Right ts)) t = Fork e $ Right [(c, \es -> treeApply (f es) t) | (c,f) <- ts]
@@ -294,12 +295,13 @@ instance Pretty Op where
                  AND -> "&&"
 
 instance Pretty SymValue where
-    pretty (SVar i _) = text "x" <> int i
+    -- pretty (SVar i _) = text "x" <> int i
+    pretty (SVar n _ _) = text n
     pretty (SInt i) = integer i
     pretty (SBool b) = bool b
     pretty (SApp e1 e2) = pretty e1 <+> pretty e2
     pretty (SOp op e1 e2) = parens $ pretty e1 <+> pretty op <+> pretty e2
-    pretty (SFun _ _) = text "<<fun>>"
+    pretty (SFun n _ _) = text n
     pretty (SConstr c es) = fillSep $ text (constrName c) : (map pretty es)
 
 instance Pretty ExecutionTree where
@@ -309,22 +311,23 @@ instance Pretty ExecutionTree where
 
 prettyTree :: ExecutionTree -> Doc -> Int -> (Doc, Int)
 prettyTree _ _ 0 = (empty, 0)
-prettyTree (Exp e) s stop = (s <+> evalTo <+> pretty e, stop - 1)
+prettyTree (Exp e) s stop = (s <+> evalTo <+> pretty e <> linebreak, stop - 1)
 prettyTree (Fork e (Left (l,r))) s stop =
     let s1 = pretty e
         (s2, stop2) = prettyTree l (s <+> text "&&" <+> s1) stop
-        (s3, stop3) = prettyTree r (s <+> text "&&" <+> neg s1) stop2
-    in (s2 <$$> s3, stop3)
+        (s3, stop3) = prettyTree r (s <+> text "&&" <+> prependNot s1) stop2
+    in (s2 <> s3, stop3)
 prettyTree (Fork e (Right ts)) s stop =
-    foldr (\(c,f) (s', stop') ->
-               let (s'', stop'') = prettyTree (f fresh) (s <+> text "&&" <+> fillSep (text (constrName c) : genVars (length (constrParams c) - 1))) stop'
-               in (s' <$$> s'', stop''))
+    foldl (\(sacc, i) (c,f) ->
+               let (snew, i') = prettyTree (f supply) (s <+> text "&&" <+> hcat (text (constrName c) : genVars (length (constrParams c) - 1))) i
+               in (sacc <> snew, i'))
        (empty, stop)
        ts
 prettyTree (NewSymVar _ _ t) s stop = prettyTree t s stop
 
-fresh = map (\n -> Exp (SVar n TInt)) [1..]
+supply :: [ExecutionTree]
+supply = map (\n -> Exp (SVar "" n TInt)) [1..]
+
 genVars n = map (text . ("x"++) . show) [1..n]
 
 fun e = fst . exec . seval $ e
--- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6
