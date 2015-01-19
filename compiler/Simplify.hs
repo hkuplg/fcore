@@ -245,7 +245,7 @@ getter _ _ _ _ = Nothing
 
 putter :: Index -> Index -> F.Type Index -> S.Label -> Expr Index Index -> Maybe (F.Type Index, Expr Index Index)
 putter i j (F.Record (l,t)) l1 e
-  | l1 == l   = Just (t, Simplify.const (transType i (F.Record (l,t))) (unsafeCoerce . snd . transExpr i j . unsafeCoerce $ e))
+  | l1 == l   = Just (t, Simplify.const (transType i (F.Record (l,t))) e)
   | otherwise = Nothing
 putter i j (F.And t1 t2) l e
   = case putter i j t2 l e of
