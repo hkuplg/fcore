@@ -310,7 +310,7 @@ wrapFlag handle opt flagC flagT flagS filename = case flagT of
 	     putStrLn ("CPU time: " ++ (show ((end - start) `div` 1000)) ++ "ns")
 	False -> wrap handle opt flagC flagS filename
 
-checkType :: ValueContext -> String -> IO (Either TypeError (CheckedExpr, Type))
+checkType :: ValueContext -> String -> IO (Either TypeError (CheckedExpr, ReaderType))
 checkType val_ctx s =
   do let parsed = reader s
      typeCheckWithEnv val_ctx parsed

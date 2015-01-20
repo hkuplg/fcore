@@ -8,7 +8,7 @@
 module Src
   ( Module(..), ReaderModule
   , Kind(..)
-  , Type(..)
+  , Type(..), ReaderType
   , Expr(..), ReaderExpr, CheckedExpr
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
@@ -76,6 +76,8 @@ data Type
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `alphaEq` and `subtype` below.
   deriving (Eq, Show, Data, Typeable)
+
+type ReaderType = Type
 
 data Lit -- Data constructor names match Haskell types
   = Int Integer

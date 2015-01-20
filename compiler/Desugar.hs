@@ -24,13 +24,13 @@ import qualified Data.Map as Map
 desugar :: CheckedExpr -> C.Expr t e
 desugar = desugarExpr (Map.empty, Map.empty)
 
-type TVarMap t  = Map.Map Name t
-type VarMap t e = Map.Map Name (C.Expr t e)
+type TVarMap t  = Map.Map ReaderId t
+type VarMap t e = Map.Map ReaderId (C.Expr t e)
 
-transType :: TVarMap t -> Type -> C.Type t
+transType :: TVarMap t -> ReaderType -> C.Type t
 transType d (TVar a)     = C.TVar a (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
-transType _ (JType (JClass c))   = C.JClass c
-transType _ (JType (JPrim c))   = C.JClass c
+transType _ (JType (JClass c)) = C.JClass c
+transType _ (JType (JPrim c))  = C.JClass c
 transType d (Fun t1 t2)  = C.Fun (transType d t1) (transType d t2)
 transType d (Product ts) = C.Product (map (transType d) ts)
 transType d (Forall a t) = C.Forall a (\a' -> transType (Map.insert a a' d) t)
@@ -205,5 +205,5 @@ desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = C.LetRec names' sigs
 
 desugarLetRecToLetRec _ _ = panic "Desugar.desugarLetRecToLetRec"
 
-addToVarMap :: [(Name, C.Expr t e)] -> VarMap t e -> VarMap t e
+addToVarMap :: [(ReaderId, C.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
