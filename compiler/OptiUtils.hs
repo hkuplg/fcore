@@ -11,7 +11,7 @@ import Simplify (simplify)
 
 joinExpr :: Expr t (Expr t e) -> Expr t e
 joinExpr (Var _ x) = x
-joinExpr (Lam n t1 e1) = Lam n t1 (\ee -> joinExpr (e1 (var ee)))
+joinExpr (Lam n t1 e1) = Lam n t1 (\ee -> joinExpr (e1 (Var n ee)))
 joinExpr (App e1 e2) = App (joinExpr e1) (joinExpr e2)
 joinExpr (BLam n t1) = BLam n (\t2 -> joinExpr (t1 t2))
 joinExpr (TApp e t) = TApp (joinExpr e) t
@@ -20,12 +20,12 @@ joinExpr (If e1 e2 e3) = If (joinExpr e1) (joinExpr e2) (joinExpr e3)
 joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (Proj i e) = Proj i (joinExpr e)
-joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (var e1) (var e2))) t1 t2
-joinExpr (Let n bind body) = Let n (joinExpr bind) (\e -> joinExpr (body (var e)))
+joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
+joinExpr (Let n bind body) = Let n (joinExpr bind) (\e -> joinExpr (body (Var n e)))
 joinExpr (LetRec n s b1 b2) =
   LetRec n s
-         (\es -> map joinExpr (b1 (map var es)))
-         (\es -> joinExpr (b2 (map var es)))
+         (\es -> map joinExpr (b1 (zipWith Var n es)))
+         (\es -> joinExpr (b2 (zipWith Var n es)))
 joinExpr (JNew name es) = JNew name (map joinExpr es)
 joinExpr (JMethod jc m es cn) =
   JMethod (fmap joinExpr jc) m (map joinExpr es) cn
