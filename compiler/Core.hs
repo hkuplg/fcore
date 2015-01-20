@@ -15,6 +15,7 @@ module Core
   , fsubstEE
   , joinType
   , tVar
+  , Core.forall
   , var
   , lam
   , fix
@@ -176,6 +177,9 @@ joinType (Thunk t)        = Thunk (joinType t)
 tVar :: t -> Type t
 tVar = TVar "_"
 
+forall :: (t -> Type t) -> Type t
+forall f = Forall "_" f
+
 var :: e -> Expr t e
 var = Var "_"
 
@@ -207,7 +211,7 @@ prettyType' p i (Fun t1 t2)  =
 
 prettyType' p i (Forall n f)   =
   parensIf p 1
-    (forall <+> text n <> dot <+>
+    (PrettyUtils.forall <+> text n <> dot <+>
      prettyType' (1,PrecMinus) (succ i) (f i))
 
 prettyType' _ i (Product ts) = parens $ hcat (intersperse comma (map (prettyType' basePrec i) ts))

@@ -16,7 +16,7 @@ konst = bLam (\a -> bLam (\b ->
 
 -- forall A. forall B. A -> B -> A
 typeOfKonst :: Type Int
-typeOfKonst = Forall (\a -> Forall (\b -> tVar a `Fun` (tVar b `Fun` tVar a)))
+typeOfKonst = Core.forall (\a -> Core.forall (\b -> tVar a `Fun` (tVar b `Fun` tVar a)))
 
 -- /\A. (x : A). x
 ident :: Expr Int Int
