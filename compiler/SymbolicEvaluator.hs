@@ -76,15 +76,17 @@ eval (Case e alts) =
     where table = map (\(ConstrAlt c _ f) -> (constrName c, f)) alts
 eval _ = panic "Can not be evaled"
 
+data SConstructor = SConstructor {sconstrName :: S.Name, sconstrParams :: [SymType], sconstrDatatype :: SymType}
+
 data ExecutionTree = Exp SymValue
                    -- | Fork ExecutionTree SymValue ExecutionTree
-                   | Fork SymValue (Either (ExecutionTree, ExecutionTree) [(Constructor (), [S.Name], [ExecutionTree] -> ExecutionTree)])
+                   | Fork SymValue (Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.Name], [ExecutionTree] -> ExecutionTree)])
                    | NewSymVar Int SymType ExecutionTree
 
 data SymType = TInt
              | TBool
              | TFun [SymType] SymType
-             | TData S.Name [Constructor ()]
+             | TData {dataName :: S.Name, dataConstrs :: [SConstructor]}
 
 data SymValue = SVar S.Name Int SymType -- free variables
               | SInt Integer
@@ -92,7 +94,7 @@ data SymValue = SVar S.Name Int SymType -- free variables
               | SApp SymValue SymValue
               | SOp Op SymValue SymValue
               | SFun S.Name (ExecutionTree -> ExecutionTree) SymType
-              | SConstr (Constructor ()) [SymValue]
+              | SConstr SConstructor [SymValue]
 
 data Op = ADD
         | MUL
@@ -160,12 +162,16 @@ seval (BLam _ f) =  seval $ f ()
 seval (TApp e _) = seval e
 seval g@(Fix _ n f t _) = Exp $ SFun n (seval . f (seval g)) (transType t)
 seval (LetRec _ _ binds body) = seval . body . fix $ map seval . binds
-seval (Constr c es) = mergeList (SConstr c) (map seval es)
-seval (Case e alts) = propagate (seval e) (Right (map (\(ConstrAlt c ns f) -> (c, ns, seval . f)) alts))
+seval (Constr c es) = mergeList (SConstr $ transConstructor c) (map seval es)
+seval (Case e alts) = propagate (seval e) (Right (map (\(ConstrAlt c ns f) -> (transConstructor c, ns, seval . f)) alts))
 seval _ = error "seval: not supported"
 
+transConstructor :: Constructor () -> SConstructor
+transConstructor (Constructor n ts) = SConstructor n (init ts') (last ts')
+    where ts' = map transType ts
+
 propagate :: ExecutionTree ->
-             Either (ExecutionTree, ExecutionTree) [(Constructor (), [S.Name], [ExecutionTree] -> ExecutionTree)] ->
+             Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.Name], [ExecutionTree] -> ExecutionTree)] ->
              ExecutionTree
 propagate (Exp e) ts = Fork e ts
 propagate (Fork e (Left (l,r))) ts' = Fork e (Left (propagate l ts', propagate r ts'))
@@ -175,6 +181,7 @@ propagate (NewSymVar i typ t) ts = NewSymVar i typ (propagate t ts)
 transType :: Type t -> SymType
 transType (JClass t) = jname2symtype t
 transType (Fun t1 t2) = TFun [transType t1] (transType t2)
+transType (Datatype n _) = TData n []
 transType _ = error "transType: not supported"
 
 jname2symtype :: String -> SymType
@@ -293,7 +300,7 @@ instance Pretty SymValue where
     pretty (SApp e1 e2) = pretty e1 <+> pretty e2
     pretty (SOp op e1 e2) = parens $ pretty e1 <+> pretty op <+> pretty e2
     pretty (SFun _ _ _) = text "<<fun>>"
-    pretty (SConstr c es) = intersperseSpace $ text (constrName c) : (map pretty es)
+    pretty (SConstr c es) = intersperseSpace $ text (sconstrName c) : (map pretty es)
 
 instance Pretty ExecutionTree where
     pretty t = fst $ prettyTree t (text "True") 5
@@ -308,8 +315,7 @@ prettyTree (Fork e (Left (l,r))) s stop =
     in (s2 <> s3, stop3)
 prettyTree (Fork e (Right ts)) s stop =
     foldl (\(sacc, i) (c,ns,f) ->
-               -- let (snew, i') = prettyTree (f $ supply ns) (s <+> text "&&" <+> intersperseSpace (text (constrName c) : genVars (length (constrParams c) - 1))) i
-               let (snew, i') = prettyTree (f $ supply ns) (s <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ (constrName c) : ns)) i
+               let (snew, i') = prettyTree (f $ supply ns) (s <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ (sconstrName c) : ns)) i
                in (sacc <> snew, i'))
        (empty, stop)
        ts
