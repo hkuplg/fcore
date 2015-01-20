@@ -14,10 +14,10 @@ module Core
   , fsubstTE
   , fsubstEE
   , joinType
-  , tVar
+--, tVar
   , var
   , lam
-  , fix
+--, fix
   , bLam
   , prettyType
   , prettyExpr

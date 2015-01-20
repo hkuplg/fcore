@@ -4,24 +4,24 @@
 module SystemFI
   ( Type(..)
   , Expr(..)
-  , TypeContext
-  , ValueContext
-  , Index
-  , alphaEq
-  , mapTVar
-  , mapVar
+--, TypeContext
+--, ValueContext
+--, Index
+--, alphaEq
+--, mapTVar
+--, mapVar
   , fsubstTT
   , fsubstTE
   , fsubstEE
   , joinType
   , tVar
-  , var
-  , lam
-  , fix
-  , bLam
+--, var
+--, lam
+--, fix
+--, bLam
   , prettyType
   , prettyExpr
-  , javaInt
+--, javaInt
   ) where
 
 import qualified Src

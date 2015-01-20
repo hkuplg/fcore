@@ -145,16 +145,16 @@ transExpr'
   :: (Index -> Index -> F.Expr Index (Index, F.Type Index) -> F.Type Index)
   -> (Index -> Index -> F.Expr Index (Index, F.Type Index) -> (F.Type Index, Expr Index Index))
   -> Index  -> Index -> F.Expr Index (Index, F.Type Index) -> Expr Index Index
-transExpr' _ _    _ _ (F.Var _ (x,_))      = var x
+transExpr' _ _    _ _ (F.Var n (x,_))      = Var n x
 transExpr' _ _    _ _ (F.Lit l)            = Lit l
-transExpr' _ this i j (F.Lam n t f)        = Lam n (transType i t) (\x -> fsubstEE j (var x) body')    where (_, body') = this i (j+1) (f (j, t))
-transExpr' _ this i j (F.BLam n f)         = BLam n (\a -> fsubstTE i (TVar "" a) body')               where (_, body') = this (i+1) j (f i)
-transExpr' _ this i j (F.Fix n1 n2 f t1 t) = Fix n1 n2 (\x x1 -> (fsubstEE j (var x) . fsubstEE (j+1) (var x1)) body') t1' t'
+transExpr' _ this i j (F.Lam n t f)        = Lam n (transType i t) (\x -> fsubstEE j (Var n x) body')    where (_, body') = this i (j+1) (f (j, t))
+transExpr' _ this i j (F.BLam n f)         = BLam n (\a -> fsubstTE i (TVar n a) body')               where (_, body') = this (i+1) j (f i)
+transExpr' _ this i j (F.Fix n1 n2 f t1 t) = Fix n1 n2 (\x x1 -> (fsubstEE j (Var n1 x) . fsubstEE (j+1) (Var n2 x1)) body') t1' t'
   where
     (_, body') = this i (j+2) (f (j, F.Fun t1 t) (j+1, t1))
     t1'        = transType i t1
     t'         = transType i t
-transExpr' super this i j (F.Let n b e) = Let n b' (\x -> fsubstEE j (var x) (snd (this i (j+1) (e (j, super i j b)))))
+transExpr' super this i j (F.Let n b e) = Let n b' (\x -> fsubstEE j (Var n x) (snd (this i (j+1) (e (j, super i j b)))))
   where
     (_,b') = this i j b
 transExpr' _     this i j (F.LetRec ns ts bs e) = LetRec ns' ts' bs' e'
@@ -169,7 +169,7 @@ transExpr' _     this i j (F.LetRec ns ts bs e) = LetRec ns' ts' bs' e'
     fs_with_ts    = zip fs ts
     n             = length ts
     subst :: [Index] -> [Index] -> Expr Index Index -> Expr Index Index
-    subst xs rs   = foldl (.) id [fsubstEE x (var (rs !! k)) | (x,k) <- zip xs [0..n-1]]
+    subst xs rs   = foldl (.) id [fsubstEE x (Var (ns' !! k) (rs !! k)) | (x,k) <- zip xs [0..n-1]] -- right?
 
 transExpr' _ this i j (F.App e1 e2)
   = let (F.Fun t11 t12, e1') = this i j e1
