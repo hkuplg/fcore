@@ -115,36 +115,37 @@ module_name :: { ReaderId }
 
 -- Types
 
-type :: { Type }
+type :: { ReaderType }
   : "forall" tvar "." type   { Forall $2 $4 }
   | monotype                 { $1 }
 
-monotype :: { Type }
+monotype :: { ReaderType }
   : intertype "->" monotype  { Fun $1 $3 }
   | intertype                { $1 }
 
-intertype :: { Type }
+intertype :: { ReaderType }
   : ftype "&" intertype      { And $1 $3 }
   | ftype                    { $1 }
 
-ftype :: { Type }
+ftype :: { ReaderType }
   : ftype atype              { OpApp $1 $2 }
   | atype                    { $1 }
 
-atype :: { Type }
+atype :: { ReaderType }
   : tvar                     { TVar $1 }
   | JAVACLASS                { JType (JClass $1) }
   | "Unit"                   { Unit }
   | "(" product_body ")"     { Product $2 }
-  | "{" record_body "}"      { Record $2 }
+  -- TODO: desugaring might be too early. But the benefit is avoid a traversal of the type structure later.
+  | "{" record_body "}"      { foldl (\ acc (l,t) -> And acc (Record [(l,t)])) (Record [(head $2)]) (tail $2) }
   | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
 
-product_body :: { [Type] }
+product_body :: { [ReaderType] }
   : type "," type             { $1:[$3] }
   | type "," product_body     { $1:$3   }
 
-record_body :: { [(Label, Type)] }
+record_body :: { [(Label, ReaderType)] }
   : label ":" type                  { [($1, $3)]  }
   | label ":" type "," record_body  { ($1, $3):$5 }
 
@@ -284,7 +285,7 @@ bind :: { ReaderBind }
                }
         }
 
-maybe_sig :: { Maybe Type }
+maybe_sig :: { Maybe ReaderType }
   : ":" type     { Just $2 }
   | {- empty -} { Nothing }
 
@@ -300,12 +301,12 @@ recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
 
-arg :: { (ReaderId, Type) }
+arg :: { (ReaderId, ReaderType) }
     : "(" var ":" type ")"       { ($2, $4) }
     | "()"                       { ("_", Unit) }
     | "(" arg ")"                { $2 }
 
-args :: { [(ReaderId, Type)] }
+args :: { [(ReaderId, ReaderType)] }
     : {- empty -}               { []    }
     | arg args  { $1:$2 }
 

@@ -8,7 +8,7 @@
 module Src
   ( Module(..), ReaderModule
   , Kind(..)
-  , Type(..)
+  , Type(..), ReaderType
   , Expr(..), ReaderExpr, CheckedExpr
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
@@ -28,6 +28,7 @@ import JavaUtils
 import PrettyUtils
 import Panic
 
+
 import qualified Language.Java.Syntax as J (Op(..))
 -- import qualified Language.Java.Pretty as P
 import Text.PrettyPrint.ANSI.Leijen
@@ -39,22 +40,21 @@ import Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+
+-- Names and identifiers.
 type Name      = String
 type ReaderId  = Name
 type CheckedId = (ReaderId, Type)
-
-type ModuleName = Name
 type Label      = Name
 
+-- Modules.
 data Module id ty = Module id [Bind id ty] deriving (Eq, Show)
-
 type ReaderModule = Module ReaderId Type
 
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
 
-data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
-
+-- Types.
 data Type
   = TVar Name
   | JType JVMType -- JClass ClassName
@@ -77,16 +77,11 @@ data Type
   -- `alphaEq` and `subtype` below.
   deriving (Eq, Show, Data, Typeable)
 
-data Lit -- Data constructor names match Haskell types
-  = Int Integer
-  | String String
-  | Bool Bool
-  | Char Char
-  | UnitLit
-  deriving (Eq, Show)
+type ReaderType = Type
 
-data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
+data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
 
+-- Expressions.
 data Expr id ty
   = Var id                                    -- Variable
   | Lit Lit                                   -- Literals
@@ -120,7 +115,7 @@ data Expr id ty
   | RecordElim (Expr id ty) Label
   | RecordUpdate (Expr id ty) [(Label, Expr id ty)]
   | LetModule (Module id ty) (Expr id ty)
-  | ModuleAccess ModuleName Name
+  | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
       Name         -- T         -- Name of type constructor
       [Name]       -- A1 ... An -- Type parameters
@@ -132,6 +127,16 @@ type ReaderExpr  = Expr ReaderId  Type
 type CheckedExpr = Expr CheckedId Type
 -- type TcExpr  = Expr TcId
 -- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
+
+data Lit -- Data constructor names match Haskell types
+  = Int Integer
+  | String String
+  | Bool Bool
+  | Char Char
+  | UnitLit
+  deriving (Eq, Show)
+
+data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
 
 data Bind id ty = Bind
   { bindId       :: id             -- Identifier
@@ -173,7 +178,7 @@ expandType :: TypeContext -> Type -> Type
 -- Interesting cases:
 expandType d (TVar a)
   = case Map.lookup a d of
-      Nothing                       -> prettyPanic "TypeCheck.expandType:TVar" (pretty (TVar a))
+      Nothing                       -> prettyPanic "expandType" (pretty (TVar a))
       Just (_, TerminalType)        -> TVar a
       Just (_, NonTerminalType def) -> expandType d def
 expandType d (OpAbs x t) = OpAbs x (expandType (Map.insert x (Star, TerminalType) d) t)
@@ -195,15 +200,11 @@ expandType d (ListOf t)   = ListOf (expandType d t)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
 expandType d (Thunk t)    = Thunk (expandType d t)
 
-isTypeSynonym :: TypeContext -> ReaderId -> Bool
-isTypeSynonym d a = a `Map.member` d
-
 -- Type equivalence(s) and subtyping
 
 dethunk :: Type -> Type
 dethunk (Thunk t) = dethunk t
 dethunk t         = t
-
 
 -- | Alpha equivalence.
 alphaEq :: TypeContext -> Type -> Type -> Bool
@@ -220,9 +221,9 @@ alphaEqS (JType (JClass "java.lang.Character")) (JType (JPrim "char")) = True
 alphaEqS (JType c)      (JType d)      = c == d
 alphaEqS (Fun t1 t2)    (Fun t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4
 alphaEqS (Forall a1 t1) (Forall a2 t2) = alphaEqS (fsubstTT (a2, TVar a1) t2) t1
-alphaEqS (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry (alphaEqS) `all` zip ts1 ts2
-alphaEqS (Record fs1)   (Record fs2)   = length fs1 == length fs2
-                                                  && (\((l1,t1),(l2,t2)) -> l1 == l2 && alphaEqS t1 t2) `all` zip fs1 fs2
+alphaEqS (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEqS `all` zip ts1 ts2
+alphaEqS (Record [(l1,t1)]) (Record [(l2,t2)]) = l1 == l2 && alphaEqS t1 t2
+alphaEqS (Record fs1)   (Record fs2)           = alphaEqS (desugarMultiRecord fs1) (desugarMultiRecord fs2)
 alphaEqS (ListOf t1)    (ListOf t2)    = alphaEqS t1 t2
 alphaEqS (And t1 t2)    (And t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4
 alphaEqS Unit           Unit           = True
@@ -242,7 +243,7 @@ subtypeS (JType c)      (JType d)              = c == d
 -- The subtypeS here shouldn't be aware of the subtyping relations in the Java world.
 subtypeS (Fun t1 t2)    (Fun t3 t4)            = subtypeS t3 t1 && subtypeS t2 t4
 subtypeS (Forall a1 t1) (Forall a2 t2)         = subtypeS (fsubstTT (a1,TVar a2) t1) t2
-subtypeS (Product ts1)  (Product ts2)          = length ts1 == length ts2 && uncurry (subtypeS) `all` zip ts1 ts2
+subtypeS (Product ts1)  (Product ts2)          = length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
 subtypeS (Record [(l1,t1)]) (Record [(l2,t2)]) = l1 == l2 && subtypeS t1 t2
 subtypeS (Record fs1)   (Record fs2)           = subtypeS (desugarMultiRecord fs1) (desugarMultiRecord fs2)
 subtypeS (ListOf t1)    (ListOf t2)            = subtypeS t1 t2  -- List :: * -> * is covariant
@@ -254,6 +255,17 @@ subtypeS t1             t2          = False `panicOnSameDataCons` ("Src.subtypeS
 
 
 -- Records
+
+-- TODO: refactor the following two functions
+
+desugarRecord :: Type -> Type
+desugarRecord (Record [(l,t)]) = Record [(l,t)]
+desugarRecord (Record fs)      = desugarMultiRecord fs
+desugarRecord (And t1 t2)      = And (desugarRecord t1) (desugarRecord t2)
+desugarRecord t                = t
+-- FIXME: incomplete cases
+
+
 
 desugarMultiRecord :: [(Label,Type)] -> Type
 desugarMultiRecord []         = panic "Src.desugarMultiRecordTy"
@@ -431,4 +443,3 @@ opPrec (Compare J.Equal)  = 7
 opPrec (Compare J.NotEq)  = 7
 opPrec (Logic J.CAnd)     = 11
 opPrec (Logic J.COr)      = 12
-opPrec op = panic $ "Src.Syntax.opPrec: " ++ show op

@@ -36,8 +36,8 @@ data TransMethod = Apply
 type Connection = (Handle, Handle)
 type CompileOpt = (Int, Compilation, [TransMethod])
 
-wrap :: Connection -> CompileOpt -> Bool -> Bool -> String -> IO ()
-wrap (inP, outP) opt flagC flagS name = do
+wrap :: Connection -> (Handle -> IO ()) -> CompileOpt -> Bool -> Bool -> String -> IO ()
+wrap (inP, outP) receiveMsg opt flagC flagS name = do
 	exist <- doesFileExist name
 	if not exist
 	  then do
@@ -60,7 +60,8 @@ send h (n, opt, method) flagC flagS f = do
 	result <- E.try (sf2java2 flagC n NoDump opt className contents)
 	case result of 
 	  Left  (_ :: E.SomeException) -> do 
-	  	putStrLn "invalid expression sf2Java"
+	  	putStrLn ("\x1b[31m" ++ "invalid expression sf2Java")
+                putStrLn "\x1b[0m"
 		return False
 	  Right javaFile	       -> do 
 	  	sendMsg h (className ++ ".java")
