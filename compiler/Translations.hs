@@ -169,7 +169,9 @@ sf2java num optDump compilation className src =
          do when (optDump == DumpTChecked) $ print tcheckedSrc
             let core = desugar tcheckedSrc
             when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
-            let simpleCore = case num of
+            let recurNumOfCore = recurNum . simplify $ core 
+            let inlineNum = if recurNumOfCore > 2 then 0 else recurNumOfCore
+            let simpleCore = case inlineNum of
                                1 -> peval . inliner . simplify $ core
                                2 -> peval . inliner . inliner . simplify $ core
                                _ -> peval . simplify $ core
