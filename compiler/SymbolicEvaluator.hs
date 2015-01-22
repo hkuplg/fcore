@@ -17,7 +17,7 @@ import Control.Monad.Fix (fix)
 
 data Value = VInt Integer
            | VBool Bool
-           | VConstr S.Name [Value]
+           | VConstr S.ReaderId [Value]
            | VFun (Value -> Value)
 
 -- big-step interpreter
@@ -76,11 +76,11 @@ eval (Case e alts) =
     where table = map (\(ConstrAlt c _ f) -> (constrName c, f)) alts
 eval _ = panic "Can not be evaled"
 
-data SConstructor = SConstructor {sconstrName :: S.Name, sconstrParams :: [SymType], sconstrDatatype :: SymType}
+data SConstructor = SConstructor {sconstrName :: S.ReaderId, sconstrParams :: [SymType], sconstrDatatype :: SymType}
 
 data ExecutionTree = Exp SymValue
                    -- | Fork ExecutionTree SymValue ExecutionTree
-                   | Fork SymValue (Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.Name], [ExecutionTree] -> ExecutionTree)])
+                   | Fork SymValue (Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.ReaderId], [ExecutionTree] -> ExecutionTree)])
                    | NewSymVar Int SymType ExecutionTree
 
 data SymType = TInt
@@ -93,7 +93,7 @@ data SymValue = SVar S.ReaderId Int SymType -- free variables
               | SBool Bool
               | SApp SymValue SymValue
               | SOp Op SymValue SymValue
-              | SFun S.Name (ExecutionTree -> ExecutionTree) SymType
+              | SFun S.ReaderId (ExecutionTree -> ExecutionTree) SymType
               | SConstr SConstructor [SymValue]
 
 data Op = ADD
@@ -171,7 +171,7 @@ transConstructor (Constructor n ts) = SConstructor n (init ts') (last ts')
     where ts' = map transType ts
 
 propagate :: ExecutionTree ->
-             Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.Name], [ExecutionTree] -> ExecutionTree)] ->
+             Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.ReaderId], [ExecutionTree] -> ExecutionTree)] ->
              ExecutionTree
 propagate (Exp e) ts = Fork e ts
 propagate (Fork e (Left (l,r))) ts' = Fork e (Left (propagate l ts', propagate r ts'))
@@ -316,7 +316,7 @@ prettyTree (Fork e (Right ts)) s stop =
        ts
 prettyTree (NewSymVar _ _ t) s stop = prettyTree t s stop
 
-supply :: [S.Name] -> [ExecutionTree]
+supply :: [S.ReaderId] -> [ExecutionTree]
 supply = zipWith (\i n -> Exp (SVar n i TInt)) [1..]
 
 -- genVars n = map (text . ("x"++) . show) [1..n]
