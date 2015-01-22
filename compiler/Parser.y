@@ -118,7 +118,7 @@ module :: { ReaderModule }
 module_name :: { ReaderId }
   : UPPERID  { $1 }
 
-constr_name :: { Name }
+constr_name :: { ReaderId }
   : tvar  { $1 }
 
 -- Types
@@ -167,7 +167,7 @@ tvars :: { [ReaderId] }
 tvar :: { ReaderId }
   : UPPERID                  { $1 }
 
-vars :: { [Name] }
+vars :: { [ReaderId] }
   : {- empty -}              { []    }
   | var vars                 { $1:$2 }
 
