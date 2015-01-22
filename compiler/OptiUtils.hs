@@ -63,7 +63,7 @@ sf2core fname = do
      result <- typeCheck . reader $ string
      case result of
        Left typeError -> error $ show typeError
-       Right (tcheckedSrc, _) ->
+       Right (_, tcheckedSrc) ->
              return . simplify . desugar $ tcheckedSrc
 
 fCore f str = sf2core str >>= (\e -> return $ f e)
