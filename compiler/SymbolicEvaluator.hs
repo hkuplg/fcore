@@ -225,11 +225,8 @@ merge (_, NEQ) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a/=b)
 merge (_, NEQ) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a/=b)
 
 merge (_, LT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a<b)
-
 merge (_, LE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a<=b)
-
 merge (_, GT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a>b)
-
 merge (_, GE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a>=b)
 
 merge (_, OR) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a||b)
@@ -258,14 +255,12 @@ treeApply (Exp e) t =
     case e of
       SVar n i typ -> apply (SApp (SVar n i typ)) t
       SFun _ f _ -> f t
--- treeApply (Fork l e r) t = Fork (treeApply l t) e (treeApply r t)
 treeApply (Fork e (Left (l,r))) t = Fork e $ Left (treeApply l t, treeApply r t)
 treeApply (Fork e (Right ts)) t = Fork e $ Right [(c, ns, \es -> treeApply (f es) t) | (c,ns,f) <- ts]
 treeApply (NewSymVar i typ t1) t2 = NewSymVar i typ (treeApply t1 t2)
 
 apply :: (SymValue -> SymValue) -> ExecutionTree -> ExecutionTree
 apply f (Exp e) = Exp (f e)
--- apply f (Fork l e r) = Fork (apply f l) e (apply f r)
 apply f (Fork e (Left (l,r))) = Fork e $ Left (apply f l, apply f r)
 apply f (Fork e (Right ts)) = Fork e $ Right [(c, ns, apply f . g)| (c,ns,g) <- ts]
 apply f (NewSymVar i typ t) = NewSymVar i typ (apply f t)

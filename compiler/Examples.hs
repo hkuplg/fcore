@@ -12,7 +12,7 @@ import PartialEvaluator
 import Inliner
 import Translations
 import SymbolicEvaluator
--- import Z3Backend
+import Z3Backend
 
 import PrettyUtils
 import OptiUtils
@@ -169,6 +169,9 @@ multiple_if = lam (javaInt) (\n -> If ((var n) `eq` zero) (If ((App identity (va
 boolfun = lam (Fun javaBool javaBool) (\n -> If ((App (var n) true) `neq` (App (var n) true)) one negOne)
 
 app_bool_fun = App boolfun inverse
+
+-- interface to symbolic evaluator
+se str = sf2core str >>= (\e -> solve e)
 
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (S.Int 0)
