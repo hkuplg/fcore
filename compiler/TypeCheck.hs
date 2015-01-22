@@ -163,8 +163,10 @@ getTcEnv = lift getEnv
 setTcEnv :: TcEnv -> Checker ()
 setTcEnv tc_env = lift $ setEnv tc_env
 
+getTypeContext :: Checker TypeContext
 getTypeContext = liftM tceTypeContext getTcEnv
 
+getValueContext :: Checker ValueContext
 getValueContext = liftM tceValueContext getTcEnv
 
 getTypeServer :: Checker (Handle, Handle)
@@ -522,7 +524,7 @@ infer (Constr c es) =
      let (len_expected, len_actual) = (length ts - 1, length es)
      unless (len_expected == len_actual) $
             throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_expected <+> text "arguments, but has been given" <+> int len_actual)
-     (_, es') <- mapAndUnzipM (\(e',t) -> inferAgainst e' t) (zip es ts)
+     (_, es') <- mapAndUnzipM (uncurry inferAgainst) (zip es ts)
      return (last ts, Constr (Constructor n ts) es')
 
 infer (Case e alts) =
@@ -553,7 +555,7 @@ infer (Case e alts) =
                                                                    <+> text "arguments, bus has been given" <+> int (length ns)))
                  alts'
 
-     let resType = ts !! 0
+     let resType = head ts
      unless (all (alphaEq d resType) ts) $
             throwError (General $ text "All the alternatives should be of the same type")
 
@@ -565,7 +567,7 @@ infer (Case e alts) =
 
      return (resType, Case e' (zipWith substAltExpr alts' es))
 
-  where substAltExpr (ConstrAlt c ns _) expr = ConstrAlt c ns expr
+  where substAltExpr (ConstrAlt c ns _) = ConstrAlt c ns
         substAltConstr (ConstrAlt _ ns expr) c = ConstrAlt c ns expr
 
         isDatatype (Datatype _ _) = True
@@ -732,7 +734,7 @@ findOneDup xs = go xs Set.empty
                      else go xs' (Set.insert x s)
 
 foldTypes :: Type -> [Type] -> Type
-foldTypes = foldr (\t base -> Fun t base)
+foldTypes = foldr Fun
 
 unfoldTypes :: Type -> [Type]
 unfoldTypes t@(Datatype _ _) = [t]
