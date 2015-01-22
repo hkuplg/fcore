@@ -63,6 +63,10 @@ tokens :-
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
     module      { \_ _ -> Tmodule }
+    data        { \_ _ -> Tdata }
+    \|          { \_ _ -> Tbar }
+    case        { \_ _ -> Tcase }
+    of          { \_ _ -> Tof }
     end         { \_ _ -> Tend }
 
     -- Literals
@@ -114,6 +118,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule | Tend
            | Temptytree | Tnonemptytree
+	   | Tdata | Tcase | Tbar | Tof | Tto
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

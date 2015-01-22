@@ -43,6 +43,7 @@ transType _  F.Unit          = Unit
 transType i (F.And a1 a2)    = Product [transType i a1, transType i a2]
 transType i (F.Record (_,t)) = transType i t
 transType i (F.Thunk t)      = Fun Unit (transType i t)
+transType _ (F.Datatype n ns) = Datatype n ns
 
 -- Subtyping
 -- For SystemFI.
@@ -62,6 +63,7 @@ subtype' this i (F.Record (l1,t1)) (F.Record (l2,t2))
   | otherwise                                 = False
 subtype' this i  t1            (F.Thunk t2)   = this i t1 t2
 subtype' this i (F.Thunk t1)    t2            = this i t1 t2
+subtype' _ _ (F.Datatype n1 _) (F.Datatype n2 _)  = n1 == n2 -- TODO
 subtype' _    _  _              _             = False
 
 subtype :: Index -> F.Type Index -> F.Type Index -> Bool
@@ -134,6 +136,12 @@ infer' this i j (F.RecordIntro (l,e)) = F.Record (l, this i j e)
 infer' this i j (F.RecordElim e l1)   = t1 where Just (t1,_) = getter i j (this i j e) l1
 infer' this i j (F.RecordUpdate e _)  = this i j e
 infer' this i j (F.Lazy e)            = F.Thunk (this i j e)
+infer' this i j (F.Case _ alts)       = inferAlt $ head alts
+    where inferAlt (F.ConstrAlt c _ e)  =
+              let ts = F.constrParams c
+                  n = length ts
+              in this i (j+n) (e (zip [j..j+n-1] ts))
+infer' _ _ _ (F.Constr c _)           = last $ F.constrParams c
 
 infer :: Index -> Index -> F.Expr Index (Index, F.Type Index) -> F.Type Index
 infer = new infer'
@@ -197,6 +205,15 @@ transExpr' _ this i j (F.PrimOp e1 op e2)            = PrimOp (snd (this i j e1)
 transExpr' _ this i j (F.Tuple es)                   = Tuple (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (F.Proj index e)               = Proj index (snd (this i j e))
 transExpr' _ this i j (F.JNew c es)                  = JNew c (snd (unzip (map (this i j) es)))
+transExpr' _ this i j (F.Constr (F.Constructor n ts) es) = Constr (Constructor n (map (transType i) ts)) (map (snd . this i j) es)
+transExpr' _ this i j (F.Case e alts)                = Case e' (map transAlt alts)
+    where (_,e') = this i j e
+          transAlt (F.ConstrAlt (F.Constructor n ts) ns f) =
+              let m = length ts
+                  js = [j..j+m-1]
+                  (_,f') = this i (j+m) (f (zip js ts))
+                  ts' = map (transType i) ts
+              in ConstrAlt (Constructor n ts') ns (\es -> foldl (\acc (j',x) -> fsubstEE j' (var x) acc) f' (zip js es))
 
 -- At the moment, in `System.out.println(x)`, `x` can be left as a thunk even
 -- after the simplification. We need to recursively force the arguments of a

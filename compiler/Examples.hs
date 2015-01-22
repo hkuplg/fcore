@@ -29,6 +29,12 @@ instance Show (Expr t e) where
 instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
+instance Show Value where
+    show = show . pretty
+
+instance Show ExecutionTree where
+    show = show . pretty
+
 -- let tailFact : Int -> Int -> Int
 --   = \(acc : Int). \(n : Int). if n == 0 then acc else tailFact (acc * n) (n - 1)
 -- in
@@ -93,8 +99,8 @@ evenOdd
 evenOddEncodedTy :: Type t
 evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` javaBool]
 
-konstTy :: Type t
-konstTy = Forall "konst" (\a -> Forall (\b -> Fun (tVar a) (Fun (tVar b) (tVar a))))
+-- konstTy :: Type t
+-- konstTy = Forall "konst" (\a -> Forall (\b -> Fun (tVar a) (Fun (tVar b) (tVar a))))
 
 callByValue = lam javaInt (\x -> Seq [println (var x), intLit 0])
 callByName  = lam (Fun Unit javaInt) (\x -> Seq [println (var x), intLit 0])
@@ -121,12 +127,12 @@ app_lam_if = App (lam javaInt (\x -> If ((var x) `eq` one)
 app_lam_app = App (lam javaInt (\x -> App (lam javaInt (\y -> (var x) `sub` (var y))) zero))
               one
 
-fix = fix (\f n -> If (((one `sub` zero) `eq` zero))
+fix' = fix (\f n -> If (((one `sub` zero) `eq` zero))
                    one
                    (var n `mult` (var f `App` (var n `sub` one))))
       javaInt
       (javaInt `Fun` javaInt)
-app_fix = App fix (Lit (S.Int 10))
+app_fix = App fix' (Lit (S.Int 10))
 
 -- test App e1 e2, where e1 can be partially evaluated to a Lam
 minus = lam javaInt (\x -> lam javaInt (\y -> var x `sub` var y))
@@ -164,7 +170,8 @@ boolfun = lam (Fun javaBool javaBool) (\n -> If ((App (var n) true) `neq` (App (
 
 app_bool_fun = App boolfun inverse
 
-
+-- interface to symbolic evaluator
+se str = sf2core str >>= (\e -> solve e)
 
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (S.Int 0)

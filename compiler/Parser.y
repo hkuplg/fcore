@@ -47,6 +47,10 @@ import JavaUtils
   "else"   { Telse }
   ","      { Tcomma }
 
+  "data"   { Tdata }
+  "case"   { Tcase }
+  "|"      { Tbar }
+  "of"     { Tof }
 
   UPPERID  { Tupperid $$ }
   LOWERID  { Tlowerid $$ }
@@ -81,6 +85,7 @@ import JavaUtils
   "&&"     { Tprimop J.CAnd   }
   "||"     { Tprimop J.COr    }
 
+
 -- Precedence and associativity directives
 %nonassoc EOF
 
@@ -112,6 +117,9 @@ module :: { ReaderModule }
 
 module_name :: { ReaderId }
   : UPPERID  { $1 }
+
+constr_name :: { Name }
+  : tvar  { $1 }
 
 -- Types
 
@@ -159,6 +167,14 @@ tvars :: { [ReaderId] }
 tvar :: { ReaderId }
   : UPPERID                  { $1 }
 
+vars :: { [Name] }
+  : {- empty -}              { []    }
+  | var vars                 { $1:$2 }
+
+types :: { [Type] }
+  : {- empty -}              { [] }
+  | atype types              { $1:$2 }
+
 -- Expressions
 
 expr :: { ReaderExpr }
@@ -175,6 +191,8 @@ expr :: { ReaderExpr }
 
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
+    | "data" tvar "=" constrs_decl ";" expr    { Data $2 $4 $6 }
+    | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
     | module expr                   { LetModule $1 $2 }
 
@@ -211,6 +229,7 @@ aexpr :: { ReaderExpr }
     | "{" recordlit_body "}"    { RecordIntro $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }
+    | "{" constr_name aexprs "}"{ Constr (Constructor $2 []) $3 }
     | "(" expr ")"              { $2 }
 
 lit :: { ReaderExpr }
@@ -273,7 +292,11 @@ comma_exprs1 :: { [ReaderExpr] }
 
 comma_exprs2 :: { [ReaderExpr] }
     : expr "," expr           { [$1,$3]  }
-    | expr "," comma_exprs2   { $1:$3     }
+    | expr "," comma_exprs2   { $1:$3    }
+
+aexprs :: { [ReaderExpr] }
+    :  {- empty -}            { [] }
+    | aexpr aexprs            { $1:$2 }
 
 bind :: { ReaderBind }
     : var tvars args maybe_sig "=" expr
@@ -312,6 +335,20 @@ args :: { [(ReaderId, ReaderType)] }
 
 var :: { ReaderId }
     : LOWERID           { $1 }
+
+constrs_decl :: { [Constructor] }
+    : constr_decl { [$1] }
+    | constr_decl "|" constrs_decl { $1:$3 }
+
+constr_decl :: { Constructor }
+    : constr_name types { Constructor $1 $2 }
+
+patterns :: { [Alt ReaderId Type] }
+    : pattern { [$1] }
+    | pattern "|" patterns { $1:$3 }
+
+pattern :: { Alt ReaderId Type}
+    : constr_name vars "->" expr { ConstrAlt (Constructor $1 []) $2 $4 }
 
 {
 -- The monadic parser

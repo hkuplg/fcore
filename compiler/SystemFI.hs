@@ -4,6 +4,8 @@
 module SystemFI
   ( Type(..)
   , Expr(..)
+  , Constructor(..)
+  , Alt(..)
 --, TypeContext
 --, ValueContext
 --, Index
@@ -47,6 +49,7 @@ data Type t
   | And (Type t) (Type t)               -- t1 & t2
   | Record (Src.Label, Type t)
   | Thunk (Type t)
+  | Datatype Src.ReaderId [Src.ReaderId]
     -- Warning: If you ever add a case to this, you *must* also define the
     -- binary relations on your new case. Namely, add cases for your data
     -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
@@ -97,6 +100,13 @@ data Expr t e
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
   | Lazy (Expr t e)
 
+  | Constr (Constructor t) [Expr t e]
+  | Case (Expr t e) [Alt t e]
+
+data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ([e] -> Expr t e)
+            -- | Default (Expr t e)
+
+data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
 -- newtype Typ = HideTyp { revealTyp :: forall t. Type t } -- type of closed types
 
 -- newtype Exp = HideExp { revealExp :: forall t e. Expr t e }
@@ -127,6 +137,7 @@ mapTVar _  Unit          = Unit
 mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
 mapTVar g (Thunk t)      = Thunk (mapTVar g t)
+mapTVar _ t@(Datatype _ _)  = t
 
 mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
@@ -136,6 +147,10 @@ mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
 mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
+mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
+    where c' = Constructor n (map h ts)
+mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
+    where mapAlt (ConstrAlt (Constructor n ts) ns f) = ConstrAlt (Constructor n (map h ts)) ns ((mapVar g h) . f)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
@@ -172,6 +187,7 @@ joinType  Unit            = Unit
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (Record (l,t))   = Record (l, joinType t)
 joinType (Thunk t)        = Thunk (joinType t)
+joinType (Datatype n ns)  = Datatype n ns
 
 tVar :: t -> Type t
 tVar = TVar "_"
@@ -200,6 +216,8 @@ prettyType = prettyType' basePrec 0
 prettyType' :: Prec -> Index -> Type Index -> Doc
 
 prettyType' _ _ (TVar n a)   = text n
+
+prettyType' _ _ (Datatype n _) = text n
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2
@@ -344,6 +362,14 @@ prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> t
 prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordIntro (l, e1))
 prettyExpr' _ (i,j) (Lazy e)                 = char '\'' <> parens (prettyExpr' basePrec (i,j) e)
 
+prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
+
+prettyExpr' p (i,j) (Case e alts) =
+    hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)
+    where pretty_alt (ConstrAlt c ns es) =
+              let n = length ns
+                  ids = [j..j+n-1]
+              in intersperseSpace (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
 
 javaInt :: Type t
 javaInt = JClass "java.lang.Integer"

@@ -4,9 +4,11 @@
 module Core
   ( Type(..)
   , Expr(..)
+  , Alt(..)
   , TypeContext
   , ValueContext
   , Index
+  , Constructor(..)
   , alphaEq
   , mapTVar
   , mapVar
@@ -44,6 +46,7 @@ data Type t
   | Forall Src.ReaderId (t -> Type t)  -- forall a. t
   | Product [Type t]                   -- (t1, ..., tn)
   | Unit
+  | Datatype Src.ReaderId [Src.ReaderId]
 
 data Expr t e
   = Var Src.ReaderId e
@@ -84,6 +87,14 @@ data Expr t e
 
   | Seq [Expr t e]
 
+  | Constr (Constructor t) [Expr t e]
+  | Case (Expr t e) [Alt t e]
+
+data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ([e] -> Expr t e)
+            -- | Default (Expr t e)
+
+data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
+
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
 
@@ -105,6 +116,7 @@ mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Forall n f)   = Forall n (mapTVar g . f)
 mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
+mapTVar _ t@(Datatype _ _)  = t
 
 mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
@@ -114,6 +126,10 @@ mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
 mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
+mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
+    where c' = Constructor n (map h ts)
+mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
+    where mapAlt (ConstrAlt (Constructor n ts) ns f) = ConstrAlt (Constructor n (map h ts)) ns ((mapVar g h) . f)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
@@ -136,12 +152,13 @@ fsubstEE x r = mapVar (\n a -> if a == x then r else Var n a) id
 
 
 joinType :: Type (Type t) -> Type t
-joinType (TVar n a)       = a
+joinType (TVar _ a)       = a
 joinType (JClass c)       = JClass c
 joinType (Fun t1 t2)      = Fun (joinType t1) (joinType t2)
 joinType (Forall n g)     = Forall n (joinType . g . TVar "_") -- Right?
 joinType (Product ts)     = Product (map joinType ts)
 joinType  Unit            = Unit
+joinType (Datatype n ns)  = Datatype n ns
 
 tVar :: t -> Type t
 tVar = TVar "_"
@@ -172,7 +189,9 @@ prettyType = prettyType' basePrec 0
 
 prettyType' :: Prec -> Index -> Type Index -> Doc
 
-prettyType' _ _ (TVar n a)   = text n
+prettyType' _ _ (TVar n _)   = text n
+
+prettyType' _ _ (Datatype n _)   = text n
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2
@@ -293,6 +312,15 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
                   pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
                   pretty_ids pretty_sigs pretty_defs
     pretty_body  = prettyExpr' p (i, j + n) (body ids)
+
+prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
+
+prettyExpr' p (i,j) (Case e alts) =
+    hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)
+    where pretty_alt (ConstrAlt c ns es) =
+              let n = length ns
+                  ids = [j..j+n-1]
+              in intersperseSpace (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
 
 javaInt :: Type t
 javaInt = JClass "java.lang.Integer"

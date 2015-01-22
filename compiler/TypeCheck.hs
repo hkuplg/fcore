@@ -39,6 +39,7 @@ import Control.Monad.Error
 import Data.Maybe (fromMaybe)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
+import Data.List (intersperse)
 
 import Prelude hiding (pred)
 
@@ -332,10 +333,14 @@ infer (If pred b1 b2)
 
 infer (Let rec_flag binds e) =
   do checkDupNames (map bindId binds)
+     -- type_ctxt <- getTypeContext
+     -- when True $
+     --     throwError (General $ text (show type_ctxt))
      binds' <- case rec_flag of
                  NonRec -> mapM inferBind binds
                  Rec    -> do sigs <- collectBindIdSigs binds
                               withLocalVars sigs (mapM inferBind binds)
+     -- when True $ throwError (General $ text (show binds'))
      (e', t) <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (infer e)
      return (LetOut rec_flag binds' e', t)
 
@@ -491,6 +496,76 @@ infer (Type t params rhs e)
   where
     pulledRight = pullRight params rhs
 
+infer (Data name cs e) =
+    do let names = map constrName cs
+       checkDupNames names
+       type_ctxt <- getTypeContext
+
+       let t = Datatype name names
+           dt = (Star, NonTerminalType t)
+           type_ctxt' = Map.insert name dt type_ctxt
+           types' = map (map (expandType type_ctxt') . constrParams) cs
+           constrBindings = zip names (map (foldTypes t) types')
+       withLocalTVars [(name, dt)] (withLocalVars constrBindings (infer e))
+
+infer (Constr c es) =
+    do value_ctxt <- getValueContext
+       let n = constrName c
+       ts <- case Map.lookup n value_ctxt of
+                  Just t -> return $ unfoldTypes t
+                  Nothing -> throwError (NotInScope n)
+       let (len_expected, len_actual) = (length ts - 1, length es)
+       unless (len_expected == len_actual) $
+              throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_expected <+> text "arguments, but has been given" <+> int len_actual)
+       (es', _) <- mapAndUnzipM (\(e',t) -> inferAgainst e' t) (zip es ts)
+       return (Constr (Constructor n ts) es', last ts)
+
+infer (Case e alts) =
+    do (e', t) <- infer e
+       unless (isDatatype t) $
+              throwError (General (bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"))
+       value_ctxt <- getValueContext
+       d <- getTypeContext
+       let ns = (\(Datatype _ xs) -> xs) t
+           constrs = map (\(ConstrAlt c _ _) -> c) alts
+       constrs' <- mapM (\c -> let n = constrName c
+                               in case Map.lookup n value_ctxt of
+                                    Just t' -> let ts = unfoldTypes t'
+                                               in if alphaEq d (last ts) t
+                                                  then return $ Constructor n ts
+                                                  else throwError (TypeMismatch t t')
+                                    Nothing -> throwError (NotInScope n))
+                   constrs
+       let alts' = zipWith substAltConstr alts constrs'
+
+       (es, ts) <- mapAndUnzipM
+                   (\(ConstrAlt c ns e2) ->
+                        let n = constrName c
+                            ts = init $ constrParams c
+                        in if length ts == length ns
+                           then withLocalVars (zip ns ts) (infer e2)
+                           else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
+                                                                     <+> text "arguments, bus has been given" <+> int (length ns)))
+                   alts'
+
+       let resType = ts !! 0
+       unless (all (alphaEq d resType) ts) $
+              throwError (General $ text "All the alternatives should be of the same type")
+
+       let allConstrs = Set.fromList ns
+       let matchedConstrs = Set.fromList $ map constrName constrs
+       let unmatchedConstrs = allConstrs Set.\\ matchedConstrs
+       unless (Set.null unmatchedConstrs) $
+              throwError (General $ text "Pattern match(es) are non-exhaustive." <+> vcat (intersperse space (map (bquotes . text) $ Set.elems unmatchedConstrs)))
+
+       return (Case e' (zipWith substAltExpr alts' es), resType)
+
+    where substAltExpr (ConstrAlt c ns _) expr = ConstrAlt c ns expr
+          substAltConstr (ConstrAlt _ ns expr) c = ConstrAlt c ns expr
+
+          isDatatype (Datatype _ _) = True
+          isDatatype _ = False
+
 -- | "Pull" the type params at the LHS of the equal sign to the right.
 -- A (high-level) example:
 --   A B t  ->  \A. \B. t
@@ -625,7 +700,6 @@ checkFieldAccess callee f
     where
        (static_flag, c) = unwrapJCallee callee
 
-
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)
 unwrapJCallee (Static    c) = (True, c)
@@ -651,3 +725,10 @@ findOneDup xs = go xs Set.empty
     go (x:xs') s = if Set.member x s
                      then Just x
                      else go xs' (Set.insert x s)
+
+foldTypes :: Type -> [Type] -> Type
+foldTypes = foldr (\t base -> Fun t base)
+
+unfoldTypes :: Type -> [Type]
+unfoldTypes t@(Datatype _ _) = [t]
+unfoldTypes (Fun t t') = t : unfoldTypes t'
