@@ -19,14 +19,18 @@ createExp :: [String] -> String
 createExp [] = ""
 createExp (x:xs) = x ++ " " ++ createExp xs
 
--- y is "="
--- Sample input: ["x", "=", "y" , "+", "2"]
--- Sample output: splitOn ["="] xs ~> [["x"], ["y", "+", "2"]]
--- Sample output: ("x", "y+2")
 createPair :: [String] -> (String, String)
 createPair xs = (var, exp) where
-        var = ((splitOn ["="] xs) !! 0) !! 0
-        exp = createExp ((splitOn ["="] xs) !! 1)
+        var = case firstElem 0 "=" xs of
+                -1  -> "" 
+                num -> let func = unwords . fst . (splitAt num) in func xs
+        exp = case firstElem 0 "=" xs of
+	        -1  -> ""
+		num -> let func = unwords . tail . snd . (splitAt num) in func xs
+
+firstElem :: Int -> String -> [String] -> Int
+firstElem _ _ [] = -1
+firstElem num elem (x:xs) = if x == elem then num else firstElem (num+1) elem xs 
 
 reverseEnv :: Env -> Env
 reverseEnv env = reverse env

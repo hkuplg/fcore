@@ -45,8 +45,8 @@ main = do
      hSetBuffering outP LineBuffering
      liftIO printHelp
      runInputT defaultSettings 
-	       (Loop.loop (inP, outP) (0, compileN, [Naive])  
-		          Map.empty Env.empty Hist.empty Hist.empty 0 False False False False 0)
+	       (Loop.loop (inP, outP) (0, compileN, [Naive]) "" Map.empty Env.empty 
+                          Hist.empty Hist.empty 0 False False False False 0)
      terminateProcess proch
      
 fileExist :: String -> IO ()
