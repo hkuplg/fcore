@@ -105,6 +105,8 @@ coerce i (F.And t1 t2) t3 =
         Just c  -> return (lam (transType i (F.And t1 t2)) (App c . Proj 2 . var))
 coerce i (F.Record (l1,t1)) (F.Record (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
+coerce i d@(F.Datatype n1 _) (F.Datatype n2 _) | n1 == n2  = return (lam (transType i d) var)
+                                               | otherwise = Nothing
 coerce _ _ _ = Nothing
 
 infer':: Class (Index -> Index -> F.Expr Index (Index, F.Type Index) -> F.Type Index)
