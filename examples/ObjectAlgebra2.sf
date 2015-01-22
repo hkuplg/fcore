@@ -1,0 +1,24 @@
+-- OA with OO-like interfaces (IEval, IPrint)
+
+type IEval  = { eval : Int };
+type IPrint = { print : String };
+type ExpAlg E = { lit : Int -> E, add : E -> E -> E };
+let evalAlg = {
+  lit = \(x : Int). { eval = x },
+  add = \(x : IEval). \(y : IEval). { eval = x.eval + y.eval }
+};
+type SubExpAlg E = (ExpAlg E) & { sub : E -> E -> E };
+let subEvalAlg = evalAlg ,, { sub = \ (x : IEval). \ (y : IEval). { eval = x.eval - y.eval } };
+let printAlg = {
+  lit = \(x : Int). { print = x.toString() },
+  add = \(x : IPrint). \(y : IPrint). { print = x.print.concat(" + ").concat(y.print) },
+  sub = \(x : IPrint). \(y : IPrint). { print = x.print.concat(" - ").concat(y.print) }
+};
+let merge A B (f : ExpAlg A) (g : ExpAlg B) = {
+  lit = \(x : Int). f.lit x ,, g.lit x,
+  add = \(x : A & B). \(y : A & B). f.add x y ,, g.add x y
+};
+let exp1 E (f : ExpAlg E)    = f.add (f.lit 6) (f.lit 6);
+let exp2 E (f : SubExpAlg E) = f.sub (exp1 E f) (f.lit 2);
+let newAlg = merge IEval IPrint subEvalAlg printAlg in
+(exp1 (IEval & IPrint) newAlg).print

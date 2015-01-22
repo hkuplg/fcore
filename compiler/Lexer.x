@@ -42,8 +42,8 @@ tokens :-
     \,\,        { \_ _ -> Tmerge }
     with        { \_ _ -> Twith }
     \'          { \_ _ -> Tquote }
-    this        { \_ _ -> Tthis }
-    super       { \_ _ -> Tsuper }
+    -- this        { \_ _ -> Tthis }
+    -- super       { \_ _ -> Tsuper }
     type        { \_ _ -> Ttype }
     let         { \_ _ -> Tlet }
     rec         { \_ _ -> Trec }
@@ -63,6 +63,11 @@ tokens :-
     \,          { \_ _ -> Tcomma }
     new         { \_ _ -> Tnew }
     module      { \_ _ -> Tmodule }
+    data        { \_ _ -> Tdata }
+    \|          { \_ _ -> Tbar }
+    case        { \_ _ -> Tcase }
+    of          { \_ _ -> Tof }
+    end         { \_ _ -> Tend }
 
     -- Literals
     $digit+                { \_ s -> Tint (read s) }
@@ -100,7 +105,8 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tthis | Tsuper
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote
+           -- | Tthis | Tsuper
            | Ttype | Tlet | Trec | Teq | Tand | Tin
            | Tjavaclass String
            | Tnew
@@ -110,8 +116,9 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule
+           | Tmodule | Tend
            | Temptytree | Tnonemptytree
+	   | Tdata | Tcase | Tbar | Tof | Tto
            deriving (Eq, Show)
 
 lexer :: String -> [Token]

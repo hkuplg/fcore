@@ -5,19 +5,19 @@
 
 module SymbolicEvaluator where
 
-import           Core
+import           Core                    hiding (fix)
 import qualified Language.Java.Syntax    as J (Op (..))
 import           Panic
 import           Prelude                 hiding (EQ, GT, LT)
 import qualified Src                     as S
+import           Data.Maybe
+import           PrettyUtils
+import           Text.PrettyPrint.ANSI.Leijen
 import Control.Monad.Fix (fix)
-import Data.IntSet hiding (map)
--- import           PrettyUtils
--- import           Text.PrettyPrint.Leijen
--- import DataTypes
 
 data Value = VInt Integer
            | VBool Bool
+           | VConstr S.ReaderId [Value]
            | VFun (Value -> Value)
 
 -- big-step interpreter
@@ -34,7 +34,7 @@ eval (App e1 e2) =
     case eval e1 of
       VFun f -> f (eval e2)
       _ -> panic "e1 is not a function"
-eval (BLam f) = eval (f ())
+eval (BLam _ f) = eval (f ())
 eval (TApp e1 _) = eval e1
 eval (If e1 e2 e3) =
        case eval e1 of
@@ -67,24 +67,34 @@ eval (PrimOp e1 op e2) =
                S.Compare J.NotEq -> VBool $ a /= b
                -- _ -> simplified
          _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
-eval g@(Fix f _ _) = VFun (\n -> eval $ f (eval g) n)
-eval (LetRec _ binds body) = eval . body . fix $ map eval . binds
+eval g@(Fix _ _ f _ _) = VFun $ eval . f (eval g)
+eval (LetRec _ _ binds body) = eval . body . fix $ map eval . binds
+eval (Constr c es) = VConstr (constrName c) (map eval es)
+eval (Case e alts) =
+    case eval e of
+      VConstr n vs -> eval $ fromJust (lookup n table) vs
+    where table = map (\(ConstrAlt c _ f) -> (constrName c, f)) alts
 eval _ = panic "Can not be evaled"
 
+data SConstructor = SConstructor {sconstrName :: S.ReaderId, sconstrParams :: [SymType], sconstrDatatype :: SymType}
+
 data ExecutionTree = Exp SymValue
-                   | Fork ExecutionTree SymValue ExecutionTree
+                   -- | Fork ExecutionTree SymValue ExecutionTree
+                   | Fork SymValue (Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.ReaderId], [ExecutionTree] -> ExecutionTree)])
                    | NewSymVar Int SymType ExecutionTree
 
 data SymType = TInt
              | TBool
              | TFun [SymType] SymType
+             | TData S.ReaderId [S.ReaderId]
 
-data SymValue = SVar Int SymType -- free variables
+data SymValue = SVar S.ReaderId Int SymType -- free variables
               | SInt Integer
               | SBool Bool
               | SApp SymValue SymValue
               | SOp Op SymValue SymValue
-              | SFun (ExecutionTree -> ExecutionTree) SymType
+              | SFun S.ReaderId (ExecutionTree -> ExecutionTree) SymType
+              | SConstr SConstructor [SymValue]
 
 data Op = ADD
         | MUL
@@ -99,13 +109,13 @@ data Op = ADD
         | OR
         | AND
 
--- Add index to SVars
+-- Add index to SVars and apply symbolic value to top-level closure
 exec :: ExecutionTree -> (ExecutionTree, Int)
-exec e = go e 0
-    where go (Exp (SFun f t)) i =
-              case (go (f . Exp $ SVar i t) (i+1)) of
-                (e, i') -> (NewSymVar i t e, i')
-          go e i = (e, i)
+exec = go 0
+    where go i (Exp (SFun n f t)) =
+              case go (i+1) (f . Exp $ SVar n i t) of
+                (e', i') -> (NewSymVar i t e', i')
+          go i e = (e, i)
 
 -- symbolic evaluation
 seval :: Expr () ExecutionTree -> ExecutionTree
@@ -119,7 +129,7 @@ seval (If e1 e2 e3) =
     case e1' of
         Exp (SBool True) -> seval e2
         Exp (SBool False) -> seval e3
-        _ -> propagate e1' (seval e2) (seval e3)
+        _ -> propagate e1' (Left (seval e2, seval e3))
     where e1' = seval e1
 
 seval (PrimOp e1 op e2) =
@@ -145,29 +155,46 @@ seval (PrimOp e1 op e2) =
     where e1' = seval e1
           e2' = seval e2
 
-seval (Lam _ t f) = Exp $ SFun (seval . f) (etype2stype t)
+seval (Lam n t f) = Exp $ SFun n (seval . f) (transType t)
 seval (Let _ e f) = seval . f $ seval e
 seval (App e1 e2) = treeApply (seval e1) (seval e2)
-seval (BLam f) =  seval $ f ()
+seval (BLam _ f) =  seval $ f ()
 seval (TApp e _) = seval e
-seval g@(Fix f t _) = Exp $ SFun (\n -> seval $ f (seval g) n) (etype2stype t)
-seval (LetRec _ binds body) = seval . body . fix $ map seval . binds
+seval g@(Fix _ n f t _) = Exp $ SFun n (seval . f (seval g)) (transType t)
+seval (LetRec _ _ binds body) = seval . body . fix $ map seval . binds
+seval (Constr c es) = mergeList (SConstr $ transConstructor c) (map seval es)
+seval (Case e alts) = propagate (seval e) (Right (map (\(ConstrAlt c ns f) -> (transConstructor c, ns, seval . f)) alts))
 seval _ = error "seval: not supported"
 
-etype2stype :: Type t -> SymType
-etype2stype (JClass t) = str2stype t
-etype2stype (Fun (JClass a) (JClass b)) = TFun [str2stype a] (str2stype b)
-etype2stype _ = error "etype2stype: not supported"
+transConstructor :: Constructor () -> SConstructor
+transConstructor (Constructor n ts) = SConstructor n (init ts') (last ts')
+    where ts' = map transType ts
 
-str2stype :: String -> SymType
-str2stype "java.lang.Integer" = TInt
-str2stype "java.lang.Boolean" = TBool
-str2stype _ = error "str2stype: unknown java type"
+propagate :: ExecutionTree ->
+             Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.ReaderId], [ExecutionTree] -> ExecutionTree)] ->
+             ExecutionTree
+propagate (Exp e) ts = Fork e ts
+propagate (Fork e (Left (l,r))) ts' = Fork e (Left (propagate l ts', propagate r ts'))
+propagate (Fork e (Right ts)) ts' = Fork e (Right [(c, ns, \es -> propagate (f es) ts')| (c,ns,f) <- ts])
+propagate (NewSymVar i typ t) ts = NewSymVar i typ (propagate t ts)
 
-propagate :: ExecutionTree -> ExecutionTree -> ExecutionTree -> ExecutionTree
-propagate (Exp e) t1 t2 = Fork t1 e t2
-propagate (Fork l e r) t1 t2 = Fork (propagate l t1 t2) e (propagate r t1 t2)
-propagate (NewSymVar i typ tree) t1 t2 = NewSymVar i typ (propagate tree t1 t2)
+transType :: Type t -> SymType
+transType (JClass t) = jname2symtype t
+transType (Fun t1 t2) = TFun [transType t1] (transType t2)
+transType (Datatype n ns) = TData n ns
+transType _ = error "transType: not supported"
+
+jname2symtype :: String -> SymType
+jname2symtype "java.lang.Integer" = TInt
+jname2symtype "java.lang.Boolean" = TBool
+jname2symtype _ = error "str2stype: unsupported java type"
+
+mergeList :: ([SymValue] -> SymValue) -> [ExecutionTree] -> ExecutionTree
+mergeList f [] = Exp (f [])
+mergeList f (Exp e : xs) = mergeList (\es -> f (e:es)) xs
+mergeList f (Fork e (Left (l, r)) : xs) = Fork e $ Left (mergeList f (l:xs), mergeList f (r:xs))
+mergeList f (Fork e (Right ts) : xs) = Fork e $ Right [(c, ns, \es -> mergeList f (g es : xs)) | (c,ns,g) <- ts]
+mergeList f (NewSymVar i typ tree : xs) = NewSymVar i typ (mergeList f (tree:xs))
 
 merge :: (SymValue -> SymValue -> SymValue, Op)
       -> ExecutionTree
@@ -198,11 +225,8 @@ merge (_, NEQ) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a/=b)
 merge (_, NEQ) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a/=b)
 
 merge (_, LT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a<b)
-
 merge (_, LE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a<=b)
-
 merge (_, GT) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a>b)
-
 merge (_, GE) (Exp (SInt a)) (Exp (SInt b)) = Exp $ SBool (a>=b)
 
 merge (_, OR) (Exp (SBool a)) (Exp (SBool b)) = Exp $ SBool (a||b)
@@ -218,8 +242,10 @@ merge (_, AND) (Exp (SBool True)) e = e
 merge (_, AND) e (Exp (SBool True)) = e
 
 merge (f, _) (Exp e1) (Exp e2) = Exp (f e1 e2)
-merge f (Fork l e r) t = Fork (merge f l t) e (merge f r t)
-merge f t (Fork l e r) = Fork (merge f t l) e (merge f t r)
+merge f (Fork e (Left (l,r))) t = Fork e $ Left (merge f l t, merge f r t)
+merge f t (Fork e (Left (l,r))) = Fork e $ Left (merge f t l, merge f t r)
+merge f (Fork e (Right ts)) t = Fork e $ Right [(c, ns, \es -> merge f (g es) t) | (c,ns,g) <- ts]
+merge f t (Fork e (Right ts)) = Fork e $ Right [(c, ns, \es -> merge f t (g es)) | (c,ns,g) <- ts]
 merge f (NewSymVar i t t1) t2 = NewSymVar i t (merge f t1 t2)
 merge f t1 (NewSymVar i typ t2) = NewSymVar i typ (merge f t1 t2)
 
@@ -227,109 +253,72 @@ merge f t1 (NewSymVar i typ t2) = NewSymVar i typ (merge f t1 t2)
 treeApply :: ExecutionTree -> ExecutionTree -> ExecutionTree
 treeApply (Exp e) t =
     case e of
-      SVar i typ -> apply (SApp (SVar i typ)) t
-      SFun f _ -> f t
-treeApply (Fork l e r) t = Fork (treeApply l t) e (treeApply r t)
+      SVar n i typ -> apply (SApp (SVar n i typ)) t
+      SFun _ f _ -> f t
+treeApply (Fork e (Left (l,r))) t = Fork e $ Left (treeApply l t, treeApply r t)
+treeApply (Fork e (Right ts)) t = Fork e $ Right [(c, ns, \es -> treeApply (f es) t) | (c,ns,f) <- ts]
 treeApply (NewSymVar i typ t1) t2 = NewSymVar i typ (treeApply t1 t2)
 
 apply :: (SymValue -> SymValue) -> ExecutionTree -> ExecutionTree
 apply f (Exp e) = Exp (f e)
-apply f (Fork l e r) = Fork (apply f l) e (apply f r)
+apply f (Fork e (Left (l,r))) = Fork e $ Left (apply f l, apply f r)
+apply f (Fork e (Right ts)) = Fork e $ Right [(c, ns, apply f . g)| (c,ns,g) <- ts]
 apply f (NewSymVar i typ t) = NewSymVar i typ (apply f t)
 
-instance Show Value where
-    show (VFun _) = "<<func>>"
-    show (VInt x) = show x
-    show (VBool b) = show b
+instance Pretty Value where
+    pretty (VFun _) = text "<<func>>"
+    pretty (VInt x) = integer x
+    pretty (VBool b) = bool b
+    pretty (VConstr n vs) = fillSep $ text n : (map pretty vs)
 
-instance Show Op where
-    show ADD = " + "
-    show MUL = " * "
-    show SUB = " - "
-    show DIV = " / "
-    show LT = " < "
-    show LE = " <= "
-    show GT = " > "
-    show GE = " >= "
-    show EQ = " == "
-    show NEQ = " /= "
-    show OR = " || "
-    show AND = " && "
+instance Pretty Op where
+    pretty op =
+        text $ case op of
+                 ADD -> "+"
+                 MUL -> "*"
+                 SUB -> "-"
+                 DIV -> "/"
+                 LT -> "<"
+                 LE -> "<="
+                 GT -> ">"
+                 GE -> ">="
+                 EQ -> "=="
+                 NEQ -> "/="
+                 OR -> "||"
+                 AND -> "&&"
 
-instance Show SymValue where
-    show (SVar i _) = "x" ++ show i
-    show (SInt i) = show i
-    show (SBool b) = show b
-    show (SApp e1 e2) = show e1 ++ " " ++ show e2
-    show (SOp op e1 e2) = "(" ++ show e1 ++ show op ++ show e2 ++ ")"
-    show (SFun _ _) = "<<fun>>"
+instance Pretty SymValue where
+    -- pretty (SVar i _) = text "x" <> int i
+    pretty (SVar n _ _) = text n
+    pretty (SInt i) = integer i
+    pretty (SBool b) = bool b
+    pretty (SApp e1 e2) = pretty e1 <+> pretty e2
+    pretty (SOp op e1 e2) = parens $ pretty e1 <+> pretty op <+> pretty e2
+    pretty (SFun _ _ _) = text "<<fun>>"
+    pretty (SConstr c es) = intersperseSpace $ text (sconstrName c) : (map pretty es)
 
--- instance Pretty ExecutionTree where
-    -- pretty t = prettyTree t
+instance Pretty ExecutionTree where
+    pretty t = fst $ prettyTree t (text "True") 5
 
--- prettyTree :: ExecutionTree -> Doc
--- prettyTree t 0 = empty
--- prettyTree (Exp e) stop = imply <+> prettySymValue e <>
+prettyTree :: ExecutionTree -> Doc -> Int -> (Doc, Int)
+prettyTree _ _ 0 = (empty, 0)
+prettyTree (Exp e) s stop = (s <+> evalTo <+> pretty e <> linebreak, stop - 1)
+prettyTree (Fork e (Left (l,r))) s stop =
+    let s1 = pretty e
+        (s2, stop2) = prettyTree l (s <+> text "&&" <+> s1) stop
+        (s3, stop3) = prettyTree r (s <+> text "&&" <+> prependNot s1) stop2
+    in (s2 <> s3, stop3)
+prettyTree (Fork e (Right ts)) s stop =
+    foldl (\(sacc, i) (c,ns,f) ->
+               let (snew, i') = prettyTree (f $ supply ns [1..]) (s <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ (sconstrName c) : ns)) i
+               in (sacc <> snew, i'))
+       (empty, stop)
+       ts
+prettyTree (NewSymVar _ _ t) s stop = prettyTree t s stop
 
-instance Show ExecutionTree where
-    show e = fst $ pp e "True" 5
+supply :: [S.ReaderId] -> [Int] -> [ExecutionTree]
+supply ns ids = zipWith (\i n -> Exp $ SVar n i TInt) ids ns
 
-pp :: ExecutionTree -> String -> Int -> (String, Int)
-pp _ _ 0 = ("", 0)
-pp (Exp e) s stop = (s ++ " ==> " ++ show e ++ "\n", stop - 1)
-pp (Fork l e r) s stop =
-    let s1 = show e
-        (s2, stop2) = pp l (s ++ " && " ++ s1) stop
-        (s3, stop3) = pp r (s ++ " && " ++ "not (" ++ s1 ++ ")") stop2
-    in (s2 ++ s3, stop3)
-pp (NewSymVar _ _ t) s stop = pp t s stop
-
--- prettyZ3 :: ExecutionTree -> String -> IntSet -> Int -> [String]
--- prettyZ3 _ _ _ 0 = []
--- prettyZ3 (Exp e) s vars stop = [s ++ "\n(check-sat)\n" ++ simplify e ++ "\n(pop)"]
--- prettyZ3 (Fork l e r) s vars stop =
---     let v1 = freeSVars e
---         undeclared = v1 `difference` vars
---         vars' = vars `union` undeclared
---         declared = unlines $ map declare $ toList undeclared
---         s1 = s ++ "\n" ++ declared
---         s2 = prettyZ3 l (s1 ++ assert e) vars' (stop - 1)
---         s3 = prettyZ3 r (s1 ++ assertNeg e) vars' (stop - 1)
---     in s2 ++ s3
-
--- prettyZ3SymValue :: SymValue -> String
--- prettyZ3SymValue (SOp op e1 e2) =
---     case op of
---       ADD -> "(+ " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       MUL -> "(* " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       SUB -> "(- " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       DIV -> "(/ " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       LT -> "(< " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       LE -> "(<= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       GT -> "(> " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       GE -> "(>= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       EQ -> "(= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       NEQ -> "(not (= " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ "))"
---       OR -> "(or " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
---       AND -> "(and " ++ prettyZ3SymValue e1 ++ " " ++ prettyZ3SymValue e2 ++ ")"
--- prettyZ3SymValue (SFun _ _) = error "prettyZ3SymValue SFun"
--- prettyZ3SymValue e = show e
-
--- declare :: Int -> String
--- declare n = "(declare-const " ++ "x" ++ show n ++ "Int)"
-
--- assert, assertNeg :: SymValue -> String
--- assert e = "(assert " ++ prettyZ3SymValue e ++ ")"
--- assertNeg e = "(assert (not" ++ prettyZ3SymValue e ++ "))"
-
--- freeSVars :: SymValue -> IntSet
--- freeSVars (SVar i _) = singleton i
--- freeSVars (SOp _ e1 e2) = freeSVars e1 `union` freeSVars e2
--- freeSVars (SApp e1 e2) = freeSVars e1 `union` freeSVars e2
--- freeSVars _ = Data.IntSet.empty
-
--- simplify :: SymValue -> String
--- simplify e = "(simplify " ++ prettyZ3SymValue e ++ ")"
+-- genVars n = map (text . ("x"++) . show) [1..n]
 
 fun e = fst . exec . seval $ e
--- fun' e = mapM_ putStrLn $ prettyZ3 (exec . seval $ e) "(push)" Data.IntSet.empty 6

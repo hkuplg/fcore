@@ -17,7 +17,7 @@ import Z3Backend
 import PrettyUtils
 import OptiUtils
 
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 
 import Unsafe.Coerce
 
@@ -29,13 +29,19 @@ instance Show (Expr t e) where
 instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
+instance Show Value where
+    show = show . pretty
+
+instance Show ExecutionTree where
+    show = show . pretty
+
 -- let tailFact : Int -> Int -> Int
 --   = \(acc : Int). \(n : Int). if n == 0 then acc else tailFact (acc * n) (n - 1)
 -- in
 -- tailFact 1 10
 tailFact :: Expr t e
 tailFact
-  = Fix (\tail_fact acc ->
+  = fix (\tail_fact acc ->
       lam javaInt (\n ->
         If (var n `eq` zero)
            (var acc)
@@ -44,14 +50,14 @@ tailFact
 
 
 testTail :: Expr t e
-testTail = Fix (\f n -> If (var n `eq` zero)
+testTail = fix (\f n -> If (var n `eq` zero)
                            one
                            (var f `App` (var n `sub` one)))
                javaInt
                (javaInt `Fun` javaInt)
 
 fact :: Expr t (Expr t e)
-fact = Fix (\f n -> If (var n `eq` zero)
+fact = fix (\f n -> If (var n `eq` zero)
                        one
                        (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
@@ -59,7 +65,7 @@ fact = Fix (\f n -> If (var n `eq` zero)
 
 tailFactLike :: Expr t e
 tailFactLike
-  = Fix (\tail_fact acc ->
+  = fix (\tail_fact acc ->
       lam javaInt (\n ->
         If (var n `eq` zero)
            (var acc)
@@ -80,6 +86,7 @@ plus2 = (App (lam (Fun javaInt (Fun javaInt javaInt))
 evenOdd :: Expr t e
 evenOdd
   = LetRec
+      ["even", "odd"]
       [(Fun javaInt javaBool), (Fun javaInt javaBool)]
       (\ids ->
          [ lam javaInt (\n -> If (var n `eq` zero) true  (App (var (ids !! 1)) (var n `sub` one)))
@@ -92,11 +99,11 @@ evenOdd
 evenOddEncodedTy :: Type t
 evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` javaBool]
 
-konstTy :: Type t
-konstTy = Forall (\a -> Forall (\b -> Fun (TVar a) (Fun (TVar b) (TVar a))))
+-- konstTy :: Type t
+-- konstTy = Forall "konst" (\a -> Forall (\b -> Fun (tVar a) (Fun (tVar b) (tVar a))))
 
 callByValue = lam javaInt (\x -> Seq [println (var x), intLit 0])
-callByName  = lam (Thunk javaInt) (\x -> Seq [println (var x), intLit 0])
+callByName  = lam (Fun Unit javaInt) (\x -> Seq [println (var x), intLit 0])
 something   = Seq [println (Lit (S.String "called!")), intLit 1]
 println x   = JMethod (S.Static "java.lang.System.out") "println" [x] undefined
 intLit      = Lit . S.Int
@@ -120,12 +127,12 @@ app_lam_if = App (lam javaInt (\x -> If ((var x) `eq` one)
 app_lam_app = App (lam javaInt (\x -> App (lam javaInt (\y -> (var x) `sub` (var y))) zero))
               one
 
-fix = Fix (\f n -> If (((one `sub` zero) `eq` zero))
+fix' = fix (\f n -> If (((one `sub` zero) `eq` zero))
                    one
                    (var n `mult` (var f `App` (var n `sub` one))))
       javaInt
       (javaInt `Fun` javaInt)
-app_fix = App fix (Lit (S.Int 10))
+app_fix = App fix' (Lit (S.Int 10))
 
 -- test App e1 e2, where e1 can be partially evaluated to a Lam
 minus = lam javaInt (\x -> lam javaInt (\y -> var x `sub` var y))
@@ -163,7 +170,8 @@ boolfun = lam (Fun javaBool javaBool) (\n -> If ((App (var n) true) `neq` (App (
 
 app_bool_fun = App boolfun inverse
 
-
+-- interface to symbolic evaluator
+se str = sf2core str >>= (\e -> solve e)
 
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (S.Int 0)

@@ -10,7 +10,7 @@ import JavaUtils
 import Panic
 
 import PrettyUtils
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 import qualified Language.Java.Pretty (prettyPrint)
 import Data.List (intersperse)
 
@@ -60,7 +60,7 @@ data Expr t e =
 -- System F to Closure F
 
 ftyp2scope :: C.Type t -> TScope t
-ftyp2scope (C.Forall f)   = Kind (\a -> ftyp2scope (f a))
+ftyp2scope (C.Forall _ f)   = Kind (\a -> ftyp2scope (f a))
 ftyp2scope (C.Fun t1 t2)  = Type (ftyp2ctyp t1) (\_ -> ftyp2scope t2)
 ftyp2scope t             = Body (ftyp2ctyp t)
 -- ftyp2scope PFInt         = Body CInt
@@ -72,7 +72,7 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 -}
 
 ftyp2ctyp :: C.Type t -> Type t
-ftyp2ctyp (C.TVar x)                     = TVar x
+ftyp2ctyp (C.TVar _ x)                     = TVar x
 ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
 ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
 ftyp2ctyp (C.JClass c)                   = JClass c
@@ -110,8 +110,8 @@ fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2ce
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
 fexp2cexp (C.Let n bind body)        = Let (fexp2cexp bind) (\e -> fexp2cexp $ body e)
-fexp2cexp (C.LetRec ts f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
-fexp2cexp (C.Fix f t1 t2) =
+fexp2cexp (C.LetRec _ ts f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
+fexp2cexp (C.Fix _ _ f t1 t2) =
   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
   in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
@@ -126,7 +126,7 @@ fexp2cexp e                         = Lam (groupLambda e)
 
 adjust :: C.Type t -> EScope t e -> TScope t
 adjust (C.Fun t1 t2) (Type t1' g) = Type t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
-adjust (C.Forall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
+adjust (C.Forall _ f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
 adjust t (Body b)               = Body (ftyp2ctyp t)
 adjust _ _ = sorry "ClosureF.adjust: no idea how to do"
 
@@ -138,7 +138,7 @@ groupLambda2 (FLam t f) tenv env =
 -}
 
 groupLambda :: C.Expr t e -> EScope t e
-groupLambda (C.BLam f)  = Kind (\a -> groupLambda (f a))
+groupLambda (C.BLam _ f)  = Kind (\a -> groupLambda (f a))
 groupLambda (C.Lam _ t f) = Type (ftyp2ctyp t) (\x -> groupLambda (f x))
 groupLambda e          = Body (fexp2cexp e)
 

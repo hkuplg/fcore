@@ -1,7 +1,0 @@
---> 1
-
-let B = A;
-let foldLeft A (v : B) : A = v;
--- Evaluation of type `B` should terminate.
--- Typechecker equates `A` to `B`.
-1
