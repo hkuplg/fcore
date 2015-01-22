@@ -56,9 +56,30 @@ loadAll inP outP method opt (x:xs) = do
     let name = takeFileName x
     when (head name /= '.') $ 
      do putStrLn ("Running " ++ name)
-        wrap (inP, outP) compileOpt True False x 
+        output <- getStandardOutput x
+        putStrLn ("\x1b[32m" ++ "Standard output: " ++ output)
+        wrap (inP, outP) (receiveMsg2 output) compileOpt True False x 
     loadAll inP outP method opt xs 
   
+getStandardOutput :: FilePath -> IO String
+getStandardOutput file = do
+  content <- readFile file
+  let func = unwords . tail . words
+  return (func ((lines content) !! 0))
+
+receiveMsg2 :: String -> Handle -> IO ()
+receiveMsg2 output h = do
+  msg <- hGetLine h
+  if msg == "exit"
+    then return ()
+    else do 
+      if msg /= output 
+        then putStrLn ("\x1b[31m" ++ "Incorrect: " ++ msg)
+        else putStrLn ("\x1b[32m" ++ "Correct: " ++ msg)
+      putStrLn "\x1b[0m"
+      s <- receiveMsg2 output h
+      return ()
+
 fileExist :: String -> IO ()
 fileExist name = do
 	exist <- doesFileExist name

@@ -86,9 +86,9 @@ data ExecutionTree = Exp SymValue
 data SymType = TInt
              | TBool
              | TFun [SymType] SymType
-             | TData {dataName :: S.Name, dataConstrs :: [SConstructor]}
+             | TData {dataName :: S.ReaderId, dataConstrs :: [SConstructor]}
 
-data SymValue = SVar S.Name Int SymType -- free variables
+data SymValue = SVar S.ReaderId Int SymType -- free variables
               | SInt Integer
               | SBool Bool
               | SApp SymValue SymValue

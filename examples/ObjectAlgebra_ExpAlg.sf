@@ -1,0 +1,17 @@
+type ExpAlg E = { var : String -> E, lit : Int -> E, add : E -> E -> E };
+type IPrint   = { print : String };
+let prettyPrint : ExpAlg IPrint = {
+  var = \(x : String). { print = x },
+  lit = \(x : Int). { print = x.toString() },
+  add = \(x : IPrint). \(y : IPrint). { print = x.print.concat(" + ").concat(y.print) }
+};
+let substVar E (alg : ExpAlg E) (s : String) (e : E) : ExpAlg E = {
+  var = \(x : String). if x.equals(s) then e else alg.var x,
+  lit = \(x : Int). alg.lit x,
+  add = \(x : E). \(y : E). alg.add x y
+};
+let exp E (f: ExpAlg E) = f.add (f.add (f.var "x") (f.var "y")) (f.lit 5);
+let before = exp IPrint prettyPrint;
+let subst  = substVar IPrint prettyPrint "x" (prettyPrint.var "z");
+let after  = exp IPrint subst;
+before.print.concat(" -> ").concat(after.print)

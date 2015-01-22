@@ -11,7 +11,7 @@ import Simplify (simplify)
 
 joinExpr :: Expr t (Expr t e) -> Expr t e
 joinExpr (Var _ x) = x
-joinExpr (Lam n t1 e1) = Lam n t1 (\ee -> joinExpr (e1 (var ee)))
+joinExpr (Lam n t1 e1) = Lam n t1 (\ee -> joinExpr (e1 (Var n ee)))
 joinExpr (App e1 e2) = App (joinExpr e1) (joinExpr e2)
 joinExpr (BLam n t1) = BLam n (\t2 -> joinExpr (t1 t2))
 joinExpr (TApp e t) = TApp (joinExpr e) t
@@ -20,21 +20,17 @@ joinExpr (If e1 e2 e3) = If (joinExpr e1) (joinExpr e2) (joinExpr e3)
 joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (Proj i e) = Proj i (joinExpr e)
-joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (var e1) (var e2))) t1 t2
-joinExpr (Let n bind body) = Let n (joinExpr bind) (\e -> joinExpr (body (var e)))
+joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
+joinExpr (Let n bind body) = Let n (joinExpr bind) (\e -> joinExpr (body (Var n e)))
 joinExpr (LetRec n s b1 b2) =
   LetRec n s
-         (\es -> map joinExpr (b1 (map var es)))
-         (\es -> joinExpr (b2 (map var es)))
+         (\es -> map joinExpr (b1 (zipWith Var n es)))
+         (\es -> joinExpr (b2 (zipWith Var n es)))
 joinExpr (JNew name es) = JNew name (map joinExpr es)
 joinExpr (JMethod jc m es cn) =
   JMethod (fmap joinExpr jc) m (map joinExpr es) cn
 joinExpr (JField jc fn cn) = JField (fmap joinExpr jc) fn cn
 joinExpr (Seq es) = Seq (map joinExpr es)
-joinExpr (Merge e1 e2) = Merge (joinExpr e1) (joinExpr e2)
-joinExpr (RecordIntro (l,e)) = RecordIntro (l, joinExpr e)
-joinExpr (RecordElim e l) = RecordElim (joinExpr e) l
-joinExpr (RecordUpdate e1 (l,e2)) = RecordUpdate (joinExpr e1) (l, joinExpr e2)
 
 mapExpr :: (Expr t e -> Expr t e) -> Expr t e -> Expr t e
 mapExpr f e =
@@ -59,10 +55,6 @@ mapExpr f e =
       JMethod cnameOrE mname es cname -> JMethod (fmap f cnameOrE) mname (map f es) cname
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Seq es -> Seq $ map f es
-      Merge e1 e2 -> Merge (f e1) (f e2)
-      RecordIntro (l,e) -> RecordIntro (l, f e)
-      RecordElim e l -> RecordElim (f e) l
-      RecordUpdate e1 (l,e2) -> RecordUpdate (f e1) (l, f e2)
 
 sf2core :: String -> IO (Expr t e)
 sf2core fname = do
@@ -72,6 +64,6 @@ sf2core fname = do
      case result of
        Left typeError -> error $ show typeError
        Right (tcheckedSrc, _) ->
-             return . {-simplify . -}desugar $ tcheckedSrc
+             return . simplify . desugar $ tcheckedSrc
 
 fCore f str = sf2core str >>= (\e -> return $ f e)

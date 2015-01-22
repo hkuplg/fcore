@@ -305,12 +305,12 @@ wrapFlag :: Connection -> CompileOpt -> Bool -> Bool -> Bool -> String -> IO ()
 wrapFlag handle opt flagC flagT flagS filename = case flagT of
 	True  -> --timeIt (wrap handle opt flagS filename)
 	  do start <- getCPUTime
-	     wrap handle opt flagC flagS filename
+	     wrap handle receiveMsg opt flagC flagS filename
 	     end <- getCPUTime
 	     putStrLn ("CPU time: " ++ (show ((end - start) `div` 1000)) ++ "ns")
-	False -> wrap handle opt flagC flagS filename
+	False -> wrap handle receiveMsg opt flagC flagS filename
 
-checkType :: ValueContext -> String -> IO (Either TypeError (CheckedExpr, Type))
+checkType :: ValueContext -> String -> IO (Either TypeError (CheckedExpr, ReaderType))
 checkType val_ctx s =
   do let parsed = reader s
      typeCheckWithEnv val_ctx parsed

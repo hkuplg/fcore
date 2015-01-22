@@ -1,30 +1,29 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Core
+module SystemFI
   ( Type(..)
   , Expr(..)
-  , Alt(..)
-  , TypeContext
-  , ValueContext
-  , Index
   , Constructor(..)
-  , alphaEq
-  , mapTVar
-  , mapVar
+  , Alt(..)
+--, TypeContext
+--, ValueContext
+--, Index
+--, alphaEq
+--, mapTVar
+--, mapVar
   , fsubstTT
   , fsubstTE
   , fsubstEE
   , joinType
   , tVar
-  , Core.forall
-  , var
-  , lam
-  , fix
-  , bLam
+--, var
+--, lam
+--, fix
+--, bLam
   , prettyType
   , prettyExpr
-  , javaInt
+--, javaInt
   ) where
 
 import qualified Src
@@ -40,13 +39,21 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 data Type t
-  = TVar Src.ReaderId t                -- a
-  | JClass ClassName                   -- C
-  | Fun (Type t) (Type t)              -- t1 -> t2
-  | Forall Src.ReaderId (t -> Type t)  -- forall a. t
-  | Product [Type t]                   -- (t1, ..., tn)
+  = TVar Src.ReaderId t                 -- a
+  | JClass ClassName                    -- C
+  | Fun (Type t) (Type t)               -- t1 -> t2
+  | Forall Src.ReaderId (t -> Type t)   -- forall a. t
+  | Product [Type t]                    -- (t1, ..., tn)
   | Unit
+
+  | And (Type t) (Type t)               -- t1 & t2
+  | Record (Src.Label, Type t)
+  | Thunk (Type t)
   | Datatype Src.ReaderId [Src.ReaderId]
+    -- Warning: If you ever add a case to this, you *must* also define the
+    -- binary relations on your new case. Namely, add cases for your data
+    -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
+    -- George if you're not sure.
 
 data Expr t e
   = Var Src.ReaderId e
@@ -62,10 +69,10 @@ data Expr t e
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
   | Let Src.ReaderId (Expr t e) (e -> Expr t e)
-  | LetRec [Src.ReaderId]       -- Names
-           [Type t]             -- Signatures
-           ([e] -> [Expr t e])  -- Bindings
-           ([e] -> Expr t e)    -- Body
+  | LetRec [Src.ReaderId]           -- Names
+           [Type t]                 -- Signatures
+           ([e] -> [Expr t e])      -- Bindings
+           ([e] -> Expr t e)        -- Body
   | BLam Src.ReaderId (t -> Expr t e)
 
   | App  (Expr t e) (Expr t e)
@@ -87,6 +94,12 @@ data Expr t e
 
   | Seq [Expr t e]
 
+  | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
+  | RecordIntro    (Src.Label, Expr t e)
+  | RecordElim   (Expr t e) Src.Label
+  | RecordUpdate (Expr t e) (Src.Label, Expr t e)
+  | Lazy (Expr t e)
+
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
 
@@ -94,6 +107,9 @@ data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ([e] -> Expr t e)
             -- | Default (Expr t e)
 
 data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
+-- newtype Typ = HideTyp { revealTyp :: forall t. Type t } -- type of closed types
+
+-- newtype Exp = HideExp { revealExp :: forall t e. Expr t e }
 
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
@@ -106,8 +122,10 @@ alphaEq _ (JClass c)   (JClass d)   = c == d
 alphaEq i (Fun s1 s2)  (Fun t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
 alphaEq i (Forall _ f) (Forall _ g) = alphaEq (succ i) (f i) (g i)
 alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq i) `all` zip ss ts
-alphaEq _  Unit         Unit        = True
-alphaEq _  _            _           = False
+alphaEq _  Unit     Unit            = True
+alphaEq i (And s1 s2)  (And t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
+alphaEq i (Thunk t1)   (Thunk t2)   = alphaEq i t1 t2
+alphaEq _ _            _            = False
 
 mapTVar :: (Src.ReaderId -> t -> Type t) -> Type t -> Type t
 mapTVar g (TVar n a)     = g n a
@@ -116,6 +134,9 @@ mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Forall n f)   = Forall n (mapTVar g . f)
 mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
+mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
+mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
+mapTVar g (Thunk t)      = Thunk (mapTVar g t)
 mapTVar _ t@(Datatype _ _)  = t
 
 mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
@@ -140,6 +161,11 @@ mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
 mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
+mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
+mapVar g h (RecordIntro (l, e))      = RecordIntro (l, mapVar g h e)
+mapVar g h (RecordElim e l)          = RecordElim (mapVar g h e) l
+mapVar g h (RecordUpdate e (l1,e1))  = RecordUpdate (mapVar g h e) (l1, mapVar g h e1)
+mapVar g h (Lazy e)                  = Lazy (mapVar g h e)
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
 fsubstTT x r = mapTVar (\n a -> if a == x then r else TVar n a)
@@ -152,19 +178,19 @@ fsubstEE x r = mapVar (\n a -> if a == x then r else Var n a) id
 
 
 joinType :: Type (Type t) -> Type t
-joinType (TVar _ a)       = a
+joinType (TVar n a)       = a
 joinType (JClass c)       = JClass c
 joinType (Fun t1 t2)      = Fun (joinType t1) (joinType t2)
 joinType (Forall n g)     = Forall n (joinType . g . TVar "_") -- Right?
 joinType (Product ts)     = Product (map joinType ts)
 joinType  Unit            = Unit
+joinType (And t1 t2)      = And (joinType t1) (joinType t2)
+joinType (Record (l,t))   = Record (l, joinType t)
+joinType (Thunk t)        = Thunk (joinType t)
 joinType (Datatype n ns)  = Datatype n ns
 
 tVar :: t -> Type t
 tVar = TVar "_"
-
-forall :: (t -> Type t) -> Type t
-forall f = Forall "_" f
 
 var :: e -> Expr t e
 var = Var "_"
@@ -189,9 +215,9 @@ prettyType = prettyType' basePrec 0
 
 prettyType' :: Prec -> Index -> Type Index -> Doc
 
-prettyType' _ _ (TVar n _)   = text n
+prettyType' _ _ (TVar n a)   = text n
 
-prettyType' _ _ (Datatype n _)   = text n
+prettyType' _ _ (Datatype n _) = text n
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2
@@ -199,7 +225,7 @@ prettyType' p i (Fun t1 t2)  =
 
 prettyType' p i (Forall n f)   =
   parensIf p 1
-    (PrettyUtils.forall <+> text n <> dot <+>
+    (forall <+> text n <> dot <+>
      prettyType' (1,PrecMinus) (succ i) (f i))
 
 prettyType' _ i (Product ts) = parens $ hcat (intersperse comma (map (prettyType' basePrec i) ts))
@@ -211,6 +237,21 @@ prettyType' _ _ (JClass "java.lang.String")    = text "String"
 prettyType' _ _ (JClass "java.lang.Boolean")   = text "Bool"
 prettyType' _ _ (JClass "java.lang.Character") = text "Char"
 prettyType' _ _ (JClass c)                     = text c
+
+prettyType' p i (And t1 t2) =
+  parensIf p 2
+    (prettyType' (2,PrecMinus) i t1 <+>
+     ampersand  <+>
+     prettyType' (2,PrecPlus) i t2)
+
+prettyType' _ i (Record (l,t)) = lbrace <+> text l <+> colon <+> prettyType' basePrec i t <+> rbrace
+
+prettyType' p i (Thunk t) = squote <>
+                             case t of
+                               Fun _ _    -> parens (prettyType' basePrec i t)
+                               Forall _ _ -> parens (prettyType' basePrec i t)
+                               And _ _    -> parens (prettyType' basePrec i t)
+                               _          -> prettyType' p i t
 
 -- instance Show (Expr Index Index) where
 --   show = show . pretty
@@ -312,6 +353,14 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
                   pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
                   pretty_ids pretty_sigs pretty_defs
     pretty_body  = prettyExpr' p (i, j + n) (body ids)
+
+prettyExpr' p (i,j) (Merge e1 e2) =
+  parens $ prettyExpr' p (i,j) e1 <+> dcomma <+> prettyExpr' p (i,j) e2
+
+prettyExpr' _ (i,j) (RecordIntro (l, e))       = lbrace <+> text l <+> equals <+> prettyExpr' basePrec (i,j) e <+> rbrace
+prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> text l
+prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordIntro (l, e1))
+prettyExpr' _ (i,j) (Lazy e)                 = char '\'' <> parens (prettyExpr' basePrec (i,j) e)
 
 prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
 

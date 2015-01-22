@@ -103,7 +103,7 @@ evenOddEncodedTy = javaInt `Fun` Product [javaInt `Fun` javaBool, javaInt `Fun` 
 -- konstTy = Forall "konst" (\a -> Forall (\b -> Fun (tVar a) (Fun (tVar b) (tVar a))))
 
 callByValue = lam javaInt (\x -> Seq [println (var x), intLit 0])
-callByName  = lam (Thunk javaInt) (\x -> Seq [println (var x), intLit 0])
+callByName  = lam (Fun Unit javaInt) (\x -> Seq [println (var x), intLit 0])
 something   = Seq [println (Lit (S.String "called!")), intLit 1]
 println x   = JMethod (S.Static "java.lang.System.out") "println" [x] undefined
 intLit      = Lit . S.Int
