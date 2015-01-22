@@ -48,8 +48,8 @@ calc (PrimOp e1 op e2) =
       (Lit (S.Bool a), Lit (S.Bool b)) ->
           case op of
             -- logic operations
-            S.Logic J.And -> Lit . S.Bool $ a && b
-            S.Logic J.Or -> Lit . S.Bool $ a || b
+            S.Logic J.CAnd -> Lit . S.Bool $ a && b
+            S.Logic J.COr -> Lit . S.Bool $ a || b
             _ -> simplified
       _ -> simplified
     where e1' = calc e1
