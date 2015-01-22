@@ -21,10 +21,10 @@ data Z3Env = Z3Env { index :: Int
                    }
 
 solve :: Expr () ExecutionTree -> IO ()
-solve = solve' 6 []
+solve = solve' 6
 
-solve' :: Int -> [SymType] -> Expr () ExecutionTree -> IO ()
-solve' stop ts e =
+solve' :: Int -> Expr () ExecutionTree -> IO ()
+solve' stop e =
     evalZ3 $ do
       int <- mkIntSort
       bool <- mkBoolSort
@@ -92,9 +92,7 @@ pathsZ3 env (Fork e (Right ts)) doc stop =
                     assertCnstr astEq
                     mapM_ (assertProj app) (zip paramFds varAsts)
 
-                    let supply = map (\(n,i) -> Exp $ SVar n i TInt) (zip ns ids)
-
-                    whenSat $ pathsZ3 env' (f supply) (doc <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : ns)) (stop-1)
+                    whenSat $ pathsZ3 env' (f $ supply ns ids) (doc <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : ns)) (stop-1)
 
        -- where assertConstr :: AST -> (SConstructor, [S.Name], [ExecutionTree] -> ExecutionTree) -> Z3 ()
        --       assertConstr ast (c,ns,f) =

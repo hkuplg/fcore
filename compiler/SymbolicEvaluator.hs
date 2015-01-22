@@ -86,7 +86,7 @@ data ExecutionTree = Exp SymValue
 data SymType = TInt
              | TBool
              | TFun [SymType] SymType
-             | TData {dataName :: S.ReaderId, dataConstrs :: [SConstructor]}
+             | TData S.ReaderId [S.ReaderId]
 
 data SymValue = SVar S.ReaderId Int SymType -- free variables
               | SInt Integer
@@ -181,7 +181,7 @@ propagate (NewSymVar i typ t) ts = NewSymVar i typ (propagate t ts)
 transType :: Type t -> SymType
 transType (JClass t) = jname2symtype t
 transType (Fun t1 t2) = TFun [transType t1] (transType t2)
-transType (Datatype n _) = TData n []
+transType (Datatype n ns) = TData n ns
 transType _ = error "transType: not supported"
 
 jname2symtype :: String -> SymType
@@ -310,14 +310,14 @@ prettyTree (Fork e (Left (l,r))) s stop =
     in (s2 <> s3, stop3)
 prettyTree (Fork e (Right ts)) s stop =
     foldl (\(sacc, i) (c,ns,f) ->
-               let (snew, i') = prettyTree (f $ supply ns) (s <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ (sconstrName c) : ns)) i
+               let (snew, i') = prettyTree (f $ supply ns [1..]) (s <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ (sconstrName c) : ns)) i
                in (sacc <> snew, i'))
        (empty, stop)
        ts
 prettyTree (NewSymVar _ _ t) s stop = prettyTree t s stop
 
-supply :: [S.ReaderId] -> [ExecutionTree]
-supply = zipWith (\i n -> Exp (SVar n i TInt)) [1..]
+supply :: [S.ReaderId] -> [Int] -> [ExecutionTree]
+supply ns ids = zipWith (\i n -> Exp $ SVar n i TInt) ids ns
 
 -- genVars n = map (text . ("x"++) . show) [1..n]
 
