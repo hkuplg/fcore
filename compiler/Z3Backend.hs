@@ -250,7 +250,7 @@ mkConstrFun Z3Env {boolSort = bool, intSort = int, adtSort = adt} c =
     do s <- mkStringSymbol $ sconstrName c -- name
        let paramSorts = map dataSort (sconstrParams c)
        fd <- mkFuncDecl s paramSorts adt
-       projectors <- mapM mkProjector (zip paramSorts [0..])
+       projectors <- mapM mkProjector (zip paramSorts [1..])
        return (fd, zip paramSorts projectors)
 
     where dataSort :: SymType -> Sort
@@ -260,7 +260,7 @@ mkConstrFun Z3Env {boolSort = bool, intSort = int, adtSort = adt} c =
 
           mkProjector :: (Sort, Int) -> Z3 FuncDecl
           mkProjector (s,i) =
-              do sym <- mkStringSymbol $ "p" ++ show i ++ sconstrName c
+              do sym <- mkStringSymbol $ sconstrName c ++ "_" ++ show i
                  mkFuncDecl sym [adt] s
 
 -- declare a constructor as a function
