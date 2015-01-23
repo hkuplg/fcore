@@ -17,7 +17,7 @@ module Src
   , Name, ReaderId, CheckedId
   , TypeValue(..), TypeContext, ValueContext
   , expandType, alphaEq, subtype
-  , dethunk
+  , deThunkOnce
   , recordFields
   , freeTVars
   , fsubstTT
@@ -220,9 +220,9 @@ expandType _ t@(Datatype _ _) = t
 
 -- Type equivalence(s) and subtyping
 
-dethunk :: Type -> Type
-dethunk (Thunk t) = dethunk t
-dethunk t         = t
+deThunkOnce :: Type -> Type
+deThunkOnce (Thunk t) = t
+deThunkOnce t         = t
 
 -- | Alpha equivalence.
 alphaEq :: TypeContext -> Type -> Type -> Bool

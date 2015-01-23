@@ -278,16 +278,30 @@ infer (Lam (x1,t1) e)
        (t', e') <- withLocalVars [(x1,t1')] (infer e)
        return (Fun t1' t', Lam (x1,t1') e')
 
-infer (App e1 e2) =
-  do (t1, e1') <- infer e1
-     (t2, e2') <- infer e2
-     case t1 of
-       Fun t11 t12 ->
+infer (App f x) =
+  do (tf, f') <- infer f
+     (tx, x') <- infer x
+     case tf of
+       Fun tfparam tfret ->
          do d <- getTypeContext
-            unless (subtype d t2 t11) $
-              throwError (TypeMismatch t11 t2)
-            return (t12, App e1' e2')
-       _ -> throwError (NotAFunction t1)
+            unless (subtype d tx tfparam) $ throwError (TypeMismatch tfparam tx)
+            case (tfparam, tx) of
+              (Thunk _, Thunk _) -> return (tfret, App f' x')
+              (Thunk _, _)       -> return (tfret, App f' (Lam ("_", Unit) x'))
+              (_, Thunk _)       -> return (tfret, App f' (App x' (Lit UnitLit)))
+              (_, _)             -> return (tfret, App f' x')
+
+       Thunk (Fun tfparam tfret) ->
+         do d <- getTypeContext
+            unless (subtype d tx tfparam) $ throwError (TypeMismatch tfparam tx)
+            case (tfparam, tx) of
+              (Thunk _, Thunk _) -> return (tfret, App f'' x')
+              (Thunk _, _)       -> return (tfret, App f'' (Lam ("_", Unit) x'))
+              (_, Thunk _)       -> return (tfret, App f'' (App x' (Lit UnitLit)))
+              (_, _)             -> return (tfret, App f'' x')
+         where f'' = App f' (Lit UnitLit)
+
+       _ -> throwError (NotAFunction tf)
 
 infer (BLam a e)
   = do (t, e') <- withLocalTVars [(a, (Star, TerminalType))] (infer e)
@@ -367,7 +381,7 @@ infer (LetOut{..}) = panic "TypeCheck.infer: LetOut"
 -- e.x
 infer (Dot e x Nothing) =
   do (t, _) <- infer e
-     case t of
+     case deThunkOnce t of
        JType (JClass _) -> infer (JField (NonStatic e) x undefined)
        Record _         -> infer (RecordElim e x)
        And _ _          -> infer (RecordElim e x)
@@ -376,14 +390,14 @@ infer (Dot e x Nothing) =
 -- e.x ( )
 infer (Dot e x (Just ([], UnitImpossible))) =
   do (t, _) <- infer e
-     case t of
+     case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
        _                -> throwError (NotMember x t)
 
 -- e.x ()
 infer (Dot e x (Just ([], UnitPossible))) =
   do (t, _) <- infer e
-     case t of
+     case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
        Record _         -> infer (App (RecordElim e x) (Lit UnitLit))
        And _ _          -> infer (App (RecordElim e x) (Lit UnitLit))
@@ -392,7 +406,7 @@ infer (Dot e x (Just ([], UnitPossible))) =
 -- e.x (a)
 infer (Dot e x (Just ([arg], _))) =
   do (t, _) <- infer e
-     case t of
+     case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x [arg] undefined)
        Record _         -> infer (App (RecordElim e x) arg)
        And _ _          -> infer (App (RecordElim e x) arg)
@@ -401,7 +415,7 @@ infer (Dot e x (Just ([arg], _))) =
 -- e.x (a,...)
 infer (Dot e x (Just (args, _))) =
   do (t, _) <- infer e
-     case t of
+     case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
        Record _         -> infer (App (RecordElim e x) (Tuple args))
        And _ _          -> infer (App (RecordElim e x) (Tuple args))
@@ -593,7 +607,7 @@ inferAgainst expr expected_ty
 inferAgainstAnyJClass :: ReaderExpr -> Checker (ClassName, CheckedExpr)
 inferAgainstAnyJClass expr
   = do (ty, expr') <- infer expr
-       case dethunk ty of
+       case deThunkOnce ty of
         JType (JPrim "char") -> return ("java.lang.Character", expr')
         JType (JClass c) -> return (c, expr')
         _ -> throwError $
