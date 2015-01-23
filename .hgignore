@@ -17,6 +17,7 @@ runtime.jar
 # Ignore generated Java source files
 examples/*.java
 lib/*.java
+testsuite/tests/run-pass/*.java
 
 ### Haskell ###
 dist
