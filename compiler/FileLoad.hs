@@ -41,6 +41,7 @@ initReplEnv xs =  do
      loadFile inP outP [Naive] compileN xs
      loadFile inP outP [Naive, Apply] compileAO xs
      loadFile inP outP [Naive, Stack] compileSN xs
+     loadFile inP outP [Naive, Apply, Stack] compileS xs
      terminateProcess proch
 
 loadFile :: Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO ()

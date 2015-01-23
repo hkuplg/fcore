@@ -61,12 +61,12 @@ eval (PrimOp e1 op e2) =
          (VBool a, VBool b) ->
              case op of
                -- logic operations
-               S.Logic J.And -> VBool $ a && b
-               S.Logic J.Or -> VBool $ a || b
+               S.Logic J.CAnd -> VBool $ a && b
+               S.Logic J.COr -> VBool $ a || b
                S.Compare J.Equal -> VBool $ a == b
                S.Compare J.NotEq -> VBool $ a /= b
-               -- _ -> simplified
-         _ -> panic "e1 and e2 should be either Int or Boolean simutaneously"
+               _ -> panic $ "Unknown op" ++ show op
+         _ -> panic "e1 and e2 should be either Int or Bool simutaneously"
 eval g@(Fix _ _ f _ _) = VFun $ eval . f (eval g)
 eval (LetRec _ _ binds body) = eval . body . fix $ map eval . binds
 eval (Constr c es) = VConstr (constrName c) (map eval es)
@@ -149,8 +149,8 @@ seval (PrimOp e1 op e2) =
         S.Compare J.GThanE -> merge (SOp GE, GE) e1' e2'
 
         -- logic operations
-        S.Logic J.And -> merge (SOp AND, AND) e1' e2'
-        S.Logic J.Or -> merge (SOp OR, OR) e1' e2'
+        S.Logic J.CAnd -> merge (SOp AND, AND) e1' e2'
+        S.Logic J.COr -> merge (SOp OR, OR) e1' e2'
 
     where e1' = seval e1
           e2' = seval e2

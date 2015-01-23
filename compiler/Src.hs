@@ -17,7 +17,7 @@ module Src
   , Name, ReaderId, CheckedId
   , TypeValue(..), TypeContext, ValueContext
   , expandType, alphaEq, subtype
-  , dethunk
+  , deThunkOnce
   , recordFields
   , freeTVars
   , fsubstTT
@@ -220,9 +220,9 @@ expandType _ t@(Datatype _ _) = t
 
 -- Type equivalence(s) and subtyping
 
-dethunk :: Type -> Type
-dethunk (Thunk t) = dethunk t
-dethunk t         = t
+deThunkOnce :: Type -> Type
+deThunkOnce (Thunk t) = t
+deThunkOnce t         = t
 
 -- | Alpha equivalence.
 alphaEq :: TypeContext -> Type -> Type -> Bool
@@ -257,6 +257,8 @@ subtype d t1 t2 = subtypeS (expandType d t1) (expandType d t2)
 
 -- | Subtyping of two *expanded* types.
 subtypeS :: Type -> Type -> Bool
+subtypeS t1             (Thunk t2)             = subtypeS t1 t2
+subtypeS (Thunk t1)     t2                     = subtypeS t1 t2
 subtypeS (TVar a)       (TVar b)               = a == b
 subtypeS (JType c)      (JType d)              = c == d
 -- The subtypeS here shouldn't be aware of the subtyping relations in the Java world.

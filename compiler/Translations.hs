@@ -165,7 +165,7 @@ sf2java num optDump compilation className src =
        Left typeError ->
          do print (Text.PrettyPrint.ANSI.Leijen.pretty typeError)
             exitFailure -- TODO: Ugly
-       Right (tcheckedSrc, _t)   ->
+       Right (_, tcheckedSrc)   ->
          do when (optDump == DumpTChecked) $ print tcheckedSrc
             let core = desugar tcheckedSrc
             when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
@@ -188,7 +188,7 @@ sf2java2 flag num optDump compilation className src =
        Left typeError ->
          do print (Text.PrettyPrint.ANSI.Leijen.pretty typeError)
             exitFailure -- TODO: Ugly
-       Right (tcheckedSrc, _t)   ->
+       Right (_, tcheckedSrc)   ->
          do when (optDump == DumpTChecked) $ print tcheckedSrc
             let core = desugar tcheckedSrc
             when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
