@@ -16,14 +16,8 @@ module SystemFI
   , fsubstTE
   , fsubstEE
   , joinType
-  , tVar
---, var
---, lam
---, fix
---, bLam
   , prettyType
   , prettyExpr
---, javaInt
   ) where
 
 import qualified Src
@@ -183,21 +177,6 @@ joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (Record (l,t))   = Record (l, joinType t)
 joinType (Datatype n ns)  = Datatype n ns
 
-tVar :: t -> Type t
-tVar = TVar "_"
-
-var :: e -> Expr t e
-var = Var "_"
-
-lam :: Type t -> (e -> Expr t e) -> Expr t e
-lam = Lam "_"
-
-fix :: (e -> e -> Expr t e) -> Type t -> Type t -> Expr t e
-fix = Fix "_" "_"
-
-bLam :: (t -> Expr t e) -> Expr t e
-bLam = BLam "_"
-
 -- instance Show (Type Index) where
 --   show = show . pretty
 
@@ -356,6 +335,3 @@ prettyExpr' p (i,j) (Case e alts) =
               let n = length ns
                   ids = [j..j+n-1]
               in intersperseSpace (text (constrName c) : map prettyVar ids) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
-
-javaInt :: Type t
-javaInt = JClass "java.lang.Integer"

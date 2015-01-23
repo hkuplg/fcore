@@ -37,7 +37,7 @@ transType :: Index -> FI.Type Index -> Type Index
 transType _ (FI.TVar n a)     = TVar n a
 transType _ (FI.JClass c)     = JClass c
 transType i (FI.Fun a1 a2)    = Fun (transType i a1) (transType i a2)
-transType i (FI.Forall n f)   = Forall n (\a -> transType (i + 1) $ FI.fsubstTT i (FI.tVar a) (f i))
+transType i (FI.Forall n f)   = Forall n (\a -> transType (i + 1) $ FI.fsubstTT i (FI.TVar n a) (f i))
 transType i (FI.Product ts)   = Product (map (transType i) ts)
 transType _  FI.Unit          = Unit
 transType i (FI.And a1 a2)    = Product [transType i a1, transType i a2]
@@ -114,7 +114,7 @@ infer' _    _ _ (FI.Lit (S.Bool _))    = FI.JClass "java.lang.Boolean"
 infer' _    _ _ (FI.Lit (S.Char _))    = FI.JClass "java.lang.Character"
 infer' _    _ _ (FI.Lit  S.UnitLit)    = FI.Unit
 infer' this i j (FI.Lam _ t f)         = FI.Fun t (this i (j+1) (f (j,t)))
-infer' this i j (FI.BLam n f)          = FI.Forall n (\a -> FI.fsubstTT i (FI.tVar a) $ this (i+1) j (f i))
+infer' this i j (FI.BLam n f)          = FI.Forall n (\a -> FI.fsubstTT i (FI.TVar n a) $ this (i+1) j (f i))
 infer' _    _ _ (FI.Fix _ _ _ t1 t)    = FI.Fun t1 t
 infer' this i j (FI.Let _ b e)         = this i (j+1) (e (j, this i j b))
 infer' this i j (FI.LetRec _ ts _ e)   = this i (j+n) (e (zip [j..j+n-1] ts)) where n = length ts
