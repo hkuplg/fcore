@@ -245,7 +245,7 @@ merge (f, _) (Exp e1) (Exp e2) = Exp (f e1 e2)
 merge f (Fork e (Left (l,r))) t = Fork e $ Left (merge f l t, merge f r t)
 merge f t (Fork e (Left (l,r))) = Fork e $ Left (merge f t l, merge f t r)
 merge f (Fork e (Right ts)) t = Fork e $ Right [(c, ns, \es -> merge f (g es) t) | (c,ns,g) <- ts]
-merge f t (Fork e (Right ts)) = Fork e $ Right [(c, ns, \es -> merge f t (g es)) | (c,ns,g) <- ts]
+merge f t (Fork e (Right ts)) = Fork e $ Right [(c, ns, merge f t . g) | (c,ns,g) <- ts]
 merge f (NewSymVar i t t1) t2 = NewSymVar i t (merge f t1 t2)
 merge f t1 (NewSymVar i typ t2) = NewSymVar i typ (merge f t1 t2)
 
@@ -269,7 +269,7 @@ instance Pretty Value where
     pretty (VFun _) = text "<<func>>"
     pretty (VInt x) = integer x
     pretty (VBool b) = bool b
-    pretty (VConstr n vs) = fillSep $ text n : (map pretty vs)
+    pretty (VConstr n vs) = fillSep $ text n : map pretty vs
 
 instance Pretty Op where
     pretty op =
@@ -288,14 +288,14 @@ instance Pretty Op where
                  AND -> "&&"
 
 instance Pretty SymValue where
-    -- pretty (SVar i _) = text "x" <> int i
-    pretty (SVar n _ _) = text n
+    pretty (SVar _ i _) = text "x" <> int i
+    -- pretty (SVar n _ _) = text n
     pretty (SInt i) = integer i
     pretty (SBool b) = bool b
     pretty (SApp e1 e2) = pretty e1 <+> pretty e2
     pretty (SOp op e1 e2) = parens $ pretty e1 <+> pretty op <+> pretty e2
-    pretty (SFun _ _ _) = text "<<fun>>"
-    pretty (SConstr c es) = intersperseSpace $ text (sconstrName c) : (map pretty es)
+    pretty (SFun{}) = text "<<fun>>"
+    pretty (SConstr c es) = intersperseSpace $ text (sconstrName c) : map pretty es
 
 instance Pretty ExecutionTree where
     pretty t = fst $ prettyTree t (text "True") 5
@@ -310,7 +310,7 @@ prettyTree (Fork e (Left (l,r))) s stop =
     in (s2 <> s3, stop3)
 prettyTree (Fork e (Right ts)) s stop =
     foldl (\(sacc, i) (c,ns,f) ->
-               let (snew, i') = prettyTree (f $ supply ns [1..]) (s <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ (sconstrName c) : ns)) i
+               let (snew, i') = prettyTree (f $ supply ns [1..]) (s <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : ns)) i
                in (sacc <> snew, i'))
        (empty, stop)
        ts
