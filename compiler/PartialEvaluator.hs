@@ -7,10 +7,12 @@ import qualified Src as S
 import qualified Language.Java.Syntax as J (Op(..))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
+import Data.List (foldl')
+import Panic
 
 app2let :: Expr t e -> Expr t e
 app2let (App e1 e2) = case e1' of
-  Lam _ _ f    -> Let "" e2' f
+  Lam _ _ f    -> Let "_" e2' f
   Let n body f -> Let n body (\x -> app2let (App (f x) e2'))
   _            -> App e1' e2'
   where
@@ -71,34 +73,87 @@ rewrite1 :: Expr t e -> Expr t e
 rewrite1 (Let _ (Var _ n) f) = rewrite1 (f n)
 rewrite1 e = mapExpr rewrite1 e
 
+
+-- TODO: refactor to reduce duplicate code
 -- Rule 2: let x = e in x                 =>  e
 rewrite2 :: Expr t Int -> Expr t e
-rewrite2 e = rewrite2' e 0 Map.empty
+rewrite2 = rewrite2' 0 Map.empty
 
-rewrite2' :: Expr t Int -> Int -> Map.Map Int e -> Expr t e
-rewrite2' (Let n expr f) num env = case f num of
-                                   Var _ _ -> rewrite2' expr (num + 1) env
-                                   e -> Let n (rewrite2' expr (num + 1) env) (\b -> rewrite2' e (num + 2) (Map.insert num b env))
-rewrite2' (Var n v) _ env = Var n (fromJust $ Map.lookup v env)
-rewrite2' (App e1 e2) num env = App (rewrite2' e1 num env) (rewrite2' e2 (num + 1) env)
-rewrite2' (PrimOp e1 op e2) num env = PrimOp (rewrite2' e1 num env) op (rewrite2' e2 (num + 1) env)
-rewrite2' (Lam n t f) num env = Lam n t (\e -> rewrite2' (f num) (num + 1) (Map.insert num e env))
-rewrite2' (Lit n) _ _ = Lit n
+rewrite2' :: Int -> Map.Map Int e -> Expr t Int -> Expr t e
+rewrite2' num env (Let n expr f) = case f num of
+                                    Var _ _ -> rewrite2' (num + 1) env expr
+                                    e -> Let n (rewrite2' (num + 1) env expr) (\b -> rewrite2' (num + 2) (Map.insert num b env) e)
+rewrite2' _ env (Var n v) = Var n (fromJust $ Map.lookup v env)
+rewrite2' num env (App e1 e2) = App (rewrite2' num env e1) (rewrite2' (num + 1) env e2)
+rewrite2' num env (PrimOp e1 op e2) = PrimOp (rewrite2' num env e1) op (rewrite2' (num + 1) env e2)
+rewrite2' num env (Lam n t f) = Lam n t (\e -> rewrite2' (num + 1) (Map.insert num e env) (f num))
+rewrite2' _ _ (Lit n) = Lit n
+rewrite2' num env (Fix n1 n2 f t1 t2) =
+  Fix n1 n2 (\a b -> rewrite2' (num + 2) (Map.insert (num + 1) b (Map.insert num a env)) (f num (num + 1))) t1 t2
+rewrite2' num env (LetRec n t b f) =
+  LetRec n t (\bs ->
+               let len = length bs
+                   bs' = b [num .. num + len - 1]
+               in map (rewrite2' (num + len) (foldl' multInsert env (zip [num .. num + len -1] bs))) bs')
+             (\es ->
+               let len = length es
+                   es' = f [num .. num + len - 1]
+               in rewrite2' (num + len) (foldl' multInsert env (zip [num .. num + len - 1] es)) es')
+rewrite2' num env (BLam n f) = BLam n (rewrite2' num env . f)
+rewrite2' num env (TApp e t) = TApp (rewrite2' num env e) t
+rewrite2' num env (If e1 e2 e3) = If (rewrite2' num env e1) (rewrite2' num env e2) (rewrite2' num env e3)
+rewrite2' num env (Tuple es) = Tuple (map (rewrite2' num env) es)
+rewrite2' num env (Proj n e) = Proj n (rewrite2' num env e)
+rewrite2' num env (JNew n es) = JNew n (map (rewrite2' num env) es)
+rewrite2' num env (JMethod e b es d) =
+  JMethod (fmap (rewrite2' num env) e) b (map (rewrite2' num env) es) d
+rewrite2' num env (JField e a b) = JField (fmap (rewrite2' num env) e) a b
+rewrite2' num env (Seq es) = Seq (map (rewrite2' num env) es)
+rewrite2' num env (Constr c es) = Constr c (map (rewrite2' num env) es)
+rewrite2' _ _ (Case _ _) = sorry "Haven't implement case yet in rewriting"
+
+multInsert :: Map.Map Int e -> (Int, e) -> Map.Map Int e
+multInsert m (key, value) = Map.insert key value m
+
+
 
 -- Rule 3: (\x . y x)                     => y (where y is a variable)
 rewrite3 :: Expr t Int -> Expr t e
-rewrite3 e = rewrite3' e 0 Map.empty
+rewrite3 = rewrite3' 0 Map.empty
 
-rewrite3' :: Expr t Int -> Int -> Map.Map Int e -> Expr t e
-rewrite3' (Lam n t f) num env = case f num of
+rewrite3' :: Int -> Map.Map Int e -> Expr t Int -> Expr t e
+rewrite3' num env (Lam n t f) = case f num of
                                  (App (Var n' y) (Var _ _)) -> Var n' (fromJust $ Map.lookup y env)
-                                 e' -> Lam n t (\e -> rewrite3' e' (num + 1) (Map.insert num e env))
-rewrite3' (Let n expr f) num env =
-  Let n (rewrite3' expr (num + 1) env) (\b -> rewrite3' (f num) (num + 2) (Map.insert num b env))
-rewrite3' (Var n v) _ env = Var n (fromJust $ Map.lookup v env)
-rewrite3' (App e1 e2) num env = App (rewrite3' e1 num env) (rewrite3' e2 (num + 1) env)
-rewrite3' (PrimOp e1 op e2) num env = PrimOp (rewrite3' e1 num env) op (rewrite3' e2 (num + 1) env)
-rewrite3' (Lit n) _ _ = Lit n
+                                 e' -> Lam n t (\e -> rewrite3' (num + 1) (Map.insert num e env) e')
+rewrite3' num env (Let n expr f) =
+  Let n (rewrite3' (num + 1) env expr) (\b -> rewrite3' (num + 2) (Map.insert num b env) (f num))
+rewrite3' _ env (Var n v) = Var n (fromJust $ Map.lookup v env)
+rewrite3' num env (App e1 e2) = App (rewrite3' num env e1) (rewrite3' (num + 1) env e2)
+rewrite3' num env (PrimOp e1 op e2) = PrimOp (rewrite3' num env e1) op (rewrite3' (num + 1) env e2)
+rewrite3' _ _ (Lit n) = Lit n
+rewrite3' num env (Fix n1 n2 f t1 t2) =
+  Fix n1 n2 (\a b -> rewrite3' (num + 2) (Map.insert (num + 1) b (Map.insert num a env)) (f num (num + 1))) t1 t2
+rewrite3' num env (LetRec n t b f) =
+  LetRec n t (\bs ->
+               let len = length bs
+                   bs' = b [num .. num + len - 1]
+               in map (rewrite3' (num + len) (foldl' multInsert env (zip [num .. num + len -1] bs))) bs')
+             (\es ->
+               let len = length es
+                   es' = f [num .. num + len - 1]
+               in rewrite3' (num + len) (foldl' multInsert env (zip [num .. num + len - 1] es)) es')
+rewrite3' num env (BLam n f) = BLam n (rewrite3' num env . f)
+rewrite3' num env (TApp e t) = TApp (rewrite3' num env e) t
+rewrite3' num env (If e1 e2 e3) = If (rewrite3' num env e1) (rewrite3' num env e2) (rewrite3' num env e3)
+rewrite3' num env (Tuple es) = Tuple (map (rewrite3' num env) es)
+rewrite3' num env (Proj n e) = Proj n (rewrite3' num env e)
+rewrite3' num env (JNew n es) = JNew n (map (rewrite3' num env) es)
+rewrite3' num env (JMethod e b es d) =
+  JMethod (fmap (rewrite3' num env) e) b (map (rewrite3' num env) es) d
+rewrite3' num env (JField e a b) = JField (fmap (rewrite3' num env) e) a b
+rewrite3' num env (Seq es) = Seq (map (rewrite3' num env) es)
+rewrite3' num env (Constr c es) = Constr c (map (rewrite3' num env) es)
+rewrite3' _ _ (Case _ _) = sorry "Haven't implement case yet in rewriting"
 
 peval :: Expr t e -> Expr t e
 peval = rewrite1 .  app2let
