@@ -169,14 +169,20 @@ sf2java num optDump compilation className src =
          do when (optDump == DumpTChecked) $ print tcheckedSrc
             let core = desugar tcheckedSrc
             when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
+            -- let simpleCore = case num of
+            --                    1 -> peval . inliner . simplify $ core
+            --                    2 -> peval . inliner . inliner . simplify $ core
+            --                    _ -> peval . simplify $ core
             let simpleCore = case num of
-                               1 -> peval . inliner . simplify $ core
-                               2 -> peval . inliner . inliner . simplify $ core
-                               _ -> peval . simplify $ core
+                               1 -> inliner . simplify $ core
+                               2 -> inliner . inliner . simplify $ core
+                               _ -> simplify $ core
+
+            let rewrittencore = reveal (rewriteAndEval (Hide simpleCore))
             -- let simpleCore = simplify core
-            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
-            when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore))
-            let (cu, _) = compilation className simpleCore
+            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittencore)
+            when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp rewrittencore))
+            let (cu, _) = compilation className rewrittencore
             return $ prettyPrint cu
 
 sf2java2 :: Bool -> Int -> DumpOption -> Compilation -> ClassName -> String -> IO String

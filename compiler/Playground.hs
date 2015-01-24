@@ -15,6 +15,7 @@ import qualified Src as S
 import           System.Directory (getCurrentDirectory)
 import           TypeCheck (typeCheck)
 import           Unsafe.Coerce (unsafeCoerce)
+import qualified Data.Map.Strict as Map
 
 import qualified Language.Java.Syntax as J (Op(..))
 
@@ -47,6 +48,13 @@ fact = fix (\f n -> If (var n `eq` zero)
                        (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
            (javaInt `Fun` javaInt)
+
+
+test1 :: Expr t e
+test1 =
+  lam javaInt (\f ->
+                lam javaInt (\g -> App (var f)
+                                   (lam javaInt (\x -> Let "" (App (var g) (var x)) (\t -> var t)))))
 
 tailFactLike :: Expr t e
 tailFactLike
@@ -95,15 +103,16 @@ sf2c :: Int -> String -> IO (Expr t e)
 sf2c n fname = do
   path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
   string <- readFile (path ++ "/" ++ fname)
-  result <- typeCheck . reader $ string
+  let readSrc = Parser.reader string
+  result <- readSrc `seq` (typeCheck readSrc)
   case result of
    Left typeError -> error $ show typeError
-   Right (tcheckedSrc, _) ->
+   Right (_, tcheckedSrc) ->
      case n of
       1 -> return (peval . simplify . desugar $ tcheckedSrc)
       2 -> return (simplify . desugar $ tcheckedSrc)
-      3 -> return (desugar $ tcheckedSrc)
-      _ -> return (peval . desugar $ tcheckedSrc)
+      -- 3 -> return (desugar $ tcheckedSrc)
+      -- _ -> return (peval . desugar $ tcheckedSrc)
 
 mconst =
   (bLam (\a ->
