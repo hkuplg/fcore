@@ -1,4 +1,5 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes, ViewPatterns #-}
+
 module PartialEvaluator (rewriteAndEval, Exp(..), rewrite1, rewrite2, rewrite3) where
 
 import Core
@@ -24,29 +25,25 @@ rewrite1 e = mapExpr rewrite1 e
 
 -- Rule 2: let x = e in x                 =>  e
 rewrite2 :: Expr t Int -> Expr t e
-rewrite2 = rewrite2' 0 Map.empty
+rewrite2 = swap1_3 rewrite2' 0 Map.empty
 
-rewrite2' :: Int -> Map.Map Int e -> Expr t Int -> Expr t e
-rewrite2' num env (Let n expr f) = case f num of
-                                    e@(Var _ num') ->
-                                      if num' == num
-                                      then rewrite2' num env expr
-                                      else Let n (rewrite2' num env expr) (\b -> rewrite2' (num + 1) (Map.insert num b env) e)
-                                    e -> Let n (rewrite2' num env expr) (\b -> rewrite2' (num + 1) (Map.insert num b env) e)
-rewrite2' num env e = rewriteExpr rewrite2' num env e
+rewrite2' :: Map.Map Int e -> Expr t Int -> Int -> Expr t e
+rewrite2' env e@(Let _ expr f) num@(f -> (Var _ num')) =
+  if num' == num
+  then rewrite2' env expr num
+  else rewriteExpr (swap1_3 rewrite2') num env e
+rewrite2' env e num = rewriteExpr (swap1_3 rewrite2') num env e
 
 -- Rule 3: (\x . y x)                     => y (where y is a variable)
 rewrite3 :: Expr t Int -> Expr t e
-rewrite3 = rewrite3' 0 Map.empty
+rewrite3 = swap1_3 rewrite3' 0 Map.empty
 
-rewrite3' :: Int -> Map.Map Int e -> Expr t Int -> Expr t e
-rewrite3' num env (Lam n t f) = case f num of
-                                 e'@(App (Var n' y) (Var _ num')) ->
-                                   if num == num'
-                                   then Var n' (fromJust $ Map.lookup y env)
-                                   else Lam n t (\e -> rewrite3' (num + 1) (Map.insert num e env) e')
-                                 e' -> Lam n t (\e -> rewrite3' (num + 1) (Map.insert num e env) e')
-rewrite3' num env e = rewriteExpr rewrite3' num env e
+rewrite3' :: Map.Map Int e -> Expr t Int -> Int -> Expr t e
+rewrite3' env e@(Lam _ _ f) num@(f -> App (Var n' y) (Var _ num')) =
+  if num' == num
+  then Var n' (fromJust $ Map.lookup y env)
+  else rewriteExpr (swap1_3 rewrite3') num env e
+rewrite3' env e num = rewriteExpr (swap1_3 rewrite3') num env e
 
 peval :: Expr t e -> Expr t e
 peval = rewrite1 .  app2let
@@ -61,7 +58,11 @@ rewrite e = Hide (rewrite3 . rewrite2 . reveal $ e)
 
 rewriteAndEval :: Exp -> Expr t e
 rewriteAndEval = reveal . rewrite . partialEval
--- rewriteAndEval = reveal . partialEval
+
+
+-- Just for convenience to use view pattern
+swap1_3 :: (b -> c -> a -> d) -> a -> b -> c -> d
+swap1_3 f a b c = f b c a
 
 -- calc :: Expr t (Expr t e) -> Expr t (Expr t e)
 -- calc (App e1 e2) =
