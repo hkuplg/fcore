@@ -1,27 +1,27 @@
 module Z3Backend where
 
-import Control.Monad
-import Control.Monad.IO.Class (liftIO)
-import Z3.Monad hiding (Z3Env)
-import qualified Data.IntMap as IntMap
-import SymbolicEvaluator
-import Prelude hiding (EQ, GT, LT)
-import Core
-import qualified Src as S
-import Text.PrettyPrint.ANSI.Leijen
-import PrettyUtils
-import Data.Maybe (fromJust)
+import           Control.Monad
+import           Control.Monad.IO.Class       (liftIO)
+import qualified Data.IntMap                  as IntMap
+import           Data.Maybe                   (fromJust)
+import           Prelude                      hiding (EQ, GT, LT)
+import           PrettyUtils
+import qualified Src                          as S
+import           SymbolicEvaluator
+import           SystemFI
+import           Text.PrettyPrint.ANSI.Leijen
+import           Z3.Monad                     hiding (Z3Env)
 
-data Z3Env = Z3Env { index :: Int
+data Z3Env = Z3Env { index                      :: Int
                    , boolSort, intSort, adtSort :: Sort
                    -- , constrFuns :: SConstructor -> ConstrFun
-                   , symVars :: IntMap.IntMap AST
-                   , funVars :: IntMap.IntMap FuncDecl
-                   , target :: Doc -> SymValue -> Z3 ()
+                   , symVars                    :: IntMap.IntMap AST
+                   , funVars                    :: IntMap.IntMap FuncDecl
+                   , target                     :: Doc -> SymValue -> Z3 ()
                    }
 
 solve :: Expr () ExecutionTree -> IO ()
-solve = solve' 5
+solve = solve' 20
 
 solve' :: Int -> Expr () ExecutionTree -> IO ()
 solve' stop e =
@@ -93,7 +93,7 @@ pathsZ3 env (Fork e (Right ts)) doc stop =
                     mapM_ (assertProj app) (zip paramFds varAsts)
 
                     -- whenSat $ pathsZ3 env' (f $ supply ns ids) (doc <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : ns)) (stop-1)
-                    whenSat $ pathsZ3 env' (f $ supply ns ids) (doc <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : map (("x"++) . show) ids)) (stop-1)
+                    whenSat $ pathsZ3 env' (f $ supply (repeat "x") ids) (doc <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : map (("x"++) . show) ids)) (stop-1)
 
        -- where assertConstr :: AST -> (SConstructor, [S.Name], [ExecutionTree] -> ExecutionTree) -> Z3 ()
        --       assertConstr ast (c,ns,f) =

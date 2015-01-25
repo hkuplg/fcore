@@ -8,6 +8,8 @@ import Parser (reader)
 import TypeCheck (typeCheck)
 import Desugar (desugar)
 import Simplify (simplify)
+import qualified SystemFI as FI
+import Control.Monad (liftM)
 
 joinExpr :: Expr t (Expr t e) -> Expr t e
 joinExpr (Var _ x) = x
@@ -56,15 +58,18 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Seq es -> Seq $ map f es
 
-sf2core :: String -> IO (Expr t e)
-sf2core fname = do
+src2core :: String -> IO (Expr t e)
+src2core fname = liftM simplify $ src2fi fname
+
+fCore :: (Expr t e -> b) -> String -> IO b
+fCore f fname = liftM f $ src2core fname
+
+src2fi :: String -> IO (FI.Expr t e)
+src2fi fname = do
      path <- getCurrentDirectory
      string <- readFile (path ++ "/" ++ fname)
      result <- typeCheck . reader $ string
      case result of
        Left typeError -> error $ show typeError
        Right (_, tcheckedSrc) ->
-             return . simplify . desugar $ tcheckedSrc
-
-fCore :: (Expr t e -> b) -> String -> IO b
-fCore f str = sf2core str >>= (return . f)
+             return . desugar $ tcheckedSrc
