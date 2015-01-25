@@ -13,6 +13,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 import Data.List (foldl')
 import Panic
+import qualified SystemFI as FI
 
 joinExpr :: Expr t (Expr t e) -> Expr t e
 joinExpr (Var _ x) = x
@@ -91,19 +92,21 @@ rewriteExpr f num env expr =
    Constr c es -> Constr c (map (f num env) es)
    Case _ _ -> sorry "Rewriting case not yet done"
 
+src2core :: String -> IO (Expr t e)
+src2core fname = liftM simplify $ src2fi fname
 
-sf2core :: String -> IO (Expr t e)
-sf2core fname = do
-     path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
+fCore :: (Expr t e -> b) -> String -> IO b
+fCore f fname = liftM f $ src2core fname
+
+src2fi :: String -> IO (FI.Expr t e)
+src2fi fname = do
+     path <- getCurrentDirectory
      string <- readFile (path ++ "/" ++ fname)
      result <- typeCheck . reader $ string
      case result of
        Left typeError -> error $ show typeError
        Right (_, tcheckedSrc) ->
-             return . simplify . desugar $ tcheckedSrc
-
-fCore :: (Expr t e -> b) -> String -> IO b
-fCore f str = liftM f $ sf2core str
+             return . desugar $ tcheckedSrc
 
 multInsert :: Map.Map Int e -> (Int, e) -> Map.Map Int e
 multInsert m (key, value) = Map.insert key value m

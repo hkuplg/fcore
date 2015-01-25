@@ -25,7 +25,7 @@ import Src hiding (wrap)
 import Text.PrettyPrint.ANSI.Leijen
 import Translations
 import JavaUtils
-import qualified OptiUtils              (sf2core)
+import qualified OptiUtils              (src2core, src2fi)
 import qualified Core                   (prettyExpr)
 import Parser
 import ParseCMD
@@ -129,7 +129,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
           ":se" -> do
                 case getCMD xs of
                   Just filename -> do
-                    expr <- liftIO (OptiUtils.sf2core filename)
+                    expr <- liftIO (OptiUtils.src2fi filename)
                     liftIO $ solve expr
                   Nothing       -> outputStrLn "Invalid input"
                 loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
@@ -137,7 +137,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
           ":expr" -> do
                 case getCMD xs of
                   Just filename -> do
-                    expr <- liftIO (OptiUtils.sf2core filename)
+                    expr <- liftIO (OptiUtils.src2core filename)
                     outputStrLn (show (Core.prettyExpr expr))
                   Nothing       -> outputStrLn "Invalid input"
                 loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num

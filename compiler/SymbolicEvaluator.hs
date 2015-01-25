@@ -5,15 +5,15 @@
 
 module SymbolicEvaluator where
 
-import           Core                    hiding (fix)
-import qualified Language.Java.Syntax    as J (Op (..))
-import           Panic
-import           Prelude                 hiding (EQ, GT, LT)
-import qualified Src                     as S
+import           Control.Monad.Fix            (fix)
 import           Data.Maybe
+import qualified Language.Java.Syntax         as J (Op (..))
+import           Panic
+import           Prelude                      hiding (EQ, GT, LT)
 import           PrettyUtils
+import qualified Src                          as S
+import           SystemFI
 import           Text.PrettyPrint.ANSI.Leijen
-import Control.Monad.Fix (fix)
 
 data Value = VInt Integer
            | VBool Bool
@@ -288,7 +288,8 @@ instance Pretty Op where
                  AND -> "&&"
 
 instance Pretty SymValue where
-    pretty (SVar _ i _) = text "x" <> int i
+    pretty (SVar n i _) = text n <> int i
+    -- pretty (SVar _ i _) = text "x" <> int i
     -- pretty (SVar n _ _) = text n
     pretty (SInt i) = integer i
     pretty (SBool b) = bool b
