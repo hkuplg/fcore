@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
-module PartialEvaluator (rewriteAndEval, Exp(..)) where
+module PartialEvaluator (rewriteAndEval, Exp(..), rewrite1, rewrite2, rewrite3) where
 
 import Core
 import OptiUtils
@@ -28,8 +28,11 @@ rewrite2 = rewrite2' 0 Map.empty
 
 rewrite2' :: Int -> Map.Map Int e -> Expr t Int -> Expr t e
 rewrite2' num env (Let n expr f) = case f num of
-                                    Var _ _ -> rewrite2' (num + 1) env expr
-                                    e -> Let n (rewrite2' (num + 1) env expr) (\b -> rewrite2' (num + 2) (Map.insert num b env) e)
+                                    e@(Var _ num') ->
+                                      if num' == num
+                                      then rewrite2' num env expr
+                                      else Let n (rewrite2' num env expr) (\b -> rewrite2' (num + 1) (Map.insert num b env) e)
+                                    e -> Let n (rewrite2' num env expr) (\b -> rewrite2' (num + 1) (Map.insert num b env) e)
 rewrite2' num env e = rewriteExpr rewrite2' num env e
 
 -- Rule 3: (\x . y x)                     => y (where y is a variable)
@@ -38,7 +41,10 @@ rewrite3 = rewrite3' 0 Map.empty
 
 rewrite3' :: Int -> Map.Map Int e -> Expr t Int -> Expr t e
 rewrite3' num env (Lam n t f) = case f num of
-                                 (App (Var n' y) (Var _ _)) -> Var n' (fromJust $ Map.lookup y env)
+                                 e'@(App (Var n' y) (Var _ num')) ->
+                                   if num == num'
+                                   then Var n' (fromJust $ Map.lookup y env)
+                                   else Lam n t (\e -> rewrite3' (num + 1) (Map.insert num e env) e')
                                  e' -> Lam n t (\e -> rewrite3' (num + 1) (Map.insert num e env) e')
 rewrite3' num env e = rewriteExpr rewrite3' num env e
 
@@ -55,6 +61,7 @@ rewrite e = Hide (rewrite3 . rewrite2 . reveal $ e)
 
 rewriteAndEval :: Exp -> Expr t e
 rewriteAndEval = reveal . rewrite . partialEval
+-- rewriteAndEval = reveal . partialEval
 
 -- calc :: Expr t (Expr t e) -> Expr t (Expr t e)
 -- calc (App e1 e2) =
