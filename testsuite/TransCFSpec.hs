@@ -10,7 +10,7 @@ import Parser       (reader)
 import TypeCheck    (typeCheck)
 import Desugar      (desugar)
 import Simplify     (simplify)
-import PartialEvaluator (peval)
+import PartialEvaluator
 
 import Translations (compileN, compileAO, compileS)
 
@@ -41,7 +41,7 @@ esf2sf expr =
   do res <- TypeCheck.typeCheck expr
      case res of
        Left typeError     -> error $ show ({- Text.PrettyPrint.ANSI.Leijen.pretty -} typeError)
-       Right (tcExpr, _t) -> return ((peval . simplify . desugar) tcExpr)
+       Right (_t, tcExpr) -> return (rewriteAndEval (Hide ((simplify . desugar) tcExpr)))
 
 testAbstractSyn compilation (name, ast, expectedOutput) =
   it ("should compile and run " ++ name ++ " and get \"" ++ expectedOutput ++ "\"") $

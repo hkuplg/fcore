@@ -1,10 +1,8 @@
 {-# LANGUAGE RankNTypes #-}
-module PartialEvaluator where
+module PartialEvaluator (rewriteAndEval, Exp(..))where
 
 import Core
 import OptiUtils
-import qualified Src as S
-import qualified Language.Java.Syntax as J (Op(..))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 import Data.List (foldl')
@@ -118,8 +116,8 @@ partialEval e = Hide (peval (reveal e))
 rewrite :: Exp -> Exp
 rewrite e = Hide (rewrite3 . rewrite2 . reveal $ e)
 
-rewriteAndEval :: Exp -> Exp
-rewriteAndEval = rewrite . partialEval
+rewriteAndEval :: Exp -> Expr t e
+rewriteAndEval = reveal . rewrite . partialEval
 
 -- calc :: Expr t (Expr t e) -> Expr t (Expr t e)
 -- calc (App e1 e2) =

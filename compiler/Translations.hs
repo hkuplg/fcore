@@ -174,8 +174,8 @@ sf2java num optDump compilation className src =
                                2 -> inliner . inliner . simplify $ core
                                _ -> simplify core
 
-            let rewrittencore = reveal (rewriteAndEval (Hide simpleCore))
-            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittencore)
+            let rewrittencore = rewriteAndEval (Hide simpleCore)
+            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
             when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp rewrittencore))
             let (cu, _) = compilation className rewrittencore
             return $ prettyPrint cu
