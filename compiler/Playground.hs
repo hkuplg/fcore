@@ -9,7 +9,7 @@ import           Core
 import           Desugar (desugar)
 import           Inliner (inliner)
 import           Parser (reader)
-import           PartialEvaluator (peval)
+import           PartialEvaluator
 import           Simplify (simplify)
 import qualified Src as S
 import           System.Directory (getCurrentDirectory)

@@ -9,6 +9,10 @@ import TypeCheck (typeCheck)
 import Desugar (desugar)
 import Simplify (simplify)
 import Control.Monad (liftM)
+import qualified Data.Map.Strict as Map
+import Data.Maybe (fromJust)
+import Data.List (foldl')
+import Panic
 
 joinExpr :: Expr t (Expr t e) -> Expr t e
 joinExpr (Var _ x) = x
@@ -57,6 +61,37 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Seq es -> Seq $ map f es
 
+rewriteExpr :: (Int -> Map.Map Int e -> Expr t Int -> Expr t e) -> Int -> Map.Map Int e -> Expr t Int -> Expr t e
+rewriteExpr f num env expr =
+  case expr of
+   Var n v -> Var n (fromJust $ Map.lookup v env)
+   Lit n ->  Lit n
+   Lam n t f' -> Lam n t (\e -> f (num + 1) (Map.insert num e env) (f' num))
+   Fix n1 n2 f' t1 t2 -> Fix n1 n2 (\a b -> f (num + 2) (Map.insert (num + 1) b (Map.insert num a env)) (f' num (num + 1))) t1 t2
+   Let n e f' -> Let n (f num env e) (\b -> f (num + 1) (Map.insert num b env) (f' num))
+   LetRec n t b f' -> LetRec n t (\bs ->
+                                   let len = length bs
+                                       bs' = b [num .. num + len - 1]
+                                   in map (f (num + len) (foldl' multInsert env (zip [num .. num + len - 1] bs))) bs')
+                                 (\es ->
+                                   let len = length es
+                                       es' = f' [num .. num + len - 1]
+                                   in f (num + len) (foldl' multInsert env (zip [num .. num + len - 1] es)) es')
+   BLam n f' -> BLam n (f num env . f')
+   App e1 e2 -> App (f num env e1) (f num env e2)
+   TApp e t -> TApp (f num env e) t
+   If e1 e2 e3 -> If (f num env e1) (f num env e2) (f num env e3)
+   PrimOp e1 op e2 -> PrimOp (f num env e1) op (f num env e2)
+   Tuple es -> Tuple (map (f num env) es)
+   Proj n e -> Proj n (f num env e)
+   JNew n es -> JNew n (map (f num env) es)
+   JMethod e b es d -> JMethod (fmap (f num env) e) b (map (f num env) es) d
+   JField e a b -> JField (fmap (f num env) e) a b
+   Seq es -> Seq (map (f num env) es)
+   Constr c es -> Constr c (map (f num env) es)
+   Case _ _ -> sorry "Rewriting case not yet done"
+
+
 sf2core :: String -> IO (Expr t e)
 sf2core fname = do
      path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
@@ -69,3 +104,6 @@ sf2core fname = do
 
 fCore :: (Expr t e -> b) -> String -> IO b
 fCore f str = liftM f $ sf2core str
+
+multInsert :: Map.Map Int e -> (Int, e) -> Map.Map Int e
+multInsert m (key, value) = Map.insert key value m
