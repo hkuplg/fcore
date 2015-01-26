@@ -11,6 +11,8 @@ import           SymbolicEvaluator
 import           SystemFI
 import           Text.PrettyPrint.ANSI.Leijen
 import           Z3.Monad                     hiding (Z3Env)
+import Data.Map (Map, fromList)
+import Data.Text (Text, splitOn, pack, unpack)
 
 data Z3Env = Z3Env { index                      :: Int
                    , boolSort, intSort, adtSort :: Sort
@@ -33,46 +35,46 @@ solve' stop e =
       -- prelude (int,bool,adt) ts
 
       let (tree, i) = exec $ seval e
-          env = Z3Env { index = i + 1
+          env = Z3Env { index = i
                       , intSort = int, boolSort = bool , adtSort = adt
                       -- , constrFuns = cfs
                       , symVars = IntMap.empty
                       , funVars = IntMap.empty
                       , target = defaultTarget
                       }
-      pathsZ3 env tree empty stop
+      pathsZ3 env tree [] stop
 
 defaultTarget :: Doc -> SymValue -> Z3 ()
 defaultTarget s e = liftIO $ putDoc $ s <+> evalTo <+> pretty e <> linebreak
 
-pathsZ3 :: Z3Env -> ExecutionTree -> Doc -> Int -> Z3 ()
+pathsZ3 :: Z3Env -> ExecutionTree -> [Doc] -> Int -> Z3 ()
 pathsZ3 _ _ _ stop | stop <= 0 = return ()
-pathsZ3 env (Exp e) doc _ =
-    case show doc of
-      "" -> target env (text "True") e -- sole result
-      _ -> target env (text $ drop (length "&& " + 1) s) e
-    where s = show doc
+pathsZ3 env (Exp e) conds _ =
+    target env (foldr1 combineWithAnd conds') e
+    where conds' = reverse $ case conds of
+                               [] -> conds ++ [text "True"] -- sole result
+                               _ -> conds
 
-pathsZ3 env (NewSymVar i typ t) doc stop =
+pathsZ3 env (NewSymVar i typ t) conds stop =
     do ast <- declareVar env i typ
        let env' = either
                   (\x -> env{symVars = IntMap.insert i x (symVars env)})
                   (\x -> env{funVars = IntMap.insert i x (funVars env)})
                   ast
-       pathsZ3 env' t doc stop
+       pathsZ3 env' t conds stop
 
-pathsZ3 env (Fork e (Left (l,r))) doc stop =
+pathsZ3 env (Fork e (Left (l,r))) conds stop =
     do ast <- assertProjs env e
-       local $ assertCnstr ast >> whenSat (re l (doc <+> text "&&" <+> pretty e) (stop-1))
-       local $ mkNot ast >>= assertCnstr >> whenSat (re r (doc <+> text "&&" <+> prependNot (pretty e)) (stop-1))
+       local $ assertCnstr ast >> whenSat (re l (pretty e : conds) (stop-1))
+       local $ mkNot ast >>= assertCnstr >> whenSat (re r (prependNot (pretty e) : conds) (stop-1))
     where re = pathsZ3 env
 
-pathsZ3 env (Fork e@(SConstr c vs) (Right ts)) doc stop =
+pathsZ3 env (Fork e@(SConstr c vs) (Right ts)) conds stop =
     do let (cs, _, fs) = unzip3 ts
            f = fromJust $ lookup (sconstrName c) (map sconstrName cs `zip` fs)
        _ <- assertProjs env e
-       pathsZ3 env (f $ map Exp vs) doc (stop-1)
-pathsZ3 env (Fork e (Right ts)) doc stop =
+       pathsZ3 env (f $ map Exp vs) conds (stop-1)
+pathsZ3 env (Fork e (Right ts)) conds stop =
     do ast <- assertProjs env e
        let (cs,_,_) = unzip3 ts
        assertConstrsDistinct env cs
@@ -93,25 +95,8 @@ pathsZ3 env (Fork e (Right ts)) doc stop =
                     mapM_ (assertProj app) (zip paramFds varAsts)
 
                     -- whenSat $ pathsZ3 env' (f $ supply ns ids) (doc <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : ns)) (stop-1)
-                    whenSat $ pathsZ3 env' (f $ supply (repeat "x") ids) (doc <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : map (("x"++) . show) ids)) (stop-1)
-
-       -- where assertConstr :: AST -> (SConstructor, [S.Name], [ExecutionTree] -> ExecutionTree) -> Z3 ()
-       --       assertConstr ast (c,ns,f) =
-       --           do let (cFd,params) = constrFuns env c
-       --                  (paramSorts,paramFds) = unzip params
-       --                  index' = index env + length params
-       --                  ids = [index env..index'-1]
-       --              newVars <- mapM (\(s, n) -> declareVarSort s n) (zip paramSorts ids)
-       --              let varAsts = map snd newVars
-       --                  env' =  env {index = index', symVars = IntMap.fromList newVars `IntMap.union` symVars env}
-       --              app <- mkApp cFd varAsts
-       --              astEq <- mkEq ast app
-       --              assertCnstr astEq
-       --              mapM_ (assertProj app) (zip paramFds varAsts)
-
-       --              let e' = f $ map mkExecTree ids
-
-       --              whenSat $ pathsZ3 env' e' (doc <+> text "&&" <+> pretty e <+> equals <+> intersperseBar (map text $ sconstrName c : ns)) (stop-1)
+                    let cond = pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : map (("x"++) . show) ids)
+                    whenSat $ pathsZ3 env' (f $ supply (repeat "x") ids) (cond : conds) (stop-1)
 
 symtype2sort :: Z3Env -> SymType -> Sort
 symtype2sort env TInt = intSort env
