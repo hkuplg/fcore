@@ -5,19 +5,19 @@ import System.IO
 import System.Process
 import System.Directory			(doesFileExist, getDirectoryContents)
 import System.FilePath			(takeFileName)
-import System.TimeIt			(timeIt)
+import System.TimeIt			  (timeIt)
 
-import Data.Time			(getCurrentTime, diffUTCTime)
-import Control.Monad			(when)
+import Data.Time			      (getCurrentTime, diffUTCTime)
+import Control.Monad			  (when)
 
 import Translations
 import FileIO
 import JavaUtils
-import StringPrefixes			(namespace)
+import StringPrefixes			  (namespace)
 import qualified Data.ByteString as B
-import Data.FileEmbed (embedFile)
-import System.Directory (getTemporaryDirectory)
-import System.FilePath ((</>))
+import Data.FileEmbed       (embedFile)
+import System.Directory     (getTemporaryDirectory)
+import System.FilePath      ((</>))
 
 runtimeBytes :: B.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
