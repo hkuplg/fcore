@@ -1,0 +1,47 @@
+type ListAlg A L = {
+  nil  : L,
+  cons : A -> L -> L
+};
+type MyList A = {
+  accept : forall L. ListAlg A L -> L
+};
+let sumListAlg : ListAlg Int Int = {
+  nil  = 0,
+  cons = \(x : Int). \(y : Int). x + y
+};
+let sumList (l : MyList Int) : Int =
+  l.accept Int sumListAlg;
+type SybAlg Company Dept SubUnit Employee Person Salary = {
+  goC  : MyList Dept  ->  Company,
+  goD  : String       ->  Employee  ->  MyList SubUnit  ->  Dept,
+  goPU : Employee     ->  SubUnit,
+  goDU : Dept         ->  SubUnit,
+  goE  : Person       ->  Salary    ->  Employee,
+  goP  : String       ->  String    ->  Person,
+  goS  : Int          ->  Salary
+};
+let staff C D SU E P SA (alg : SybAlg C D SU E P SA) = {
+  ralf   = alg.goE (alg.goP "Ralf"   "Amsterdam") (alg.goS 8000),
+  joost  = alg.goE (alg.goP "Joost"  "Amsterdam") (alg.goS 1000),
+  marlow = alg.goE (alg.goP "Marlow" "Cambridge") (alg.goS 2000),
+  blair  = alg.goE (alg.goP "Blair"  "London")    (alg.goS 100000)
+};
+let genCom C D SU E P SA (alg : SybAlg C D SU E P SA) : C =
+  alg.goC { accept = /\L. \(f : ListAlg D L). f.cons
+    (alg.goD "Research" ((staff C D SU E P SA alg).ralf)
+      { accept = /\LM. \(fm : ListAlg SU LM). fm.cons
+        (alg.goPU ((staff C D SU E P SA alg).joost)) (fm.cons
+         alg.goPU ((staff C D SU E P SA alg).marlow) fm.nil) }) (f.cons
+    (alg.goD "Strategy" ((staff C D SU E P SA alg).blair)
+      { accept = /\LN. \(fn : ListAlg SU LN). fn.nil }) f.nil) };
+type QueryInt = SybAlg Int Int Int Int Int Int;
+let salaryBill : QueryInt = {
+  goC  = \(l : MyList Int). sumList l,
+  goD  = \(x : String). \(y : Int). \(l : MyList Int). y + sumList l,
+  goPU = \(x : Int). x,
+  goDU = \(x : Int). x,
+  goE  = \(x : Int). \(y : Int). x + y,
+  goP  = \(x : String). \(y : String). 0,
+  goS  = \(x : Int). x
+};
+genCom Int Int Int Int Int Int salaryBill
