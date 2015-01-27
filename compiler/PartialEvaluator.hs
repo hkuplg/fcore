@@ -5,15 +5,15 @@ import OptiUtils
 import qualified Src as S
 import qualified Language.Java.Syntax as J (Op(..))
 
-app2let :: Expr t (Expr t e) -> Expr t (Expr t e)
-app2let (App e1 e2) =
+app2let :: Int -> Expr t (Expr t e) -> Expr t (Expr t e)
+app2let i (App e1 e2) =
     case e1' of
-      Lam n _ f -> Let n e2' f
-      Let n body f -> Let n body (\x -> app2let (App (f x) e2'))
+      Lam n _ f -> Let ("temp" ++ show (i + 1)) e2' f
+      Let n body f -> Let n body (\x -> app2let (i + 1) (App (f x) e2'))
       _ -> App e1' e2'
-    where e1' = app2let e1
-          e2' = app2let e2
-app2let e = mapExpr app2let e
+    where e1' = app2let (i + 1) e1
+          e2' = app2let (i + 1) e2
+app2let i e = mapExpr (app2let (i + 1)) e
 
 calc :: Expr t (Expr t e) -> Expr t (Expr t e)
 calc (App e1 e2) =
@@ -48,8 +48,8 @@ calc (PrimOp e1 op e2) =
       (Lit (S.Bool a), Lit (S.Bool b)) ->
           case op of
             -- logic operations
-            S.Logic J.And -> Lit . S.Bool $ a && b
-            S.Logic J.Or -> Lit . S.Bool $ a || b
+            S.Logic J.CAnd -> Lit . S.Bool $ a && b
+            S.Logic J.COr -> Lit . S.Bool $ a || b
             _ -> simplified
       _ -> simplified
     where e1' = calc e1
@@ -64,4 +64,4 @@ calc (If e1 e2 e3) =
 calc e = mapExpr calc e
 
 peval :: Expr t (Expr t e) -> Expr t e
-peval = joinExpr . app2let -- . calc
+peval = joinExpr . (app2let 0) -- . calc

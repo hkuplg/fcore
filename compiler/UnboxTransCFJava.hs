@@ -131,12 +131,12 @@ transUnbox this super =
                          return (cvar,var (localvarstr ++ show n), Type t (\_ -> t1) )
 
                    _ -> translateScopeM super e m
-              ,translateApply = \m1 m2 ->
+              ,translateApply = \flag m1 m2 ->
                     do  (s1,j1', Forall (Type t1 g)) <- m1
                         (s2,j2,_) <- m2
                         -- let (wrapS, jS) = wrap j2 t1 t2
                         let retTyp = g ()
-                        j1 <- genClosureVar (up this) (getArity retTyp) j1'
+                        j1 <- genClosureVar (up this) flag (getArity retTyp) j1'
                         cName <- getClassType (up this) t1 (scope2ctyp retTyp)
                         (s3, nje3) <- getS3 (up this) j1 (unwrap j2) retTyp (classTy cName)
                         return (s1 ++ s2 ++ s3, nje3, scope2ctyp retTyp)

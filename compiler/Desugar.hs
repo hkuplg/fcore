@@ -40,7 +40,7 @@ transType d (Record fs)  =
                   [(l,t)]  -> F.Record (l, transType d t)
                   _        -> transType d (Record (take (length fs - 1) fs)) `F.And` F.Record (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = F.Unit
-transType i (Thunk t)    = F.Thunk (transType i t)
+transType i (Thunk t)    = F.Fun F.Unit (transType i t)
 transType _ (Datatype n ns) = F.Datatype n ns
 transType _ t            = prettySorry "Desugar.transType" (pretty t)
 
@@ -49,7 +49,7 @@ desugarExpr (d, g) = go
   where
     go (Var (x,_t))      = fromMaybe (panic "Desugar.desugarExpr: Var") (Map.lookup x g)
     go (Lit lit)         = F.Lit lit
-    go (App e1 e2)       = F.App (go e1) (go e2)
+    go (App f x)         = F.App (go f) (go x)
     go (TApp e t)        = F.TApp (go e) (transType d t)
     go (Tuple es)        = F.Tuple (map go es)
     go (Proj e i)        = F.Proj i (go e)
