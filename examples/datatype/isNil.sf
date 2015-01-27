@@ -1,0 +1,16 @@
+data MList = Nil
+           | Cons Int MList
+           ;
+let isNil (xs: MList): Bool =
+    case xs of
+       Nil -> True
+     | Cons z zs -> False;
+let headIs0 (xs : MList) : Bool =
+   case xs of
+       Nil -> if isNil xs
+              then False
+              else True -- unreachable
+     | Cons y ys -> if isNil xs
+                    then True -- unreachable
+                    else y == 0;
+headIs0

@@ -1,0 +1,25 @@
+data MList = Nil
+           | Cons Int MList
+           ;
+let rec eq (xs: MList) (ys: MList) : Bool =
+  case xs of
+     Nil -> (case ys of
+              Nil -> True
+	    | Cons z zs -> False)
+   | Cons a as -> (case ys of
+     	       	     Nil -> False
+		   | Cons b bs -> (a == b) && (eq as bs)) ;
+
+let rec concat (xs : MList) (ys : MList) : MList =
+  case xs of
+      Nil       -> ys
+    | Cons z zs -> { Cons z (concat zs ys) };
+
+let rec reverse (xs: MList) : MList =
+    case xs of
+    	Nil -> {Nil}
+      | Cons y ys -> concat (reverse ys) {Cons y {Nil}} ;
+
+let prop_reverse (xs: MList) : Bool = eq (reverse (reverse xs)) xs;
+
+prop_reverse

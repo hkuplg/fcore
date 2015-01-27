@@ -1,0 +1,38 @@
+data MList = Nil | Cons Int MList;
+
+let rec eq (xs: MList) (ys: MList) : Bool =
+  case xs of
+     Nil -> (case ys of
+              Nil -> True
+	    | Cons z zs -> False)
+   | Cons a as -> (case ys of
+     	       	     Nil -> False
+		   | Cons b bs -> (a == b) && (eq as bs)) ;
+let rec filter (p : Int -> Bool) (xs : MList) : MList =
+  case xs of
+      Nil       -> { Nil }
+    | Cons y ys -> if p y then { Cons y (filter p ys) } else filter p ys;
+let rec concat (xs : MList) (ys : MList) : MList =
+  case xs of
+      Nil       -> ys
+    | Cons z zs -> { Cons z (concat zs ys) };
+let rec qsort (xs : MList) : MList =
+  case xs of
+      Nil       -> { Nil }
+    | Cons y ys -> case ys of
+                       Nil       -> { Cons y { Nil } }
+                     | Cons z zs -> concat (qsort (filter (\(a : Int). a <= y) ys)) {Cons y (qsort (filter (\(a : Int). a > y) ys)) };
+
+let rec insert (x : Int) (xs : MList) : MList =
+    case xs of
+        Nil -> {Cons x {Nil}}
+      | Cons y ys -> if x <= y
+      	       	     then {Cons x {Cons y ys}}
+		     else {Cons y (insert x ys)};
+let rec isort (xs : MList) : MList =
+    case xs of
+    	Nil -> {Nil}
+      | Cons x ys -> insert x (isort ys);
+
+let prop_sort (xs : MList) = eq (qsort xs) (isort xs);
+prop_sort
