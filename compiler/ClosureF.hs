@@ -179,8 +179,24 @@ substType n t (TVar x) = subst n t x
 substType n t (Forall s) = Forall (substScope n t s)
 substType n t x = x
 
+-- TODO: temp fix
+substScope' :: Subst t => (Int,Int) -> Type (Int,Int) -> Scope (Type t) t () -> Scope (Type t) t ()
+substScope' n t (Body t1) = Body (substType' n t t1)
+substScope' n t (Kind f)  = Kind (\a -> substScope' n t (f a))
+substScope' n t (Type t1 f) = Type (substType' n t t1) (\x -> substScope' n t (f x))
+
+substType' :: Subst t => (Int,Int) -> Type (Int,Int) -> Type t -> Type t
+substType' n t (TVar x) = subst' n t x
+substType' n t (Forall s) = Forall (substScope' n t s)
+substType' n t x = x
+
 class Subst t where
    subst :: Int -> Type Int -> t -> Type t
+   subst' :: (Int,Int) -> Type (Int,Int) -> t -> Type t
+
+instance Subst (Int,Int) where
+     subst' n t x | n == x = t
+                  | otherwise = TVar x
 
 instance Subst Int where
    subst n t x
