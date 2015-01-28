@@ -20,6 +20,7 @@ import OptiUtils
 import Text.PrettyPrint.ANSI.Leijen
 
 import Unsafe.Coerce
+import qualified SystemFI as FI
 
 import qualified Language.Java.Syntax as J (Op(..))
 
@@ -171,7 +172,7 @@ boolfun = lam (Fun javaBool javaBool) (\n -> If ((App (var n) true) `neq` (App (
 app_bool_fun = App boolfun inverse
 
 -- interface to symbolic evaluator
-se str = sf2core str >>= (\e -> solve e)
+se str = src2fi str >>= solve
 
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (S.Int 0)

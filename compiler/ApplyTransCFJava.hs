@@ -34,15 +34,11 @@ transApply :: (MonadState Int m,
 transApply _ super = NT {toT = super {
 
   genClosureVar =
-    \arity j1 -> case j1 of
-              Left (J.Name xs) ->
-                if beginUpper xs -- true if it's class name
-                then return (unwrap j1)
-                else do (n :: Int, _ :: Bool) <- ask
-                        if arity > n -- true if partial application
-                          then return $ J.MethodInv (J.PrimaryMethodCall (J.ExpName . J.Name $ xs) [] (J.Ident "clone") [])
-                          else return (unwrap j1)
-              _ -> return (unwrap j1),
+    \flag arity j1 ->
+     do (n :: Int, _ :: Bool) <- ask
+        if flag && arity > n
+          then return $ J.MethodInv (J.PrimaryMethodCall (unwrap j1) [] (J.Ident "clone") [])
+          else return (unwrap j1),
 
   translateScopeTyp = \x1 f initVars nextInClosure m closureClass ->
     if isMultiBinder nextInClosure
