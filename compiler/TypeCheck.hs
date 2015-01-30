@@ -278,42 +278,42 @@ infer (Lam (x1,t1) e)
        (t', e') <- withLocalVars [(x1,t1')] (infer e)
        return (Fun t1' t', Lam (x1,t1') e')
 
-infer (App f x) =
-  do (tf, f') <- infer f
-     (tx, x') <- infer x
-     case tf of
-       Fun tfparam tfret ->
+infer (App e1 e2) =
+  do (t1, e1') <- infer e1
+     (t2, e2') <- infer e2
+     case t1 of
+       Fun t11 t12 ->
          do d <- getTypeContext
-            unless (subtype d tx tfparam) $ throwError (TypeMismatch tfparam tx)
-            case (tfparam, tx) of
-              (Thunk _, Thunk _) -> return (tfret, App f' x')
-              (Thunk _, _)       -> return (tfret, App f' (Lam ("_", Unit) x'))
-              (_, Thunk _)       -> return (tfret, App f' (App x' (Lit UnitLit)))
-              (_, _)             -> return (tfret, App f' x')
+            unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
+            case (t11, t2) of
+              (Thunk _, Thunk _) -> return (t12, App e1' e2')
+              (Thunk _, _)       -> return (t12, App e1' (Lam ("_", Unit) e2'))
+              (_, Thunk _)       -> return (t12, App e1' (App e2' (Lit UnitLit)))
+              (_, _)             -> return (t12, App e1' e2')
 
-       Thunk (Fun tfparam tfret) ->
+       Thunk (Fun t11 t12) ->
          do d <- getTypeContext
-            unless (subtype d tx tfparam) $ throwError (TypeMismatch tfparam tx)
-            case (tfparam, tx) of
-              (Thunk _, Thunk _) -> return (tfret, App f'' x')
-              (Thunk _, _)       -> return (tfret, App f'' (Lam ("_", Unit) x'))
-              (_, Thunk _)       -> return (tfret, App f'' (App x' (Lit UnitLit)))
-              (_, _)             -> return (tfret, App f'' x')
-         where f'' = App f' (Lit UnitLit)
+            unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
+            case (t11, t2) of
+              (Thunk _, Thunk _) -> return (t12, App e1'' e2')
+              (Thunk _, _)       -> return (t12, App e1'' (Lam ("_", Unit) e2'))
+              (_, Thunk _)       -> return (t12, App e1'' (App e2' (Lit UnitLit)))
+              (_, _)             -> return (t12, App e1'' e2')
+         where e1'' = App e1' (Lit UnitLit)
 
-       _ -> throwError (NotAFunction tf)
+       _ -> throwError (NotAFunction t1)
 
 infer (BLam a e)
   = do (t, e') <- withLocalTVars [(a, (Star, TerminalType))] (infer e)
        return (Forall a t, BLam a e')
 
-infer (TApp e targ)
+infer (TApp e arg)
   = do (t, e') <- infer e
-       checkType targ
+       checkType arg
        d <- getTypeContext
-       let targ' = expandType d targ
+       let arg' = expandType d arg
        case t of
-         Forall a t1 -> return (fsubstTT (a, targ') t1, TApp e' targ')
+         Forall a t1 -> return (fsubstTT (a, arg') t1, TApp e' arg')
          _           -> sorry "TypeCheck.infer: TApp"
 
 infer (Tuple es)
