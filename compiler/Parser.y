@@ -191,7 +191,7 @@ expr :: { ReaderExpr }
 
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
-    | "data" tvar "=" constrs_decl ";" expr    { Data $2 $4 $6 }
+    | "data" tvar tvars "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
     | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
     | module expr                   { LetModule $1 $2 }
@@ -229,7 +229,7 @@ aexpr :: { ReaderExpr }
     | "{" recordlit_body "}"    { RecordIntro $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }
-    | "{" constr_name aexprs "}"{ Constr (Constructor $2 []) $3 }
+    | "{" constr_name types aexprs "}"{ Constr (Constructor $2 []) $3 $4 }
     | "(" expr ")"              { $2 }
 
 lit :: { ReaderExpr }

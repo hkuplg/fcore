@@ -517,29 +517,43 @@ infer (Type t params rhs e)
   where
     pulledRight = pullRight params rhs
 
-infer (Data name cs e) =
-    do let names = map constrName cs
+-- data List A = Nil | Cons A (List A); e
+-- gamma |- Nil: \/A. List A, Cons: \/A. A List A
+-- delta |- List: \A. List A
+infer (Data name params cs e) =
+    do checkDupNames $ name:params
+       let names = map constrName cs
        checkDupNames names
        type_ctxt <- getTypeContext
 
-       let t = Datatype name names
-           dt = (Star, NonTerminalType t)
-           type_ctxt' = Map.insert name dt type_ctxt
-           types' = map (map (expandType type_ctxt') . constrParams) cs
-           constrBindings = zip names (map (foldTypes t) types')
-       withLocalTVars [(name, dt)] (withLocalVars constrBindings (infer e))
+       let dt = Datatype (map TVar params) name names
+           kind_dt = (foldr (\_ acc -> KArrow Star acc) Star params, NonTerminalType $ pullRight params dt)
+           type_ctxt' = Map.insert name kind_dt type_ctxt `Map.union` Map.fromList (zip params (repeat (Star, TerminalType)))
+           constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt' t | t <- ts] dt | Constructor _ ts <- cs]
+           constr_binds = zip names constr_types
+       -- liftIO $ print constr_types
+       -- throwError $ General $ hcat (intersperse comma (map pretty types))
+       withLocalTVars [(name, kind_dt)] (withLocalVars constr_binds (infer e))
 
-infer (Constr c es) =
+-- C A1..An e1..en
+-- kind check needed here
+infer (Constr c ts es) =
   do value_ctxt <- getValueContext
-     let n = constrName c
-     ts <- case Map.lookup n value_ctxt of
-                Just t -> return $ unfoldTypes t
-                Nothing -> throwError (NotInScope n)
-     let (len_expected, len_actual) = (length ts - 1, length es)
+     mapM_ checkType ts
+     delta <- getTypeContext
+     let ts_expanded = map (expandType delta) ts
+         constr_name = constrName c
+     constr_fun <- case Map.lookup constr_name value_ctxt of
+                      Just t -> return t
+                      Nothing -> throwError (NotInScope constr_name)
+
+     let constr_ts = unwrapFun $ feedToForall constr_fun ts_expanded
+         constr_targs = init constr_ts
+     let (len_expected, len_actual) = (length constr_targs, length es)
      unless (len_expected == len_actual) $
-            throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_expected <+> text "arguments, but has been given" <+> int len_actual)
-     (_, es') <- mapAndUnzipM (uncurry inferAgainst) (zip es ts)
-     return (last ts, Constr (Constructor n ts) es')
+            throwError (General $ text "Constructor" <+> bquotes (text constr_name) <+> text "should have" <+> int len_expected <+> text "arguments, but has been given" <+> int len_actual)
+     (_, es') <- mapAndUnzipM (uncurry inferAgainst) (zip es constr_targs)
+     return (last constr_ts, Constr (Constructor constr_name constr_ts) ts_expanded es')
 
 infer (Case e alts) =
   do (t, e') <- infer e
@@ -547,14 +561,14 @@ infer (Case e alts) =
        throwError (General (bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"))
      value_ctxt <- getValueContext
      d <- getTypeContext
-     let ns = (\(Datatype _ xs) -> xs) t
+     let (Datatype ts_feed _ ns)= t
          constrs = map (\(ConstrAlt c _ _) -> c) alts
      constrs' <- mapM (\c -> let n = constrName c
                              in case Map.lookup n value_ctxt of
-                                  Just t' -> let ts = unfoldTypes t'
-                                             in if alphaEq d (last ts) t
-                                                then return (Constructor n ts)
-                                                else throwError (TypeMismatch t t')
+                                  Just t_constr -> let ts = unwrapFun $ feedToForall t_constr ts_feed
+                                                   in if alphaEq d (last ts) t
+                                                      then return (Constructor n ts)
+                                                      else throwError (TypeMismatch t t_constr)
                                   Nothing -> throwError (NotInScope n))
                  constrs
      let alts' = zipWith substAltConstr alts constrs'
@@ -584,7 +598,7 @@ infer (Case e alts) =
   where substAltExpr (ConstrAlt c ns _) = ConstrAlt c ns
         substAltConstr (ConstrAlt _ ns expr) c = ConstrAlt c ns expr
 
-        isDatatype (Datatype _ _) = True
+        isDatatype (Datatype{}) = True
         isDatatype _ = False
 
 -- | "Pull" the type params at the LHS of the equal sign to the right.
@@ -595,6 +609,9 @@ infer (Case e alts) =
 --   OpAbs "A" (OpAbs "B" (JType (JClass "java.lang.Integer")))
 pullRight :: [Name] -> Type -> Type
 pullRight params t = foldr OpAbs t params
+
+pullRightForall :: [Name] -> Type -> Type
+pullRightForall params t = foldr Forall t params
 
 inferAgainst :: ReaderExpr -> Type -> Checker (Type, CheckedExpr)
 inferAgainst expr expected_ty
@@ -747,9 +764,12 @@ findOneDup xs = go xs Set.empty
                      then Just x
                      else go xs' (Set.insert x s)
 
-foldTypes :: Type -> [Type] -> Type
-foldTypes = foldr Fun
+unwrapFun :: Type -> [Type]
+unwrapFun (Fun t t') = t : unwrapFun t'
+unwrapFun t = [t]
 
-unfoldTypes :: Type -> [Type]
-unfoldTypes t@(Datatype _ _) = [t]
-unfoldTypes (Fun t t') = t : unfoldTypes t'
+feedToForall :: Type -> [Type] -> Type
+feedToForall =
+    foldl (\t t_feed -> case t of
+                          Forall a t' -> fsubstTT (a, t_feed) t'
+                          _ -> prettySorry "TypeCheck.feedToForall" (pretty t))

@@ -76,7 +76,7 @@ data Type
   | OpApp Type Type -- Type-level application: t1 t2
 
   | ListOf Type
-  | Datatype Name [Name]
+  | Datatype [Type] Name [Name]
 
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
@@ -127,9 +127,9 @@ data Expr id ty
       [Name]       -- A1 ... An -- Type parameters
       Type   -- t         -- RHS of the equal sign
       (Expr id ty) -- e         -- The rest of the expression
-  | Data Name [Constructor] (Expr id ty)
+  | Data Name [Name] [Constructor] (Expr id ty)
   | Case (Expr id ty) [Alt id ty]
-  | Constr Constructor [Expr id ty]
+  | Constr Constructor [Type] [Expr id ty] -- post typecheck only
   deriving (Eq, Show)
 
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
@@ -216,7 +216,7 @@ expandType d (Record fs)  = Record (map (second (expandType d)) fs)
 expandType d (ListOf t)   = ListOf (expandType d t)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
 expandType d (Thunk t)    = Thunk (expandType d t)
-expandType _ t@(Datatype _ _) = t
+expandType d (Datatype ts n ns) = Datatype (map (expandType d) ts) n ns
 
 -- Type equivalence(s) and subtyping
 
@@ -247,7 +247,8 @@ alphaEqS (And t1 t2)    (And t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4
 alphaEqS Unit           Unit           = True
 alphaEqS (Thunk t1)     t2             = alphaEqS t1 t2
 alphaEqS t1             (Thunk t2)     = alphaEqS t1 t2
-alphaEqS (Datatype n1 m1) (Datatype n2 m2) = n1 == n2 && m1 == m2
+alphaEqS (Datatype ts1 n1 m1) (Datatype ts2 n2 m2) =
+    n1 == n2 && m1 == m2 && length ts1 == length ts2 && (uncurry alphaEqS `all` zip ts1 ts2)
 alphaEqS t1             t2             = False `panicOnSameDataCons` ("Src.alphaEqS", t1, t2)
 
 
@@ -272,7 +273,8 @@ subtypeS (ListOf t1)    (ListOf t2)            = subtypeS t1 t2  -- List :: * ->
 subtypeS t1             (And t2 t3) = subtypeS t1 t2 && subtypeS t1 t3
 subtypeS (And t1 t2)    t3          = subtypeS t1 t3 || subtypeS t2 t3
 subtypeS Unit           Unit        = True
-subtypeS (Datatype n1 m1) (Datatype n2 m2) = n1 == n2 && m1 == m2
+subtypeS (Datatype ts1 n1 m1) (Datatype ts2 n2 m2) =
+    n1 == n2 && m1 == m2 && length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
 subtypeS t1             t2          = False `panicOnSameDataCons` ("Src.subtypeS", t1, t2)
 
 -- Records
@@ -343,7 +345,7 @@ fsubstTT (x,r) (OpAbs a t)
   | a `Set.member` freeTVars r = OpAbs a t -- The freshness condition, crucial!
   | otherwise                  = OpAbs a (fsubstTT (x,r) t)
 fsubstTT (x,r) (OpApp t1 t2)   = OpApp (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
-fsubstTT (_,_) t@(Datatype _ _) = t
+fsubstTT (x,r) (Datatype ts n ns) = Datatype (map (fsubstTT (x,r)) ts) n ns
 
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x
@@ -359,7 +361,7 @@ freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
 freeTVars (Thunk t)    = freeTVars t
 freeTVars (OpAbs _ t)  = freeTVars t
 freeTVars (OpApp t1 t2) = Set.union (freeTVars t1) (freeTVars t2)
-freeTVars (Datatype _ _) = Set.empty
+freeTVars (Datatype{}) = Set.empty -- TODO
 
 -- Pretty printers
 
@@ -385,7 +387,7 @@ instance Pretty Type where
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (ListOf a)   = brackets $ pretty a
-  pretty (Datatype n _) = text n
+  pretty (Datatype ts n _) = intersperseSpace (text n : map pretty ts)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Var x) = pretty x
@@ -431,11 +433,11 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (PrimList l)         = brackets $ tupled (map pretty l)
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
   pretty (RecordIntro fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
-  pretty (Data n cons e) = text "data" <+> text n <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>
+  pretty (Data n tvars cons e) = text "data" <+> intersperseSpace (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>
                            pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (Constr c es) = braces $ intersperseSpace $ text (constrName c) : map pretty es
+  pretty (Constr c _ es) = braces $ intersperseSpace $ text (constrName c) : map pretty es
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
