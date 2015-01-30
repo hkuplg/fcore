@@ -300,9 +300,9 @@ prettyExpr' p (i,j) (Fix n1 n2 f t1 t)
       colon <+> prettyType' p i t <> dot <$>
       prettyExpr' p (i, j + 2) (f j (j + 1))
 
-prettyExpr' _ (i,j) (Let n b e) =
-  text "let" <+> text n <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
-  prettyExpr' basePrec (i, j + 1) (e j)
+prettyExpr' p (i,j) (Let n b e) =
+  parensIf p 2 (text "let" <+> text n <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>
+  prettyExpr' basePrec (i, j + 1) (e j))
 
 prettyExpr' p (i,j) (LetRec names sigs binds body)
   = text "let" <+> text "rec" <$>
