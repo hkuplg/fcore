@@ -29,6 +29,7 @@ data Type t =
       TVar t
     | Forall (TScope t)
     | JClass ClassName
+    | Unit
     | CFInt
     | CFInteger
     | CFChar
@@ -77,7 +78,7 @@ ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
 ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
-ftyp2ctyp (C.Unit)                       = JClass "java.lang.Integer"
+ftyp2ctyp (C.Unit)                       = Unit
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-
@@ -154,6 +155,7 @@ getArity _ = 0
 
 joinType :: Type (Type t) -> Type t
 joinType (TVar t)   = t
+joinType Unit = Unit
 joinType CFInt = CFInt
 joinType CFInteger = CFInteger
 joinType CFChar = CFChar
@@ -224,6 +226,8 @@ prettyType :: Prec -> Index -> Type Index -> Doc
 prettyType _ _ (TVar t) = prettyTVar t
 
 prettyType p i (Forall f) = prettyTScope p i f
+
+prettyType _ _ Unit = text "Unit"
 
 prettyType _ _ (JClass "java.lang.Integer") = text "Int"
 prettyType _ _ (JClass "java.lang.String") = text "String"

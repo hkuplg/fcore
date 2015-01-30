@@ -434,16 +434,18 @@ infer (JMethod callee m args _) =
     Static c ->
       do (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
          ret_c <- checkMethodCall (Static c) m arg_cs
-         if ret_c == "char"
-           then return (JType (JPrim "char"), JMethod (Static c) m args' ret_c)
-           else return (JType (JClass ret_c), JMethod (Static c) m args' ret_c)
+         let ret_type = case ret_c of "java.lang.Void" -> Unit
+                                      "char" -> JType (JPrim "char")
+                                      _ -> JType (JClass ret_c)
+         return (ret_type, JMethod (Static c) m args' ret_c)
     NonStatic e ->
       do (c, e')         <- inferAgainstAnyJClass e
          (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
          ret_c <- checkMethodCall (NonStatic c) m arg_cs
-         if ret_c == "char"
-           then return (JType (JPrim "char"), JMethod (NonStatic e') m args' ret_c)
-           else return (JType (JClass ret_c), JMethod (NonStatic e') m args' ret_c)
+         let ret_type = case ret_c of "java.lang.Void" -> Unit
+                                      "char" -> JType (JPrim "char")
+                                      _ -> JType (JClass ret_c)
+         return (ret_type, JMethod (NonStatic e') m args' ret_c)
 
 infer (JField callee f _) =
   case callee of

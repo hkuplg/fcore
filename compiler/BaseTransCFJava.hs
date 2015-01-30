@@ -312,12 +312,12 @@ trans self =
                                                   return (classS ,J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs')
                                              Left cn ->
                                                return ([] ,J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs')
-                   let typ = JClass r
                    if r /= "java.lang.Void"
-                      then do newVarName <- getNewVarName this
+                      then do let typ = JClass r
+                              newVarName <- getNewVarName this
                               assignExpr <- assignVar this typ newVarName rhs
                               return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,typ)
-                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, typ)
+                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, Unit)
               JField c fName r -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do (classStatement,classExpr,_) <- case c of
                                                      Right ce ->
