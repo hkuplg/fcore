@@ -1,7 +1,7 @@
 package f2j;
 
 public class FunctionalList {
-    final Integer x;
+    final Object x;
     final FunctionalList xs;
     final boolean empty;
     final int len;
@@ -9,18 +9,18 @@ public class FunctionalList {
     public FunctionalList() {
         empty = true;
         len = 0;
-        this.x = 0;
+        this.x = null;
         this.xs = null;
     }
 
-    public FunctionalList(Integer x, FunctionalList xs) {
+    public FunctionalList(Object x, FunctionalList xs) {
         empty = false;
         len = xs.length() + 1;
         this.x = x;
         this.xs = xs;
     }
 
-    public Integer head() {
+    public Object head() {
         return x;
     }
 
@@ -36,7 +36,7 @@ public class FunctionalList {
         return empty;
     }
 
-    public Integer at(int index) {
+    public Object at(int index) {
         if(index == 0)
             return x;
         return xs.at(index - 1);

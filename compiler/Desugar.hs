@@ -42,6 +42,7 @@ transType d (Record fs)  =
 transType _ Unit         = F.Unit
 transType i (Thunk t)    = F.Fun F.Unit (transType i t)
 transType _ (Datatype n ns) = F.Datatype n ns
+transType d (ListOf c)   = F.ListOf (transType d c)
 transType _ t            = prettySorry "Desugar.transType" (pretty t)
 
 desugarExpr :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
@@ -135,9 +136,10 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 
     -- Primitive List to java class
 
-    go (PrimList l)              = case l of     -- translate to java new obj
-                                     []   -> F.JNew (namespace ++ "FunctionalList") []
-                                     x:xs -> F.JNew (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
+    go (PolyList l t)             = case l of
+                                     []   -> F.PolyList [] (transType d t)
+                                     x:xs -> F.PolyList [go x, go (PolyList xs t )]  (transType d t)
+    go (JProxyCall jmethod t)     = F.JProxyCall (go jmethod) (transType d t)
 
     go (Seq es) = F.Seq (map go es)
     go (Data _ _ e) = go e

@@ -473,15 +473,40 @@ infer (Merge e1 e2) =
      (t2, e2') <- infer e2
      return (And t1 t2, Merge e1' e2')
 
-infer (PrimList l) =
+infer (PolyList l t) =
   do (ts, es) <- mapAndUnzipM infer l
-     case ts of
-       [] -> return (JType (JClass (namespace ++ "FunctionalList")), PrimList es)
-       _  ->
-         do d <- getTypeContext
-            if all (alphaEq d (head ts)) ts
-               then return (JType (JClass (namespace ++ "FunctionalList")), PrimList es)
-               else throwError (General (text "Primitive List Type Mismatch" <+> text (show (PrimList l))))
+     case ts of [] -> return (ListOf t, PolyList es t)
+                _  ->
+                     do d <- getTypeContext
+                        if all (alphaEq d t) ts
+                          then return (ListOf t, PolyList es t)
+                          else throwError $ General (text "List Type mismatch" <+> pretty (PolyList l t))
+
+infer (JProxyCall (JNew c args) t) =
+    if c /= (namespace ++ "FunctionalList")
+    then
+        throwError $ General (text (show c ++ " from JProxyCall: not supported"))
+    else
+        do ([t1, t2], expr') <- mapAndUnzipM infer args
+           d <- getTypeContext
+           if ( alphaEq d (ListOf t1) t2) && (alphaEq d t2 t)
+             then return (t, JProxyCall (JNew c expr') t)
+             else throwError $ General (text "Cons: Type dismatch" )
+
+infer (JProxyCall jmethod t) =
+    case jmethod of
+        JMethod (NonStatic e) methodname _ _ -> do
+            ty <- case methodname of
+                "head" -> do (ListOf a, _) <- infer e
+                             return a
+                "tail" -> do (a, _) <- infer e
+                             return a
+                _      -> throwError $ General (text (show methodname ++ " from JProxyCall: not supported"))
+            d <- getTypeContext
+            if (alphaEq d ty t)
+              then do m <- infer jmethod
+                      return (t, JProxyCall (snd m) t)
+              else throwError (TypeMismatch ty t)
 
 infer (RecordIntro fs) =
   do (ts, es') <- mapAndUnzipM infer (map snd fs)
@@ -612,6 +637,7 @@ inferAgainstAnyJClass expr
        case deThunkOnce ty of
         JType (JPrim "char") -> return ("java.lang.Character", expr')
         JType (JClass c) -> return (c, expr')
+        ListOf _         -> return (namespace ++ "FunctionalList", expr')
         _ -> throwError $
              General
              (code (pretty expr) <+> text "has type" <+> code (pretty ty) <> comma <+>
