@@ -13,7 +13,7 @@ public class FileServer {
 
     public static void compile(String fileName, String cp)
     {
-	// Save source in .java file.
+	      // Save source in .java file.
         File sourceFile = new File(fileName);
 
         // Compile source file.
@@ -28,19 +28,18 @@ public class FileServer {
             fileManager.getJavaFileObjectsFromFiles(Arrays.asList(files));
 
         String [] compileOptions = new String[] {"-classpath", cp};
-	// String [] compileOptions = new String[] {"-classpath", "runtime/runtime.jar:."};
-	//String [] compileOptions = new String[] {};
+	      // String [] compileOptions = new String[] {"-classpath", "runtime/runtime.jar:."};
+	      //String [] compileOptions = new String[] {};
         Iterable<String> compilationOptions = Arrays.asList(compileOptions);
 
         JavaCompiler.CompilationTask task =
         compiler.getTask(null, fileManager, diagnostics, compilationOptions, 
                          null, compilationUnits);
         task.call();
-
     }
 
-      public static String compileLoad (String fileName, String cp)
-      {
+    public static String compileLoad (String fileName, String cp)
+    {
         compile(fileName,cp);
 
         String className = "";
@@ -50,28 +49,29 @@ public class FileServer {
             i++;
         }
 
-	ClassLoader classLoader = FileServer.class.getClassLoader();
+      	ClassLoader classLoader = FileServer.class.getClassLoader();
         // Dynamically load class and invoke its main method.
         try {
             //Class<?> cls = Class.forName(className);
-	    Class<?> cls = classLoader.loadClass(className);
+	          Class<?> cls = classLoader.loadClass(className);
             Method meth = cls.getMethod("main", String[].class);
             String[] params = null;
 
-	    try {
-	      meth.setAccessible(true);
-              meth.invoke(null, (Object) params);
-	    } catch (InvocationTargetException e) {
-	      Throwable cause = e.getCause();
-	      e.printStackTrace();
-              System.out.format("Invocation of %s failed because of: %s%n",
-                                "main", cause.getMessage());
-	    }
+	        try {
+	          meth.setAccessible(true);
+            meth.invoke(null, (Object) params);
+	        } catch (InvocationTargetException e) {
+	          Throwable cause = e.getCause();
+	          //e.printStackTrace();
+            System.out.format("Invocation of %s failed because of: %s%n",
+                              "main", cause.getMessage());
+	        }
         } catch (Exception e) {
-            e.printStackTrace();     
+          //Throwable cause = e.getCause();
+          System.out.println("Error!");     
         }
 
-	return className;
+  	    return className;
     }
 
     public static void DeleteDummy()
@@ -81,7 +81,7 @@ public class FileServer {
 
       for(File f : fList) {
       	if(f.getName().endsWith(".class") && !f.getName().startsWith("FileServer"))
-	  f.delete();
+	        f.delete();
       }      
     }
 
@@ -90,8 +90,8 @@ public class FileServer {
         Scanner scanner = new Scanner(System.in);
         String cp = args[0];
 
-	while(true){
-	  if(!scanner.hasNextLine()) break;
+	      while(true){
+	        if(!scanner.hasNextLine()) break;
 
           String fileName = scanner.nextLine();
           //System.out.println(fileName);
@@ -101,24 +101,23 @@ public class FileServer {
             File myFile = new File(fileName);
             BufferedWriter output = new BufferedWriter(new FileWriter(myFile));
             
-	    while (scanner.hasNextLine()) {
-	        String line = scanner.nextLine();
-		if(line.equals("//end of file")) break;
+	          while (scanner.hasNextLine()) {
+	            String line = scanner.nextLine();
+		          if(line.equals("//end of file")) break;
                 output.write(line);
-            }
-            output.close();
-	    String className = compileLoad(fileName,cp);
-	    myFile.delete();
+              }
+              output.close();
+	            String className = compileLoad(fileName,cp);
+	            myFile.delete();
           } catch (Exception e) {
             e.printStackTrace();
           }
 
-	  // Delete dummy .class files in current directory
-	  DeleteDummy();
+	        // Delete dummy .class files in current directory
+	        DeleteDummy();
 
           System.out.println("exit");
-	}
-
+	      } 
     }
 
 }
