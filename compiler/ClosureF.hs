@@ -35,6 +35,7 @@ data Type t =
     | CFChar
     | CFCharacter
     | TupleType [Type t]
+    | ListType (Type t)
 
 data Expr t e =
      Var e
@@ -55,6 +56,8 @@ data Expr t e =
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
    | JField  (Either ClassName (Expr t e)) FieldName ClassName
+   | PolyList [Expr t e] (Type t)
+   | JProxyCall (Expr t e) (Type t)
    | SeqExprs [Expr t e]
 
 
@@ -79,6 +82,7 @@ ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp (C.Unit)                       = Unit
+ftyp2ctyp (C.ListOf t)                   = ListType (ftyp2ctyp t)
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-
@@ -122,6 +126,8 @@ fexp2cexp (C.JMethod c mName args r) =
 fexp2cexp (C.JField c fName r) =
   case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName r
             (S.Static cn)    -> JField (Left cn) fName r
+fexp2cexp (C.PolyList es t)     = PolyList (map fexp2cexp es) (ftyp2ctyp t)
+fexp2cexp (C.JProxyCall jmethod t) = JProxyCall (fexp2cexp jmethod) (ftyp2ctyp t)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp e                         = Lam (groupLambda e)
 
@@ -234,6 +240,7 @@ prettyType _ _ (JClass "java.lang.String") = text "String"
 prettyType _ _ (JClass "java.lang.Boolean") = text "Bool"
 prettyType _ _ (JClass "java.lang.Character") = text "Char"
 prettyType _ _ (JClass c) = text c
+prettyType p i (ListType t) = brackets $ prettyType p i t
 
 prettyType _ _ CFInt = text "Int"
 prettyType _ _ CFInteger = text "Integer"
@@ -332,5 +339,8 @@ prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
   where
     fieldStr (Left x)  = text x
     fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
+
+prettyExpr p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr p i ) $ es
+prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text ")" <> prettyExpr p (i,j) jmethod
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
