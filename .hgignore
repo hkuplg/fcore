@@ -15,7 +15,7 @@ runtime/
 runtime.jar
 
 # Ignore generated Java source files
-examples/*.java
+examples/**/*.java
 lib/*.java
 testsuite/tests/run-pass/*.java
 
