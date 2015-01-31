@@ -57,7 +57,8 @@ rewrite :: Exp -> Exp
 rewrite e = Hide (rewrite3 . rewrite2 . reveal $ e)
 
 rewriteAndEval :: Exp -> Expr t e
-rewriteAndEval = reveal . rewrite . partialEval
+rewriteAndEval = -- TODO: rewriting 3 times maybe overkill, but at least fractals compiles and runs
+  reveal . rewrite . rewrite . rewrite . partialEval
 
 
 -- Just for convenience to use view pattern
