@@ -1,38 +1,38 @@
-data MList = Nil | Cons Int MList;
+data PolyList A = Nil
+     	        | Cons A (PolyList A)
+	        ;
 
-let rec eq (xs: MList) (ys: MList) : Bool =
+let rec eq A (xs: PolyList A) (ys: PolyList A) : Bool =
   case xs of
      Nil -> (case ys of
               Nil -> True
 	    | Cons z zs -> False)
    | Cons a as -> (case ys of
      	       	     Nil -> False
-		   | Cons b bs -> (a == b) && (eq as bs)) ;
-let rec filter (p : Int -> Bool) (xs : MList) : MList =
+		   | Cons b bs -> (a == b) && (eq A as bs)) ;
+let rec filter (p : Int -> Bool) (xs : PolyList Int) : PolyList Int =
   case xs of
-      Nil       -> { Nil }
-    | Cons y ys -> if p y then { Cons y (filter p ys) } else filter p ys;
-let rec concat (xs : MList) (ys : MList) : MList =
+      Nil       -> {Nil Int}
+    | Cons y ys -> if p y then { Cons Int y (filter p ys) } else filter p ys;
+let rec concat A (xs : PolyList A) (ys : PolyList A) : PolyList A =
   case xs of
       Nil       -> ys
-    | Cons z zs -> { Cons z (concat zs ys) };
-let rec qsort (xs : MList) : MList =
+    | Cons z zs -> { Cons A z (concat A zs ys) };
+let rec qsort (xs : PolyList Int) : PolyList Int =
   case xs of
-      Nil       -> { Nil }
+      Nil       -> {Nil Int}
     | Cons y ys -> case ys of
-                       Nil       -> { Cons y { Nil } }
-                     | Cons z zs -> concat (qsort (filter (\(a : Int). a <= y) ys)) {Cons y (qsort (filter (\(a : Int). a > y) ys)) };
-
-let rec insert (x : Int) (xs : MList) : MList =
+                       Nil       -> { Cons Int y {Nil Int} }
+                     | Cons z zs -> concat Int (qsort (filter (\(a : Int). a <= y) ys)) {Cons Int y (qsort (filter (\(a : Int). a > y) ys)) };
+let rec insert (x : Int) (xs : PolyList Int) : PolyList Int =
     case xs of
-        Nil -> {Cons x {Nil}}
+        Nil -> {Cons Int x {Nil Int}}
       | Cons y ys -> if x <= y
-      	       	     then {Cons x {Cons y ys}}
-		     else {Cons y (insert x ys)};
-let rec isort (xs : MList) : MList =
+      	       	     then {Cons Int x {Cons Int y ys}}
+		     else {Cons Int y (insert x ys)};
+let rec isort (xs : PolyList Int) : PolyList Int =
     case xs of
-    	Nil -> {Nil}
+    	Nil -> {Nil Int}
       | Cons x ys -> insert x (isort ys);
-
-let prop_sort (xs : MList) = eq (qsort xs) (isort xs);
+let prop_sort (xs : PolyList Int) = eq Int (qsort xs) (isort xs);
 prop_sort

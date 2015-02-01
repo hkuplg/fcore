@@ -42,7 +42,7 @@ transType i (FI.Product ts)   = Product (map (transType i) ts)
 transType _  FI.Unit          = Unit
 transType i (FI.And a1 a2)    = Product [transType i a1, transType i a2]
 transType i (FI.Record (_,t)) = transType i t
-transType _ (FI.Datatype n ns) = Datatype n ns
+transType i (FI.Datatype n ts ns) = Datatype n (map (transType i) ts) ns
 
 -- Subtyping
 -- For SystemFI.
@@ -60,7 +60,7 @@ subtype' this i (FI.And t1 t2) t3              = this i t1 t3 || this i t2 t3
 subtype' this i (FI.Record (l1,t1)) (FI.Record (l2,t2))
   | l1 == l2                                  = this i t1 t2
   | otherwise                                 = False
-subtype' _ _ (FI.Datatype n1 _) (FI.Datatype n2 _)  = n1 == n2 -- TODO
+subtype' this i (FI.Datatype n1 ts1 _) (FI.Datatype n2 ts2 _)  = n1 == n2 && length ts1 == length ts2 && uncurry (this i) `all` zip ts1 ts2
 subtype' _    _  _              _             = False
 
 subtype :: Index -> FI.Type Index -> FI.Type Index -> Bool
@@ -102,8 +102,9 @@ coerce i (FI.And t1 t2) t3 =
         Just c  -> return (lam (transType i (FI.And t1 t2)) (App c . Proj 2 . var))
 coerce i (FI.Record (l1,t1)) (FI.Record (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
-coerce i d@(FI.Datatype n1 _) (FI.Datatype n2 _) | n1 == n2  = return (lam (transType i d) var)
-                                               | otherwise = Nothing
+coerce i d@(FI.Datatype n1 _ _) (FI.Datatype n2 _ _) -- TODO
+    | n1 == n2  = return (lam (transType i d) var)
+    | otherwise = Nothing
 coerce _ _ _ = Nothing
 
 infer' :: Class (Index -> Index -> FI.Expr Index (Index, FI.Type Index) -> FI.Type Index)

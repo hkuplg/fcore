@@ -229,7 +229,7 @@ aexpr :: { ReaderExpr }
     | "{" recordlit_body "}"    { RecordIntro $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | list_body                 { PrimList $1 }
-    | "{" constr_name types aexprs "}"{ Constr (Constructor $2 []) $3 $4 }
+    | "{" constr_name types aexprs "}"{ ConstrTemp $2 $3 $4 }
     | "(" expr ")"              { $2 }
 
 lit :: { ReaderExpr }

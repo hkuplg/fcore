@@ -46,7 +46,7 @@ data Type t
   | Forall Src.ReaderId (t -> Type t)  -- forall a. t
   | Product [Type t]                   -- (t1, ..., tn)
   | Unit
-  | Datatype Src.ReaderId [Src.ReaderId]
+  | Datatype Src.ReaderId [Type t] [Src.ReaderId]
 
 data Expr t e
   = Var Src.ReaderId e
@@ -116,7 +116,7 @@ mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Forall n f)   = Forall n (mapTVar g . f)
 mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
-mapTVar _ t@(Datatype _ _)  = t
+mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
 
 mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
@@ -158,7 +158,7 @@ joinType (Fun t1 t2)      = Fun (joinType t1) (joinType t2)
 joinType (Forall n g)     = Forall n (joinType . g . TVar "_") -- Right?
 joinType (Product ts)     = Product (map joinType ts)
 joinType  Unit            = Unit
-joinType (Datatype n ns)  = Datatype n ns
+joinType (Datatype n ts ns)  = Datatype n (map joinType ts) ns
 
 tVar :: t -> Type t
 tVar = TVar "_"
@@ -191,7 +191,7 @@ prettyType' :: Prec -> Index -> Type Index -> Doc
 
 prettyType' _ _ (TVar n _)   = text n
 
-prettyType' _ _ (Datatype n _)   = text n
+prettyType' p i (Datatype n tvars _) = intersperseSpace $ text n : map (prettyType' p i) tvars
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2

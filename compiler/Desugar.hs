@@ -41,7 +41,7 @@ transType d (Record fs)  =
                   _        -> transType d (Record (take (length fs - 1) fs)) `F.And` F.Record (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = F.Unit
 transType i (Thunk t)    = F.Fun F.Unit (transType i t)
-transType _ (Datatype n ns) = F.Datatype n ns
+transType i (Datatype n ts ns) = F.Datatype n (map (transType i) ts) ns
 transType _ t            = prettySorry "Desugar.transType" (pretty t)
 
 desugarExpr :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
@@ -140,7 +140,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                                      x:xs -> F.JNew (namespace ++ "FunctionalList") [go x, go (PrimList xs)]
 
     go (Seq es) = F.Seq (map go es)
-    go (Data _ _ e) = go e
+    go (Data _ _ _ e) = go e
     go (Constr c es) = F.Constr (desugarConstructor c) (map go es)
     go (Case e alts) = F.Case (go e) (map desugarAlts alts)
 

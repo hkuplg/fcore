@@ -526,7 +526,7 @@ infer (Data name params cs e) =
        checkDupNames names
        type_ctxt <- getTypeContext
 
-       let dt = Datatype (map TVar params) name names
+       let dt = Datatype name (map TVar params) names
            kind_dt = (foldr (\_ acc -> KArrow Star acc) Star params, NonTerminalType $ pullRight params dt)
            type_ctxt' = Map.insert name kind_dt type_ctxt `Map.union` Map.fromList (zip params (repeat (Star, TerminalType)))
            constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt' t | t <- ts] dt | Constructor _ ts <- cs]
@@ -537,61 +537,66 @@ infer (Data name params cs e) =
 
 -- C A1..An e1..en
 -- kind check needed here
-infer (Constr c ts es) =
+infer (ConstrTemp n ts es) =
   do value_ctxt <- getValueContext
      mapM_ checkType ts
      delta <- getTypeContext
      let ts_expanded = map (expandType delta) ts
-         constr_name = constrName c
-     constr_fun <- case Map.lookup constr_name value_ctxt of
+     constr_fun <- case Map.lookup n value_ctxt of
                       Just t -> return t
-                      Nothing -> throwError (NotInScope constr_name)
+                      Nothing -> throwError (NotInScope n)
+
+
+     let len_targ_expected = countForall constr_fun
+         len_targ = length ts_expanded
+     unless (len_targ_expected == len_targ) $
+            throwError $ General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_targ_expected <+> text "type arguments, but has been given" <+> int len_targ
 
      let constr_ts = unwrapFun $ feedToForall constr_fun ts_expanded
          constr_targs = init constr_ts
-     let (len_expected, len_actual) = (length constr_targs, length es)
-     unless (len_expected == len_actual) $
-            throwError (General $ text "Constructor" <+> bquotes (text constr_name) <+> text "should have" <+> int len_expected <+> text "arguments, but has been given" <+> int len_actual)
+         (len_arg_expected, len_arg) = (length constr_targs, length es)
+     unless (len_arg_expected == len_arg) $
+            throwError $ General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_arg_expected <+> text "arguments, but has been given" <+> int len_arg
      (_, es') <- mapAndUnzipM (uncurry inferAgainst) (zip es constr_targs)
-     return (last constr_ts, Constr (Constructor constr_name constr_ts) ts_expanded es')
+     return (last constr_ts, Constr (Constructor n constr_ts) es')
 
 infer (Case e alts) =
   do (t, e') <- infer e
      unless (isDatatype t) $
-       throwError (General (bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"))
+       throwError $ General $ bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"
      value_ctxt <- getValueContext
      d <- getTypeContext
-     let (Datatype ts_feed _ ns)= t
-         constrs = map (\(ConstrAlt c _ _) -> c) alts
+     let Datatype _ ts_feed ns = t
+         constrs = [c | ConstrAlt c _ _ <- alts]
      constrs' <- mapM (\c -> let n = constrName c
                              in case Map.lookup n value_ctxt of
                                   Just t_constr -> let ts = unwrapFun $ feedToForall t_constr ts_feed
                                                    in if alphaEq d (last ts) t
-                                                      then return (Constructor n ts)
-                                                      else throwError (TypeMismatch t t_constr)
-                                  Nothing -> throwError (NotInScope n))
+                                                      then return $ Constructor n ts
+                                                      else throwError $ TypeMismatch t t_constr
+                                  Nothing -> throwError $ NotInScope n)
                  constrs
      let alts' = zipWith substAltConstr alts constrs'
 
      (ts, es) <- mapAndUnzipM
-                 (\(ConstrAlt c ns e2) ->
+                 (\(ConstrAlt c vars e2) ->
                       let n = constrName c
                           ts = init $ constrParams c
-                      in if length ts == length ns
-                         then withLocalVars (zip ns ts) (infer e2)
-                         else throwError (General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
-                                                                   <+> text "arguments, bus has been given" <+> int (length ns)))
+                      in if length ts == length vars
+                         then withLocalVars (zip vars ts) (infer e2)
+                         else throwError $ General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
+                                                                   <+> text "arguments, bus has been given" <+> int (length vars))
                  alts'
 
      let resType = head ts
      unless (all (alphaEq d resType) ts) $
-            throwError (General $ text "All the alternatives should be of the same type")
+            throwError $ General $ text "All the alternatives should be of the same type"
 
      let allConstrs = Set.fromList ns
      let matchedConstrs = Set.fromList $ map constrName constrs
      let unmatchedConstrs = allConstrs Set.\\ matchedConstrs
      unless (Set.null unmatchedConstrs) $
-            throwError (General $ text "Pattern match(es) are non-exhaustive." <+> vcat (intersperse space (map (bquotes . text) $ Set.elems unmatchedConstrs)))
+            throwError $ General $ text "Pattern match(es) are non-exhaustive." <+> vcat (intersperse space (map (bquotes . text) $ Set.elems unmatchedConstrs))
 
      return (resType, Case e' (zipWith substAltExpr alts' es))
 
@@ -767,6 +772,10 @@ findOneDup xs = go xs Set.empty
 unwrapFun :: Type -> [Type]
 unwrapFun (Fun t t') = t : unwrapFun t'
 unwrapFun t = [t]
+
+countForall :: Type -> Int
+countForall (Forall _ t) = 1 + countForall t
+countForall _ = 0
 
 feedToForall :: Type -> [Type] -> Type
 feedToForall =

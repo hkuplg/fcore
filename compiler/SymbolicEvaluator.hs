@@ -14,6 +14,13 @@ import           PrettyUtils
 import qualified Src                          as S
 import           SystemFI
 import           Text.PrettyPrint.ANSI.Leijen
+import           Unsafe.Coerce
+
+instance Show (Type t) where
+  show = show . prettyType . unsafeCoerce
+
+instance Show (Expr t e) where
+  show = show . prettyExpr . unsafeCoerce
 
 data Value = VInt Integer
            | VBool Bool
@@ -74,7 +81,7 @@ eval (Case e alts) =
     case eval e of
       VConstr n vs -> eval $ fromJust (lookup n table) vs
     where table = map (\(ConstrAlt c _ f) -> (constrName c, f)) alts
-eval _ = panic "Can not be evaled"
+eval e = panic $ show e ++ " Can not be evaled"
 
 data SConstructor = SConstructor {sconstrName :: S.ReaderId, sconstrParams :: [SymType], sconstrDatatype :: SymType}
 
@@ -87,6 +94,7 @@ data SymType = TInt
              | TBool
              | TFun [SymType] SymType
              | TData S.ReaderId [S.ReaderId]
+             | TAny S.ReaderId
 
 data SymValue = SVar S.ReaderId Int SymType -- free variables
               | SInt Integer
@@ -164,7 +172,7 @@ seval g@(Fix _ n f t _) = Exp $ SFun n (seval . f (seval g)) (transType t)
 seval (LetRec _ _ binds body) = seval . body . fix $ map seval . binds
 seval (Constr c es) = mergeList (SConstr $ transConstructor c) (map seval es)
 seval (Case e alts) = propagate (seval e) (Right (map (\(ConstrAlt c ns f) -> (transConstructor c, ns, seval . f)) alts))
-seval _ = error "seval: not supported"
+seval e = panic $ "seval: " ++ show e
 
 transConstructor :: Constructor () -> SConstructor
 transConstructor (Constructor n ts) = SConstructor n (init ts') (last ts')
@@ -178,16 +186,17 @@ propagate (Fork e (Left (l,r))) ts' = Fork e (Left (propagate l ts', propagate r
 propagate (Fork e (Right ts)) ts' = Fork e (Right [(c, ns, \es -> propagate (f es) ts')| (c,ns,f) <- ts])
 propagate (NewSymVar i typ t) ts = NewSymVar i typ (propagate t ts)
 
-transType :: Type t -> SymType
+transType :: Type () -> SymType
 transType (JClass t) = jname2symtype t
 transType (Fun t1 t2) = TFun [transType t1] (transType t2)
-transType (Datatype n ns) = TData n ns
-transType _ = error "transType: not supported"
+transType (Datatype n _ ns) = TData n ns
+transType (TVar n _) = TAny n
+transType t = panic $ "transType: " ++ show t
 
 jname2symtype :: String -> SymType
 jname2symtype "java.lang.Integer" = TInt
 jname2symtype "java.lang.Boolean" = TBool
-jname2symtype _ = error "str2stype: unsupported java type"
+jname2symtype s = panic $ "str2stype: unsupported java type " ++ s
 
 mergeList :: ([SymValue] -> SymValue) -> [ExecutionTree] -> ExecutionTree
 mergeList f [] = Exp (f [])

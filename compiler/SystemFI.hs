@@ -42,7 +42,7 @@ data Type t
 
   | And (Type t) (Type t)               -- t1 & t2
   | Record (Src.Label, Type t)
-  | Datatype Src.ReaderId [Src.ReaderId]
+  | Datatype Src.ReaderId [Type t] [Src.ReaderId]
     -- Warning: If you ever add a case to this, you *must* also define the
     -- binary relations on your new case. Namely, add cases for your data
     -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
@@ -127,7 +127,7 @@ mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
 mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
-mapTVar _ t@(Datatype _ _)  = t
+mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
 
 mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
@@ -175,7 +175,7 @@ joinType (Product ts)     = Product (map joinType ts)
 joinType  Unit            = Unit
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (Record (l,t))   = Record (l, joinType t)
-joinType (Datatype n ns)  = Datatype n ns
+joinType (Datatype n ts ns)  = Datatype n (map joinType ts) ns
 
 -- instance Show (Type Index) where
 --   show = show . pretty
@@ -190,7 +190,7 @@ prettyType' :: Prec -> Index -> Type Index -> Doc
 
 prettyType' _ _ (TVar n a)   = text n
 
-prettyType' _ _ (Datatype n _) = text n
+prettyType' p i (Datatype n ts _) = intersperseSpace $ text n : map (prettyType' p i) ts
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2

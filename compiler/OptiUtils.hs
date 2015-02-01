@@ -73,3 +73,6 @@ src2fi fname = do
        Left typeError -> error $ show typeError
        Right (_, tcheckedSrc) ->
              return . desugar $ tcheckedSrc
+
+applyFi :: (FI.Expr t e -> r) -> String -> IO r
+applyFi f fname = liftM f $ src2fi fname
