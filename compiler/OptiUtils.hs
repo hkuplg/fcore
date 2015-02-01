@@ -92,6 +92,8 @@ rewriteExpr f num env expr =
    JNew n es -> JNew n (map (f num env) es)
    JMethod e b es d -> JMethod (fmap (f num env) e) b (map (f num env) es) d
    JField e a b -> JField (fmap (f num env) e) a b
+   PolyList es t -> PolyList (map (f num env) es) t
+   JProxyCall j t -> JProxyCall (f num env j) t
    Seq es -> Seq (map (f num env) es)
    Constr c es -> Constr c (map (f num env) es)
    Case _ _ -> sorry "Rewriting case not yet done"
