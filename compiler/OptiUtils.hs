@@ -21,6 +21,8 @@ joinExpr (Lit s) = Lit s
 joinExpr (If e1 e2 e3) = If (joinExpr e1) (joinExpr e2) (joinExpr e3)
 joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
+joinExpr (PolyList es t) = PolyList (map joinExpr es) t
+joinExpr (JProxyCall jmethod t) = JProxyCall (joinExpr jmethod) t
 joinExpr (Proj i e) = Proj i (joinExpr e)
 joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
 joinExpr (Let n bind body) = Let n (joinExpr bind) (joinExpr . body . Var n)
@@ -56,6 +58,8 @@ mapExpr f e =
       JNew cname es -> JNew cname (map f es)
       JMethod cnameOrE mname es cname -> JMethod (fmap f cnameOrE) mname (map f es) cname
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
+      PolyList es t -> PolyList (map f es) t
+      JProxyCall jmethod t -> JProxyCall (f jmethod) t
       Seq es -> Seq $ map f es
 
 src2core :: String -> IO (Expr t e)

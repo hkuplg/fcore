@@ -22,10 +22,10 @@ test :
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
 
 .PHONY : test2
-test2 : 
+test2 :
 	make parsers
 	runhaskell -i$(srcdir) $(srcdir)/FileLoad.hs
- 
+
 .PHONY : parsers
 parsers :
 	cd $(srcdir) && make && cd ..
@@ -37,6 +37,7 @@ guard :
 
 .PHONY : clean
 clean :
+	rm -rf dist
 	rm -f *.class *.jar Main.java
 	rm -f $(testdir)/tests/run-pass/*.java
 	cd compiler; make clean

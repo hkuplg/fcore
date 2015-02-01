@@ -1,5 +1,3 @@
-syntax: glob
-
 # Run ./select-cabal.sh to get the Cabal file that matches your GHC version.
 *.cabal
 
@@ -15,7 +13,7 @@ runtime/
 runtime.jar
 
 # Ignore generated Java source files
-examples/**/*.java
+examples/*.java
 lib/*.java
 testsuite/tests/run-pass/*.java
 

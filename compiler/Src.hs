@@ -115,7 +115,7 @@ data Expr id ty
   | JMethod (JCallee (Expr id ty)) MethodName [Expr id ty] ClassName
   | JField  (JCallee (Expr id ty)) FieldName            ClassName
   | Seq [Expr id ty]
-  | PrimList [Expr id ty]           -- New List
+  | PolyList [Expr id ty] ty
   | Merge (Expr id ty) (Expr id ty)
   | RecordIntro [(Label, Expr id ty)]
   | RecordElim (Expr id ty) Label
@@ -131,6 +131,7 @@ data Expr id ty
   | Case (Expr id ty) [Alt id ty]
   | ConstrTemp Name [Type] [Expr id ty]
   | Constr Constructor [Expr id ty] -- post typecheck only
+  | JProxyCall (Expr id ty) ty
   deriving (Eq, Show)
 
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
@@ -431,7 +432,8 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
                                           (NonStatic e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (JField e f _) = case e of (Static c)     -> pretty c  <> dot <> text f
                                     (NonStatic e') -> pretty e' <> dot <> text f
-  pretty (PrimList l)         = brackets $ tupled (map pretty l)
+  pretty (PolyList l _)    = brackets . hcat . intersperse comma $ map pretty l
+  pretty (JProxyCall jmethod t) = pretty jmethod
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
   pretty (RecordIntro fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty (Data n tvars cons e) = text "data" <+> intersperseSpace (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>

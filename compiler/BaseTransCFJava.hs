@@ -180,6 +180,14 @@ trans self =
                        let rhs = instCreat (classTyp c) (map unwrap exprs)
                        assignExpr <- assignVar this (JClass c) newVarName rhs
                        return (statements ++ [assignExpr],var newVarName,TupleType types)
+              PolyList l t ->
+                do l'  <- mapM (translateM this) l
+                   let (statements,exprs, _) = concatFirst (unzip3 l')
+                   newVarName <- getNewVarName this
+                   let c = namespace ++ "FunctionalList"
+                   let rhs = instCreat (classTyp c) (map unwrap exprs)
+                   assignExpr <- assignVar this (JClass c) newVarName rhs
+                   return (statements ++ [assignExpr], var newVarName, ListType t)
               Proj index expr -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do ret@(statement,javaExpr,exprType) <- translateM this expr
                    case exprType of
@@ -293,6 +301,60 @@ trans self =
                            [assignExpr]
                           ,var newVarName
                           ,typ)
+
+              JProxyCall (JNew c args) realType -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+                do args' <- mapM (translateM this) args
+                   let (statements,exprs,types) = concatFirst $ unzip3 args'
+                   let rhs =
+                         J.InstanceCreation
+                           (map (\y -> case y of
+                                         JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                                         CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         ListType _ -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident (namespace ++ "FunctionalList"),[])]
+                                         TVar t  -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Object", [])]
+                                         _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                                types)
+                           (J.ClassType [(J.Ident c,[])])
+                           (map unwrap exprs)
+                           Nothing
+                   let typ = JClass c
+                   newVarName <- getNewVarName this
+                   assignExpr <- assignVar this realType newVarName rhs
+                   return (statements ++
+                           [assignExpr]
+                          ,var newVarName
+                          ,realType)
+
+              JProxyCall (JMethod c m args r) realType -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+                do args' <- mapM (translateM this) args
+                   let (statements,exprs,types) = concatFirst $ unzip3 args'
+                   let exprs' = map unwrap exprs
+                   let refTypes =
+                         map (\y -> case y of
+                                     JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                                     CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                             types
+                   realJavaType <- javaType this realType
+                   (classStatement,rhs) <- case c of
+                                             Right ce ->
+                                               do (classS,classE,_) <- translateM this ce
+                                                  return (classS ,cast realJavaType (J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs'))
+                                             Left cn ->
+                                               return ([] ,cast realJavaType (J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs'))
+                   let typ = JClass r
+                   if r /= "java.lang.Void"
+                      then do newVarName <- getNewVarName this
+                              assignExpr <- assignVar this realType newVarName rhs
+                              return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,realType)
+                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, realType)
               JMethod c m args r -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'
@@ -312,12 +374,12 @@ trans self =
                                                   return (classS ,J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs')
                                              Left cn ->
                                                return ([] ,J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs')
-                   let typ = JClass r
                    if r /= "java.lang.Void"
-                      then do newVarName <- getNewVarName this
+                      then do let typ = JClass r
+                              newVarName <- getNewVarName this
                               assignExpr <- assignVar this typ newVarName rhs
                               return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,typ)
-                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, typ)
+                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, Unit)
               JField c fName r -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do (classStatement,classExpr,_) <- case c of
                                                      Right ce ->
@@ -436,6 +498,7 @@ trans self =
                              CFInteger -> return $ classTy "java.lang.Integer"
                              CFChar -> return $ classTy "java.lang.Character"
                              CFCharacter -> return $ classTy "java.lang.Character"
+                             (ListType _) -> return $ classTy (namespace ++ "FunctionalList")
                              _ -> return objClassTy
        ,chooseCastBox = \typ -> case typ of
                                   (JClass c) -> return (initClass c, classTy c)
@@ -449,6 +512,7 @@ trans self =
                                                          [t] -> chooseCastBox this t
                                                          _ -> do let tupleClassName = getTupleClassName tuple
                                                                  return (initClass tupleClassName, classTy tupleClassName)
+                                  (ListType _) -> return (initClass (namespace ++ "FunctionalList"), classTy (namespace ++ "FunctionalList"))
                                   _ -> return (initClass "Object", objClassTy)
        ,getPrefix = return namespace
        ,genClone = return False -- do not generate clone method

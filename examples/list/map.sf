@@ -1,0 +1,9 @@
+let rec
+  map A B (f:A->A) (xs:List<A>):List<A> =
+    if(isNil(xs))
+    then new List<A>()
+    else cons(f (head(xs)), map A B f (new List<A>()))
+in let
+  f(x:Int):Int = x+1
+in
+  head(map Int Int f (new List<Int>(2,3)))

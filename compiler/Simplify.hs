@@ -43,12 +43,14 @@ transType _  FI.Unit          = Unit
 transType i (FI.And a1 a2)    = Product [transType i a1, transType i a2]
 transType i (FI.Record (_,t)) = transType i t
 transType i (FI.Datatype n ts ns) = Datatype n (map (transType i) ts) ns
+transType i (FI.ListOf t)      = ListOf (transType i t)
 
 -- Subtyping
 -- For SystemFI.
 subtype' :: Class (Index -> FI.Type Index -> FI.Type Index -> Bool)
 subtype' _    _ (FI.TVar _ a)   (FI.TVar _ b)   = a == b
 subtype' _    _ (FI.JClass c)   (FI.JClass d)   = c == d
+subtype' this i (FI.ListOf t1)  (FI.ListOf t2)  = subtype' this i t1 t2
 subtype' this i (FI.Fun t1 t2)  (FI.Fun t3 t4)  = this i t3 t1 && this i t2 t4
 subtype' this i (FI.Forall _ f) (FI.Forall _ g) = this (i+1) (f i) (g i)
 subtype' this i (FI.Product ss) (FI.Product ts)
@@ -73,6 +75,7 @@ coerce i (FI.TVar n a) (FI.TVar _ b) | a == b    = return (lam (transType i (FI.
                                    | otherwise = Nothing
 coerce i (FI.JClass c) (FI.JClass d) | c == d    = return (lam (transType i (FI.JClass c)) var)
                                    | otherwise = Nothing
+coerce i (FI.ListOf t1) (FI.ListOf t2) = coerce i t1 t2
 coerce i (FI.Fun t1 t2) (FI.Fun t3 t4) =
   do c1 <- coerce i t3 t1
      c2 <- coerce i t2 t4
@@ -130,6 +133,8 @@ infer' this i j (FI.Proj index e)      = ts !! (index-1) where FI.Product ts = t
 infer' _    _ _ (FI.JNew c _)          = FI.JClass c
 infer' _    _ _ (FI.JMethod _ _ _ c)   = FI.JClass c
 infer' _    _ _ (FI.JField _ _ c)      = FI.JClass c
+infer' _    _ _ (FI.PolyList _ t)      = FI.ListOf t
+infer' _    _ _ (FI.JProxyCall jmethod t) = t
 infer' this i j (FI.Seq es)            = this i j (last es)
 infer' this i j (FI.Merge e1 e2)       = FI.And (this i j e1) (this i j e2)
 infer' this i j (FI.RecordIntro (l,e)) = FI.Record (l, this i j e)
@@ -199,6 +204,8 @@ transExpr' _ this i j (FI.PrimOp e1 op e2)            = PrimOp (snd (this i j e1
 transExpr' _ this i j (FI.Tuple es)                   = Tuple (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (FI.Proj index e)               = Proj index (snd (this i j e))
 transExpr' _ this i j (FI.JNew c es)                  = JNew c (snd (unzip (map (this i j) es)))
+transExpr' _ this i j (FI.PolyList es t)              = PolyList (snd (unzip (map (this i j) es))) (transType i t)
+transExpr' _ this i j (FI.JProxyCall jmethod t)       = JProxyCall (snd (this i j jmethod)) (transType i t)
 transExpr' _ this i j (FI.Constr (FI.Constructor n ts) es) = Constr (Constructor n (map (transType i) ts)) (map (snd . this i j) es)
 transExpr' _ this i j (FI.Case e alts)                = Case e' (map transAlt alts)
     where (_,e') = this i j e

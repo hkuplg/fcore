@@ -1,0 +1,9 @@
+let rec
+  map (f: Int -> Int) (n: Int): Bool =
+    if n < 0
+       then True
+       else map f (n-1)
+and
+  f (x: Int): Int = x+1
+in
+map f 6
