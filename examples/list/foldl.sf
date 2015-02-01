@@ -2,7 +2,7 @@ let rec
   foldl A B (f:B->A->B) (x:B) (xs:List<A>) : B =
     if(isNil(xs))
     then x
-    else foldl A B f (f x head(A,xs)) (tail(A,xs))
+    else foldl A B f (f x head(xs)) (tail(xs))
 and
   f(x:Int) (y:Int): Int = x+ y
 in

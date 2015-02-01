@@ -489,9 +489,9 @@ infer (JProxyCall (JNew c args) t) =
     else
         do ([t1, t2], expr') <- mapAndUnzipM infer args
            d <- getTypeContext
-           if ( alphaEq d (ListOf t1) t2) && (alphaEq d t2 t)
-             then return (t, JProxyCall (JNew c expr') t)
-             else throwError $ General (text "Cons: Type dismatch" )
+           if ( alphaEq d (ListOf t1) t2)
+             then return (t2, JProxyCall (JNew c expr') t2)
+             else throwError $ TypeMismatch t1 t2
 
 infer (JProxyCall jmethod t) =
     case jmethod of
@@ -503,10 +503,8 @@ infer (JProxyCall jmethod t) =
                              return a
                 _      -> throwError $ General (text (show methodname ++ " from JProxyCall: not supported"))
             d <- getTypeContext
-            if (alphaEq d ty t)
-              then do m <- infer jmethod
-                      return (t, JProxyCall (snd m) t)
-              else throwError (TypeMismatch ty t)
+            m <- infer jmethod
+            return (ty, JProxyCall (snd m) ty)
 
 infer (RecordIntro fs) =
   do (ts, es') <- mapAndUnzipM infer (map snd fs)

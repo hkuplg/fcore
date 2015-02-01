@@ -3,11 +3,11 @@ let rec
     if(isNil(xs))
     then
         new List<A>()
-    else if(f head(A,xs))
+    else if(f head(xs))
     then
-        cons(A, head(A,xs), filter A f tail(A,xs))
+        cons( head(xs), filter A f tail(xs))
     else
-        filter A f tail(A,xs)
+        filter A f tail(xs)
 and
   f(x:Int):Bool = x >0
 in

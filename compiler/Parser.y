@@ -237,11 +237,11 @@ aexpr :: { ReaderExpr }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | "new" List "<" type ">" "()"  {PolyList [] $4}
     | "new" List "<" type ">" "(" comma_exprs0 ")"  {PolyList $7 $4}
-    | head "(" atype "," fexpr ")"              { JProxyCall (JMethod (NonStatic $5 ) "head" [] undefined) $3}
-    | tail "(" atype "," fexpr ")"              { JProxyCall (JMethod (NonStatic $5 ) "tail" [] undefined) (ListOf $3)}
-    | isNil "(" fexpr ")"                       { JMethod (NonStatic $3) "isEmpty" [] undefined}
-    | length "(" fexpr ")"                       { JMethod (NonStatic $3) "length" [] undefined}
-    | cons "(" atype "," fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$5,$7]) (ListOf $3)}
+    | head "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined) undefined}
+    | tail "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "tail" [] undefined) undefined}
+    | isNil "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined}
+    | length "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined}
+    | cons "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
     | "{" constr_name aexprs "}"{ Constr (Constructor $2 []) $3 }
     | "(" expr ")"              { $2 }
 
