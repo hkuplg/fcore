@@ -556,12 +556,9 @@ infer (Data name params cs e) =
            type_ctxt' = Map.insert name kind_dt type_ctxt `Map.union` Map.fromList (zip params (repeat (Star, TerminalType)))
            constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt' t | t <- ts] dt | Constructor _ ts <- cs]
            constr_binds = zip names constr_types
-       -- liftIO $ print constr_types
-       -- throwError $ General $ hcat (intersperse comma (map pretty types))
        withLocalTVars [(name, kind_dt)] (withLocalVars constr_binds (infer e))
 
 -- C A1..An e1..en
--- kind check needed here
 infer (ConstrTemp n ts es) =
   do value_ctxt <- getValueContext
      mapM_ checkType ts
