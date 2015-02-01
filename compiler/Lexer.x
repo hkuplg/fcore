@@ -55,7 +55,7 @@ tokens :-
     Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
     Char        { \_ _ -> Tjavaclass "java.lang.Character" }
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
-    List        { \_ _ -> Tjavaclass "f2j.FunctionalList" }
+    List        { \_ _ -> Tlist}
     Tree        { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
     if          { \_ _ -> Tif }
     then        { \_ _ -> Tthen }
@@ -77,6 +77,11 @@ tokens :-
     False                  { \_ s -> Tbool False}
     Empty                  { \_ _ -> Temptytree}
     Fork                   { \_ _ -> Tnonemptytree }
+    head                   { \_ _ -> Tlisthead}
+    tail                   { \_ _ -> Tlisttail}
+    cons                   { \_ _ -> Tlistcons}
+    isNil                  { \_ _ -> Tlistisnil}
+    length                 { \_ _ -> Tlistlength}
     \(\)                   { \_ _ -> Tunitlit }
     Unit                   { \_ _ -> Tunit }
 
@@ -118,6 +123,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule | Tend
            | Temptytree | Tnonemptytree
+           | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
 	   | Tdata | Tcase | Tbar | Tof | Tto
            deriving (Eq, Show)
 

@@ -41,7 +41,7 @@ wrap (inP, outP) receiveMsg opt flagC flagS name = do
 	exist <- doesFileExist name
 	if not exist
 	  then do
-	    putStrLn (name ++ "does not exist")
+	    putStrLn (name ++ " does not exist")
 	    return ()
   	  else do
 	    correct <- send inP opt flagC flagS name

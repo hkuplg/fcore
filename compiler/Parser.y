@@ -70,6 +70,12 @@ import JavaUtils
   CHAR     { Tchar $$ }
   "()"     { Tunitlit }
   "Unit"   { Tunit }
+  List     { Tlist }
+  head     { Tlisthead }
+  tail     { Tlisttail }
+  cons     { Tlistcons }
+  isNil    { Tlistisnil }
+  length   { Tlistlength }
 
   "*"      { Tprimop J.Mult   }
   "/"      { Tprimop J.Div    }
@@ -148,6 +154,7 @@ atype :: { ReaderType }
   | "{" record_body "}"      { foldl (\ acc (l,t) -> And acc (Record [(l,t)])) (Record [(head $2)]) (tail $2) }
   | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
+  | List "<" type ">"        { ListOf $3}
 
 product_body :: { [ReaderType] }
   : type "," type             { $1:[$3] }
@@ -228,7 +235,13 @@ aexpr :: { ReaderExpr }
     | "{" semi_exprs "}"        { Seq $2 }
     | "{" recordlit_body "}"    { RecordIntro $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
-    | list_body                 { PrimList $1 }
+    | "new" List "<" type ">" "()"  {PolyList [] $4}
+    | "new" List "<" type ">" "(" comma_exprs0 ")"  {PolyList $7 $4}
+    | head "(" atype "," fexpr ")"              { JProxyCall (JMethod (NonStatic $5 ) "head" [] undefined) $3}
+    | tail "(" atype "," fexpr ")"              { JProxyCall (JMethod (NonStatic $5 ) "tail" [] undefined) (ListOf $3)}
+    | isNil "(" fexpr ")"                       { JMethod (NonStatic $3) "isEmpty" [] undefined}
+    | length "(" fexpr ")"                       { JMethod (NonStatic $3) "length" [] undefined}
+    | cons "(" atype "," fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$5,$7]) (ListOf $3)}
     | "{" constr_name aexprs "}"{ Constr (Constructor $2 []) $3 }
     | "(" expr ")"              { $2 }
 
@@ -273,10 +286,6 @@ javaexpr :: { ReaderExpr }
 recordlit_body :: { [(Label, ReaderExpr)] }
   : label "=" expr                     { [($1, $3)]  }
   | label "=" expr "," recordlit_body  { ($1, $3):$5 }
-
-list_body :: { [ReaderExpr] }
-    : "(" expr "::" list_body ")"  { $2:$4 }
-    | "[" comma_exprs0 "]"         { $2 }
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
