@@ -239,7 +239,7 @@ translateAO :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit
 translateAO = createWrap (up aoptinst)
 
 compileAO :: Compilation
-compileAO name e = evalState (runReaderT (runReaderT (translateAO name (fexp2cexp e)) (0, True)) [])1
+compileAO name e = evalState (runReaderT (runReaderT (translateAO name (fexp2cexp e)) (0, True)) []) 1
 
 -- Setting for stack + naive
 type StackNaiveType = ReaderT (Int, Bool) (State Int)
