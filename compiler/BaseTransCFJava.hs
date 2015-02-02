@@ -285,10 +285,10 @@ trans self =
                            (map (\y -> case y of
                                          JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                         CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                         CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         -- CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         -- CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                                 types)
                            (J.ClassType [(J.Ident c,[])])
@@ -310,12 +310,12 @@ trans self =
                            (map (\y -> case y of
                                          JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                         CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                         CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         -- CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         -- CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          ListType _ -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident (namespace ++ "FunctionalList"),[])]
-                                         TVar t  -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Object", [])]
+                                         TVar _  -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Object", [])]
                                          _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                                 types)
                            (J.ClassType [(J.Ident c,[])])
@@ -336,10 +336,10 @@ trans self =
                    let refTypes =
                          map (\y -> case y of
                                      JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                     CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     -- CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                      _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                              types
                    realJavaType <- javaType this realType
@@ -349,7 +349,7 @@ trans self =
                                                   return (classS ,cast realJavaType (J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs'))
                                              Left cn ->
                                                return ([] ,cast realJavaType (J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs'))
-                   let typ = JClass r
+                   -- let typ = JClass r
                    if r /= "java.lang.Void"
                       then do newVarName <- getNewVarName this
                               assignExpr <- assignVar this realType newVarName rhs
@@ -362,10 +362,10 @@ trans self =
                    let refTypes =
                          map (\y -> case y of
                                      JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                     CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     -- CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                      _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                              types
                    (classStatement,rhs) <- case c of
@@ -494,18 +494,18 @@ trans self =
                              (TupleType tuple) -> case tuple of
                                                     [t] -> javaType this t
                                                     _ -> return $ classTy $ getTupleClassName tuple
-                             CFInt -> return $ classTy "java.lang.Integer"
-                             CFInteger -> return $ classTy "java.lang.Integer"
-                             CFChar -> return $ classTy "java.lang.Character"
-                             CFCharacter -> return $ classTy "java.lang.Character"
+                             -- CFInt -> return $ classTy "java.lang.Integer"
+                             -- CFInteger -> return $ classTy "java.lang.Integer"
+                             -- CFChar -> return $ classTy "java.lang.Character"
+                             -- CFCharacter -> return $ classTy "java.lang.Character"
                              (ListType _) -> return $ classTy (namespace ++ "FunctionalList")
                              _ -> return objClassTy
        ,chooseCastBox = \typ -> case typ of
                                   (JClass c) -> return (initClass c, classTy c)
-                                  CFInt -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
-                                  CFInteger -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
-                                  CFChar -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
-                                  CFCharacter -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
+                                  -- CFInt -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
+                                  -- CFInteger -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
+                                  -- CFChar -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
+                                  -- CFCharacter -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
                                   (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                                                    return (initClass closureClass, classTy closureClass)
                                   (TupleType tuple) -> case tuple of
@@ -523,8 +523,8 @@ trans self =
        ,applyRetType = \t -> (case t of
                                JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
                                JClass "java.lang.Boolean" -> return $ Just $ J.PrimType J.BooleanT
-                               CFInt -> return $ Just $ J.PrimType J.IntT
-                               CFChar -> return $ Just $ J.PrimType J.CharT
+                               -- CFInt -> return $ Just $ J.PrimType J.IntT
+                               -- CFChar -> return $ Just $ J.PrimType J.CharT
                                _ -> return $ Just objClassTy)
        ,createWrap =
           \nam expr ->

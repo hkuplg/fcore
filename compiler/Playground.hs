@@ -107,7 +107,8 @@ sf2c fname = do
   result <- readSrc `seq` (typeCheck readSrc)
   case result of
    Left typeError -> error $ show typeError
-   Right (_, tcheckedSrc) -> return (simplify . desugar $ tcheckedSrc)
+   Right (_, tcheckedSrc) -> do
+     return (simplify . desugar $ tcheckedSrc)
      -- case n of
      --  1 -> return (peval . simplify . desugar $ tcheckedSrc)
      --  2 -> return (simplify . desugar $ tcheckedSrc)
