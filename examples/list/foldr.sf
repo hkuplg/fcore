@@ -2,7 +2,7 @@ let rec
   foldr A B (f:A->B->B) (x:B) (xs:List<A>) :B =
     if(isNil(xs))
     then x
-    else f head(A,xs) (foldr A B f x tail(A,xs))
+    else f head(xs) (foldr A B f x tail(xs))
 and
   f (x:Int) (y:Int) :Int = x+y
 in
