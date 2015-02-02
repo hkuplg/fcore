@@ -195,7 +195,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
           ":type" -> do
                 case getCMD xs of
                   Just var -> case Map.lookup var val_ctx of
-                    Just t  -> outputStrLn (show (pretty t))
+                    Just t  -> outputStrLn (show $ pretty t)
                     Nothing -> outputStrLn "variable not found"
                   Nothing  ->  outputStrLn "Too few input"
                 loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
