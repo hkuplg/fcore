@@ -140,6 +140,7 @@ infer' this i j (FI.Merge e1 e2)       = FI.And (this i j e1) (this i j e2)
 infer' this i j (FI.RecordIntro (l,e)) = FI.Record (l, this i j e)
 infer' this i j (FI.RecordElim e l1)   = t1 where Just (t1,_) = getter i j (this i j e) l1
 infer' this i j (FI.RecordUpdate e _)  = this i j e
+infer' this i j (FI.Data _ _ _ e)      = this i j e
 infer' this i j (FI.Case _ alts)       = inferAlt $ head alts
     where inferAlt (FI.ConstrAlt c _ e)  =
               let ts = FI.constrParams c
@@ -207,6 +208,9 @@ transExpr' _ this i j (FI.JNew c es)                  = JNew c (snd (unzip (map 
 transExpr' _ this i j (FI.PolyList es t)              = PolyList (snd (unzip (map (this i j) es))) (transType i t)
 transExpr' _ this i j (FI.JProxyCall jmethod t)       = JProxyCall (snd (this i j jmethod)) (transType i t)
 transExpr' _ this i j (FI.Constr (FI.Constructor n ts) es) = Constr (Constructor n (map (transType i) ts)) (map (snd . this i j) es)
+transExpr' _ this i j (FI.Data n params ctrs e) =
+    Data n params (map transCtrs ctrs) (snd (this i j e))
+    where transCtrs (FI.Constructor name ctrParams) = Constructor name (map (transType i) ctrParams)
 transExpr' _ this i j (FI.Case e alts)                = Case e' (map transAlt alts)
     where (_,e') = this i j e
           transAlt (FI.ConstrAlt (FI.Constructor n ts) ns f) =

@@ -555,8 +555,10 @@ infer (Data name params cs e) =
            kind_dt = (foldr (\_ acc -> KArrow Star acc) Star params, NonTerminalType $ pullRight params dt)
            type_ctxt' = Map.insert name kind_dt type_ctxt `Map.union` Map.fromList (zip params (repeat (Star, TerminalType)))
            constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt' t | t <- ts] dt | Constructor _ ts <- cs]
+           cs' = [ Constructor ctrname (map (expandType type_ctxt') ts) | (Constructor ctrname ts) <- cs]
            constr_binds = zip names constr_types
-       withLocalTVars [(name, kind_dt)] (withLocalVars constr_binds (infer e))
+       (t, e') <- withLocalTVars [(name, kind_dt)] (withLocalVars constr_binds (infer e))
+       return (t, Data name params cs' e')
 
 -- C A1..An e1..en
 infer (ConstrTemp n ts es) =

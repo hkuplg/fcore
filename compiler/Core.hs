@@ -90,6 +90,7 @@ data Expr t e
 
   | Seq [Expr t e]
 
+  | Data Src.ReaderId [Src.ReaderId] [Constructor t] (Expr t e)
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
 
@@ -131,6 +132,7 @@ mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
 mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
+mapVar g h (Data name params ctrs e) = Data name params [ Constructor ctrName (map h ctrParams)|Constructor ctrName ctrParams <- ctrs] (mapVar g h e)
 mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
@@ -324,6 +326,13 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
                   pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
                   pretty_ids pretty_sigs pretty_defs
     pretty_body  = prettyExpr' p (i, j + n) (body ids)
+
+prettyExpr' p (i,j) (Data name params ctrs e)
+  = (text $ "Data " ++ name ++ " " ++ prettyParams params ++ " =") <+>
+    (hcat . intersperse (text " | ") . map prettyCtr $ ctrs) <$>
+    (prettyExpr' p (i,j) e)
+  where prettyParams pa = concat . intersperse " " $ pa
+        prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
 
 prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
