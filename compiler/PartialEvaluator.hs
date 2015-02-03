@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, ViewPatterns #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module PartialEvaluator (rewriteAndEval, Exp(..), rewrite1, rewrite2, rewrite3) where
 
@@ -48,17 +48,27 @@ rewrite3' env e num = rewriteExpr (swap1_3 rewrite3') num env e
 peval :: Expr t e -> Expr t e
 peval = rewrite1 .  app2let
 
-newtype Exp = Hide {reveal :: forall t e. Expr t e}
-
 partialEval :: Exp -> Exp
 partialEval e = Hide (peval (reveal e))
 
+rewriteCombined :: Exp -> Exp
+rewriteCombined e = Hide (rewrite3 . rewrite2 . reveal $ e)
+
+rewriteForever :: Exp -> [Exp]
+rewriteForever e = e : rewriteForever (rewriteCombined e)
+
+-- Need proof for convergence.
+converge :: [Exp] -> Exp
+converge  ~(a1:a2:es) = if a1 == a2
+                         then a2
+                         else converge (a2:es)
+
 rewrite :: Exp -> Exp
-rewrite e = Hide (rewrite3 . rewrite2 . reveal $ e)
+rewrite e = rewriteForever e !! 4
 
 rewriteAndEval :: Exp -> Expr t e
-rewriteAndEval = -- TODO: rewriting 3 times maybe overkill, but at least fractals compiles and runs
-  reveal . rewrite . rewrite . rewrite . partialEval
+rewriteAndEval =
+  reveal . rewrite . partialEval
 
 
 -- Just for convenience to use view pattern

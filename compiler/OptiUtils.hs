@@ -1,3 +1,4 @@
+{-# LANGUAGE RankNTypes #-}
 -- | Some utilities for optimization purpose
 
 module OptiUtils where
@@ -13,6 +14,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 import Data.List (foldl')
 import Panic
+import qualified Src
 import qualified SystemFI as FI
 
 
@@ -134,6 +136,54 @@ rewriteExpr f num env expr =
    Seq es -> Seq (map (f num env) es)
    Constr c es -> Constr c (map (f num env) es)
    Case _ _ -> sorry "Rewriting case not yet done"
+
+newtype Exp = Hide {reveal :: forall t e. Expr t e}
+
+instance Eq Exp where
+  p1 == p2 = peq 0 (reveal p1) (reveal p2)
+
+peq :: Int -> Expr Int Int -> Expr Int Int -> Bool
+peq _ (Var _ a) (Var _ b) = a == b
+peq _ (Lit a) (Lit b) = a == b
+peq n (Lam _ _ f1) (Lam _ _ f2) = peq (n + 1) (f1 n) (f2 n)
+peq n (Fix _ _ f1 _ _) (Fix _ _ f2 _ _) = peq (n + 2) (f1 n (n + 1)) (f2 n (n + 1))
+peq n (Let _ x f1) (Let _ y f2) = peq n x y && peq (n + 1) (f1 n) (f2 n)
+peq n (LetRec _ _ f1 g1) (LetRec _ _ f2 g2) =
+  let bind1 = f1 [n ..]
+      len1 = length bind1
+      bind2 = f2 [n ..]
+      len2 = length bind2
+      expr1 = g1 [n ..]
+      expr2 = g2 [n ..]
+  in len1 == len2 && peq (n + len1) expr1 expr2 && and (zipWith (peq (n + len1)) bind1 bind2)
+peq n (BLam _ f1) (BLam _ f2) = peq n (f1 0) (f2 0) -- 0 for type index, OK?
+peq n (App e1 e2) (App g1 g2) = peq n e1 g1 && peq n e2 g2
+peq n (TApp e1 _) (TApp e2 _) = peq n e1 e2
+peq n (If e1 e2 e3) (If g1 g2 g3) = peq n e1 g1 && peq n e2 g2 && peq n e3 g3
+peq n (PrimOp e1 _ e2) (PrimOp g1 _ g2) = peq n e1 g1 && peq n e2 g2
+peq n (Tuple es) (Tuple gs) =
+  let len1 = length es
+      len2 = length gs
+  in len1 == len2 && and (zipWith (peq n) es gs)
+peq n (Proj _ e) (Proj _ g) = peq n e g
+peq n (JNew _ es) (JNew _ gs) =
+  let len1 = length es
+      len2 = length gs
+  in len1 == len2 && and (zipWith (peq n) es gs)
+peq n (JMethod e1 _ es _) (JMethod g1 _ gs _) =
+  let len1 = length es
+      len2 = length gs
+  in len1 == len2 && checkCall n e1 g1 && and (zipWith (peq n) es gs)
+peq n (JField e1 _ _) (JField g1 _ _) = checkCall n e1 g1
+peq n (PolyList es _) (PolyList gs _) = and (zipWith (peq n) es gs)
+peq n (JProxyCall e _) (JProxyCall g _) = peq n e g
+peq n (Seq es) (Seq gs) = and (zipWith (peq n) es gs)
+peq _ _ _ = False
+
+checkCall :: Int -> Src.JCallee (Expr Int Int) -> Src.JCallee (Expr Int Int) -> Bool
+checkCall _ (Src.Static s1) (Src.Static s2) = s1 == s2
+checkCall n (Src.NonStatic e1) (Src.NonStatic e2) = peq n e1 e2
+checkCall _ _ _ = False
 
 src2core :: String -> IO (Expr t e)
 src2core fname = liftM simplify $ src2fi fname

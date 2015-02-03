@@ -42,7 +42,7 @@ testTail = App (fix (\f n -> If (var n `eq` zero)
                javaInt
                (javaInt `Fun` javaInt)) one
 
-fact :: Expr t (Expr t e)
+fact :: Expr t e
 fact = fix (\f n -> If (var n `eq` zero)
                        one
                        (var n `mult` (var f `App` (var n `sub` one))))
