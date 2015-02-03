@@ -5,19 +5,19 @@ import System.IO
 import System.Process
 import System.Directory			(doesFileExist, getDirectoryContents)
 import System.FilePath			(takeFileName)
-import System.TimeIt			(timeIt)
+import System.TimeIt        (timeIt)
 
-import Data.Time			(getCurrentTime, diffUTCTime)
-import Control.Monad			(when)
+import Data.Time            (getCurrentTime, diffUTCTime)
+import Control.Monad        (when)
 
 import Translations
 import FileIO
 import JavaUtils
-import StringPrefixes			(namespace)
+import StringPrefixes       (namespace)
 import qualified Data.ByteString as B
-import Data.FileEmbed (embedFile)
-import System.Directory (getTemporaryDirectory)
-import System.FilePath ((</>))
+import Data.FileEmbed       (embedFile)
+import System.Directory     (getTemporaryDirectory)
+import System.FilePath      ((</>))
 
 runtimeBytes :: B.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
@@ -67,19 +67,6 @@ getStandardOutput file = do
   content <- readFile file
   let func = unwords . tail . words
   return $ func ((lines content) !! 0)
-
-receiveMsg2 :: String -> Handle -> IO ()
-receiveMsg2 output h = do
-  msg <- hGetLine h
-  if msg == "exit"
-    then return ()
-    else do 
-      if msg /= output 
-        then putStrLn $ "\x1b[31m" ++ "Incorrect: " ++ msg
-        else putStrLn $ "\x1b[32m" ++ "Correct: " ++ msg
-      putStrLn "\x1b[0m"
-      s <- receiveMsg2 output h
-      return ()
 
 fileExist :: String -> IO ()
 fileExist name = do

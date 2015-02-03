@@ -4,12 +4,12 @@
 module FileIO where
 
 import System.IO
-import System.Process hiding (runCommand)
-import System.Directory			(removeFile, doesFileExist)
-import System.FilePath			(dropExtension, dropFileName, takeFileName)
+import System.Process hiding  (runCommand)
+import System.Directory       (removeFile, doesFileExist)
+import System.FilePath        (dropExtension, dropFileName, takeFileName)
 
 import qualified Control.Exception as E
-import Control.Monad			(when)
+import Control.Monad          (when)
 
 import Data.Char
 import Data.List.Split
@@ -76,10 +76,27 @@ receiveMsg :: Handle -> IO ()
 receiveMsg h = do
   msg <- hGetLine h
   if msg == "exit" 
-    then return () 
+    then return ()
     else do putStrLn msg
-            s <- receiveMsg h
-            return ()
+            receiveMsg h
+
+-- make test2
+receiveMsg2 :: String -> Handle -> IO ()
+receiveMsg2 output h = do
+  msg <- hGetLine h
+  if msg == "exit"
+    then return ()
+    else do 
+      if msg /= output 
+        then putStrLn $ "\x1b[31m" ++ "Incorrect: " ++ msg
+        else putStrLn $ "\x1b[32m" ++ "Correct: " ++ msg
+      putStrLn "\x1b[0m"
+      receiveMsg2 output h
+
+-- make test
+receiveMsg3 outP = do
+  msg <- hGetLine outP
+  if msg == "exit" then receiveMsg3 outP else return msg
 
 sendMsg :: Handle -> String -> IO ()
 sendMsg h msg = do 
