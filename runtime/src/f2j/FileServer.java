@@ -28,8 +28,6 @@ public class FileServer {
             fileManager.getJavaFileObjectsFromFiles(Arrays.asList(files));
 
         String [] compileOptions = new String[] {"-classpath", cp};
-	      // String [] compileOptions = new String[] {"-classpath", "runtime/runtime.jar:."};
-	      //String [] compileOptions = new String[] {};
         Iterable<String> compilationOptions = Arrays.asList(compileOptions);
 
         JavaCompiler.CompilationTask task =
@@ -38,7 +36,11 @@ public class FileServer {
         task.call();
     }
 
-    public static String compileLoad (String fileName, String cp)
+    public static String compileLoad (String fileName, String cp) 
+      throws InvocationTargetException, 
+             ClassNotFoundException, 
+             NoSuchMethodException, 
+             IllegalAccessException 
     {
         compile(fileName,cp);
 
@@ -61,15 +63,16 @@ public class FileServer {
 	          meth.setAccessible(true);
             meth.invoke(null, (Object) params);
 	        } catch (InvocationTargetException e) {
-	          Throwable cause = e.getCause();
-	          //e.printStackTrace();
-            System.out.format("Invocation of %s failed because of: %s%n",
-                              "main", cause.getMessage());
+            System.out.println(e + ": " + e.getCause());
 	        }
-        } catch (Exception e) {
-          //Throwable cause = e.getCause();
-          System.out.println("Error!");     
+        } catch (ClassNotFoundException e1) {
+          System.out.println(e1 + ": " + e1.getCause());
+        } catch (NoSuchMethodException e2) {
+          System.out.println(e2 + ": " + e2.getCause());
+        } catch (IllegalAccessException e3) {
+          System.out.println(e3 + ": " + e3.getCause());
         }
+        System.out.println("exit");
 
   	    return className;
     }
@@ -80,7 +83,9 @@ public class FileServer {
       File fList[] = dir.listFiles();
 
       for(File f : fList) {
-      	if(f.getName().endsWith(".class") && !f.getName().startsWith("FileServer"))
+      	if(f.getName().endsWith(".class") 
+           && !f.getName().startsWith("FileServer")
+           && !f.getName().startsWith("TypeServer"))
 	        f.delete();
       }      
     }
@@ -94,7 +99,6 @@ public class FileServer {
 	        if(!scanner.hasNextLine()) break;
 
           String fileName = scanner.nextLine();
-          //System.out.println(fileName);
 
           //Receive .java file from client
           try {
@@ -104,7 +108,7 @@ public class FileServer {
 	          while (scanner.hasNextLine()) {
 	            String line = scanner.nextLine();
 		          if(line.equals("//end of file")) break;
-                output.write(line);
+              output.write(line);
               }
               output.close();
 	            String className = compileLoad(fileName,cp);
@@ -115,8 +119,6 @@ public class FileServer {
 
 	        // Delete dummy .class files in current directory
 	        DeleteDummy();
-
-          System.out.println("exit");
 	      } 
     }
 
