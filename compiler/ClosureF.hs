@@ -77,8 +77,10 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 
 ftyp2ctyp :: C.Type t -> Type t
 ftyp2ctyp (C.TVar _ x)                     = TVar x
-ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
-ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
+-- ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
+ftyp2ctyp (C.JClass "java.lang.Integer") = JClass "java.lang.Integer"
+-- ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
+ftyp2ctyp (C.JClass "java.lang.Character") = JClass "java.lang.Character"
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp (C.Unit)                       = Unit
@@ -169,6 +171,7 @@ joinType CFCharacter = CFCharacter
 joinType (Forall s) = Forall (joinTScope s)
 joinType (JClass c) = JClass c
 joinType (TupleType ts) = TupleType (map joinType ts)
+joinType (ListType t) = ListType (joinType t)
 
 joinTScope :: TScope (Type t) -> TScope t
 joinTScope (Body b)   = Body (joinType b)
@@ -177,7 +180,7 @@ joinTScope (Type t f) = let t' = joinType t in Type t' (\x -> joinTScope (f x))
 
 -- Free variable substitution
 
-substScope :: Subst t => Int -> Type Int -> Scope (Type t) t () -> Scope (Type t) t ()
+substScope :: Subst t => Int -> Type Int -> TScope t  -> TScope t
 substScope n t (Body t1) = Body (substType n t t1)
 substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
 substScope n t (Type t1 f) = Type (substType n t t1) (\x -> substScope n t (f x))
@@ -185,6 +188,8 @@ substScope n t (Type t1 f) = Type (substType n t t1) (\x -> substScope n t (f x)
 substType :: Subst t => Int -> Type Int -> Type t -> Type t
 substType n t (TVar x) = subst n t x
 substType n t (Forall s) = Forall (substScope n t s)
+substType n t (ListType t') = ListType (substType n t t')
+substType n t (TupleType ts) = TupleType (map (substType n t) ts)
 substType n t x = x
 
 class Subst t where
