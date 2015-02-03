@@ -145,8 +145,8 @@ mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
 mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
-mapVar g h (PolyList es t)           = PolyList (map (mapVar g h) es) t
-mapVar g h (JProxyCall jmethod t)    = JProxyCall (mapVar g h jmethod) t
+mapVar g h (PolyList es t)           = PolyList (map (mapVar g h) es) (h t)
+mapVar g h (JProxyCall jmethod t)    = JProxyCall (mapVar g h jmethod) (h t)
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
 fsubstTT x r = mapTVar (\n a -> if a == x then r else TVar n a)

@@ -346,15 +346,20 @@ trans self =
                    (classStatement,rhs) <- case c of
                                              Right ce ->
                                                do (classS,classE,_) <- translateM this ce
-                                                  return (classS ,cast realJavaType (J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs'))
+                                                  if realJavaType == objClassTy
+                                                    then return (classS ,J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs')
+                                                    else return (classS ,cast realJavaType (J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs'))
                                              Left cn ->
-                                               return ([] ,cast realJavaType (J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs'))
+                                               if realJavaType == objClassTy
+                                                 then return ([] ,J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs')
+                                                 else return ([] ,cast realJavaType (J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs'))
                    let typ = JClass r
                    if r /= "java.lang.Void"
                       then do newVarName <- getNewVarName this
                               assignExpr <- assignVar this realType newVarName rhs
                               return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,realType)
                       else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, realType)
+              JProxyCall _ _ -> sorry "JProxyCall: Not supported"
               JMethod c m args r -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'
