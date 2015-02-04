@@ -18,7 +18,6 @@ smt :
 .PHONY : test
 test :
 	make parsers
-	cp runtime/runtime.jar .
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
 
 .PHONY : test2
