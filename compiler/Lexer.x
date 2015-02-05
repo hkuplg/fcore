@@ -17,12 +17,42 @@ $digit = [0-9]
 
 $vchar = [$alpha $digit \_ \']
 
+-- From the Alex documentation (https://www.haskell.org/alex/doc/html/alex-files.html):
+-- (1) When the input stream matches more than one rule, the rule which matches
+--     the longest prefix of the input stream wins.
+-- (2) If there are still several rules which match an equal number of
+--     characters, then the rule which appears earliest in the file wins.
+
 tokens :-
 
     $white+     ;
     "#".*       ;
     "--".*      ;
     "//".*      ;
+
+
+    -- Keywords that lead declarations
+    let         { \_ _ -> Tlet }
+    module      { \_ _ -> Tmodule }
+    type        { \_ _ -> Ttype }
+
+    -- Other keywords
+    and         { \_ _ -> Tand }
+    case        { \_ _ -> Tcase }
+    data        { \_ _ -> Tdata }
+    else        { \_ _ -> Telse }
+    end         { \_ _ -> Tend }
+    forall      { \_ _ -> Tforall }
+    if          { \_ _ -> Tif }
+    in          { \_ _ -> Tin }
+    new         { \_ _ -> Tnew }
+    of          { \_ _ -> Tof }
+    rec         { \_ _ -> Trec }
+    then        { \_ _ -> Tthen }
+    with        { \_ _ -> Twith }
+    -- this        { \_ _ -> Tthis }
+    -- super       { \_ _ -> Tsuper }
+
 
     \(          { \_ _ -> Toparen }
     \)          { \_ _ -> Tcparen }
@@ -35,21 +65,12 @@ tokens :-
     \\          { \_ _ -> Tlam }
     \:          { \_ _ -> Tcolon }
     \;          { \_ _ -> Tsemi }
-    forall      { \_ _ -> Tforall }
     \-\>        { \_ _ -> Tarrow }
     \.          { \_ _ -> Tdot }
     \&          { \_ _ -> Tandtype }
     \,\,        { \_ _ -> Tmerge }
-    with        { \_ _ -> Twith }
     \'          { \_ _ -> Tquote }
-    -- this        { \_ _ -> Tthis }
-    -- super       { \_ _ -> Tsuper }
-    type        { \_ _ -> Ttype }
-    let         { \_ _ -> Tlet }
-    rec         { \_ _ -> Trec }
     \=          { \_ _ -> Teq }
-    and         { \_ _ -> Tand }
-    in          { \_ _ -> Tin }
     Int         { \_ _ -> Tjavaclass "java.lang.Integer" }
     String      { \_ _ -> Tjavaclass "java.lang.String" }
     Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
@@ -57,17 +78,8 @@ tokens :-
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
     List        { \_ _ -> Tlist}
     Tree        { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
-    if          { \_ _ -> Tif }
-    then        { \_ _ -> Tthen }
-    else        { \_ _ -> Telse }
     \,          { \_ _ -> Tcomma }
-    new         { \_ _ -> Tnew }
-    module      { \_ _ -> Tmodule }
-    data        { \_ _ -> Tdata }
     \|          { \_ _ -> Tbar }
-    case        { \_ _ -> Tcase }
-    of          { \_ _ -> Tof }
-    end         { \_ _ -> Tend }
 
     -- Literals
     $digit+                { \_ s -> Tint (read s) }
@@ -124,7 +136,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tmodule | Tend
            | Temptytree | Tnonemptytree
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
-	   | Tdata | Tcase | Tbar | Tof | Tto
+           | Tdata | Tcase | Tbar | Tof | Tto
            deriving (Eq, Show)
 
 lexer :: String -> [Token]
