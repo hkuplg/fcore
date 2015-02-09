@@ -188,8 +188,6 @@ substScope n t (Type t1 f) = Type (substType n t t1) (\x -> substScope n t (f x)
 substType :: Subst t => Int -> Type Int -> Type t -> Type t
 substType n t (TVar x) = subst n t x
 substType n t (Forall s) = Forall (substScope n t s)
-substType n t (ListType t') = ListType (substType n t t')
-substType n t (TupleType ts) = TupleType (map (substType n t) ts)
 substType n t x = x
 
 class Subst t where
