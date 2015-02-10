@@ -3,7 +3,6 @@
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 
-import           Prelude hiding (init)
 import qualified Language.Java.Syntax as J
 
 import           ClosureF
@@ -130,7 +129,6 @@ getNewVarName _ = do (n :: Int) <- get
                      put (n + 1)
                      return $ localvarstr ++ show n
 
--- The reader monad (Int, Bool): Int for counting of arguments in a application; Bool for whether in tail position
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self =
   let this = up self
