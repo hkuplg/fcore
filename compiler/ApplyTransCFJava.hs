@@ -26,16 +26,27 @@ isMultiBinder (Body _)   = True
 
 -- main translation function
 transApply :: (MonadState Int m,
-               MonadReader (Int, Bool) m,
+               MonadReader Int m,
                MonadReader InitVars m,
                selfType :< ApplyOptTranslate m,
                selfType :< Translate m)
               => Mixin selfType (Translate m) (ApplyOptTranslate m)
-transApply _ super = NT {toT = super {
+transApply this super = NT {toT = super {
+
+  translateM =
+     \e -> case e of
+              App e1 e2 -> do (n :: Int) <- ask
+                              let flag = case e1 of Var _ -> True
+                                                    _ -> False
+                              translateApply super
+                                             flag
+                                             (local (\(_ :: Int) -> n + 1) $ translateM (up this) e1)
+                                             (local (\(_ :: Int) -> 0) $ translateM (up this) e2)
+              _ -> translateM super e,
 
   genClosureVar =
     \flag arity j1 ->
-     do (n :: Int, _ :: Bool) <- ask
+     do (n :: Int) <- ask
         if flag && arity > n
           then return $ J.MethodInv (J.PrimaryMethodCall (unwrap j1) [] (J.Ident "clone") [])
           else return (unwrap j1),
@@ -71,7 +82,7 @@ modifiedScopeTyp oexpr ostmts x1 f closureClass = completeClosure
 
 
 -- Alternate version of transApply that works with Stack translation
-transAS :: (MonadState Int m, MonadReader (Int, Bool) m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
+transAS :: (MonadState Int m, MonadReader Int m, MonadReader InitVars m, selfType :< ApplyOptTranslate m, selfType :< Translate m) => Mixin selfType (Translate m) (ApplyOptTranslate m)
 transAS this super = NT {toT = (up (transApply this super)) {
 
   genApply = \f t tempOut outType z ->

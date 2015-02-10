@@ -285,15 +285,15 @@ getOpt :: [String] -> IO CompileOpt
 getOpt ms = case ms of
         ["naive"]               -> return (0, compileN, [Naive])
         ["apply"]               -> return (0, compileAO, [Apply, Naive])
-        ["apply", "unbox"]      -> return (0, compileAoptUnbox, [Apply, Naive, Unbox])
+        -- ["apply", "unbox"]      -> return (0, compileAoptUnbox, [Apply, Naive, Unbox])
         ["apply", "stack"]      -> return (0, compileS, [Apply, Naive, Stack])
-        ["apply", "stack", "unbox"]
-                                -> return (0, compileSAU, [Apply, Naive, Stack, Unbox])
-        ["stackau1"]            -> return (1, compileSAU, [Naive, StackAU1])
-        ["stackau2"]            -> return (2, compileSAU, [Naive, StackAU2])
+        -- ["apply", "stack", "unbox"]
+        --                         -> return (0, compileSAU, [Apply, Naive, Stack, Unbox])
+        -- ["stackau1"]            -> return (1, compileSAU, [Naive, StackAU1])
+        -- ["stackau2"]            -> return (2, compileSAU, [Naive, StackAU2])
         ["stack"]               -> return (0, compileSN, [Naive, Stack])
-        ["stack", "unbox"]      -> return (0, compileSU, [Naive, Stack, Unbox])
-        ["unbox"]               -> return (0, compileUnbox, [Naive, Unbox])
+        -- ["stack", "unbox"]      -> return (0, compileSU, [Naive, Stack, Unbox])
+        -- ["unbox"]               -> return (0, compileUnbox, [Naive, Unbox])
         --["benchs"]            -> return (0, (compileBS False), [BenchS])
         --["benchna"]           -> return (0, (compileBN True), [BenchNA])
         --["benchSA"]           -> return (0, (compileBS True), [BenchSA])
