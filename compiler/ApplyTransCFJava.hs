@@ -38,7 +38,7 @@ transApply this super = NT {toT = super {
               App e1 e2 -> do (n :: Int) <- ask
                               let flag = case e1 of Var _ -> True
                                                     _ -> False
-                              translateApply super
+                              translateApply (up this)
                                              flag
                                              (local (\(_ :: Int) -> n + 1) $ translateM (up this) e1)
                                              (local (\(_ :: Int) -> 0) $ translateM (up this) e2)
