@@ -125,7 +125,12 @@ nextApply this cl tempOut outType =
                                    J.PrimType J.CharT -> J.Lit (J.Char 'a') --TODO: better default value?
                                    _ -> J.Lit J.Null))]
 
-transS :: forall m selfType . (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transS :: forall m selfType.
+          (MonadState Int m,
+           MonadReader Bool m,
+           selfType :< TranslateStack m,
+           selfType :< Translate m)
+          => Mixin selfType (Translate m) (TranslateStack m)
 transS this super =
   TS {toTS = super {
 
