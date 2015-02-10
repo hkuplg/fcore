@@ -185,7 +185,7 @@ transS this super =
                       box <- getBox (up this) t
                       empyClosure' <- empyClosure (up this) (unwrap e) box
                       mainbody <- stackMainBody (up this) t
-                      isTest <- genTest super
+                      isTest <- genTest (up this)
                       let stackDecl =
                             wrapperClass
                               nam

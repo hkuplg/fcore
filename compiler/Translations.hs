@@ -180,31 +180,6 @@ sf2java num optDump compilation className src =
             let (cu, _) = compilation className rewrittencore
             return $ prettyPrint cu
 
--- sf2java2 :: Bool -> Int -> DumpOption -> Compilation -> ClassName -> String -> IO String
--- sf2java2 flag num optDump compilation className src =
---   do let readSrc = Parser.reader src
---      when (optDump == DumpParsed) $ print readSrc
---      result <- readSrc `seq` (typeCheck readSrc)
---      case result of
---        Left typeError ->
---          do print (Text.PrettyPrint.ANSI.Leijen.pretty typeError)
---             exitFailure -- TODO: Ugly
---        Right (_, tcheckedSrc)   ->
---          do when (optDump == DumpTChecked) $ print tcheckedSrc
---             let core = desugar tcheckedSrc
---             when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
---             let simpleCore = case num of
---                                1 -> peval . inliner . simplify $ core
---                                2 -> peval . inliner . inliner . simplify $ core
---                                _ -> peval . simplify $ core
---                                -- Flag removed. As "core" and "simplecore" have different types now.
---                                -- _ -> if flag then peval . simplify $ core else peval $ core
---             -- let simpleCore = simplify core
---             when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
---             when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp simpleCore))
---             let (cu, _) = compilation className simpleCore
---             return $ prettyPrint cu
-
 compilesf2java :: Int -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java num optDump compilation srcPath outputPath = do
     src <- readFile srcPath
