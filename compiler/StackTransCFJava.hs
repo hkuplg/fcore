@@ -179,71 +179,71 @@ transSA this super = TS {toTS = (up (transS this super)) {
   }}
 
 -- Alternative version of transS that interacts with the Unbox translation
-transSU :: (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
-transSU this super =
-  TS {toTS = (up (transS this super)) {
-         getBox = \t -> case t of
-                         CFInt -> return "BoxInt"
-                         _ -> return "BoxBox",
-         applyRetType = \t -> (case t of
-                                JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
-                                JClass "java.lang.Boolean" -> return $ Just $ J.PrimType J.BooleanT
-                                CFInt -> return $ Just $ J.PrimType J.IntT
-                                _ -> return $ Just objClassTy),
-         stackMainBody = \t -> do
-           closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
-           let closureType' = classTy closureClass
-           nextName <- nextClass (up this)
-           let finalType = case t of
-                            CFInt -> "Int"
-                            _ -> "Box"
-           let resultType = case t of
-                             CFInt -> J.PrimType J.IntT
-                             CFChar -> J.PrimType J.CharT
-                             JClass "java.lang.Integer" -> classTy "java.lang.Integer"
-                             _ -> objClassTy
+-- transSU :: (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+-- transSU this super =
+--   TS {toTS = (up (transS this super)) {
+--          getBox = \t -> case t of
+--                          CFInt -> return "BoxInt"
+--                          _ -> return "BoxBox",
+--          applyRetType = \t -> (case t of
+--                                 JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
+--                                 JClass "java.lang.Boolean" -> return $ Just $ J.PrimType J.BooleanT
+--                                 CFInt -> return $ Just $ J.PrimType J.IntT
+--                                 _ -> return $ Just objClassTy),
+--          stackMainBody = \t -> do
+--            closureClass <- liftM2 (++) (getPrefix (up this)) (return "Closure")
+--            let closureType' = classTy closureClass
+--            nextName <- nextClass (up this)
+--            let finalType = case t of
+--                             CFInt -> "Int"
+--                             _ -> "Box"
+--            let resultType = case t of
+--                              CFInt -> J.PrimType J.IntT
+--                              CFChar -> J.PrimType J.CharT
+--                              JClass "java.lang.Integer" -> classTy "java.lang.Integer"
+--                              _ -> objClassTy
 
-           let nextNEqNull = J.BinOp (J.ExpName $ name [nextName, "next"])
-                             J.NotEq
-                             (J.Lit J.Null)
+--            let nextNEqNull = J.BinOp (J.ExpName $ name [nextName, "next"])
+--                              J.NotEq
+--                              (J.Lit J.Null)
 
-           let loop = [bStmt (J.Do (J.StmtBlock (block [assign (name ["c"]) (J.ExpName $ name [nextName, "next"])
-                                                       ,assign (name [nextName, "next"]) (J.Lit J.Null)
-                                                       ,bStmt (methodCall ["c", "apply"] [])]))
-                              (J.BinOp (J.ExpName $ name [nextName, "next"])
-                               J.NotEq
-                               (J.Lit J.Null))),
-                       bStmt (J.IfThenElse
-                              (J.InstanceOf (left $ var "c") (J.ClassRefType $ classTyp (closureClass ++ "Int" ++ finalType)))
-                              (assignE
-                                (name ["result"])
-                                (cast resultType
-                                 (J.FieldAccess (fieldAccExp
-                                                 (cast (classTy (closureClass ++ "Int" ++ finalType)) (left $ var "c"))
-                                                 closureOutput))))
-                              (assignE
-                               (name ["result"])
-                               (cast resultType
-                                (J.FieldAccess (fieldAccExp
-                                                (cast (classTy (closureClass ++ "Box" ++ finalType)) (left $ var "c"))
-                                                closureOutput)))))]
+--            let loop = [bStmt (J.Do (J.StmtBlock (block [assign (name ["c"]) (J.ExpName $ name [nextName, "next"])
+--                                                        ,assign (name [nextName, "next"]) (J.Lit J.Null)
+--                                                        ,bStmt (methodCall ["c", "apply"] [])]))
+--                               (J.BinOp (J.ExpName $ name [nextName, "next"])
+--                                J.NotEq
+--                                (J.Lit J.Null))),
+--                        bStmt (J.IfThenElse
+--                               (J.InstanceOf (left $ var "c") (J.ClassRefType $ classTyp (closureClass ++ "Int" ++ finalType)))
+--                               (assignE
+--                                 (name ["result"])
+--                                 (cast resultType
+--                                  (J.FieldAccess (fieldAccExp
+--                                                  (cast (classTy (closureClass ++ "Int" ++ finalType)) (left $ var "c"))
+--                                                  closureOutput))))
+--                               (assignE
+--                                (name ["result"])
+--                                (cast resultType
+--                                 (J.FieldAccess (fieldAccExp
+--                                                 (cast (classTy (closureClass ++ "Box" ++ finalType)) (left $ var "c"))
+--                                                 closureOutput)))))]
 
-           return (localVar closureType' (varDeclNoInit "c") :
-                   localVar resultType (varDecl "result" (J.MethodInv (J.MethodCall (name ["apply"]) []))) :
-                   bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop))) :
-                   [bStmt (classMethodCall (left $ var "System.out") "println" [left $ var "result"])])
-         }}
+--            return (localVar closureType' (varDeclNoInit "c") :
+--                    localVar resultType (varDecl "result" (J.MethodInv (J.MethodCall (name ["apply"]) []))) :
+--                    bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop))) :
+--                    [bStmt (classMethodCall (left $ var "System.out") "println" [left $ var "result"])])
+--          }}
 
 
 -- Alternative version of transS that interacts with the Unbox and Apply translation
-transSAU :: (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
-transSAU this super = TS {toTS = (up (transSU this super)) {
-   -- genRes = \t s -> if (last t) then return [] else genRes super t s
-  genApply = \f _ x jType ctempCastTyp ->
-      do (_ :: Int, tailPosition :: Bool) <- ask
-         (n :: Int) <- get
-         put (n+1)
-         if tailPosition
-           then nextApply (up this) f x jType
-           else whileApply (up this) False f ("c" ++ show n) x jType ctempCastTyp
-  }}
+-- transSAU :: (MonadState Int m, MonadReader (Int, Bool) m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+-- transSAU this super = TS {toTS = (up (transSU this super)) {
+--    -- genRes = \t s -> if (last t) then return [] else genRes super t s
+--   genApply = \f _ x jType ctempCastTyp ->
+--       do (_ :: Int, tailPosition :: Bool) <- ask
+--          (n :: Int) <- get
+--          put (n+1)
+--          if tailPosition
+--            then nextApply (up this) f x jType
+--            else whileApply (up this) False f ("c" ++ show n) x jType ctempCastTyp
+--   }}

@@ -15,11 +15,11 @@ module Translations
     , compileN
     , compileAO
     , compileS
-    , compileSAU
+    -- , compileSAU
     , compileSN
-    , compileUnbox
-    , compileAoptUnbox
-    , compileSU
+    -- , compileUnbox
+    -- , compileAoptUnbox
+    -- , compileSU
     , sf2java
     -- , sf2java2
     , compilesf2java
@@ -44,7 +44,7 @@ import           PrettyUtils
 import           Simplify (simplify)
 import           StackTransCFJava
 import           TypeCheck (typeCheck)
-import           UnboxTransCFJava
+-- import           UnboxTransCFJava
 
 import           Data.Data
 import           Language.Java.Pretty
@@ -83,8 +83,8 @@ stackNaive = new (transS $> trans)
 
 -- Unbox naive translation
 
-unboxopt :: (MonadState Int m, MonadReader (Int, Bool) m) => UnboxTranslate m
-unboxopt = new (transUnbox $> trans)
+-- unboxopt :: (MonadState Int m, MonadReader (Int, Bool) m) => UnboxTranslate m
+-- unboxopt = new (transUnbox $> trans)
 
 
 -- Stack/Apply/Unbox translation
@@ -97,9 +97,9 @@ adaptStack :: forall (m :: * -> *) t t1.
               (t -> t1 -> TranslateStack m) -> t -> t1 -> Translate m
 adaptStack mix' this super = toTS $ mix' this super
 
-adaptUnbox :: forall (m :: * -> *) t t1.
-              (t -> t1 -> UnboxTranslate m) -> t -> t1 -> Translate m
-adaptUnbox mix' this super = toUT $ mix' this super
+-- adaptUnbox :: forall (m :: * -> *) t t1.
+--               (t -> t1 -> UnboxTranslate m) -> t -> t1 -> Translate m
+-- adaptUnbox mix' this super = toUT $ mix' this super
 
 -- Stack + Apply + Naive
 
@@ -107,16 +107,16 @@ stackApplyNew :: (MonadState Int m, MonadReader (Int, Bool) m, MonadReader InitV
 stackApplyNew = new ((transAS <.> adaptStack transSA) $> trans)
 
 -- Apply + Unbox + Naive
-applyUnbox :: (MonadState Int m, MonadReader (Int, Bool) m, MonadReader InitVars m) => ApplyOptTranslate m
-applyUnbox = new ((transApply <.> adaptUnbox transUnbox) $> trans)
+-- applyUnbox :: (MonadState Int m, MonadReader (Int, Bool) m, MonadReader InitVars m) => ApplyOptTranslate m
+-- applyUnbox = new ((transApply <.> adaptUnbox transUnbox) $> trans)
 
 -- Stack + Unbox + Naive
-stackUnbox :: (MonadState Int m, MonadReader (Int, Bool) m) => TranslateStack m
-stackUnbox = new ((transSU <.> adaptUnbox transUnbox) $> trans)
+-- stackUnbox :: (MonadState Int m, MonadReader (Int, Bool) m) => TranslateStack m
+-- stackUnbox = new ((transSU <.> adaptUnbox transUnbox) $> trans)
 
 -- Stack + Apply + Unbox + Naive
-stackApplyUnbox :: (MonadState Int m, MonadReader (Int, Bool) m, MonadReader InitVars m) => ApplyOptTranslate m
-stackApplyUnbox = new ((transAS <.> adaptStack transSAU <.> adaptUnbox transUnbox) $> trans)
+-- stackApplyUnbox :: (MonadState Int m, MonadReader (Int, Bool) m, MonadReader InitVars m) => ApplyOptTranslate m
+-- stackApplyUnbox = new ((transAS <.> adaptStack transSAU <.> adaptUnbox transUnbox) $> trans)
 
 instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
   up = NT . toTS
@@ -124,17 +124,17 @@ instance (:<) (TranslateStack m) (ApplyOptTranslate m) where
 instance (:<)  (ApplyOptTranslate m) (TranslateStack m) where
   up = TS . toT
 
-instance (:<) (UnboxTranslate m) (TranslateStack m) where
-  up = TS . toUT
+-- instance (:<) (UnboxTranslate m) (TranslateStack m) where
+--   up = TS . toUT
 
-instance (:<) (TranslateStack m) (UnboxTranslate m) where
-  up = UT . toTS
+-- instance (:<) (TranslateStack m) (UnboxTranslate m) where
+--   up = UT . toTS
 
-instance (:<) (UnboxTranslate m) (ApplyOptTranslate m) where
-  up = NT . toUT
+-- instance (:<) (UnboxTranslate m) (ApplyOptTranslate m) where
+--   up = NT . toUT
 
-instance (:<) (ApplyOptTranslate m) (UnboxTranslate m) where
-  up = UT . toT
+-- instance (:<) (ApplyOptTranslate m) (UnboxTranslate m) where
+--   up = UT . toT
 
 instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
   up = NT . toTBA
@@ -148,8 +148,8 @@ instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
 instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
   up = TS . toTBSA
 
-instance (:<) (BenchGenTranslateStackOpt m) (UnboxTranslate m) where
-  up = UT . toTBSA
+-- instance (:<) (BenchGenTranslateStackOpt m) (UnboxTranslate m) where
+--   up = UT . toTBSA
 
 -- prettyJ :: Language.Java.Pretty.Pretty a => a -> IO ()
 -- prettyJ = putStrLn . prettyPrint
@@ -254,34 +254,34 @@ compileSN :: Compilation
 compileSN name e = evalState (runReaderT (translateSN name (fexp2cexp e)) (0, True)) 1
 
 -- Setting for unbox + naive
-unboxinst :: UnboxTranslate NType  -- instantiation; all coinstraints resolved
-unboxinst = unboxopt
+-- unboxinst :: UnboxTranslate NType  -- instantiation; all coinstraints resolved
+-- unboxinst = unboxopt
 
-translateUnbox :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
-translateUnbox = createWrap (up unboxinst)
+-- translateUnbox :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
+-- translateUnbox = createWrap (up unboxinst)
 
-compileUnbox :: Compilation
-compileUnbox name e = evalState (runReaderT (translateUnbox name (fexp2cexp e)) (0, True)) 1
+-- compileUnbox :: Compilation
+-- compileUnbox name e = evalState (runReaderT (translateUnbox name (fexp2cexp e)) (0, True)) 1
 
 -- Setting for apply + unbox + naive
-aoptUnboxInst :: ApplyOptTranslate AOptType
-aoptUnboxInst = applyUnbox
+-- aoptUnboxInst :: ApplyOptTranslate AOptType
+-- aoptUnboxInst = applyUnbox
 
-translateAU :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
-translateAU = createWrap (up aoptUnboxInst)
+-- translateAU :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
+-- translateAU = createWrap (up aoptUnboxInst)
 
-compileAoptUnbox :: Compilation
-compileAoptUnbox name e = evalState (runReaderT (runReaderT (translateAU name (fexp2cexp e)) (0, True)) []) 1
+-- compileAoptUnbox :: Compilation
+-- compileAoptUnbox name e = evalState (runReaderT (runReaderT (translateAU name (fexp2cexp e)) (0, True)) []) 1
 
 -- Setting for stack + unbox + naive
-stackUnboxInst :: TranslateStack NType
-stackUnboxInst = stackUnbox
+-- stackUnboxInst :: TranslateStack NType
+-- stackUnboxInst = stackUnbox
 
-translateSU :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
-translateSU = createWrap (up stackUnboxInst)
+-- translateSU :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
+-- translateSU = createWrap (up stackUnboxInst)
 
-compileSU :: Compilation
-compileSU name e =  evalState (runReaderT (translateSU name (fexp2cexp e)) (0, True)) 1
+-- compileSU :: Compilation
+-- compileSU name e =  evalState (runReaderT (translateSU name (fexp2cexp e)) (0, True)) 1
 
 -- Setting for apply + stack + naive
 stackinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
@@ -294,11 +294,11 @@ compileS :: Compilation
 compileS name e = evalState (runReaderT (runReaderT (translateS name (fexp2cexp e)) (0, True)) []) 1
 
 -- Setting for apply + stack + unbox + naive
-stackau :: ApplyOptTranslate AOptType
-stackau = stackApplyUnbox
+-- stackau :: ApplyOptTranslate AOptType
+-- stackau = stackApplyUnbox
 
-translateSAU :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
-translateSAU = createWrap (up stackau)
+-- translateSAU :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit, Type Int)
+-- translateSAU = createWrap (up stackau)
 
-compileSAU :: Compilation
-compileSAU name e = evalState (runReaderT (runReaderT (translateSAU name (fexp2cexp e)) (0, True)) []) 1
+-- compileSAU :: Compilation
+-- compileSAU name e = evalState (runReaderT (runReaderT (translateSAU name (fexp2cexp e)) (0, True)) []) 1
