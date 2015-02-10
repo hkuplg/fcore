@@ -73,12 +73,12 @@ naive = new trans
 
 -- Apply naive optimization
 
-applyopt :: (MonadState Int m, MonadReader (Int, Bool) m, MonadReader InitVars m) => ApplyOptTranslate m
+applyopt :: (MonadState Int m, MonadReader Int m, MonadReader InitVars m) => ApplyOptTranslate m
 applyopt = new (transApply $> trans)
 
 -- Stack naive optimization
 
-stackNaive :: (MonadState Int m, MonadReader (Int, Bool) m) => TranslateStack m
+stackNaive :: (MonadState Int m, MonadReader Bool m) => TranslateStack m
 stackNaive = new (transS $> trans)
 
 -- Unbox naive translation
@@ -103,7 +103,7 @@ adaptStack mix' this super = toTS $ mix' this super
 
 -- Stack + Apply + Naive
 
-stackApplyNew :: (MonadState Int m, MonadReader (Int, Bool) m, MonadReader InitVars m) => ApplyOptTranslate m
+stackApplyNew :: (MonadState Int m, MonadReader Int m, MonadReader Bool m, MonadReader InitVars m) => ApplyOptTranslate m
 stackApplyNew = new ((transAS <.> adaptStack transSA) $> trans)
 
 -- Apply + Unbox + Naive
@@ -230,7 +230,7 @@ compileN :: Compilation
 compileN name e = evalState (runReaderT (translateN name (fexp2cexp e)) (0, True)) 1
 
 -- Setting for apply + naive
-type AOptType = (ReaderT (Int, Bool) (ReaderT InitVars (State Int)))
+type AOptType = (ReaderT Int (ReaderT Bool (ReaderT InitVars (State Int))))
 
 aoptinst :: ApplyOptTranslate AOptType  -- instantiation; all coinstraints resolved
 aoptinst = applyopt
@@ -239,10 +239,10 @@ translateAO :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit
 translateAO = createWrap (up aoptinst)
 
 compileAO :: Compilation
-compileAO name e = evalState (runReaderT (runReaderT (translateAO name (fexp2cexp e)) (0, True)) []) 1
+compileAO name e = evalState (runReaderT (runReaderT (runReaderT (translateAO name (fexp2cexp e)) 0) True) []) 1
 
 -- Setting for stack + naive
-type StackNaiveType = ReaderT (Int, Bool) (State Int)
+type StackNaiveType = ReaderT Bool (State Int)
 
 stackNaiveinst :: TranslateStack StackNaiveType  -- instantiation; all coinstraints resolved
 stackNaiveinst = stackNaive
@@ -251,7 +251,7 @@ translateSN :: String -> Expr Int (Var, Type Int) -> StackNaiveType (J.Compilati
 translateSN = createWrap (up stackNaiveinst)
 
 compileSN :: Compilation
-compileSN name e = evalState (runReaderT (translateSN name (fexp2cexp e)) (0, True)) 1
+compileSN name e = evalState (runReaderT (translateSN name (fexp2cexp e)) True) 1
 
 -- Setting for unbox + naive
 -- unboxinst :: UnboxTranslate NType  -- instantiation; all coinstraints resolved
@@ -291,7 +291,7 @@ translateS :: String -> Expr Int (Var, Type Int) -> AOptType (J.CompilationUnit,
 translateS = createWrap (up stackinst)
 
 compileS :: Compilation
-compileS name e = evalState (runReaderT (runReaderT (translateS name (fexp2cexp e)) (0, True)) []) 1
+compileS name e = evalState (runReaderT (runReaderT (runReaderT (translateS name (fexp2cexp e)) 0) True) []) 1
 
 -- Setting for apply + stack + unbox + naive
 -- stackau :: ApplyOptTranslate AOptType
