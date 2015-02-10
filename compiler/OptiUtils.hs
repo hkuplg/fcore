@@ -23,6 +23,10 @@ joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (PolyList es t) = PolyList (map joinExpr es) t
 joinExpr (JProxyCall jmethod t) = JProxyCall (joinExpr jmethod) t
+joinExpr (Data name params ctrs e) = Data name params ctrs (joinExpr e)
+joinExpr (Constr ctr es) = Constr ctr (map joinExpr es)
+joinExpr (Case e alts) = Case (joinExpr e) (map joinAlt alts)
+  where joinAlt (ConstrAlt ctr vars f) = ConstrAlt ctr vars (joinExpr . f . zipWith Var vars)
 joinExpr (Proj i e) = Proj i (joinExpr e)
 joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
 joinExpr (Let n bind body) = Let n (joinExpr bind) (joinExpr . body . Var n)
@@ -60,7 +64,12 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       PolyList es t -> PolyList (map f es) t
       JProxyCall jmethod t -> JProxyCall (f jmethod) t
+      Data name params ctrs e -> Data name params ctrs (f e)
+      Constr ctr es -> Constr ctr (map f es)
+      Case e alts -> Case (f e) (map mapAlt alts)
       Seq es -> Seq $ map f es
+  where mapAlt (ConstrAlt ctr vars g) = ConstrAlt ctr vars (f.g)
+
 
 src2core :: String -> IO (Expr t e)
 src2core fname = liftM simplify $ src2fi fname

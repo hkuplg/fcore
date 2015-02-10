@@ -32,6 +32,9 @@ block = Block
 bStmt :: Stmt -> BlockStmt
 bStmt = BlockStmt
 
+expToBlockStmt :: Exp -> BlockStmt
+expToBlockStmt = BlockStmt . ExpStmt
+
 localVar :: Type -> VarDecl -> BlockStmt
 localVar typ vard = LocalVars [] typ [vard]
 
@@ -39,7 +42,10 @@ localFinalVar :: Type -> VarDecl -> BlockStmt
 localFinalVar typ vard = LocalVars [Final] typ [vard]
 
 methodCall :: [String] -> [Argument] -> Stmt
-methodCall idents argu = ExpStmt (MethodInv (MethodCall (name idents) argu))
+methodCall idents argu = ExpStmt (methodCallExp idents argu)
+
+methodCallExp :: [String] -> [Argument] -> Exp
+methodCallExp idents argu = MethodInv (MethodCall (name idents) argu)
 
 applyMethodCall :: Exp -> Stmt
 applyMethodCall f = classMethodCall f "apply" []
@@ -64,6 +70,9 @@ methodDecl modi ty nam params body = MethodDecl modi [] ty (Ident nam) params []
 
 fieldDecl :: Type -> VarDecl -> MemberDecl
 fieldDecl typ vdecl = FieldDecl [] typ [vdecl]
+
+finalFieldDecl :: Type -> VarDecl -> MemberDecl
+finalFieldDecl typ vdecl = FieldDecl [Final] typ [vdecl]
 
 memberDecl :: MemberDecl -> Decl
 memberDecl = MemberDecl
@@ -162,3 +171,30 @@ annotation ann = Annotation MarkerAnnotation {annName = Name [Ident ann]}
 
 returnNull :: Maybe Block
 returnNull = Just (Block [BlockStmt (Return (Just (Lit Null)))])
+
+returnExp :: Exp -> Maybe Block
+returnExp e= Just (Block [BlockStmt (Return (Just e))])
+
+-- this.name = name
+initField :: String -> BlockStmt
+initField fieldname = let fieldaccess' = fieldAccExp This fieldname
+                      in   assignField fieldaccess' (ExpName (name [fieldname]))
+
+integerExp :: Integer -> Exp
+integerExp = Lit . Int
+
+varExp :: String -> Exp
+varExp = left . var
+
+memberClassDecl :: String -> String -> ClassBody -> MemberDecl
+memberClassDecl nam super body = MemberClassDecl (ClassDecl [] (Ident nam) [] (Just $ ClassRefType $ ClassType [(Ident super, [])]) [] body)
+
+switchStmt:: Exp -> [SwitchBlock] ->Stmt
+switchStmt = Switch
+
+switchBlock :: Maybe Exp -> [BlockStmt] -> SwitchBlock
+switchBlock (Just e) bs = SwitchBlock (SwitchCase e) $ bs ++ [bStmt (Break Nothing)]
+switchBlock Nothing  bs = SwitchBlock Default bs
+
+throwRuntimeException :: String -> Stmt
+throwRuntimeException s = Throw $ instCreat (classTyp "RuntimeException") [Lit. String $ s]

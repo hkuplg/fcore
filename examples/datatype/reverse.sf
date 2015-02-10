@@ -22,4 +22,4 @@ let rec reverse (xs: MList) : MList =
 
 let prop_reverse (xs: MList) : Bool = eq (reverse (reverse xs)) xs;
 
-prop_reverse
+prop_reverse {Cons 2 {Nil}}
