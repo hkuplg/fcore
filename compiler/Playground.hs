@@ -9,12 +9,13 @@ import           Core
 import           Desugar (desugar)
 import           Inliner (inliner)
 import           Parser (reader)
-import           PartialEvaluator (peval)
+import           PartialEvaluator
 import           Simplify (simplify)
 import qualified Src as S
 import           System.Directory (getCurrentDirectory)
 import           TypeCheck (typeCheck)
 import           Unsafe.Coerce (unsafeCoerce)
+import qualified Data.Map.Strict as Map
 
 import qualified Language.Java.Syntax as J (Op(..))
 
@@ -41,12 +42,19 @@ testTail = App (fix (\f n -> If (var n `eq` zero)
                javaInt
                (javaInt `Fun` javaInt)) one
 
-fact :: Expr t (Expr t e)
+fact :: Expr t e
 fact = fix (\f n -> If (var n `eq` zero)
                        one
                        (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
            (javaInt `Fun` javaInt)
+
+
+test1 :: Expr t e
+test1 =
+  lam javaInt (\f ->
+                lam javaInt (\g -> App (var f)
+                                   (lam javaInt (\x -> Let "" (App (var g) (var x)) (\t -> var t)))))
 
 tailFactLike :: Expr t e
 tailFactLike
@@ -91,19 +99,22 @@ x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y
 
-sf2c :: Int -> String -> IO (Expr t e)
-sf2c n fname = do
+sf2c :: String -> IO (Expr t e)
+sf2c fname = do
   path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
   string <- readFile (path ++ "/" ++ fname)
-  result <- typeCheck . reader $ string
+  let readSrc = Parser.reader string
+  result <- readSrc `seq` (typeCheck readSrc)
   case result of
    Left typeError -> error $ show typeError
-   Right (tcheckedSrc, _) ->
-     case n of
-      1 -> return (peval . simplify . desugar $ tcheckedSrc)
-      2 -> return (simplify . desugar $ tcheckedSrc)
-      3 -> return (desugar $ tcheckedSrc)
-      _ -> return (peval . desugar $ tcheckedSrc)
+   Right (typ, tcheckedSrc) -> do
+     print tcheckedSrc
+     return (simplify . desugar $ tcheckedSrc)
+     -- case n of
+     --  1 -> return (peval . simplify . desugar $ tcheckedSrc)
+     --  2 -> return (simplify . desugar $ tcheckedSrc)
+      -- 3 -> return (desugar $ tcheckedSrc)
+      -- _ -> return (peval . desugar $ tcheckedSrc)
 
 mconst =
   (bLam (\a ->

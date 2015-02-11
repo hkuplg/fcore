@@ -1,0 +1,7 @@
+let rec
+  at A (n:Int) (xs:List<A>): A=
+    if(n==0)
+    then head(A,xs)
+    else at A (n-1) tail(A,xs)
+in
+  (at Int 2 (new List<Int>(1,2,3)))

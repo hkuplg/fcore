@@ -278,42 +278,42 @@ infer (Lam (x1,t1) e)
        (t', e') <- withLocalVars [(x1,t1')] (infer e)
        return (Fun t1' t', Lam (x1,t1') e')
 
-infer (App f x) =
-  do (tf, f') <- infer f
-     (tx, x') <- infer x
-     case tf of
-       Fun tfparam tfret ->
+infer (App e1 e2) =
+  do (t1, e1') <- infer e1
+     (t2, e2') <- infer e2
+     case t1 of
+       Fun t11 t12 ->
          do d <- getTypeContext
-            unless (subtype d tx tfparam) $ throwError (TypeMismatch tfparam tx)
-            case (tfparam, tx) of
-              (Thunk _, Thunk _) -> return (tfret, App f' x')
-              (Thunk _, _)       -> return (tfret, App f' (Lam ("_", Unit) x'))
-              (_, Thunk _)       -> return (tfret, App f' (App x' (Lit UnitLit)))
-              (_, _)             -> return (tfret, App f' x')
+            unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
+            case (t11, t2) of
+              (Thunk _, Thunk _) -> return (t12, App e1' e2')
+              (Thunk _, _)       -> return (t12, App e1' (Lam ("_", Unit) e2'))
+              (_, Thunk _)       -> return (t12, App e1' (App e2' (Lit UnitLit)))
+              (_, _)             -> return (t12, App e1' e2')
 
-       Thunk (Fun tfparam tfret) ->
+       Thunk (Fun t11 t12) ->
          do d <- getTypeContext
-            unless (subtype d tx tfparam) $ throwError (TypeMismatch tfparam tx)
-            case (tfparam, tx) of
-              (Thunk _, Thunk _) -> return (tfret, App f'' x')
-              (Thunk _, _)       -> return (tfret, App f'' (Lam ("_", Unit) x'))
-              (_, Thunk _)       -> return (tfret, App f'' (App x' (Lit UnitLit)))
-              (_, _)             -> return (tfret, App f'' x')
-         where f'' = App f' (Lit UnitLit)
+            unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
+            case (t11, t2) of
+              (Thunk _, Thunk _) -> return (t12, App e1'' e2')
+              (Thunk _, _)       -> return (t12, App e1'' (Lam ("_", Unit) e2'))
+              (_, Thunk _)       -> return (t12, App e1'' (App e2' (Lit UnitLit)))
+              (_, _)             -> return (t12, App e1'' e2')
+         where e1'' = App e1' (Lit UnitLit)
 
-       _ -> throwError (NotAFunction tf)
+       _ -> throwError (NotAFunction t1)
 
 infer (BLam a e)
   = do (t, e') <- withLocalTVars [(a, (Star, TerminalType))] (infer e)
        return (Forall a t, BLam a e')
 
-infer (TApp e targ)
+infer (TApp e arg)
   = do (t, e') <- infer e
-       checkType targ
+       checkType arg
        d <- getTypeContext
-       let targ' = expandType d targ
+       let arg' = expandType d arg
        case t of
-         Forall a t1 -> return (fsubstTT (a, targ') t1, TApp e' targ')
+         Forall a t1 -> return (fsubstTT (a, arg') t1, TApp e' arg')
          _           -> sorry "TypeCheck.infer: TApp"
 
 infer (Tuple es)
@@ -434,16 +434,18 @@ infer (JMethod callee m args _) =
     Static c ->
       do (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
          ret_c <- checkMethodCall (Static c) m arg_cs
-         if ret_c == "char"
-           then return (JType (JPrim "char"), JMethod (Static c) m args' ret_c)
-           else return (JType (JClass ret_c), JMethod (Static c) m args' ret_c)
+         let ret_type = case ret_c of "java.lang.Void" -> Unit
+                                      "char" -> JType (JPrim "char")
+                                      _ -> JType (JClass ret_c)
+         return (ret_type, JMethod (Static c) m args' ret_c)
     NonStatic e ->
       do (c, e')         <- inferAgainstAnyJClass e
          (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
          ret_c <- checkMethodCall (NonStatic c) m arg_cs
-         if ret_c == "char"
-           then return (JType (JPrim "char"), JMethod (NonStatic e') m args' ret_c)
-           else return (JType (JClass ret_c), JMethod (NonStatic e') m args' ret_c)
+         let ret_type = case ret_c of "java.lang.Void" -> Unit
+                                      "char" -> JType (JPrim "char")
+                                      _ -> JType (JClass ret_c)
+         return (ret_type, JMethod (NonStatic e') m args' ret_c)
 
 infer (JField callee f _) =
   case callee of
@@ -471,15 +473,38 @@ infer (Merge e1 e2) =
      (t2, e2') <- infer e2
      return (And t1 t2, Merge e1' e2')
 
-infer (PrimList l) =
+infer (PolyList l t) =
   do (ts, es) <- mapAndUnzipM infer l
-     case ts of
-       [] -> return (JType (JClass (namespace ++ "FunctionalList")), PrimList es)
-       _  ->
-         do d <- getTypeContext
-            if all (alphaEq d (head ts)) ts
-               then return (JType (JClass (namespace ++ "FunctionalList")), PrimList es)
-               else throwError (General (text "Primitive List Type Mismatch" <+> text (show (PrimList l))))
+     case ts of [] -> return (ListOf t, PolyList es t)
+                _  ->
+                     do d <- getTypeContext
+                        if all (alphaEq d t) ts
+                          then return (ListOf t, PolyList es t)
+                          else throwError $ General (text "List Type mismatch" <+> pretty (PolyList l t))
+
+infer (JProxyCall (JNew c args) t) =
+    if c /= (namespace ++ "FunctionalList")
+    then
+        throwError $ General (text (show c ++ " from JProxyCall: not supported"))
+    else
+        do ([t1, t2], expr') <- mapAndUnzipM infer args
+           d <- getTypeContext
+           if ( alphaEq d (ListOf t1) t2)
+             then return (t2, JProxyCall (JNew c expr') t2)
+             else throwError $ TypeMismatch t1 t2
+
+infer (JProxyCall jmethod t) =
+    case jmethod of
+        JMethod (NonStatic e) methodname _ _ -> do
+            ty <- case methodname of
+                "head" -> do (ListOf a, _) <- infer e
+                             return a
+                "tail" -> do (a, _) <- infer e
+                             return a
+                _      -> throwError $ General (text (show methodname ++ " from JProxyCall: not supported"))
+            d <- getTypeContext
+            m <- infer jmethod
+            return (ty, JProxyCall (snd m) ty)
 
 infer (RecordIntro fs) =
   do (ts, es') <- mapAndUnzipM infer (map snd fs)
@@ -610,6 +635,7 @@ inferAgainstAnyJClass expr
        case deThunkOnce ty of
         JType (JPrim "char") -> return ("java.lang.Character", expr')
         JType (JClass c) -> return (c, expr')
+        ListOf _         -> return (namespace ++ "FunctionalList", expr')
         _ -> throwError $
              General
              (code (pretty expr) <+> text "has type" <+> code (pretty ty) <> comma <+>

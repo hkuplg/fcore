@@ -1,0 +1,3 @@
+let getTwo A B (x : A) : A = x;
+let getThree A B C (y : B) : B = getTwo B C y;
+getThree Int String Int "abc"

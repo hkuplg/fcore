@@ -1,0 +1,7 @@
+let rec
+  drop A (n:Int) (xs:List<A>) :List<A> =
+    if(isNil(xs) || n<=0)
+    then xs
+    else drop A (n-1) tail(xs)
+in
+  head(drop Int 2 (new List<Int>(1,2,3,4)))

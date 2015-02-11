@@ -1,0 +1,7 @@
+let rec
+  take A (n:Int) (xs:List<A>) :List<A> =
+    if(isNil(xs) || n<=0)
+    then new List<A>()
+    else cons(head(xs), (take A (n-1) tail(xs)))
+in
+    length(take Int 3 (new List<Int>(-1,0,1,2,3,4)))

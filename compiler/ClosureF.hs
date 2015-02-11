@@ -29,11 +29,13 @@ data Type t =
       TVar t
     | Forall (TScope t)
     | JClass ClassName
+    | Unit
     | CFInt
     | CFInteger
     | CFChar
     | CFCharacter
     | TupleType [Type t]
+    | ListType (Type t)
 
 data Expr t e =
      Var e
@@ -54,6 +56,8 @@ data Expr t e =
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
    | JField  (Either ClassName (Expr t e)) FieldName ClassName
+   | PolyList [Expr t e] (Type t)
+   | JProxyCall (Expr t e) (Type t)
    | SeqExprs [Expr t e]
 
 
@@ -73,11 +77,14 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 
 ftyp2ctyp :: C.Type t -> Type t
 ftyp2ctyp (C.TVar _ x)                     = TVar x
-ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
-ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
+-- ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
+ftyp2ctyp (C.JClass "java.lang.Integer") = JClass "java.lang.Integer"
+-- ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
+ftyp2ctyp (C.JClass "java.lang.Character") = JClass "java.lang.Character"
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
-ftyp2ctyp (C.Unit)                       = JClass "java.lang.Integer"
+ftyp2ctyp (C.Unit)                       = Unit
+ftyp2ctyp (C.ListOf t)                   = ListType (ftyp2ctyp t)
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-
@@ -121,6 +128,8 @@ fexp2cexp (C.JMethod c mName args r) =
 fexp2cexp (C.JField c fName r) =
   case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName r
             (S.Static cn)    -> JField (Left cn) fName r
+fexp2cexp (C.PolyList es t)     = PolyList (map fexp2cexp es) (ftyp2ctyp t)
+fexp2cexp (C.JProxyCall jmethod t) = JProxyCall (fexp2cexp jmethod) (ftyp2ctyp t)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp e                         = Lam (groupLambda e)
 
@@ -154,6 +163,7 @@ getArity _ = 0
 
 joinType :: Type (Type t) -> Type t
 joinType (TVar t)   = t
+joinType Unit = Unit
 joinType CFInt = CFInt
 joinType CFInteger = CFInteger
 joinType CFChar = CFChar
@@ -161,6 +171,7 @@ joinType CFCharacter = CFCharacter
 joinType (Forall s) = Forall (joinTScope s)
 joinType (JClass c) = JClass c
 joinType (TupleType ts) = TupleType (map joinType ts)
+joinType (ListType t) = ListType (joinType t)
 
 joinTScope :: TScope (Type t) -> TScope t
 joinTScope (Body b)   = Body (joinType b)
@@ -169,7 +180,7 @@ joinTScope (Type t f) = let t' = joinType t in Type t' (\x -> joinTScope (f x))
 
 -- Free variable substitution
 
-substScope :: Subst t => Int -> Type Int -> Scope (Type t) t () -> Scope (Type t) t ()
+substScope :: Subst t => Int -> Type Int -> TScope t  -> TScope t
 substScope n t (Body t1) = Body (substType n t t1)
 substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
 substScope n t (Type t1 f) = Type (substType n t t1) (\x -> substScope n t (f x))
@@ -241,11 +252,14 @@ prettyType _ _ (TVar t) = prettyTVar t
 
 prettyType p i (Forall f) = prettyTScope p i f
 
+prettyType _ _ Unit = text "Unit"
+
 prettyType _ _ (JClass "java.lang.Integer") = text "Int"
 prettyType _ _ (JClass "java.lang.String") = text "String"
 prettyType _ _ (JClass "java.lang.Boolean") = text "Bool"
 prettyType _ _ (JClass "java.lang.Character") = text "Char"
 prettyType _ _ (JClass c) = text c
+prettyType p i (ListType t) = brackets $ prettyType p i t
 
 prettyType _ _ CFInt = text "Int"
 prettyType _ _ CFInteger = text "Integer"
@@ -344,5 +358,8 @@ prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
   where
     fieldStr (Left x)  = text x
     fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
+
+prettyExpr p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr p i ) $ es
+prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text ")" <> prettyExpr p (i,j) jmethod
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)

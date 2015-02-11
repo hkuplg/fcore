@@ -1,0 +1,14 @@
+let rec
+  filter A (f:A->Bool) (xs:List<A>) :List<A> =
+    if(isNil(xs))
+    then
+        new List<A>()
+    else if(f head(xs))
+    then
+        cons( head(xs), filter A f tail(xs))
+    else
+        filter A f tail(xs)
+and
+  f(x:Int):Bool = x >0
+in
+  length(filter Int f (new List<Int>(-1,0,1,2,3)))
