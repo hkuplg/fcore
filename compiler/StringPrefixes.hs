@@ -26,3 +26,6 @@ closureOutput = "res"
 -- Datatype tag
 datatypetag :: String
 datatypetag = "tag"
+
+fieldtag :: String
+fieldtag = "field"

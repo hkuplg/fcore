@@ -39,8 +39,14 @@ simplify2 (FI.JField jc fn cn) = JField (fmap simplify2 jc) fn cn
 simplify2 (FI.PolyList es t) = PolyList (map simplify2 es) (transType2 t)
 simplify2 (FI.JProxyCall jmethod t) = JProxyCall (simplify2 jmethod) (transType2 t)
 simplify2 (FI.Seq es) = Seq (map simplify2 es)
+simplify2 (FI.Data name params ctrs e) = Data name params (map simplify2Ctr ctrs) (simplify2 e)
+simplify2 (FI.Constr ctr es) = Constr (simplify2Ctr ctr) (map simplify2 es)
+simplify2 (FI.Case e alts) = Case (simplify2 e) (map simplify2Alt alts)
+  where simplify2Alt (FI.ConstrAlt ctr vars f) = ConstrAlt (simplify2Ctr ctr) vars (simplify2 . f)
 simplify2 _ = sorry "No"
 
+simplify2Ctr :: FI.Constructor t -> Constructor t
+simplify2Ctr (FI.Constructor name params) = Constructor name (map transType2 params)
 
 transType2 :: FI.Type t -> Type t
 transType2 (FI.TVar n t) = TVar n t
@@ -50,6 +56,7 @@ transType2 (FI.Forall n f) = Forall n (\t -> transType2 (f t))
 transType2 (FI.Product ts) = Product (map transType2 ts)
 transType2 (FI.Unit) = Unit
 transType2 (FI.ListOf t) = ListOf (transType2 t)
+transType2 (FI.Datatype n ts ns)  = Datatype n (map transType2 ts) ns
 transType2 _ = sorry "No"
 
 
@@ -143,8 +150,16 @@ rewriteExpr f num env expr =
    PolyList es t -> PolyList (map (f num env) es) t
    JProxyCall j t -> JProxyCall (f num env j) t
    Seq es -> Seq (map (f num env) es)
+   Data name params ctrs e -> Data name params ctrs (f num env e)
    Constr c es -> Constr c (map (f num env) es)
-   Case _ _ -> sorry "Rewriting case not yet done"
+   Case e alts -> Case (f num env e) (map rewriteAlt alts)
+ where
+   rewriteAlt (ConstrAlt ctr names g) = ConstrAlt ctr names (
+            \es ->
+              let len = length names
+                  es' = g [num .. num + len -1]
+              in f (num + len) (foldl' multInsert env (zip [num .. num +len-1] es)) es'
+        )
 
 newtype Exp = Hide {reveal :: forall t e. Expr t e}
 
