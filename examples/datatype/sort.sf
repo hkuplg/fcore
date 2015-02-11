@@ -10,29 +10,29 @@ let rec eq A (xs: PolyList A) (ys: PolyList A) : Bool =
    | Cons a as -> (case ys of
      	       	     Nil -> False
 		   | Cons b bs -> (a == b) && (eq A as bs)) ;
-let rec filter (p : Int -> Bool) (xs : PolyList Int) : PolyList Int =
+let rec filter A (p : A -> Bool) (xs : PolyList A) : PolyList A =
   case xs of
-      Nil       -> {Nil Int}
-    | Cons y ys -> if p y then { Cons Int y (filter p ys) } else filter p ys;
-let rec concat A (xs : PolyList A) (ys : PolyList A) : PolyList A =
+      Nil       -> {Nil A}
+    | Cons y ys -> if p y then { Cons A y (filter A p ys) } else filter A p ys;
+let rec append A (xs : PolyList A) (ys : PolyList A) : PolyList A =
   case xs of
       Nil       -> ys
-    | Cons z zs -> { Cons A z (concat A zs ys) };
-let rec qsort (xs : PolyList Int) : PolyList Int =
+    | Cons z zs -> { Cons A z (append A zs ys) };
+let rec qsort A (xs : PolyList A) : PolyList A =
   case xs of
-      Nil       -> {Nil Int}
+      Nil       -> {Nil A}
     | Cons y ys -> case ys of
-                       Nil       -> { Cons Int y {Nil Int} }
-                     | Cons z zs -> concat Int (qsort (filter (\(a : Int). a <= y) ys)) {Cons Int y (qsort (filter (\(a : Int). a > y) ys)) };
-let rec insert (x : Int) (xs : PolyList Int) : PolyList Int =
+                       Nil       -> { Cons A y {Nil A} }
+                     | Cons z zs -> append A (qsort A (filter A (\(a : A). a <= y) ys)) {Cons A y (qsort A (filter A (\(a : A). a > y) ys)) };
+let rec insert A (x : A) (xs : PolyList A) : PolyList A =
     case xs of
-        Nil -> {Cons Int x {Nil Int}}
+        Nil -> {Cons A x {Nil A}}
       | Cons y ys -> if x <= y
-      	       	     then {Cons Int x {Cons Int y ys}}
-		     else {Cons Int y (insert x ys)};
-let rec isort (xs : PolyList Int) : PolyList Int =
+      	       	     then {Cons A x {Cons A y ys}}
+		     else {Cons A y (insert A x ys)};
+let rec isort A (xs : PolyList A) : PolyList A =
     case xs of
-    	Nil -> {Nil Int}
-      | Cons x ys -> insert x (isort ys);
-let prop_sort (xs : PolyList Int) = eq Int (qsort xs) (isort xs);
+    	Nil -> {Nil A}
+      | Cons x ys -> insert A x (isort A ys);
+let prop_sort A (xs : PolyList A) = eq A (qsort A xs) (isort A xs);
 prop_sort

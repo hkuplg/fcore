@@ -1,25 +1,23 @@
-data MList = Nil
-           | Cons Int MList
-           ;
-let rec eq (xs: MList) (ys: MList) : Bool =
+data PolyList A = Nil
+                | Cons A (PolyList A)
+                ;
+let rec eq A (xs: PolyList A) (ys: PolyList A) : Bool =
   case xs of
      Nil -> (case ys of
-              Nil -> True
-	    | Cons z zs -> False)
+                Nil -> True
+	      | Cons z zs -> False)
    | Cons a as -> (case ys of
      	       	     Nil -> False
-		   | Cons b bs -> (a == b) && (eq as bs)) ;
-
-let rec concat (xs : MList) (ys : MList) : MList =
+		   | Cons b bs -> (a == b) && (eq A as bs)) ;
+let rec append A (xs : PolyList A) (ys : PolyList A) : PolyList A =
   case xs of
       Nil       -> ys
-    | Cons z zs -> { Cons z (concat zs ys) };
+    | Cons z zs -> { Cons A z (append A zs ys) };
 
-let rec reverse (xs: MList) : MList =
+let rec reverse A (xs: PolyList A) : PolyList A =
     case xs of
-    	Nil -> {Nil}
-      | Cons y ys -> concat (reverse ys) {Cons y {Nil}} ;
+    	Nil -> {Nil A}
+      | Cons y ys -> append A (reverse A ys) {Cons A y {Nil A}} ;
 
-let prop_reverse (xs: MList) : Bool = eq (reverse (reverse xs)) xs;
-
-prop_reverse {Cons 2 {Nil}}
+let prop_reverse A (xs: PolyList A) : Bool = eq A (reverse A (reverse A xs)) xs;
+prop_reverse
