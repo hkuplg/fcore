@@ -152,7 +152,7 @@ trans self =
                   (S.String s) -> return ([], Right $ J.Lit (J.String s),  JClass "java.lang.String")
                   (S.Bool b)   -> return ([], Right $ J.Lit (J.Boolean b), JClass "java.lang.Boolean")
                   (S.Char c)   -> return ([], Right $ J.Lit (J.Char c),    JClass "java.lang.Character")
-              PrimOp e1 op e2 -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+              PrimOp e1 op e2 -> local (\(n' :: Int, _ :: Bool) -> (n', False)) $
                 do (s1,j1,_) <- translateM this e1
                    (s2,j2,_) <- translateM this e2
                    let j1' = unwrap j1
@@ -166,10 +166,10 @@ trans self =
                    return (s1 ++ s2 ++ [assignExpr],var newVarName,typ)
               If e1 e2 e3 ->
                 translateIf this -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherit flag
-                            (local (\(n :: Int, _ :: Bool) -> (n, False)) $ translateM this e1)
+                            (local (\(n' :: Int, _ :: Bool) -> (n', False)) $ translateM this e1)
                             (translateM this e2)
                             (translateM this e3)
-              Tuple tuple -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+              Tuple tuple -> local (\(n' :: Int, _ :: Bool) -> (n', False)) $
                 case tuple of
                   [t] ->
                     do (s1,j1,t1) <- translateM this t
@@ -190,7 +190,7 @@ trans self =
                    let rhs = instCreat (classTyp c) (map unwrap exprs)
                    assignExpr <- assignVar this (JClass c) newVarName rhs
                    return (statements ++ [assignExpr], var newVarName, ListType t)
-              Proj index expr -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+              Proj index expr -> local (\(n' :: Int, _ :: Bool) -> (n', False)) $
                 do ret@(statement,javaExpr,exprType) <- translateM this expr
                    case exprType of
                      TupleType [_] -> return ret
@@ -217,20 +217,20 @@ trans self =
     ------------------------------- :: cj-abs
     Γ |- λ∆ . E : ∀∆ . T ~> J in S
 -}
-              Lam se -> local (\(n :: Int, _ :: Bool) -> (n, True)) $ -- count abstraction as in tail position
+              Lam se -> local (\(n' :: Int, _ :: Bool) -> (n', True)) $ -- count abstraction as in tail position
                 do (s,je,t) <- translateScopeM this se Nothing
                    return (s,je,Forall t)
-              Fix t s -> local (\(n :: Int, _ :: Bool) -> (n, True)) $
+              Fix t s -> local (\(n' :: Int, _ :: Bool) -> (n', True)) $
                 do (n :: Int) <- get
                    put (n + 1)
                    (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
                    return (expr,je,Forall t')
 
               Let expr body -> -- let e1 e2: e1 can't be in tail position, e2 inherits flag
-                do (s1, j1, t1) <- local (\(n :: Int, _ :: Bool) -> (n, False)) $ translateM this expr
+                do (s1, j1, t1) <- local (\(n' :: Int, _ :: Bool) -> (n', False)) $ translateM this expr
                    translateLet this (s1,j1,t1) body
 
-              LetRec t xs body -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+              LetRec t xs body -> local (\(n' :: Int, _ :: Bool) -> (n', False)) $
                 do (n :: Int) <- get
                    let needed = length t
                    put (n + 2 + needed)
@@ -272,14 +272,14 @@ trans self =
     (S3 := see translateApply)
 -}
               App e1 e2 -> -- app e1 e2: e1 and e2 can't be in tail position, the whole inherits flag
-                do (n :: Int, _ :: Bool) <- ask
+                do (n' :: Int, _ :: Bool) <- ask
                    let flag = case e1 of Var _ -> True
                                          _ -> False
                    translateApply this flag
-                                  (local (\(_ :: Int, _ :: Bool) -> (n+1, False)) $ translateM this e1)
+                                  (local (\(_ :: Int, _ :: Bool) -> (n'+1, False)) $ translateM this e1)
                                   (local (\(_ :: Int, _ :: Bool) -> (0, False)) $ translateM this e2)
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
-              JNew c args -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+              JNew c args -> local (\(n' :: Int, _ :: Bool) -> (n', False)) $
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'
                    let rhs =
@@ -287,10 +287,10 @@ trans self =
                            (map (\y -> case y of
                                          JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                         CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                         CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         -- CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         -- CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                                 types)
                            (J.ClassType [(J.Ident c,[])])
@@ -304,7 +304,7 @@ trans self =
                           ,var newVarName
                           ,typ)
 
-              JProxyCall (JNew c args) realType -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+              JProxyCall (JNew c args) realType -> local (\(n' :: Int, _ :: Bool) -> (n', False)) $
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'
                    let rhs =
@@ -312,12 +312,12 @@ trans self =
                            (map (\y -> case y of
                                          JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                         CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                         CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         -- CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                         -- CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          ListType _ -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident (namespace ++ "FunctionalList"),[])]
-                                         TVar t  -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Object", [])]
+                                         TVar _  -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Object", [])]
                                          _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                                 types)
                            (J.ClassType [(J.Ident c,[])])
@@ -338,25 +338,30 @@ trans self =
                    let refTypes =
                          map (\y -> case y of
                                      JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                     CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     -- CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                      _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                              types
                    realJavaType <- javaType this realType
                    (classStatement,rhs) <- case c of
                                              Right ce ->
                                                do (classS,classE,_) <- translateM this ce
-                                                  return (classS ,cast realJavaType (J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs'))
+                                                  if realJavaType == objClassTy
+                                                    then return (classS ,J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs')
+                                                    else return (classS ,cast realJavaType (J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs'))
                                              Left cn ->
-                                               return ([] ,cast realJavaType (J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs'))
+                                               if realJavaType == objClassTy
+                                                 then return ([] ,J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs')
+                                                 else return ([] ,cast realJavaType (J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs'))
                    let typ = JClass r
                    if r /= "java.lang.Void"
                       then do newVarName <- getNewVarName this
                               assignExpr <- assignVar this realType newVarName rhs
                               return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,realType)
                       else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, realType)
+              JProxyCall _ _ -> sorry "JProxyCall: Not supported"
               JMethod c m args r -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'
@@ -364,10 +369,10 @@ trans self =
                    let refTypes =
                          map (\y -> case y of
                                      JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                     CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     -- CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
+                                     -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                      _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
                              types
                    (classStatement,rhs) <- case c of
@@ -382,7 +387,7 @@ trans self =
                               assignExpr <- assignVar this typ newVarName rhs
                               return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,typ)
                       else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, Unit)
-              JField c fName r -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+              JField c fName r -> local (\(n' :: Int, _ :: Bool) -> (n', False)) $
                 do (classStatement,classExpr,_) <- case c of
                                                      Right ce ->
                                                        translateM this ce
@@ -394,7 +399,7 @@ trans self =
                    let rhs = J.Cast aType $ J.FieldAccess $ J.PrimaryFieldAccess (unwrap classExpr) (J.Ident fName)
                    assignExpr <- assignVar this typ newVarName rhs
                    return (classStatement ++ [assignExpr],var newVarName,typ)
-              SeqExprs es -> local (\(n :: Int, _ :: Bool) -> (n, False)) $
+              SeqExprs es -> local (\(n' :: Int, _ :: Bool) -> (n', False)) $
                 do es' <- mapM (translateM this) es
                    let (_,lastExp,lastType) = last es'
                    let statements = concatMap (\(x,_,_) -> x) es'
@@ -558,19 +563,19 @@ trans self =
                              (TupleType tuple) -> case tuple of
                                                     [t] -> javaType this t
                                                     _ -> return $ classTy $ getTupleClassName tuple
-                             CFInt -> return $ classTy "java.lang.Integer"
-                             CFInteger -> return $ classTy "java.lang.Integer"
-                             CFChar -> return $ classTy "java.lang.Character"
-                             CFCharacter -> return $ classTy "java.lang.Character"
+                             -- CFInt -> return $ classTy "java.lang.Integer"
+                             -- CFInteger -> return $ classTy "java.lang.Integer"
+                             -- CFChar -> return $ classTy "java.lang.Character"
+                             -- CFCharacter -> return $ classTy "java.lang.Character"
                              (ListType _) -> return $ classTy (namespace ++ "FunctionalList")
                              (Datatype nam _ _) -> return $ classTy nam
                              _ -> return objClassTy
        ,chooseCastBox = \typ -> case typ of
                                   (JClass c) -> return (initClass c, classTy c)
-                                  CFInt -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
-                                  CFInteger -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
-                                  CFChar -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
-                                  CFCharacter -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
+                                  -- CFInt -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
+                                  -- CFInteger -> return (initClass "java.lang.Integer", classTy "java.lang.Integer")
+                                  -- CFChar -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
+                                  -- CFCharacter -> return (initClass "java.lang.Integer", classTy "java.lang.Character")
                                   (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                                                    return (initClass closureClass, classTy closureClass)
                                   (TupleType tuple) -> case tuple of
@@ -589,8 +594,8 @@ trans self =
        ,applyRetType = \t -> (case t of
                                JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
                                JClass "java.lang.Boolean" -> return $ Just $ J.PrimType J.BooleanT
-                               CFInt -> return $ Just $ J.PrimType J.IntT
-                               CFChar -> return $ Just $ J.PrimType J.CharT
+                               -- CFInt -> return $ Just $ J.PrimType J.IntT
+                               -- CFChar -> return $ Just $ J.PrimType J.CharT
                                _ -> return $ Just objClassTy)
        ,createWrap =
           \nam expr ->
