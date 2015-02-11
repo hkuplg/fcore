@@ -54,6 +54,7 @@ tokens :-
     String      { \_ _ -> Tjavaclass "java.lang.String" }
     Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
     Char        { \_ _ -> Tjavaclass "java.lang.Character" }
+    Float       { \_ _ -> Tjavaclass "java.lang.Float" }
     Double      { \_ _ -> Tjavaclass "java.lang.Double" }
     List        { \_ _ -> Tlist}
     Tree        { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
@@ -124,7 +125,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tmodule | Tend
            | Temptytree | Tnonemptytree
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
-	   | Tdata | Tcase | Tbar | Tof | Tto
+     | Tdata | Tcase | Tbar | Tof | Tto
            deriving (Eq, Show)
 
 lexer :: String -> [Token]
