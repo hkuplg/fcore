@@ -30,18 +30,15 @@ writeRuntimeToTemp =
 
 testCasesPath = "testsuite/tests/run-pass/"
 
-initReplEnv ::[String] -> IO ()
-initReplEnv xs =  do
+initReplEnv :: [TransMethod] -> Compilation -> [String] -> IO ()
+initReplEnv method opt xs =  do
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP NoBuffering
      hSetBuffering outP NoBuffering
-     loadFile inP outP [Naive] compileN xs
-     loadFile inP outP [Naive, Apply] compileAO xs
-     loadFile inP outP [Naive, Stack] compileSN xs
-     loadFile inP outP [Naive, Apply, Stack] compileS xs
+     loadFile inP outP method opt xs
      terminateProcess proch
 
 loadFile :: Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO ()
@@ -89,7 +86,10 @@ main = do
   putStrLn ""
   putStrLn $ "Running test from " ++ testCasesPath
   putStrLn "-------------------------------------"
-  timeIt $ initReplEnv zs
+  timeIt $ initReplEnv [Naive] compileN zs
+  timeIt $ initReplEnv [Naive, Apply] compileAO zs
+  timeIt $ initReplEnv [Naive, Stack] compileSN zs
+  timeIt $ initReplEnv [Naive, Apply, Stack] compileS zs
   putStrLn "-------------------------------------"
   putStrLn "Finished!"
   end <- getCurrentTime

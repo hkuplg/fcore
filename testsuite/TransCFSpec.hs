@@ -87,23 +87,22 @@ abstractCases =
 -- intappCase = \c -> it "Should infer type of intapp" $ "(forall (_ : java.lang.Integer) . java.lang.Integer)" `shouldBe` ( let (cu, t) = (c "Main" intapp) in show t)
 
 spec =
-  do cp <- runIO getClassPath
-     let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
-                  {std_in = CreatePipe, std_out = CreatePipe}
-     (Just inP, Just outP, _, proch) <- runIO $ createProcess p
-     runIO $ hSetBuffering inP NoBuffering
-     runIO $ hSetBuffering outP NoBuffering
-     concreteCases <- runIO (discoverTestCases testCasesPath)
+  do concreteCases <- runIO (discoverTestCases testCasesPath)
      forM_
        [("BaseTransCF" , compileN)
        ,("ApplyTransCF", compileAO)
        ,("StackTransCF", compileS)]
        (\(name, compilation) ->
          describe name $
-           do forM_ abstractCases (testAbstractSyn inP outP compilation)
+           do cp <- runIO getClassPath
+              let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
+                          {std_in = CreatePipe, std_out = CreatePipe}
+              (Just inP, Just outP, _, proch) <- runIO $ createProcess p
+              runIO $ hSetBuffering inP NoBuffering
+              runIO $ hSetBuffering outP NoBuffering
+              forM_ abstractCases (testAbstractSyn inP outP compilation)
               forM_ concreteCases (testConcreteSyn inP outP compilation))
-     -- Problem: can't terminate proch after previous actions done
-     -- runIO $ terminateProcess proch
+              --terminateProcess proch
 
 main :: IO ()
 main = hspec spec
