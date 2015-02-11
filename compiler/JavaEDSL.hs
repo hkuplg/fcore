@@ -161,6 +161,13 @@ classDecl modi ident =
 integerExp :: Integer -> Exp
 integerExp = Lit . Int
 
+nullExp :: Exp
+nullExp = Lit Null
+
+-- -- op
+eq :: Exp -> Exp -> Exp
+eq e1 = BinOp e1 Equal
+
 -- -- type cast
 cast :: Type -> Exp -> Exp
 cast = Cast
@@ -190,6 +197,10 @@ assignE lhs rhs = ExpStmt $ Assign (NameLhs lhs) EqualA rhs
 assignField :: FieldAccess -> Exp -> BlockStmt
 assignField access rhs = BlockStmt $ ExpStmt $ Assign (FieldLhs access) EqualA rhs
 
+-- -- if
+ifthen :: Exp -> Stmt -> Stmt
+ifthen = IfThen
+
 -- -- switch
 switchStmt:: Exp -> [SwitchBlock] ->Stmt
 switchStmt = Switch
@@ -204,6 +215,9 @@ returnNull = Just (Block [BlockStmt (Return (Just (Lit Null)))])
 
 returnExp :: Exp -> Maybe Block
 returnExp e= Just (Block [BlockStmt (Return (Just e))])
+
+returnExpS :: Exp -> BlockStmt
+returnExpS e= BlockStmt (Return (Just e))
 
 -- -- exception
 throwRuntimeException :: String -> Stmt

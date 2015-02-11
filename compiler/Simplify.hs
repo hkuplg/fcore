@@ -144,8 +144,8 @@ infer' this i j (FI.Data _ _ _ e)      = this i j e
 infer' this i j (FI.Case _ alts)       = inferAlt $ head alts
     where inferAlt (FI.ConstrAlt c _ e)  =
               let ts = FI.constrParams c
-                  n = length ts
-              in this i (j+n) (e (zip [j..j+n-1] ts))
+                  n = length ts - 1
+              in this i (j+n) (e (zip [j..] (init ts)))
 infer' _ _ _ (FI.Constr c _)           = last $ FI.constrParams c
 
 infer :: Index -> Index -> FI.Expr Index (Index, FI.Type Index) -> FI.Type Index
@@ -214,7 +214,7 @@ transExpr' _ this i j (FI.Data n params ctrs e) =
 transExpr' _ this i j (FI.Case e alts)                = Case e' (map transAlt alts)
     where (_,e') = this i j e
           transAlt (FI.ConstrAlt (FI.Constructor n ts) ns f) =
-              let m = length ts
+              let m = length ts - 1
                   js = [j..j+m-1]
                   (_,f') = this i (j+m) (f (zip js ts))
                   ts' = map (transType i) ts
