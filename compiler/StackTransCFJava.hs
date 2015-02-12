@@ -6,6 +6,19 @@
            , ScopedTypeVariables
            , TypeOperators
            , UndecidableInstances #-}
+{- |
+Module      :  StackTransCFJava
+Description :  Translation of FCore to Java with Stack-opt
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Tomas <tomtau@connect.hku.hk>
+Stability   :  stable
+Portability :  non-portable (MPTC)
+
+This module augments the basic translation of FCore to Java to support
+tail-call elimination.
+-}
 
 module StackTransCFJava where
 

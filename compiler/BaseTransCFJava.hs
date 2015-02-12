@@ -1,4 +1,18 @@
 {-# LANGUAGE FlexibleContexts, TypeOperators, MultiParamTypeClasses, ScopedTypeVariables #-}
+{- |
+Module      :  BaseTransCFJava
+Description :  Basic translation of FCore to Java
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Tomas <tomtau@connect.hku.hk>
+Stability   :  stable
+Portability :  non-portable (MPTC)
+
+This module implements the basic translation of FCore to Java. For
+more information, please refer to the paper on wiki.
+-}
+
 
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures

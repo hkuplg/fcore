@@ -1,4 +1,16 @@
--- | Simple inliner
+{- |
+Module      :  Inliner
+Description :  A simple heuristic inliner for FCore
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Yanlin <huohuohuomumu@gmail.com>
+Stability   :  experimental
+Portability :  portable
+
+This module implements a simple heuristic inlining process for FCore.
+-}
+
 
 module Inliner where
 

@@ -1,4 +1,17 @@
 {-# LANGUAGE ViewPatterns #-}
+{- |
+Module      :  PartialEvaluator
+Description :  Partial evaluation of FCore
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Weixin <zhangweixinxd@gmail.com>
+Stability   :  experimental
+Portability :  portable
+
+This module implements partial evaluation of FCore. It also includes
+an experimental term rewriting process.
+-}
 
 module PartialEvaluator (rewriteAndEval, Exp(..), rewrite1, rewrite2, rewrite3) where
 
