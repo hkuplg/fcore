@@ -1,6 +1,16 @@
 {-# Language RankNTypes, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
+{- |
+Module      :  ClosureF
+Description :   Abstract syntax and pretty printer for ClosureF.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
 
+Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Tomas <tomtau@connect.hku.hk>
+Stability   :  stable
+Portability :  non-portable (MPTC)
+
+-}
 module ClosureF where
 
 import qualified Src  as S
