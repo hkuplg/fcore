@@ -574,6 +574,10 @@ trans self =
        ,genClosureVar = \_ _ j1 ->  return (unwrap j1)
        ,javaType = \typ -> case typ of
                              (JClass c) -> return $ classTy c
+                             (Forall (Kind f)) -> case f 0 of -- TODO: could be a bug
+                                                   Body typ' -> javaType this typ'
+                                                   _ -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+                                                           return (classTy closureClass)
                              (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                                               return (classTy closureClass)
                              (TupleType tuple) -> case tuple of
