@@ -12,7 +12,6 @@ import           SystemFI
 import           Text.PrettyPrint.ANSI.Leijen
 import           Z3.Monad                     hiding (Z3Env)
 import Data.Map (Map, fromList)
-import Data.Text (Text, splitOn, pack, unpack)
 
 data Z3Env = Z3Env { index                      :: Int
                    , boolSort, intSort, adtSort :: Sort
@@ -73,7 +72,7 @@ pathsZ3 env (Fork e@(SConstr c vs) (Right ts)) conds stop =
     do let (cs, _, fs) = unzip3 ts
            f = fromJust $ lookup (sconstrName c) (map sconstrName cs `zip` fs)
        _ <- assertProjs env e
-       pathsZ3 env (f $ map Exp vs) conds (stop-1)
+       pathsZ3 env (f $ map Exp vs) conds stop
 pathsZ3 env (Fork e (Right ts)) conds stop =
     do ast <- assertProjs env e
        let (cs,_,_) = unzip3 ts

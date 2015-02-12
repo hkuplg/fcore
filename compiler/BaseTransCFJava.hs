@@ -12,6 +12,8 @@ import           MonadLib
 import           Panic
 import qualified Src as S
 import           StringPrefixes
+import           Data.Char (toLower)
+import           Data.List (elemIndex, init)
 
 instance (:<) (Translate m) (Translate m) where
    up = id
@@ -398,7 +400,76 @@ trans self =
                    let statements = concatMap (\(x,_,_) -> x) es'
                    return (statements,lastExp,lastType)
               FVar _ -> sorry "BaseTransCFJava.trans.FVar: no idea how to do"
-       ,translateScopeM =
+              Constr (Constructor ctrName ctrParams) es ->
+                do let Datatype nam _ _ = last ctrParams
+                   es' <- mapM (translateM this) es
+                   newVarName <- getNewVarName this
+                   let (stmts, oexpr, _) =  concatFirst $ unzip3 es'
+                   let inst = case es' of
+                                [] -> localVar (classTy nam) (varDecl newVarName $ methodCallExp [map toLower nam,ctrName] [])
+                                _  -> localVar (classTy nam) (varDecl newVarName $ methodCallExp [map toLower nam,ctrName] (map unwrap oexpr))
+                   return (stmts ++ [inst], var newVarName, last ctrParams)
+              Data nam params ctrs e ->
+                do  let tag = memberDecl $ finalFieldDecl intTy (varDeclNoInit datatypetag)
+                        classctr = memberDecl $ constructorDecl nam [paramDecl intTy datatypetag] Nothing [initField datatypetag]
+                    ctrs' <-  zipWithM translateCtr ctrs [1..]
+                    let classdef = localClass nam (classBody ([tag, classctr] ++ (concat ctrs')))
+                        proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
+                    (s',e',t') <- translateM this e
+                    return([classdef,proxy] ++ s',e', t')
+                where translateCtr (Constructor ctrname []) tagnum = do
+                          let fielddecl = memberDecl $ fieldDecl (classTy nam) (varDeclNoInit ctrname )
+                              singleton = bStmt $ ifthen (eq (varExp ctrname) nullExp)
+                                                          (assignE (name [ctrname]) (instCreat (classTyp nam) [integerExp tagnum]))
+                              methoddecl = memberDecl $ methodDecl [] (Just $ classTy nam) ctrname []
+                                                        (Just $ block [singleton, returnExpS $ varExp ctrname])
+                          return [fielddecl, methoddecl]
+                      translateCtr (Constructor ctrname types) tagnum = do
+                          javaty <- mapM (javaType this) types
+                          let fields = map ((fieldtag ++ ) . show) [1..length types]
+                              fieldsdec = map memberDecl $ zipWith  fieldDecl javaty (map varDeclNoInit fields)
+                              ctrdecl = memberDecl $ constructorDecl ctrname (zipWith paramDecl javaty fields)
+                                                     (Just $ J.SuperInvoke [] [integerExp tagnum])
+                                                     (map initField fields)
+                              ctrclass = memberDecl $ memberClassDecl ctrname nam (classBody ( fieldsdec ++ [ctrdecl] ))
+                              methoddecl = memberDecl $ methodDecl [] (Just $ classTy nam) ctrname (zipWith paramDecl javaty fields)
+                                                        (returnExp (cast (classTy nam) (instCreat (classTyp ctrname) (map varExp fields))))
+                          return [ctrclass, methoddecl]
+              Case e alts ->
+                do (s',e', _) <- translateM this e
+                   let tagaccess = fieldAccess (unwrap e') datatypetag
+                   newVarName <- getNewVarName this
+                   blocks <- mapM (mapAlt (unwrap e') (name [newVarName])) alts
+                   let (blocks', type') = unzip blocks
+                       defaultBlock = switchBlock Nothing [bStmt $ throwRuntimeException "pattern match fail"]
+                   jtype <- javaType this $ head type'
+                   let newvardecl = localVar jtype $ varDeclNoInit newVarName
+                       switchstmt = bStmt $ switchStmt tagaccess (blocks' ++ [defaultBlock])
+                   return (s' ++ [newvardecl, switchstmt], var newVarName, head type')
+                where mapAlt e' resultName (ConstrAlt (Constructor ctrname types) _ f) = do
+                        let (Datatype nam _ ctrnames) = last types
+                            Just label = elemIndex ctrname ctrnames
+                            len = length types - 1
+                            objtype = case len of
+                                         0  -> classTy (nam)
+                                         _  -> classTy (nam ++ "." ++ ctrname)
+                        (n :: Int) <- get
+                        put (n+len+1)
+                        let varname = localvarstr ++ (show n)
+                        jtypes <- mapM (javaType this) (init types)
+                        let objdecl = case len of
+                                         0 -> localVar objtype $ varDecl varname e'
+                                         _ -> localVar objtype $ varDecl varname (cast objtype e')
+                            vardecls = zipWith (\i ty -> localVar ty $ varDecl (localvarstr ++ (show $ n+i))
+                                                                     $ fieldAccess (varExp varname) (fieldtag ++(show i)))
+                                                [1..len]
+                                                jtypes
+                        (altstmt, alte, altt) <- translateM this $ f (zip [(n+1) ..] (init types))
+                        let result = assign resultName (unwrap alte)
+                        return (switchBlock (Just (integerExp $ fromIntegral label + 1)) $
+                                  [objdecl] ++ vardecls ++ altstmt ++ [result],
+                                altt)
+        ,translateScopeM =
           \e m ->
             case e of
 {-
@@ -499,6 +570,7 @@ trans self =
                              -- CFChar -> return $ classTy "java.lang.Character"
                              -- CFCharacter -> return $ classTy "java.lang.Character"
                              (ListType _) -> return $ classTy (namespace ++ "FunctionalList")
+                             (Datatype nam _ _) -> return $ classTy nam
                              _ -> return objClassTy
        ,chooseCastBox = \typ -> case typ of
                                   (JClass c) -> return (initClass c, classTy c)
@@ -513,6 +585,7 @@ trans self =
                                                          _ -> do let tupleClassName = getTupleClassName tuple
                                                                  return (initClass tupleClassName, classTy tupleClassName)
                                   (ListType _) -> return (initClass (namespace ++ "FunctionalList"), classTy (namespace ++ "FunctionalList"))
+                                  (Datatype nam _ _) -> return (initClass nam, classTy nam)
                                   _ -> return (initClass "Object", objClassTy)
        ,getPrefix = return namespace
        ,genClone = return False -- do not generate clone method

@@ -42,7 +42,7 @@ transType i (FI.Product ts)   = Product (map (transType i) ts)
 transType _  FI.Unit          = Unit
 transType i (FI.And a1 a2)    = Product [transType i a1, transType i a2]
 transType i (FI.Record (_,t)) = transType i t
-transType _ (FI.Datatype n ns) = Datatype n ns
+transType i (FI.Datatype n ts ns) = Datatype n (map (transType i) ts) ns
 transType i (FI.ListOf t)      = ListOf (transType i t)
 
 -- Subtyping
@@ -62,7 +62,7 @@ subtype' this i (FI.And t1 t2) t3              = this i t1 t3 || this i t2 t3
 subtype' this i (FI.Record (l1,t1)) (FI.Record (l2,t2))
   | l1 == l2                                  = this i t1 t2
   | otherwise                                 = False
-subtype' _ _ (FI.Datatype n1 _) (FI.Datatype n2 _)  = n1 == n2 -- TODO
+subtype' this i (FI.Datatype n1 ts1 _) (FI.Datatype n2 ts2 _)  = n1 == n2 && length ts1 == length ts2 && uncurry (this i) `all` zip ts1 ts2
 subtype' _    _  _              _             = False
 
 subtype :: Index -> FI.Type Index -> FI.Type Index -> Bool
@@ -105,8 +105,9 @@ coerce i (FI.And t1 t2) t3 =
         Just c  -> return (lam (transType i (FI.And t1 t2)) (App c . Proj 2 . var))
 coerce i (FI.Record (l1,t1)) (FI.Record (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
-coerce i d@(FI.Datatype n1 _) (FI.Datatype n2 _) | n1 == n2  = return (lam (transType i d) var)
-                                               | otherwise = Nothing
+coerce i d@(FI.Datatype n1 _ _) (FI.Datatype n2 _ _) -- TODO
+    | n1 == n2  = return (lam (transType i d) var)
+    | otherwise = Nothing
 coerce _ _ _ = Nothing
 
 infer' :: Class (Index -> Index -> FI.Expr Index (Index, FI.Type Index) -> FI.Type Index)
@@ -139,11 +140,12 @@ infer' this i j (FI.Merge e1 e2)       = FI.And (this i j e1) (this i j e2)
 infer' this i j (FI.RecordIntro (l,e)) = FI.Record (l, this i j e)
 infer' this i j (FI.RecordElim e l1)   = t1 where Just (t1,_) = getter i j (this i j e) l1
 infer' this i j (FI.RecordUpdate e _)  = this i j e
+infer' this i j (FI.Data _ _ _ e)      = this i j e
 infer' this i j (FI.Case _ alts)       = inferAlt $ head alts
     where inferAlt (FI.ConstrAlt c _ e)  =
               let ts = FI.constrParams c
-                  n = length ts
-              in this i (j+n) (e (zip [j..j+n-1] ts))
+                  n = length ts - 1
+              in this i (j+n) (e (zip [j..] (init ts)))
 infer' _ _ _ (FI.Constr c _)           = last $ FI.constrParams c
 
 infer :: Index -> Index -> FI.Expr Index (Index, FI.Type Index) -> FI.Type Index
@@ -206,10 +208,13 @@ transExpr' _ this i j (FI.JNew c es)                  = JNew c (snd (unzip (map 
 transExpr' _ this i j (FI.PolyList es t)              = PolyList (snd (unzip (map (this i j) es))) (transType i t)
 transExpr' _ this i j (FI.JProxyCall jmethod t)       = JProxyCall (snd (this i j jmethod)) (transType i t)
 transExpr' _ this i j (FI.Constr (FI.Constructor n ts) es) = Constr (Constructor n (map (transType i) ts)) (map (snd . this i j) es)
+transExpr' _ this i j (FI.Data n params ctrs e) =
+    Data n params (map transCtrs ctrs) (snd (this i j e))
+    where transCtrs (FI.Constructor name ctrParams) = Constructor name (map (transType i) ctrParams)
 transExpr' _ this i j (FI.Case e alts)                = Case e' (map transAlt alts)
     where (_,e') = this i j e
           transAlt (FI.ConstrAlt (FI.Constructor n ts) ns f) =
-              let m = length ts
+              let m = length ts - 1
                   js = [j..j+m-1]
                   (_,f') = this i (j+m) (f (zip js ts))
                   ts' = map (transType i) ts

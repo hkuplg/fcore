@@ -42,7 +42,7 @@ data Type t
 
   | And (Type t) (Type t)               -- t1 & t2
   | Record (Src.Label, Type t)
-  | Datatype Src.ReaderId [Src.ReaderId]
+  | Datatype Src.ReaderId [Type t] [Src.ReaderId]
   | ListOf (Type t)
     -- Warning: If you ever add a case to this, you *must* also define the
     -- binary relations on your new case. Namely, add cases for your data
@@ -95,6 +95,7 @@ data Expr t e
   | RecordElim   (Expr t e) Src.Label
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
 
+  | Data Src.ReaderId [Src.ReaderId] [Constructor t] (Expr t e)
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
 
@@ -132,7 +133,7 @@ mapTVar _  Unit          = Unit
 mapTVar g (ListOf t)     = ListOf (mapTVar g t)
 mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
-mapTVar _ t@(Datatype _ _)  = t
+mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
 
 mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
@@ -142,6 +143,8 @@ mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
 mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
+mapVar g h (Data name params ctrs e) = Data name params (map mapCtr ctrs) (mapVar g h e)
+    where mapCtr (Constructor n ts) = Constructor n (map h ts)
 mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
@@ -182,7 +185,7 @@ joinType (Product ts)     = Product (map joinType ts)
 joinType  Unit            = Unit
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (Record (l,t))   = Record (l, joinType t)
-joinType (Datatype n ns)  = Datatype n ns
+joinType (Datatype n ts ns)  = Datatype n (map joinType ts) ns
 joinType (ListOf t)       = ListOf (joinType t)
 
 -- instance Show (Type Index) where
@@ -198,7 +201,7 @@ prettyType' :: Prec -> Index -> Type Index -> Doc
 
 prettyType' _ _ (TVar n a)   = text n
 
-prettyType' _ _ (Datatype n _) = text n
+prettyType' p i (Datatype n ts _) = intersperseSpace $ text n : map (prettyType' p i) ts
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2
@@ -302,6 +305,12 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 prettyExpr' p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr' p i ) $ es
+prettyExpr' p (i,j) (Data name params ctrs e)
+  = (text $ "Data " ++ name ++ " " ++ prettyParams params ++ " =") <+>
+    (hcat . intersperse (text " | ") . map prettyCtr $ ctrs) <$>
+    (prettyExpr' p (i,j) e)
+  where prettyParams pa = concat . intersperse " " $ pa
+        prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
 prettyExpr' p i (JProxyCall jmethod t) = prettyExpr' p i jmethod
 
 prettyExpr' p (i,j) (Fix n1 n2 f t1 t)

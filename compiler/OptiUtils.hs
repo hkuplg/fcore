@@ -39,8 +39,14 @@ import qualified SystemFI as FI
 -- simplify2 (FI.PolyList es t) = PolyList (map simplify2 es) (transType2 t)
 -- simplify2 (FI.JProxyCall jmethod t) = JProxyCall (simplify2 jmethod) (transType2 t)
 -- simplify2 (FI.Seq es) = Seq (map simplify2 es)
+-- simplify2 (FI.Data name params ctrs e) = Data name params (map simplify2Ctr ctrs) (simplify2 e)
+-- simplify2 (FI.Constr ctr es) = Constr (simplify2Ctr ctr) (map simplify2 es)
+-- simplify2 (FI.Case e alts) = Case (simplify2 e) (map simplify2Alt alts)
+--  where simplify2Alt (FI.ConstrAlt ctr vars f) = ConstrAlt (simplify2Ctr ctr) vars (simplify2 . f)
 -- simplify2 _ = sorry "No"
 
+-- simplify2Ctr :: FI.Constructor t -> Constructor t
+-- simplify2Ctr (FI.Constructor name params) = Constructor name (map transType2 params)
 
 -- transType2 :: FI.Type t -> Type t
 -- transType2 (FI.TVar n t) = TVar n t
@@ -50,6 +56,7 @@ import qualified SystemFI as FI
 -- transType2 (FI.Product ts) = Product (map transType2 ts)
 -- transType2 (FI.Unit) = Unit
 -- transType2 (FI.ListOf t) = ListOf (transType2 t)
+-- transType2 (FI.Datatype n ts ns)  = Datatype n (map transType2 ts) ns
 -- transType2 _ = sorry "No"
 
 
@@ -66,6 +73,10 @@ joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (PolyList es t) = PolyList (map joinExpr es) t
 joinExpr (JProxyCall jmethod t) = JProxyCall (joinExpr jmethod) t
+joinExpr (Data name params ctrs e) = Data name params ctrs (joinExpr e)
+joinExpr (Constr ctr es) = Constr ctr (map joinExpr es)
+joinExpr (Case e alts) = Case (joinExpr e) (map joinAlt alts)
+  where joinAlt (ConstrAlt ctr vars f) = ConstrAlt ctr vars (joinExpr . f . zipWith Var vars)
 joinExpr (Proj i e) = Proj i (joinExpr e)
 joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
 joinExpr (Let n bind body) = Let n (joinExpr bind) (joinExpr . body . Var n)
@@ -104,6 +115,10 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       PolyList es t -> PolyList (map f es) t
       JProxyCall jmethod t -> JProxyCall (f jmethod) t
+      Data name params ctrs e -> Data name params ctrs (f e)
+      Constr ctr es -> Constr ctr (map f es)
+      Case e alts -> Case (f e) (map mapAlt alts)
+         where mapAlt (ConstrAlt ctr vars g) = ConstrAlt ctr vars (f.g)
       Seq es -> Seq $ map f es
       _ -> sorry "Not implemented yet"
 
@@ -136,8 +151,16 @@ rewriteExpr f num env expr =
    PolyList es t -> PolyList (map (f num env) es) t
    JProxyCall j t -> JProxyCall (f num env j) t
    Seq es -> Seq (map (f num env) es)
+   Data name params ctrs e -> Data name params ctrs (f num env e)
    Constr c es -> Constr c (map (f num env) es)
-   Case _ _ -> sorry "Rewriting case not yet done"
+   Case e alts -> Case (f num env e) (map rewriteAlt alts)
+ where
+   rewriteAlt (ConstrAlt ctr names g) = ConstrAlt ctr names (
+            \es ->
+              let len = length names
+                  es' = g [num .. num + len -1]
+              in f (num + len) (foldl' multInsert env (zip [num .. num +len-1] es)) es'
+        )
 
 newtype Exp = Hide {reveal :: forall t e. Expr t e}
 
@@ -202,6 +225,9 @@ src2fi fname = do
        Left typeError -> error $ show typeError
        Right (_, tcheckedSrc) ->
              return . desugar $ tcheckedSrc
+
+applyFi :: (FI.Expr t e -> r) -> String -> IO r
+applyFi f fname = liftM f $ src2fi fname
 
 multInsert :: Map.Map Int e -> (Int, e) -> Map.Map Int e
 multInsert m (key, value) = Map.insert key value m
