@@ -6,7 +6,7 @@ Description :  The simplifier turns SystemFI into Core.
 Copyright   :  (c) 2014-2015 HKU
 License     :  BSD3
 
-Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>, Haoyuan Zhang <zhanghaoyuan00@gmail.com>
 Stability   :  experimental
 Portability :  portable
 
