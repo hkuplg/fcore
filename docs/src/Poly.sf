@@ -1,0 +1,2 @@
+let id A (x: A) = x;
+(id Int 1, id String "one")._2

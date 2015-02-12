@@ -198,7 +198,7 @@ expr :: { ReaderExpr }
 
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
-    | "data" tvar "=" constrs_decl ";" expr    { Data $2 $4 $6 }
+    | "data" tvar tvars "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
     | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
     | module expr                   { LetModule $1 $2 }
@@ -242,7 +242,8 @@ aexpr :: { ReaderExpr }
     | isNil "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined}
     | length "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined}
     | cons "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
-    | "{" constr_name aexprs "}"{ Constr (Constructor $2 []) $3 }
+    --TODO: type can be infered?
+    | "{" constr_name aexprs "}"{ ConstrTemp $2 [] $3 }
     | "(" expr ")"              { $2 }
 
 lit :: { ReaderExpr }

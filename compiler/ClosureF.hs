@@ -36,6 +36,7 @@ data Type t =
     | CFCharacter
     | TupleType [Type t]
     | ListType (Type t)
+    | Datatype S.ReaderId [Type t] [S.ReaderId]
 
 data Expr t e =
      Var e
@@ -59,7 +60,12 @@ data Expr t e =
    | PolyList [Expr t e] (Type t)
    | JProxyCall (Expr t e) (Type t)
    | SeqExprs [Expr t e]
+   | Data S.ReaderId [S.ReaderId] [Constructor t] (Expr t e)
+   | Constr (Constructor t) [Expr t e]
+   | Case (Expr t e) [Alt t e]
 
+data Constructor t = Constructor {constrName :: S.ReaderId, constrParams :: [Type t]}
+data Alt t e = ConstrAlt (Constructor t) [S.ReaderId] ([e] -> Expr t e)
 
 -- System F to Closure F
 
@@ -85,6 +91,7 @@ ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp (C.Unit)                       = Unit
 ftyp2ctyp (C.ListOf t)                   = ListType (ftyp2ctyp t)
+ftyp2ctyp (C.Datatype name params ctrnames ) = Datatype name (map ftyp2ctyp params) ctrnames
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-
@@ -131,7 +138,15 @@ fexp2cexp (C.JField c fName r) =
 fexp2cexp (C.PolyList es t)     = PolyList (map fexp2cexp es) (ftyp2ctyp t)
 fexp2cexp (C.JProxyCall jmethod t) = JProxyCall (fexp2cexp jmethod) (ftyp2ctyp t)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
+fexp2cexp (C.Data name params ctrs e) = Data name params (map fctr2cctr ctrs) (fexp2cexp e)
+fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
+fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
+  where falt2calt (C.ConstrAlt ctr names f) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp.f)
 fexp2cexp e                         = Lam (groupLambda e)
+
+fctr2cctr :: C.Constructor t -> Constructor t
+fctr2cctr (C.Constructor ctrname ctrparams) = Constructor ctrname (map ftyp2ctyp ctrparams)
+
 
 adjust :: C.Type t -> EScope t e -> TScope t
 adjust (C.Fun t1 t2) (Type t1' g) = Type t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
@@ -171,6 +186,7 @@ joinType CFCharacter = CFCharacter
 joinType (Forall s) = Forall (joinTScope s)
 joinType (JClass c) = JClass c
 joinType (TupleType ts) = TupleType (map joinType ts)
+joinType (Datatype name params ctrnames) = Datatype name (map joinType params) ctrnames
 joinType (ListType t) = ListType (joinType t)
 
 joinTScope :: TScope (Type t) -> TScope t
@@ -268,6 +284,7 @@ prettyType _ _ CFChar = text "Char"
 prettyType _ _ CFCharacter = text "Character"
 
 prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
+prettyType p i (Datatype n tvars _) = intersperseSpace $ text n : map (prettyType p i) tvars
 
 prettyExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
@@ -363,3 +380,16 @@ prettyExpr p i (PolyList es t) = brackets. hcat . intersperse comma . map (prett
 prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text ")" <> prettyExpr p (i,j) jmethod
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
+prettyExpr p (i,j) (Data name params ctrs e)
+  = (text $ "Data " ++ name ++ " " ++ prettyParams params ++ " =") <+>
+    (hcat . intersperse (text " | ") . map prettyCtr $ ctrs) <$>
+    (prettyExpr p (i,j) e)
+  where prettyParams pa = concat . intersperse " " $ pa
+        prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType p i) $ ctrParams)
+prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (intersperseSpace $ map (prettyExpr p i) es))
+prettyExpr p (i,j) (Case e alts) =
+    hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> text " " <+> S.intersperseBar (map pretty_alt alts)
+    where pretty_alt (ConstrAlt c ns es) =
+              let n = length ns
+                  ids = [j..j+n-1]
+              in intersperseSpace (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr p (i, j+n) (es ids)

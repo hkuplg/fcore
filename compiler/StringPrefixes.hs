@@ -35,3 +35,10 @@ closureInputL = "larg"
 
 closureOutputL :: String
 closureOutputL = "lres"
+
+-- Datatype tag
+datatypetag :: String
+datatypetag = "tag"
+
+fieldtag :: String
+fieldtag = "field"

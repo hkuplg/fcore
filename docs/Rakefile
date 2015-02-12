@@ -1,0 +1,4 @@
+desc "Copy files from the Git repository"
+task :sync do
+  system("cp -r ../../f2j-docs/* .")
+end

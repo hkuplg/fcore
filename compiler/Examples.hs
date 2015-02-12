@@ -173,6 +173,7 @@ app_bool_fun = App boolfun inverse
 
 -- interface to symbolic evaluator
 se str = src2fi str >>= solve
+seN n str = src2fi str >>= solve' n
 
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (S.Int 0)

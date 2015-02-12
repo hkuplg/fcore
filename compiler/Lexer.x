@@ -125,7 +125,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tmodule | Tend
            | Temptytree | Tnonemptytree
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
-     | Tdata | Tcase | Tbar | Tof | Tto
+           | Tdata | Tcase | Tbar | Tof | Tto
            deriving (Eq, Show)
 
 lexer :: String -> [Token]
