@@ -238,7 +238,10 @@ deThunkOnce t         = t
 
 -- | Alpha equivalence.
 alphaEq :: TypeContext -> Type -> Type -> Bool
-alphaEq d t1 t2 = alphaEqS (expandType d t1) (expandType d t2)
+alphaEq d t1 t2 = subtype d t1' t2' && subtype d t2' t1'
+  where
+    t1' = expandType d t1
+    t2' = expandType d t2
 
 -- | Alpha equivalance of two *expanded* types.
 alphaEqS :: Type -> Type -> Bool
