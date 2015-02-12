@@ -242,7 +242,8 @@ aexpr :: { ReaderExpr }
     | isNil "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined}
     | length "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined}
     | cons "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
-    | "{" constr_name types aexprs "}"{ ConstrTemp $2 $3 $4 }
+    --TODO: type can be infered?
+    | "{" constr_name aexprs "}"{ ConstrTemp $2 [] $3 }
     | "(" expr ")"              { $2 }
 
 lit :: { ReaderExpr }
