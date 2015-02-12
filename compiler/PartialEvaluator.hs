@@ -59,9 +59,10 @@ rewriteForever e = e : rewriteForever (rewriteCombined e)
 
 -- Need proof for convergence.
 converge :: [Exp] -> Exp
-converge  ~(a1:a2:es) = if a1 == a2
-                         then a2
-                         else converge (a2:es)
+converge ~(a1:a2:es) =
+  if a1 == a2
+     then a2
+     else converge (a2 : es)
 
 rewrite :: Exp -> Exp
 rewrite e = rewriteForever e !! 4

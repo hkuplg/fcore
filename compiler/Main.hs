@@ -27,7 +27,7 @@ import           System.Environment (getArgs, withArgs)
 import           System.FilePath (takeBaseName, (</>))
 import           System.IO
 
-type CompileOpt = (Int, Compilation)
+-- type CompileOpt = (Int, Compilation)
 
 data Options = Options
     { optCompile       :: Bool
@@ -37,6 +37,7 @@ data Options = Options
     , optDump          :: DumpOption
     , optTransMethod   :: [TransMethod]
     , optVerbose       :: Bool
+    , optInline        :: Bool
     } deriving (Eq, Show, Data, Typeable)
 
 data TransMethod = Apply
@@ -69,6 +70,11 @@ optionsSpec =
              name "c" &=
              name "compile" &=
              help "Compile Java source"
+          ,optInline =
+             False &= explicit &=
+             name "i" &=
+             name "inline" &=
+             help "Inline your program"
           ,optCompileAndRun =
              False &= explicit &=
              name "r" &=
@@ -95,7 +101,7 @@ optionsSpec =
              name "m" &=
              name "method" &=
              typ "METHOD" &=
-             help ("Translations method." ++ "Can be either 'naive', 'apply', 'stack', and/or 'unbox'" ++
+             help ("Translations method." ++ "Can be either 'naive', 'apply', 'stack', 'inline', and/or 'unbox'" ++
                                              "(use without quotes)." ++
                                              "The default is 'naive'.")
           ,optVerbose =
@@ -132,7 +138,7 @@ main = do
             putStrLn (source_path_new ++ " generated!")
        putStrLn (takeBaseName source_path_new ++ " using " ++ show (sort_and_rmdups translate_method))
        putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
-       compilesf2java optDump opt source_path_new output_path
+       compilesf2java optInline optDump opt source_path_new output_path
        when (optCompile || optCompileAndRun) $
          do when optVerbose (putStrLn "  Compiling to Java bytecode")
             compileJava output_path
