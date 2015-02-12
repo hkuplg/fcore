@@ -1,7 +1,14 @@
--- IDEA: AST ~> SBV AST ~> satisfiable
--- goal: 1. satisfiable
---       2. simplify the condition
---       3. find counter-example
+{- |
+Module      :  SymbolicEvaluator
+Description :  Symbolic evaluator for Core
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Weixin <zhangweixinxd@gmail.com>
+Stability   :  experimental
+Portability :  portable
+
+-}
 
 module SymbolicEvaluator where
 

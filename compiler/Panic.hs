@@ -1,4 +1,14 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{- |
+Module      :  Panic
+Description :  Utilities for throwing exceptions in the compiler.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
 
 module Panic
   ( F2jException(..)

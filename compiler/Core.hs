@@ -1,5 +1,15 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wall #-}
+{- |
+Module      :  Core
+Description :  Abstract syntax and pretty printer for Core.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>, Haoyuan Zhang <zhanghaoyuan00@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
 
 module Core
   ( Type(..)

@@ -1,3 +1,14 @@
+{- |
+Module      :  Environment
+Description :  REPL environment
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  u3502350@connect.hku.hk
+Stability   :  stable
+Portability :  portable
+-}
+
 module Environment where
 
 import Data.List.Split

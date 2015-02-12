@@ -8,6 +8,16 @@
            , TypeOperators
            , RecordWildCards
            #-}
+{- |
+Module      :  Main
+Description :  Main module for f2j.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  non-portable (MPTC)
+-}
 
 module Main (main, TransMethod) where
 
@@ -27,7 +37,7 @@ import           System.Environment (getArgs, withArgs)
 import           System.FilePath (takeBaseName, (</>))
 import           System.IO
 
-type CompileOpt = (Int, Compilation)
+-- type CompileOpt = (Int, Compilation)
 
 data Options = Options
     { optCompile       :: Bool
@@ -37,6 +47,7 @@ data Options = Options
     , optDump          :: DumpOption
     , optTransMethod   :: [TransMethod]
     , optVerbose       :: Bool
+    , optInline        :: Bool
     } deriving (Eq, Show, Data, Typeable)
 
 data TransMethod = Apply
@@ -69,6 +80,11 @@ optionsSpec =
              name "c" &=
              name "compile" &=
              help "Compile Java source"
+          ,optInline =
+             False &= explicit &=
+             name "i" &=
+             name "inline" &=
+             help "Inline your program"
           ,optCompileAndRun =
              False &= explicit &=
              name "r" &=
@@ -124,7 +140,7 @@ main = do
            translate_method = optTransMethod
            modList          = optModules
            sort_and_rmdups  = map head . group . sort . (++) [Naive]
-       (num, opt) <- getOpt (sort_and_rmdups translate_method)
+       opt <- getOpt (sort_and_rmdups translate_method)
        unless (null optModules) $
          do content <- Link.linkModule modList
             putStrLn "Linking..."
@@ -132,7 +148,7 @@ main = do
             putStrLn (source_path_new ++ " generated!")
        putStrLn (takeBaseName source_path_new ++ " using " ++ show (sort_and_rmdups translate_method))
        putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
-       compilesf2java num optDump opt source_path_new output_path
+       compilesf2java optInline optDump opt source_path_new output_path
        when (optCompile || optCompileAndRun) $
          do when optVerbose (putStrLn "  Compiling to Java bytecode")
             compileJava output_path
@@ -140,15 +156,15 @@ main = do
          do when optVerbose $ do { putStr "  Running Java\n  Output: "; hFlush stdout }
             runJava output_path)
 
-getOpt :: [TransMethod] -> IO CompileOpt
+getOpt :: [TransMethod] -> IO Compilation
 getOpt translate_method = case translate_method of
-  [Apply, Naive]               -> return (0, compileAO)
+  [Apply, Naive]               -> return compileAO
   -- [Apply, Naive, Unbox]        -> return (0, compileAoptUnbox)
-  [Apply, Naive, Stack]        -> return (0, compileS)
+  [Apply, Naive, Stack]        -> return compileS
   -- [Apply, Naive, Stack, Unbox] -> return (0, compileSAU)
   -- [Naive, StackAU1]            -> return (1, compileSAU)
   -- [Naive, StackAU2]            -> return (2, compileSAU)
-  [Naive, Stack]               -> return (0, compileSN)
+  [Naive, Stack]               -> return compileSN
   -- [Naive, Stack, Unbox]        -> return (0, compileSU)
   -- [Naive, Unbox]               -> return (0, compileUnbox)
   -- [BenchS]                     -> return (0, compileBS False)
@@ -156,4 +172,4 @@ getOpt translate_method = case translate_method of
   -- [BenchSA]                    -> return (0, compileBS True)
   -- [BenchSAI1]                  -> return (1, compileBS True)
   -- [BenchSAI2]                  -> return (2, compileBS True)
-  _                            -> return (0, compileN) -- Naive is the default
+  _                            -> return compileN -- Naive is the default

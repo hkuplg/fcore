@@ -1,15 +1,23 @@
--- The source language typechecker
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wall #-}
+{- |
+Module      :  TypeCheck
+Description :  Type checker for the source language.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
 
-{- We make typechecking (this file) happen before desugaring (Desugar.hs) so
-that the error messages presented to the programmer can be clearer. However, an
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
+
+{- We make typechecking (this file) happen before desugaring (Desugar.hs) so that
+the error messages presented to the programmer can be clearer. However, an
 undesired consequence of such approach for the compiler implementer is that the
 implementation of the typing rules does not follow strictly the formalization.
 For instance, in the formalization there is no rule for handling multi-field
 records as they are desugared into intersections of single-field records first.
 But here we have to handle such cases.-}
-
-{-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
 
 module TypeCheck
   ( typeCheck

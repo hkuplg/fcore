@@ -1,3 +1,14 @@
+{- |
+Module      :  Client
+Description :  Controller for the REPL
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  u3502350@connect.hku.hk
+Stability   :  stable
+Portability :  portable
+-}
+
 module Client where
 
 import System.Console.Haskeline		(runInputT, defaultSettings)

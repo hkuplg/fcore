@@ -1,3 +1,14 @@
+{- |
+Module      :  IOEnv
+Description :  The main monad used in the type checker.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
+
 module IOEnv
   ( IOEnv(..)
   , runIOEnv, evalIOEnv, execIOEnv

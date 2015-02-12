@@ -1,4 +1,14 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{- |
+Module      :  PrettyUtils
+Description :  Utilities for pretty printing.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
 
 module PrettyUtils where
 

@@ -1,5 +1,15 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
+{- |
+Module      :  JavaUtils
+Description :  Utilities for compiling and running Java from Haskell, etc.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
 
 module JavaUtils
   ( getRuntimeJarPath
