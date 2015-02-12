@@ -101,7 +101,7 @@ optionsSpec =
              name "m" &=
              name "method" &=
              typ "METHOD" &=
-             help ("Translations method." ++ "Can be either 'naive', 'apply', 'stack', 'inline', and/or 'unbox'" ++
+             help ("Translations method." ++ "Can be either 'naive', 'apply', 'stack', and/or 'unbox'" ++
                                              "(use without quotes)." ++
                                              "The default is 'naive'.")
           ,optVerbose =
