@@ -1,3 +1,16 @@
+{- |
+Module      :  Z3Backend
+Description :  The Z3 backend for symbolic
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Weixin <zhangweixinxd@gmail.com>
+Stability   :  unstable
+Portability :  portable
+
+Symbolic evaluator will generates all possible execution paths for a given program. We use Z3 to kick out those infeasible execution paths.
+-}
+
 module Z3Backend where
 
 import           Control.Monad

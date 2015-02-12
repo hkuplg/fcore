@@ -30,7 +30,7 @@ objClassTy = classTy "Object"
 name :: [String] -> Name
 name xs = Name $ map Ident xs
 
-var :: String -> Either Name Exp
+var :: String -> Either Name Literal
 var x = Left $ name [x]
 
 varExp :: String -> Exp
@@ -48,7 +48,7 @@ localVar typ vard = LocalVars [] typ [vard]
 localFinalVar :: Type -> VarDecl -> BlockStmt
 localFinalVar typ vard = LocalVars [Final] typ [vard]
 
-extractVar :: Either Name Exp -> String
+extractVar :: Either Name Literal -> String
 extractVar x = case x of
                 Left (Name xs) -> case head xs of
                                    Ident xs' -> xs'
@@ -65,18 +65,18 @@ bStmt = BlockStmt
 expToBlockStmt :: Exp -> BlockStmt
 expToBlockStmt = BlockStmt . ExpStmt
 
-left :: Either Name Exp -> Exp
+left :: Either Name Literal -> Exp
 left (Left x) = ExpName x
 left (Right _) = error "this should be left (variable name)"
 
-right :: Either Name Exp -> Exp
-right (Right x) = x
+right :: Either Name Literal -> Exp
+right (Right x) = Lit x
 right (Left _) = error "this should be right (literal or method inv)"
 
-unwrap :: Either Name Exp -> Exp
+unwrap :: Either Name Literal -> Exp
 unwrap x = case x of
             Left (Name xs) -> ExpName . Name $ xs
-            Right e -> e
+            Right e -> Lit e
 
 -- method
 

@@ -8,6 +8,16 @@
            , TypeOperators
            , RecordWildCards
            #-}
+{- |
+Module      :  Main
+Description :  Main module for f2j.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  non-portable (MPTC)
+-}
 
 module Main (main, TransMethod) where
 

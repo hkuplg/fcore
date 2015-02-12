@@ -1,10 +1,20 @@
+{-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
+{-# OPTIONS_GHC -Wall #-}
+{- |
+Module      :  Src
+Description :  Abstract syntax and pretty printer for the source language.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
+
 {- References for syntax:
    http://www.haskell.org/onlinereport/exps.html
    http://www.haskell.org/onlinereport/decls.html
    http://caml.inria.fr/pub/docs/manual-ocaml/expr.html -}
-
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
 
 module Src
   ( Module(..), ReaderModule
@@ -228,7 +238,10 @@ deThunkOnce t         = t
 
 -- | Alpha equivalence.
 alphaEq :: TypeContext -> Type -> Type -> Bool
-alphaEq d t1 t2 = alphaEqS (expandType d t1) (expandType d t2)
+alphaEq d t1 t2 = subtype d t1' t2' && subtype d t2' t1'
+  where
+    t1' = expandType d t1
+    t2' = expandType d t2
 
 -- | Alpha equivalance of two *expanded* types.
 alphaEqS :: Type -> Type -> Bool

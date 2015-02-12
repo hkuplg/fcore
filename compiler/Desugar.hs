@@ -1,9 +1,19 @@
--- The desugarer turns the source language into System F (with intersection
--- types), including the removal of type synonyms. No desugaring should happen
--- before this stage.
-
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wall #-}
+{- |
+Module      :  Desugar
+Description :  The desugarer turns the source language into System FI.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+
+The desugarer turns the source language into System F (with intersection types),
+including the removal of type synonyms. No desugaring should happen before this
+stage.
+-}
 
 module Desugar (desugar) where
 

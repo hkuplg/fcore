@@ -18,6 +18,7 @@ runtime.jar
 examples/**/*.java
 lib/*.java
 testsuite/tests/run-pass/*.java
+docs/src/*.java
 
 ### Haskell ###
 dist
