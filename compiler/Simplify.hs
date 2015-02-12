@@ -1,7 +1,17 @@
--- The simplifier: translate System F with intersection types to vanilla System F
-
 {-# LANGUAGE TypeOperators, FlexibleInstances, MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wall #-}
+{- |
+Module      :  Simplify
+Description :  The simplifier turns SystemFI into Core.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+
+The simplifier translates System F with intersection types to vanilla System F.
+-}
 
 module Simplify
   ( simplify
