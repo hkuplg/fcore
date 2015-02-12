@@ -27,3 +27,16 @@ inliner (JMethod jc m es cn) =
 inliner (JField jc fn cn) = JField (fmap inliner jc) fn cn
 inliner (Seq es) = Seq (map inliner es)
 inliner (Let n e body) = Let n (inliner e) (inliner . body . var)
+
+-- current version cannot handle LetRec
+recurNum :: Expr t Int -> Int
+recurNum (Var _ x) = x
+recurNum (Lit _) = 0
+recurNum (Lam _ _ f) = recurNum $ f 0
+recurNum (Fix _ _ f _ _) = recurNum $ f 1 0
+recurNum (Let _ e f) = recurNum e + recurNum (f 0)
+recurNum (LetRec _ _ f1 f2) = sum (map recurNum (f1 (repeat 0))) + recurNum (f2 (repeat 0))
+recurNum (App e1 e2) = recurNum e1 + recurNum e2
+recurNum (If e1 e2 e3) = recurNum e1 + recurNum e2 + recurNum e3
+recurNum (PrimOp e1 _ e2) = recurNum e1 + recurNum e2 
+recurNum _ = 0

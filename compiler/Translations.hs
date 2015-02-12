@@ -156,8 +156,8 @@ instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
 
 -- SystemF to Java
 -- TODO: ugly hack to integrate number of inlings
-sf2java :: Int -> DumpOption -> Compilation -> ClassName -> String -> IO String
-sf2java num optDump compilation className src =
+sf2java :: DumpOption -> Compilation -> ClassName -> String -> IO String
+sf2java optDump compilation className src =
   do let readSrc = Parser.reader src
      when (optDump == DumpParsed) $ print readSrc
      result <- readSrc `seq` typeCheck readSrc
@@ -169,21 +169,23 @@ sf2java num optDump compilation className src =
          do when (optDump == DumpTChecked) $ print tcheckedSrc
             let core = desugar tcheckedSrc
             when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
-            let simpleCore = case num of
-                               1 -> inliner . simplify $ core
-                               2 -> inliner . inliner . simplify $ core
-                               _ -> simplify core
-
+            let simpleCore = simplify core
             let rewrittencore = rewriteAndEval (Hide simpleCore)
-            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr simpleCore)
-            when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp rewrittencore))
-            let (cu, _) = compilation className rewrittencore
+            let recurNumOfCore = recurNum rewrittencore
+            let inlineNum = if recurNumOfCore > 2 then 0 else recurNumOfCore
+            let inlinedCore = case inlineNum of
+                               1 -> inliner rewrittencore
+                               2 -> inliner . inliner $ rewrittencore
+                               _ -> rewrittencore
+            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittencore)
+            when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
+            let (cu, _) = compilation className inlinedCore
             return $ prettyPrint cu
 
-compilesf2java :: Int -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
-compilesf2java num optDump compilation srcPath outputPath = do
+compilesf2java :: DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
+compilesf2java optDump compilation srcPath outputPath = do
     src <- readFile srcPath
-    output <- sf2java num optDump compilation (inferClassName outputPath) src
+    output <- sf2java optDump compilation (inferClassName outputPath) src
     writeFile outputPath output
     --let closureClassDef = closureClass compilation
     --writeFile "Closure.java" (prettyPrint closureClassDef)
