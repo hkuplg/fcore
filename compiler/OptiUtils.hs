@@ -18,46 +18,46 @@ import qualified Src
 import qualified SystemFI as FI
 
 
-simplify2 :: FI.Expr t e -> Expr t e
-simplify2 (FI.Var n e) = Var n e
-simplify2 (FI.Lit n) = Lit n
-simplify2 (FI.Lam n t f) = Lam n (transType2 t) (\e -> simplify2 (f e))
-simplify2 (FI.Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> simplify2 (f e1 e2)) (transType2 t1) (transType2 t2)
-simplify2 (FI.Let n e f) = Let n (simplify2 e) (\e1 -> simplify2 (f e1))
-simplify2 (FI.LetRec ns ts e1 e2) = LetRec ns (map transType2 ts) (\es1 -> map simplify2 (e1 es1)) (\es2 -> simplify2 (e2 es2))
-simplify2 (FI.BLam n f) = BLam n (\t -> simplify2 (f t))
-simplify2 (FI.App e1 e2) = App (simplify2 e1) (simplify2 e2)
-simplify2 (FI.TApp e t) = TApp (simplify2 e) (transType2 t)
-simplify2 (FI.If e1 e2 e3) = If (simplify2 e1) (simplify2 e2) (simplify2 e3)
-simplify2 (FI.PrimOp e1 op e2) = PrimOp (simplify2 e1) op (simplify2 e2)
-simplify2 (FI.Tuple es) = Tuple (map simplify2 es)
-simplify2 (FI.Proj n e) = Proj n (simplify2 e)
-simplify2 (FI.JNew n es) = JNew n (map simplify2 es)
-simplify2 (FI.JMethod jc m es cn) =
-  JMethod (fmap simplify2 jc) m (map simplify2 es) cn
-simplify2 (FI.JField jc fn cn) = JField (fmap simplify2 jc) fn cn
-simplify2 (FI.PolyList es t) = PolyList (map simplify2 es) (transType2 t)
-simplify2 (FI.JProxyCall jmethod t) = JProxyCall (simplify2 jmethod) (transType2 t)
-simplify2 (FI.Seq es) = Seq (map simplify2 es)
-simplify2 (FI.Data name params ctrs e) = Data name params (map simplify2Ctr ctrs) (simplify2 e)
-simplify2 (FI.Constr ctr es) = Constr (simplify2Ctr ctr) (map simplify2 es)
-simplify2 (FI.Case e alts) = Case (simplify2 e) (map simplify2Alt alts)
-  where simplify2Alt (FI.ConstrAlt ctr vars f) = ConstrAlt (simplify2Ctr ctr) vars (simplify2 . f)
-simplify2 _ = sorry "No"
+-- simplify2 :: FI.Expr t e -> Expr t e
+-- simplify2 (FI.Var n e) = Var n e
+-- simplify2 (FI.Lit n) = Lit n
+-- simplify2 (FI.Lam n t f) = Lam n (transType2 t) (\e -> simplify2 (f e))
+-- simplify2 (FI.Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> simplify2 (f e1 e2)) (transType2 t1) (transType2 t2)
+-- simplify2 (FI.Let n e f) = Let n (simplify2 e) (\e1 -> simplify2 (f e1))
+-- simplify2 (FI.LetRec ns ts e1 e2) = LetRec ns (map transType2 ts) (\es1 -> map simplify2 (e1 es1)) (\es2 -> simplify2 (e2 es2))
+-- simplify2 (FI.BLam n f) = BLam n (\t -> simplify2 (f t))
+-- simplify2 (FI.App e1 e2) = App (simplify2 e1) (simplify2 e2)
+-- simplify2 (FI.TApp e t) = TApp (simplify2 e) (transType2 t)
+-- simplify2 (FI.If e1 e2 e3) = If (simplify2 e1) (simplify2 e2) (simplify2 e3)
+-- simplify2 (FI.PrimOp e1 op e2) = PrimOp (simplify2 e1) op (simplify2 e2)
+-- simplify2 (FI.Tuple es) = Tuple (map simplify2 es)
+-- simplify2 (FI.Proj n e) = Proj n (simplify2 e)
+-- simplify2 (FI.JNew n es) = JNew n (map simplify2 es)
+-- simplify2 (FI.JMethod jc m es cn) =
+--   JMethod (fmap simplify2 jc) m (map simplify2 es) cn
+-- simplify2 (FI.JField jc fn cn) = JField (fmap simplify2 jc) fn cn
+-- simplify2 (FI.PolyList es t) = PolyList (map simplify2 es) (transType2 t)
+-- simplify2 (FI.JProxyCall jmethod t) = JProxyCall (simplify2 jmethod) (transType2 t)
+-- simplify2 (FI.Seq es) = Seq (map simplify2 es)
+-- simplify2 (FI.Data name params ctrs e) = Data name params (map simplify2Ctr ctrs) (simplify2 e)
+-- simplify2 (FI.Constr ctr es) = Constr (simplify2Ctr ctr) (map simplify2 es)
+-- simplify2 (FI.Case e alts) = Case (simplify2 e) (map simplify2Alt alts)
+--  where simplify2Alt (FI.ConstrAlt ctr vars f) = ConstrAlt (simplify2Ctr ctr) vars (simplify2 . f)
+-- simplify2 _ = sorry "No"
 
-simplify2Ctr :: FI.Constructor t -> Constructor t
-simplify2Ctr (FI.Constructor name params) = Constructor name (map transType2 params)
+-- simplify2Ctr :: FI.Constructor t -> Constructor t
+-- simplify2Ctr (FI.Constructor name params) = Constructor name (map transType2 params)
 
-transType2 :: FI.Type t -> Type t
-transType2 (FI.TVar n t) = TVar n t
-transType2 (FI.JClass n) = JClass n
-transType2 (FI.Fun t1 t2) = Fun (transType2 t1) (transType2 t2)
-transType2 (FI.Forall n f) = Forall n (\t -> transType2 (f t))
-transType2 (FI.Product ts) = Product (map transType2 ts)
-transType2 (FI.Unit) = Unit
-transType2 (FI.ListOf t) = ListOf (transType2 t)
-transType2 (FI.Datatype n ts ns)  = Datatype n (map transType2 ts) ns
-transType2 _ = sorry "No"
+-- transType2 :: FI.Type t -> Type t
+-- transType2 (FI.TVar n t) = TVar n t
+-- transType2 (FI.JClass n) = JClass n
+-- transType2 (FI.Fun t1 t2) = Fun (transType2 t1) (transType2 t2)
+-- transType2 (FI.Forall n f) = Forall n (\t -> transType2 (f t))
+-- transType2 (FI.Product ts) = Product (map transType2 ts)
+-- transType2 (FI.Unit) = Unit
+-- transType2 (FI.ListOf t) = ListOf (transType2 t)
+-- transType2 (FI.Datatype n ts ns)  = Datatype n (map transType2 ts) ns
+-- transType2 _ = sorry "No"
 
 
 
@@ -89,6 +89,7 @@ joinExpr (JMethod jc m es cn) =
   JMethod (fmap joinExpr jc) m (map joinExpr es) cn
 joinExpr (JField jc fn cn) = JField (fmap joinExpr jc) fn cn
 joinExpr (Seq es) = Seq (map joinExpr es)
+joinExpr _ = sorry "Not implemented yet"
 
 mapExpr :: (Expr t e -> Expr t e) -> Expr t e -> Expr t e
 mapExpr f e =
@@ -117,9 +118,9 @@ mapExpr f e =
       Data name params ctrs e -> Data name params ctrs (f e)
       Constr ctr es -> Constr ctr (map f es)
       Case e alts -> Case (f e) (map mapAlt alts)
+         where mapAlt (ConstrAlt ctr vars g) = ConstrAlt ctr vars (f.g)
       Seq es -> Seq $ map f es
-  where mapAlt (ConstrAlt ctr vars g) = ConstrAlt ctr vars (f.g)
-
+      _ -> sorry "Not implemented yet"
 
 rewriteExpr :: (Int -> Map.Map Int e -> Expr t Int -> Expr t e) -> Int -> Map.Map Int e -> Expr t Int -> Expr t e
 rewriteExpr f num env expr =
