@@ -1,0 +1,5 @@
+type Point A = { x: A, y: A };
+let abs (x: Int) = if x >= 0 then x else (-1)*x;
+let manhattanDistance (p1: Point Int) (p2: Point Int) =
+  abs (p1.x - p2.x) + abs (p1.y - p2.y);
+manhattanDistance { x = 0, y = 0} { x = 3, y = 4}
