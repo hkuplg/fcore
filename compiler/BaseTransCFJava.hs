@@ -13,7 +13,7 @@ import           Panic
 import qualified Src as S
 import           StringPrefixes
 import           Data.Char (toLower)
-import           Data.List (elemIndex, init)
+import           Data.List (elemIndex)
 
 instance (:<) (Translate m) (Translate m) where
    up = id
