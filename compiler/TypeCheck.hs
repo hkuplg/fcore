@@ -290,6 +290,10 @@ infer (App e1 e2) =
   do (t1, e1') <- infer e1
      (t2, e2') <- infer e2
      case t1 of
+       -- Local type inference:
+       -- `f [T] e` can be written as `f e` if the type of e is just T.
+       Forall _ _ -> infer (App (TApp e1 t2) e2)
+
        Fun t11 t12 ->
          do d <- getTypeContext
             unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
