@@ -14,6 +14,7 @@ multi-argument function optimization.
 -}
 
 module ApplyTransCFJava where
+-- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
 
 import qualified Language.Java.Syntax as J
 
@@ -49,7 +50,7 @@ transApply this super = NT {toT = super {
   translateM =
      \e -> case e of
               App e1 e2 -> do (n :: Int) <- ask
-                              let flag = case e1 of Var _ -> True
+                              let flag = case e1 of Var _ _ -> True
                                                     _ -> False
                               translateApply (up this)
                                              flag
@@ -107,7 +108,7 @@ transAS this super = NT {toT = (up (transApply this super)) {
   translateM =
    \e -> case e of
             App e1 e2 -> do (n :: Int) <- ask
-                            let flag = case e1 of Var _ -> True
+                            let flag = case e1 of Var _ _ -> True
                                                   _ -> False
                             translateApply (up this)
                                            flag
