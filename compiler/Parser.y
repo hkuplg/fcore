@@ -1,5 +1,15 @@
 {
 {-# LANGUAGE RecordWildCards #-}
+{- |
+Module      :  Parser
+Description :  Parser for the source language.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
 
 module Parser where
 
@@ -222,7 +232,7 @@ infixexpr :: { ReaderExpr }
 
 fexpr :: { ReaderExpr }
     : fexpr aexpr        { App  $1 $2 }
-    | fexpr atype        { TApp $1 $2 }
+    | fexpr "[" type "]" { TApp $1 $3 }
     | aexpr              { $1 }
 
 aexpr :: { ReaderExpr }

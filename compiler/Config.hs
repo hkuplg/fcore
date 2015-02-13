@@ -1,3 +1,14 @@
+{- |
+Module      :  Config
+Description :  Compiler configurations.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
+
 module Config where
 
 data IntersectionBias = LeftBiased | RightBiased

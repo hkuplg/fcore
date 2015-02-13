@@ -1,4 +1,18 @@
 {-# LANGUAGE FlexibleContexts, TypeOperators, MultiParamTypeClasses, ScopedTypeVariables #-}
+{- |
+Module      :  BaseTransCFJava
+Description :  Basic translation of FCore to Java
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Tomas <tomtau@connect.hku.hk>
+Stability   :  stable
+Portability :  non-portable (MPTC)
+
+This module implements the basic translation of FCore to Java. For
+more information, please refer to the paper on wiki.
+-}
+
 
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
@@ -13,7 +27,7 @@ import           Panic
 import qualified Src as S
 import           StringPrefixes
 import           Data.Char (toLower)
-import           Data.List (elemIndex, init)
+import           Data.List (elemIndex)
 
 instance (:<) (Translate m) (Translate m) where
    up = id
@@ -36,7 +50,7 @@ initClass className tempName expr =
 
 type Var = Int -- Either normal variable or class name
 
-type TransJavaExp = Either J.Name J.Exp -- either variable or special case: Lit or MethodInv
+type TransJavaExp = Either J.Name J.Literal -- either variable or special case: Lit
 
 type TransType = ([J.BlockStmt], TransJavaExp, Type Int)
 
@@ -145,11 +159,11 @@ trans self =
               Var (i,t) -> return ([],var (localvarstr ++ show i),t)
               Lit lit ->
                 case lit of
-                  (S.Int i)    -> return ([], Right $ J.Lit (J.Int i),     JClass "java.lang.Integer")
-                  (S.UnitLit)  -> return ([], Right $ J.Lit (J.Int 0),     JClass "java.lang.Integer")
-                  (S.String s) -> return ([], Right $ J.Lit (J.String s),  JClass "java.lang.String")
-                  (S.Bool b)   -> return ([], Right $ J.Lit (J.Boolean b), JClass "java.lang.Boolean")
-                  (S.Char c)   -> return ([], Right $ J.Lit (J.Char c),    JClass "java.lang.Character")
+                  (S.Int i)    -> return ([], Right $ J.Int i,     JClass "java.lang.Integer")
+                  (S.UnitLit)  -> return ([], Right J.Null, Unit)
+                  (S.String s) -> return ([], Right $ J.String s,  JClass "java.lang.String")
+                  (S.Bool b)   -> return ([], Right $ J.Boolean b, JClass "java.lang.Boolean")
+                  (S.Char c)   -> return ([], Right $ J.Char c,    JClass "java.lang.Character")
               PrimOp e1 op e2 ->
                 do (s1,j1,_) <- translateM this e1
                    (s2,j2,_) <- translateM this e2
@@ -355,7 +369,7 @@ trans self =
                       then do newVarName <- getNewVarName this
                               assignExpr <- assignVar this realType newVarName rhs
                               return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,realType)
-                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, realType)
+                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right J.Null, realType)
               JProxyCall _ _ -> sorry "JProxyCall: Not supported"
               JMethod c m args r ->
                 do args' <- mapM (translateM this) args
@@ -381,7 +395,7 @@ trans self =
                               newVarName <- getNewVarName this
                               assignExpr <- assignVar this typ newVarName rhs
                               return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,typ)
-                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right rhs, Unit)
+                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right J.Null, Unit)
               JField c fName r ->
                 do (classStatement,classExpr,_) <- case c of
                                                      Right ce ->
@@ -413,7 +427,7 @@ trans self =
                 do  let tag = memberDecl $ finalFieldDecl intTy (varDeclNoInit datatypetag)
                         classctr = memberDecl $ constructorDecl nam [paramDecl intTy datatypetag] Nothing [initField datatypetag]
                     ctrs' <-  zipWithM translateCtr ctrs [1..]
-                    let classdef = localClass nam (classBody ([tag, classctr] ++ (concat ctrs')))
+                    let classdef = localClass nam (classBody ([tag, classctr] ++ concat ctrs'))
                         proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
                     (s',e',t') <- translateM this e
                     return([classdef,proxy] ++ s',e', t')
@@ -451,17 +465,17 @@ trans self =
                             Just label = elemIndex ctrname ctrnames
                             len = length types - 1
                             objtype = case len of
-                                         0  -> classTy (nam)
+                                         0  -> classTy nam
                                          _  -> classTy (nam ++ "." ++ ctrname)
                         (n :: Int) <- get
                         put (n+len+1)
-                        let varname = localvarstr ++ (show n)
+                        let varname = localvarstr ++ show n
                         jtypes <- mapM (javaType this) (init types)
                         let objdecl = case len of
                                          0 -> localVar objtype $ varDecl varname e'
                                          _ -> localVar objtype $ varDecl varname (cast objtype e')
-                            vardecls = zipWith (\i ty -> localVar ty $ varDecl (localvarstr ++ (show $ n+i))
-                                                                     $ fieldAccess (varExp varname) (fieldtag ++(show i)))
+                            vardecls = zipWith (\i ty -> localVar ty $ varDecl (localvarstr ++ show (n+i))
+                                                                     $ fieldAccess (varExp varname) (fieldtag ++ show i))
                                                 [1..len]
                                                 jtypes
                         (altstmt, alte, altt) <- translateM this $ f (zip [(n+1) ..] (init types))
@@ -560,6 +574,10 @@ trans self =
        ,genClosureVar = \_ _ j1 ->  return (unwrap j1)
        ,javaType = \typ -> case typ of
                              (JClass c) -> return $ classTy c
+                             (Forall (Kind f)) -> case f 0 of -- TODO: could be a bug
+                                                   Body typ' -> javaType this typ'
+                                                   _ -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+                                                           return (classTy closureClass)
                              (Forall _) -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
                                               return (classTy closureClass)
                              (TupleType tuple) -> case tuple of

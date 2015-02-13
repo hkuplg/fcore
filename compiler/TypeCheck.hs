@@ -1,15 +1,23 @@
--- The source language typechecker
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wall #-}
+{- |
+Module      :  TypeCheck
+Description :  Type checker for the source language.
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
 
-{- We make typechecking (this file) happen before desugaring (Desugar.hs) so
-that the error messages presented to the programmer can be clearer. However, an
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
+
+{- We make typechecking (this file) happen before desugaring (Desugar.hs) so that
+the error messages presented to the programmer can be clearer. However, an
 undesired consequence of such approach for the compiler implementer is that the
 implementation of the typing rules does not follow strictly the formalization.
 For instance, in the formalization there is no rule for handling multi-field
 records as they are desugared into intersections of single-field records first.
 But here we have to handle such cases.-}
-
-{-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
 
 module TypeCheck
   ( typeCheck
@@ -282,6 +290,10 @@ infer (App e1 e2) =
   do (t1, e1') <- infer e1
      (t2, e2') <- infer e2
      case t1 of
+       -- Local type inference:
+       -- `f [T] e` can be written as `f e` if the type of e is just T.
+       Forall _ _ -> infer (App (TApp e1 t2) e2)
+
        Fun t11 t12 ->
          do d <- getTypeContext
             unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)

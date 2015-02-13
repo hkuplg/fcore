@@ -1,4 +1,17 @@
 {-# LANGUAGE RankNTypes, FlexibleInstances, FlexibleContexts, TypeOperators, MultiParamTypeClasses, ConstraintKinds, ScopedTypeVariables #-}
+{- |
+Module      :  ApplyTransCFJava
+Description :  Translation of FCore to Java with Apply-opt
+Copyright   :  (c) 2014-2015 HKU
+License     :  BSD3
+
+Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Tomas <tomtau@connect.hku.hk>
+Stability   :  experimental
+Portability :  non-portable (MPTC)
+
+This module augments the basic translation of FCore to Java with
+multi-argument function optimization.
+-}
 
 module ApplyTransCFJava where
 
