@@ -357,7 +357,7 @@ prettyExpr' _ (i,j) (RecordIntro (l, e))       = lbrace <+> text l <+> equals <+
 prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> text l
 prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordIntro (l, e1))
 
-prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (Constr c es)            = parens $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)

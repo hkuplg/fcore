@@ -344,7 +344,7 @@ prettyExpr' p (i,j) (Data name params ctrs e)
   where prettyParams pa = concat . intersperse " " $ pa
         prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
 
-prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (Constr c es)            = parens $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)

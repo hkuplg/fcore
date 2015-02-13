@@ -314,7 +314,7 @@ instance Pretty SymValue where
     pretty (SApp e1 e2) = pretty e1 <+> pretty e2
     pretty (SOp op e1 e2) = parens $ pretty e1 <+> pretty op <+> pretty e2
     pretty (SFun{}) = text "<<fun>>"
-    pretty (SConstr c es) = braces $ intersperseSpace $ text (sconstrName c) : map pretty es
+    pretty (SConstr c es) = parens $ intersperseSpace $ text (sconstrName c) : map pretty es
 
 instance Pretty ExecutionTree where
     pretty t = fst $ prettyTree t (text "True") 5

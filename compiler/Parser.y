@@ -253,7 +253,7 @@ aexpr :: { ReaderExpr }
     | length "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined}
     | cons "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
     --TODO: type can be infered?
-    | "{" constr_name aexprs "}"{ ConstrTemp $2 [] $3 }
+    | constr_name { ConstrTemp $1 }
     | "(" expr ")"              { $2 }
 
 lit :: { ReaderExpr }
