@@ -16,6 +16,36 @@ multi-argument function optimization.
 module ApplyTransCFJava where
 -- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
 
+import           BaseTransCFJava
+import           Inheritance
+import           MonadLib
+
+data ApplyOptTranslate m = NT {toT :: Translate m}
+
+instance (:<) (ApplyOptTranslate m) (Translate m) where
+  up              = up . toT
+
+instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where
+  up              = id
+
+transApply :: (MonadState Int m,
+  MonadReader Int m,
+  MonadReader InitVars m,
+  selfType :< ApplyOptTranslate m,
+  selfType :< Translate m)
+  => Mixin selfType (Translate m) (ApplyOptTranslate m)
+transApply this super = NT {toT = super {createWrap = error "ApplyOpt is broken as well!"}}
+
+transAS :: (MonadState Int m,
+  MonadReader Int m,
+  MonadReader Bool m,
+  MonadReader InitVars m,
+  selfType :< ApplyOptTranslate m,
+  selfType :< Translate m)
+  => Mixin selfType (Translate m) (ApplyOptTranslate m)
+transAS this super = NT {toT = super {createWrap = error "ApplyOpt/Stack is broken as well!"}}
+
+{-
 import qualified Language.Java.Syntax as J
 
 import           BaseTransCFJava
@@ -130,3 +160,4 @@ transAS this super = NT {toT = (up (transApply this super)) {
                                 (J.StmtBlock (block applyGen))
                                 (J.StmtBlock (block [elseDecl]))]
   }}
+-}

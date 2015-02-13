@@ -14,7 +14,30 @@ more information, please refer to the paper on wiki.
 -}
 
 
-module BaseTransCFJava where
+module BaseTransCFJava(Translate,InitVars,createWrap,trans,Var) where
+
+import qualified Language.Java.Syntax as J
+import           ClosureF
+import           Inheritance
+import           MonadLib
+
+type Var = Int -- Either normal variable or class name
+type TransJavaExp = Either J.Name J.Literal -- either variable or special case: Lit
+type TransType = ([J.BlockStmt], TransJavaExp, Type Int)
+type InitVars = [J.BlockStmt]
+
+
+data Translate m =
+    T {createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
+
+
+instance (:<) (Translate m) (Translate m) where
+  up = id
+
+trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
+trans self = T{createWrap = error "YAAY! IT'S ALL BROKEN!"}
+
+{-
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 -- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
 import qualified Language.Java.Syntax as J
@@ -628,3 +651,4 @@ trans self =
                isTest <- genTest this
                let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody [] Nothing isTest
                return (createCUB this [mainDecl],t)}
+-}

@@ -2,6 +2,7 @@
 
 module BenchGenCF2J where
 
+{-
 import Prelude hiding (init, last)
 
 import qualified Language.Java.Syntax as J
@@ -160,3 +161,4 @@ transBenchOpt this super = TBA {
            return (BenchGenCF2J.createCUB super [classDecl], t)
    }
 }
+-}
