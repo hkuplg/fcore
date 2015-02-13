@@ -16,7 +16,7 @@ more information, please refer to the paper on wiki.
 
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
-
+-- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
 import qualified Language.Java.Syntax as J
 
 import           ClosureF
@@ -156,7 +156,8 @@ trans self =
     -------------------------- :: cj-var
     Γ |-  x1 : T1 ~> x2 in {}
 -}
-              Var (i,t) -> return ([],var (localvarstr ++ show i),t)
+              -- TODO: propagate names
+              Var _ (i,t) -> return ([],var (localvarstr ++ show i),t)
               Lit lit ->
                 case lit of
                   (S.Int i)    -> return ([], Right $ J.Int i,     JClass "java.lang.Integer")
@@ -229,20 +230,22 @@ trans self =
     ------------------------------- :: cj-abs
     Γ |- λ∆ . E : ∀∆ . T ~> J in S
 -}
-              Lam se ->
+              -- TODO: propagate names
+              Lam _ se ->
                 do (s,je,t) <- translateScopeM this se Nothing
                    return (s,je,Forall t)
-              Fix t s ->
+              -- TODO: propagate names
+              Fix _ _ t s ->
                 do (n :: Int) <- get
                    put (n + 1)
                    (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
                    return (expr,je,Forall t')
-
-              Let expr body ->
+              -- TODO: propagate names
+              Let _ expr body ->
                 do (s1, j1, t1) <- translateM this expr
                    translateLet this (s1,j1,t1) body
-
-              LetRec t xs body ->
+              -- TODO: propagate names
+              LetRec _ t xs body ->
                 do (n :: Int) <- get
                    let needed = length t
                    put (n + 2 + needed)

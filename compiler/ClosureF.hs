@@ -49,9 +49,9 @@ data Type t =
     | Datatype S.ReaderId [Type t] [S.ReaderId]
 
 data Expr t e =
-     Var e
+     Var S.ReaderId e
    | FVar Int
-   | Lam (EScope t e)
+   | Lam S.ReaderId (EScope t e)
    | App (Expr t e) (Expr t e)
    | TApp (Expr t e) (Type t)
    | PrimOp (Expr t e) S.Operator (Expr t e)
@@ -59,10 +59,10 @@ data Expr t e =
    | If (Expr t e) (Expr t e) (Expr t e)
    | Tuple [Expr t e]
    | Proj Int (Expr t e)
-   | Let (Expr t e) (e -> Expr t e)
+   | Let S.ReaderId (Expr t e) (e -> Expr t e)
    -- fixpoints
-   | LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
-   | Fix (Type t) (e -> EScope t e)
+   | LetRec [S.ReaderId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
+   | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
    -- Java
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
@@ -124,7 +124,7 @@ CTApp (fexp2cexp e) (ftyp2ctyp t)
 
 
 fexp2cexp :: C.Expr t e -> Expr t e
-fexp2cexp (C.Var _ x)                = Var x
+fexp2cexp (C.Var rid x)                = Var rid x
 fexp2cexp (C.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (C.TApp e t)               = TApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (C.PrimOp e1 op e2)        = PrimOp (fexp2cexp e1) op (fexp2cexp e2)
@@ -133,11 +133,11 @@ fexp2cexp (C.Lit e)         = Lit e
 fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
-fexp2cexp (C.Let n bind body)        = Let (fexp2cexp bind) (\e -> fexp2cexp $ body e)
-fexp2cexp (C.LetRec _ ts f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
-fexp2cexp (C.Fix _ _ f t1 t2) =
+fexp2cexp (C.Let n bind body)        = Let n (fexp2cexp bind) (\e -> fexp2cexp $ body e)
+fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
+fexp2cexp (C.Fix n1 n2 f t1 t2) =
   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
-  in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g
+  in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
@@ -152,7 +152,7 @@ fexp2cexp (C.Data name params ctrs e) = Data name params (map fctr2cctr ctrs) (f
 fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr names f) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp.f)
-fexp2cexp e                         = Lam (groupLambda e)
+fexp2cexp e                         = Lam "Fun" (groupLambda e)
 
 fctr2cctr :: C.Constructor t -> Constructor t
 fctr2cctr (C.Constructor ctrname ctrparams) = Constructor ctrname (map ftyp2ctyp ctrparams)
@@ -228,13 +228,13 @@ instance Subst t => Subst (Type t) where
    subst n t x = TVar (substType n t x)
 
 -- Pretty Printing
-
+-- TODO: fix pretty printing with the propagated names
 type Index = Int
 
 isSimpleExpr :: Expr Index Index -> Bool
-isSimpleExpr (Var _)         = True
+isSimpleExpr (Var _ _)         = True
 isSimpleExpr (PrimOp _ _ _)  = True
-isSimpleExpr (App (Var _) _) = True
+isSimpleExpr (App (Var _ _) _) = True
 isSimpleExpr (Lit _)         = True
 isSimpleExpr _               = False
 
@@ -282,15 +282,15 @@ prettyType p i (Datatype n tvars _) = intersperseSpace $ text n : map (prettyTyp
 
 prettyExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
-prettyExpr _ _ (Var x) = prettyVar x
+prettyExpr _ _ (Var _ x) = prettyVar x
 
 prettyExpr _ _ (FVar x) = text "FVar()"
 
-prettyExpr p i (Lam e) = nest 2 (text "Lam(" <$> prettyEScope p i e) <$> text ")"
+prettyExpr p i (Lam _ e) = nest 2 (text "Lam(" <$> prettyEScope p i e) <$> text ")"
 
-prettyExpr p i (App (Lam e1) e2) =
+prettyExpr p i (App (Lam _ e1) e2) =
   nest 2 (text "App(" <$>
-  prettyExpr p i (Lam e1) <> comma <$>
+  prettyExpr p i (Lam "" e1) <> comma <$>
   prettyExpr p i e2) <$>
   text ")"
 
@@ -330,7 +330,7 @@ prettyExpr p i (Tuple l) = tupled (map (prettyExpr p i) l)
 --To be modified. Remove useless parens.
 prettyExpr p i (Proj n e) = parensIf p 5 (prettyExpr (5, PrecMinus) i e <> text "._" <> int n)
 
-prettyExpr p (i, j) (LetRec sigs binds body)
+prettyExpr p (i, j) (LetRec _ sigs binds body)
   = text "let" <+> text "rec" <$$>
     vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$$>
     nest 2 (text "in" <$> pretty_body)
@@ -346,13 +346,13 @@ prettyExpr p (i, j) (LetRec sigs binds body)
     pretty_body  = prettyExpr p (i, j + n) (body ids)
 
 
-prettyExpr p (i, j) (Let x f) =
+prettyExpr p (i, j) (Let _ x f) =
   text "let" <$$>
   indent 2 (prettyVar j <+> text "=" <+> prettyExpr basePrec (i, succ j) x) <$$>
   text "in" <$$>
   indent 2 (prettyExpr basePrec (i, succ j) (f j))
 
-prettyExpr p (i, j) (Fix t f) =
+prettyExpr p (i, j) (Fix _ _ t f) =
   nest 2 (text "Fix(" <$>
   backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$>
   prettyEScope p (i, succ j) (f j)) <$>

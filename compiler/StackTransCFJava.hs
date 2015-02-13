@@ -21,6 +21,7 @@ tail-call elimination.
 -}
 
 module StackTransCFJava where
+-- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
 
 import qualified Language.Java.Syntax as J
 import           Data.Maybe (fromJust)
@@ -151,8 +152,8 @@ transS this super =
            \e ->
              case e of
                -- count abstraction as in tail position
-               Lam _ -> local (True ||) $ translateM super e
-               Fix _ _ -> local (True ||) $ translateM super e
+               Lam _ _ -> local (True ||) $ translateM super e
+               Fix _ _ _ _ -> local (True ||) $ translateM super e
                -- type application just inherits existing flag
                TApp _ _ -> translateM super e
                -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherits flag
@@ -161,7 +162,7 @@ transS this super =
                App e1 e2 -> do
                  translateApply (up this) False (local (False &&) $ translateM (up this) e1) (local (False &&) $ translateM (up this) e2)
                -- let e1 e2: e1 can't be in tail position, e2 inherits flag
-               Let expr body ->
+               Let _ expr body ->
                  do (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
                     translateLet (up this) (s1,j1,t1) body
                -- count other expressions as not in tail position
