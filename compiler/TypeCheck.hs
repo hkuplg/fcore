@@ -295,11 +295,9 @@ infer (App e1 e2) =
            case t1 of
              Fun t11 t12 ->
                  do d <- getTypeContext
-                    -- liftIO $ print (expandType d t2)
                     unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
-                    return (t12, Constr (Constructor n ts) (es++[e2']))
+                    return (t12, Constr (Constructor n ts) (es ++ [e2']))
              _ -> throwError (NotAFunction t1)
-             -- Forall _ _ -> infer (App (TApp e1 t2) e2)
        _ ->
         case t1 of
           -- Local type inference:
@@ -339,7 +337,10 @@ infer (TApp e arg)
        case t of
          Forall a t1 -> let t' = fsubstTT (a, arg') t1
                         in case e' of
-                             Constr (Constructor n ts) es -> return (t', Constr (Constructor n (ts++[t'])) es)
+                             Constr (Constructor n ts) es -> 
+                               case t' of
+                                 Forall _ _ -> return (t', e')
+                                 _ -> return (t', Constr (Constructor n (unwrapFun ts)) es) -- all type parameters instantiated
                              _ -> return (t', TApp e' arg')
          _           -> sorry "TypeCheck.infer: TApp"
 
@@ -586,7 +587,9 @@ infer (Data name params cs e) =
 infer (ConstrTemp name) =
     do g <- getValueContext
        case Map.lookup name g of
-         Just t  -> return (t, Constr (Constructor name []) [])
+         Just t  -> case t of
+                      Forall _ _ -> return (t, Constr (Constructor name []) [])
+                      _ -> return (t, Constr (Constructor name (unwrapFun t)) []) -- non-parameterized constructors
          Nothing -> throwError (NotInScope name)
 
 infer (Case e alts) =
