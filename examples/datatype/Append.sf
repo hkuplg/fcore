@@ -10,5 +10,5 @@ let rec list_length A (xs : PolyList A) : Int =
         Nil       -> 0
       | Cons y ys -> 1 + list_length [A] ys;
 let prop_append A (xs : PolyList A) (ys : PolyList A) =
-    list_length [A] xs + list_length [A] ys + 1==  list_length [A] (append [A] xs ys);
+    list_length [A] xs + list_length [A] ys ==  list_length [A] (append [A] xs ys);
 prop_append
