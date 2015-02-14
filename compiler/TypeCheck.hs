@@ -337,10 +337,10 @@ infer (TApp e arg)
        case t of
          Forall a t1 -> let t' = fsubstTT (a, arg') t1
                         in case e' of
-                             Constr (Constructor n ts) es -> 
+                             Constr (Constructor n _) es ->
                                case t' of
                                  Forall _ _ -> return (t', e')
-                                 _ -> return (t', Constr (Constructor n (unwrapFun ts)) es) -- all type parameters instantiated
+                                 _ -> return (t', Constr (Constructor n (unwrapFun t')) es) -- all type parameters instantiated
                              _ -> return (t', TApp e' arg')
          _           -> sorry "TypeCheck.infer: TApp"
 
