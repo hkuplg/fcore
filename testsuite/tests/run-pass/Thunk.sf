@@ -2,4 +2,4 @@
 
 let force A (f : Unit -> A) = f () in
 let myThunk (dum : Unit) = "I'm here!" in
-force String myThunk
+force [String] myThunk
