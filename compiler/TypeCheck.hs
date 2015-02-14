@@ -812,5 +812,3 @@ feedToForall =
     foldl (\t t_feed -> case t of
                           Forall a t' -> fsubstTT (a, t_feed) t'
                           _ -> prettySorry "TypeCheck.feedToForall" (pretty t))
-
-e = Data "PolyList" ["A"] [Constructor {constrName = "Nil", constrParams = []},Constructor {constrName = "Cons", constrParams = [TVar "A",OpApp (TVar "PolyList") (TVar "A")]}] (Let Rec [Bind {bindId = "append", bindTargs = ["A"], bindArgs = [("xs",OpApp (TVar "PolyList") (TVar "A")),("ys",OpApp (TVar "PolyList") (TVar "A"))], bindRhs = Case (Var "xs") [ConstrAlt (Constructor {constrName = "Nil", constrParams = []}) [] (Var "ys"),ConstrAlt (Constructor {constrName = "Cons", constrParams = []}) ["z","zs"] (App (App (TApp (ConstrTemp "Cons") (TVar "A")) (Var "z")) (App (App (TApp (Var "append") (TVar "A")) (Var "zs")) (Var "ys")))], bindRhsAnnot = Just (OpApp (TVar "PolyList") (TVar "A"))}] (Var "append"))
