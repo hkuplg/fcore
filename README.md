@@ -5,7 +5,7 @@
 The following instructions should work on any platform, from OS X to
 Ubuntu. It builds the compiler from source, and may take some time.
 
-1. Download the [Haskell Platfrom](https://www.haskell.org/platform/).
+1. Download the [Haskell Platform](https://www.haskell.org/platform/).
 
 2. In the top directory, running the following commands in a console
 
@@ -66,6 +66,6 @@ If you run into any problem, try to do
 
 and then
 
-     make
+    make
 
 If the problem persists, create a issue!
