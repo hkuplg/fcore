@@ -461,7 +461,7 @@ trans self =
                        switchstmt = bStmt $ switchStmt tagaccess (blocks' ++ [defaultBlock])
                    return (s' ++ [newvardecl, switchstmt], var newVarName, head type')
                 where mapAlt e' resultName (ConstrAlt (Constructor ctrname types) _ f) = do
-                        let (Datatype nam _ ctrnames) = last types
+                        let (Datatype nam tvars ctrnames) = last types
                             Just label = elemIndex ctrname ctrnames
                             len = length types - 1
                             objtype = case len of
@@ -471,11 +471,12 @@ trans self =
                         put (n+len+1)
                         let varname = localvarstr ++ show n
                         jtypes <- mapM (javaType this) (init types)
+                        tvarjtypes <- mapM (javaType this) tvars
                         let objdecl = case len of
                                          0 -> localVar objtype $ varDecl varname e'
                                          _ -> localVar objtype $ varDecl varname (cast objtype e')
                             vardecls = zipWith (\i ty -> let fieldaccess = fieldAccess (varExp varname) (fieldtag ++ show i)
-                                                         in  if (ty == objClassTy)
+                                                         in  if (ty == objClassTy || not (elem ty tvarjtypes))
                                                               then localVar ty $ varDecl (localvarstr ++ show (n+i)) fieldaccess
                                                               else localVar ty $ varDecl (localvarstr ++ show (n+i)) (cast ty fieldaccess) )
                                                 [1..len]
