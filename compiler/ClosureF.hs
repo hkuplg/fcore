@@ -374,12 +374,10 @@ prettyExpr p i (PolyList es t) = brackets. hcat . intersperse comma . map (prett
 prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text ")" <> prettyExpr p (i,j) jmethod
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
-prettyExpr p (i,j) (Data name params ctrs e)
-  = (text $ "Data " ++ name ++ " " ++ prettyParams params ++ " =") <+>
-    (hcat . intersperse (text " | ") . map prettyCtr $ ctrs) <$>
-    (prettyExpr p (i,j) e)
-  where prettyParams pa = concat . intersperse " " $ pa
-        prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType p i) $ ctrParams)
+
+prettyExpr p (i,j) (Data n tvars cons e) = text "data" <+> intersperseSpace (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr p (i,j) e
+  where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType p i) $ ctrParams)
+
 prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (intersperseSpace $ map (prettyExpr p i) es))
 prettyExpr p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> text " " <+> S.intersperseBar (map pretty_alt alts)

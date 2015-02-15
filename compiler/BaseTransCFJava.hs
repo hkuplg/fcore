@@ -474,8 +474,10 @@ trans self =
                         let objdecl = case len of
                                          0 -> localVar objtype $ varDecl varname e'
                                          _ -> localVar objtype $ varDecl varname (cast objtype e')
-                            vardecls = zipWith (\i ty -> localVar ty $ varDecl (localvarstr ++ show (n+i))
-                                                                     $ fieldAccess (varExp varname) (fieldtag ++ show i))
+                            vardecls = zipWith (\i ty -> let fieldaccess = fieldAccess (varExp varname) (fieldtag ++ show i)
+                                                         in  if (ty == objClassTy)
+                                                              then localVar ty $ varDecl (localvarstr ++ show (n+i)) fieldaccess
+                                                              else localVar ty $ varDecl (localvarstr ++ show (n+i)) (cast ty fieldaccess) )
                                                 [1..len]
                                                 jtypes
                         (altstmt, alte, altt) <- translateM this $ f (zip [(n+1) ..] (init types))
