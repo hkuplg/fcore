@@ -12,7 +12,7 @@ let sumListAlg : ListAlg Int Int = {
   con = \(x : Int). \(y : Int). x + y
 };
 let sumList (l : MyList Int) : Int =
-  l.accept Int sumListAlg;
+  l.accept [Int] sumListAlg;
 type SybAlg Company Dept SubUnit Employee Person Salary = {
   goC  : MyList Dept  ->  Company,
   goD  : String       ->  Employee  ->  MyList SubUnit  ->  Dept,
@@ -49,6 +49,6 @@ let incSalary C D SU E P SA (alg : SybAlg C D SU E P SA) : SybAlg C D SU E P SA 
   goP  = \(x : String). \(y : String). alg.goP x y,
   goS  = \(x : Int). alg.goS (2 * x)
 };
-let before = genCom Int Int Int Int Int Int salaryBill;
-let after  = genCom Int Int Int Int Int Int (incSalary Int Int Int Int Int Int salaryBill);
+let before = genCom [Int] [Int] [Int] [Int] [Int] [Int] salaryBill;
+let after  = genCom [Int] [Int] [Int] [Int] [Int] [Int] (incSalary [Int] [Int] [Int] [Int] [Int] [Int] salaryBill);
 "before = ".concat(before.toString()).concat(", after = ").concat(after.toString())

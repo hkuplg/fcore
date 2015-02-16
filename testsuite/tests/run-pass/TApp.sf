@@ -2,9 +2,8 @@
 
 let id A (x : A) = x
 in
-let g = (id Int
-        ,id
-        ,id (forall A. A -> A)
+let g = (id [Int] ,id
+        ,id [forall A. A -> A]
         )
 in
-g._3 g._2 Int 10
+g._3 g._2 10

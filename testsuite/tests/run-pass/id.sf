@@ -6,4 +6,4 @@
 
 let id = /\A. \(x:A). x in
 let const = /\A. \(x : A). \(y : A). x in
-const Int (id Int 3) 4
+const (id 3) 4
