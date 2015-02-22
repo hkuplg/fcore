@@ -7,6 +7,8 @@ before_install:
   - cp systemfcompiler.cabal.ghc-7.8.3 systemfcompiler.cabal
 
 install:
+  - /app/halcyon/halcyon install alex-3.1.4 --prefix=/app/sandbox
+  - /app/halcyon/halcyon install happy-1.19.5 --prefix=/app/sandbox
   - /app/halcyon/halcyon build
   - /app/halcyon/halcyon paths > halcyon-env
   - ln -sf /app/sandbox/cabal.sandbox.config cabal.sandbox.config
