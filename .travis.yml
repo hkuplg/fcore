@@ -10,8 +10,7 @@ install:
   - /app/halcyon/halcyon paths > halcyon-env
   - /app/halcyon/halcyon install alex-3.1.4 --prefix=/app/sandbox
   - /app/halcyon/halcyon install happy-1.19.5 --prefix=/app/sandbox
-  - ln -sf /app/sandbox/cabal.sandbox.config cabal.sandbox.config
 
 script:
   - cd runtime; ant
-  - cd .. && source halcyon-env && ./select-cabal.sh && cabal sandbox init && cabal install
+  - cd .. && source halcyon-env && ./select-cabal.sh && cabal sandbox init && ln -sf /app/sandbox/cabal.sandbox.config cabal.sandbox.config && cabal install
