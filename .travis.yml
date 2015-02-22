@@ -12,5 +12,5 @@ install:
 
 script:
   - cd runtime; ant
-	- ./select-cabal.sh
+  - ./select-cabal.sh
   - source halcyon-env && cabal configure --enable-tests && cabal test
