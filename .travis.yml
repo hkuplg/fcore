@@ -12,4 +12,4 @@ install:
 
 script:
   - cd runtime; ant
-  - cd .. && source halcyon-env && ./select-cabal.sh && cabal install
+  - cd .. && source halcyon-env && ./select-cabal.sh && cabal sandbox init && cabal install
