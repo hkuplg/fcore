@@ -8,6 +8,8 @@ before_install:
 install:
   - /app/halcyon/halcyon build
   - /app/halcyon/halcyon paths > halcyon-env
+  - /app/halcyon/halcyon install alex-3.1.4 --prefix=/app/sandbox
+  - /app/halcyon/halcyon install happy-1.19.5 --prefix=/app/sandbox
   - ln -sf /app/sandbox/cabal.sandbox.config cabal.sandbox.config
 
 script:
