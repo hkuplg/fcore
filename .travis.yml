@@ -1,7 +1,14 @@
-language: haskell
-ghc:
-  - 7.8
+language: sh # Halcyon will handle all Haskell dependencies
+
 before_install:
-  - "make"
-notifications:
-  email: false
+  - sudo mkdir -p /app
+  - sudo chown $USER /app
+  - git clone https://github.com/mietek/halcyon.git /app/halcyon
+
+install:
+  - /app/halcyon/halcyon build
+  - /app/halcyon/halcyon paths > halcyon-env
+  - ln -sf /app/sandbox/cabal.sandbox.config cabal.sandbox.config
+
+script:
+  - source halcyon-env && make
