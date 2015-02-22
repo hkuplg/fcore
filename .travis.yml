@@ -11,4 +11,6 @@ install:
   - ln -sf /app/sandbox/cabal.sandbox.config cabal.sandbox.config
 
 script:
-  - source halcyon-env && make
+  - cd runtime; ant
+	- ./select-cabal.sh
+  - source halcyon-env && cabal configure --enable-tests && cabal test
