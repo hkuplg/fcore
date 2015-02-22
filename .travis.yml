@@ -4,13 +4,13 @@ before_install:
   - sudo mkdir -p /app
   - sudo chown $USER /app
   - git clone https://github.com/mietek/halcyon.git /app/halcyon
+  - cp systemfcompiler.cabal.ghc-7.8.3 systemfcompiler.cabal
 
 install:
   - /app/halcyon/halcyon build
   - /app/halcyon/halcyon paths > halcyon-env
-  - /app/halcyon/halcyon install alex-3.1.4 --prefix=/app/sandbox
-  - /app/halcyon/halcyon install happy-1.19.5 --prefix=/app/sandbox
+  - ln -sf /app/sandbox/cabal.sandbox.config cabal.sandbox.config
 
 script:
   - cd runtime; ant
-  - cd .. && source halcyon-env && ./select-cabal.sh && cabal sandbox init && ln -sf /app/sandbox/cabal.sandbox.config cabal.sandbox.config && cabal install
+  - cd .. && source halcyon-env && cabal install
