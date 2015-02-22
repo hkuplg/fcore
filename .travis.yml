@@ -12,5 +12,4 @@ install:
 
 script:
   - cd runtime; ant
-  - cd .. && source halcyon-env && ./select-cabal.sh
-  - if ! cabal install --only-dependencies --enable-tests; then echo "something failed" fi 
+  - cd .. && source halcyon-env && ./select-cabal.sh && cabal install
