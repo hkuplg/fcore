@@ -354,7 +354,7 @@ trans self =
                                      -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                      -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                      -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                                     _ -> sorry "BaseTransCFJava.trans.JMethod: no idea how to do")
                              types
                    realJavaType <- javaType this realType
                    (classStatement,rhs) <- case c of
@@ -385,7 +385,7 @@ trans self =
                                      -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                      -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                      -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                                     _ -> sorry "BaseTransCFJava.trans.JMethod: no idea how to do")
                              types
                    (classStatement,rhs) <- case c of
                                              Right ce ->
