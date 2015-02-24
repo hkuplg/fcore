@@ -44,4 +44,4 @@ let salaryBill : QueryInt = {
   goP  = \(x : String). \(y : String). 0,
   goS  = \(x : Int). x
 };
-genCom Int Int Int Int Int Int salaryBill
+genCom [Int] [Int] [Int] [Int] [Int] [Int] salaryBill

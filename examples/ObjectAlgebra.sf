@@ -11,7 +11,7 @@ let printAlg = {
   sub = \(x : String). \(y : String). x.toString().concat(" - ").concat(y.toString())
 };
 let exp1 E (f : ExpAlg E)    = f.add (f.lit 6) (f.lit 6);
-let exp2 E (f : SubExpAlg E) = f.sub (exp1 E f) (f.lit 2);
+let exp2 E (f : SubExpAlg E) = f.sub (exp1 [E] f) (f.lit 2);
 
 -- exp2 Int subEvalAlg
 -- exp2 String printAlg
@@ -21,5 +21,5 @@ let merge A B (alg1 : ExpAlg A) (alg2 : ExpAlg B) = {
   add = \(x : A & B). \(y : A & B). alg1.add x y ,, alg2.add x y
 }
 in
-let newAlg = merge Int String subEvalAlg printAlg in
-(\(x: String). x) (exp1 (Int & String) newAlg)
+let newAlg = merge [Int] [String] subEvalAlg printAlg in
+(\(x: String). x) (exp1 [Int & String] newAlg)

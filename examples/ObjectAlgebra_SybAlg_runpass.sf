@@ -10,7 +10,7 @@ let sumListAlg : ListAlg Int Int = {
   cons = \(x : Int). \(y : Int). x + y
 };
 let sumList (l : MyList Int) : Int =
-  l.accept Int sumListAlg;
+  l.accept [Int] sumListAlg;
 type SybAlg Company Dept SubUnit Employee Person Salary = {
   goC  : MyList Dept  ->  Company,
   goD  : String       ->  Employee  ->  MyList SubUnit  ->  Dept,
@@ -21,13 +21,18 @@ type SybAlg Company Dept SubUnit Employee Person Salary = {
   goS  : Int          ->  Salary
 };
 let genCom C D SU E P SA (alg : SybAlg C D SU E P SA) : C =
-  alg.goC { accept = /\L. \(f : ListAlg D L). f.cons
+  alg.goC
+   { accept = /\L. \ (f : ListAlg D L). f.cons
     (alg.goD "Research" (alg.goE (alg.goP "Ralf"  "Amsterdam") (alg.goS 8000))
-      { accept = /\LM. \(fm : ListAlg SU LM). fm.cons
-        (alg.goPU (alg.goE (alg.goP "Joost"  "Amsterdam") (alg.goS 1000))) (fm.cons
-         alg.goPU (alg.goE (alg.goP "Marlow" "Cambridge") (alg.goS 2000)) fm.nil) }) (f.cons
-    (alg.goD "Strategy" (alg.goE (alg.goP "Blair" "London")    (alg.goS 100000))
-      { accept = /\LN. \(fn : ListAlg SU LN). fn.nil }) f.nil) };
+      { accept = /\ LM. \ (fm : ListAlg SU LM). fm.cons
+        (alg.goPU (alg.goE (alg.goP "Joost"  "Amsterdam") (alg.goS 1000)))
+        (fm.cons
+         alg.goPU (alg.goE (alg.goP "Marlow" "Cambridge") (alg.goS 2000)) fm.nil) }
+    )
+    (f.cons
+        (alg.goD "Strategy" (alg.goE (alg.goP "Blair" "London") (alg.goS 100000))
+      { accept = /\ LN. \ (fn : ListAlg SU LN). fn.nil }) f.nil
+    ) };
 type QueryInt = SybAlg Int Int Int Int Int Int;
 let salaryBill : QueryInt = {
   goC  = \(l : MyList Int). sumList l,
@@ -47,6 +52,7 @@ let incSalary C D SU E P SA (alg : SybAlg C D SU E P SA) : SybAlg C D SU E P SA 
   goP  = \(x : String). \(y : String). alg.goP x y,
   goS  = \(x : Int). alg.goS (2 * x)
 };
-let before = genCom Int Int Int Int Int Int salaryBill;
-let after  = genCom Int Int Int Int Int Int (incSalary Int Int Int Int Int Int salaryBill);
+let before = genCom [Int] [Int] [Int] [Int] [Int] [Int] salaryBill;
+let after  = genCom [Int] [Int] [Int] [Int] [Int] [Int]
+             (incSalary [Int] [Int] [Int] [Int] [Int] [Int] salaryBill);
 "before = ".concat(before.toString()).concat(", after = ").concat(after.toString())
