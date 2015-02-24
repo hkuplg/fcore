@@ -55,7 +55,7 @@ with the syntax. These examples demonstrate different features of our
 compiler, such as call-by-name, record syntax, modules, thunk, type
 synonyms, etc.
 
-Particularly, in `examples/fractals`, there is a interesting program
+Particularly, in `examples/fractals`, there is an interesting program
 that draws a fractal.
 
 ## Troubleshooter
