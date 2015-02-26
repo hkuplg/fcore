@@ -1,8 +1,8 @@
-let Pair A B = (A, B);
-let PairInt A = Pair (Int, A);
+type Pair A B = (A, B);
+type PairInt A = Pair (Int, A);
 
-let Point2D A = { x : A, y : A };
-let Point3D A = { x : A, y : A, z : A };
+type Point2D A = { x : A, y : A };
+type Point3D A = { x : A, y : A, z : A };
 
 let diff (p : Point2D Int) (q : Point2D Int) = (q.x - p.x, q.y - p.y);
 

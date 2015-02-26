@@ -20,5 +20,5 @@ let merge A B (f : ExpAlg A) (g : ExpAlg B) = {
 };
 let exp1 E (f : ExpAlg E)    = f.add (f.lit 6) (f.lit 6);
 let exp2 E (f : SubExpAlg E) = f.sub (exp1 [E] f) (f.lit 2);
-let newAlg = merge [IEval] [IPrint] subEvalAlg printAlg in
+let newAlg = merge [IEval, IPrint] subEvalAlg printAlg in
 (exp1 [IEval & IPrint] newAlg).print

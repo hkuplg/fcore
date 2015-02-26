@@ -177,9 +177,14 @@ record_body :: { [(Label, ReaderType)] }
 label :: { Label }
   : LOWERID                  { $1 }
 
+comma_tvars1 :: { [ReaderId] }
+  : tvar                     { [$1]  }
+  | tvar "," comma_tvars1    { $1:$3 }
+
 tvars :: { [ReaderId] }
   : {- empty -}              { []    }
   | tvar tvars               { $1:$2 }
+  | "[" comma_tvars1 "]"     { $2 }
 
 tvar :: { ReaderId }
   : UPPERID                  { $1 }
@@ -192,6 +197,10 @@ types :: { [Type] }
   : {- empty -}              { [] }
   | atype types              { $1:$2 }
 
+comma_types1 :: { [Type] }
+    : type                    { [$1]  }
+    | type "," comma_types1   { $1:$3 }
+
 -- Expressions
 
 expr :: { ReaderExpr }
@@ -199,8 +208,6 @@ expr :: { ReaderExpr }
     | "\\" arg "." expr                   { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "let" recflag and_binds ";"  expr   { Let $2 $3 $5 }
-    | "let"  tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
-    | "let"  tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
 
     -- Type synonyms
     | "type" tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
@@ -232,7 +239,7 @@ infixexpr :: { ReaderExpr }
 
 fexpr :: { ReaderExpr }
     : fexpr aexpr        { App  $1 $2 }
-    | fexpr "[" type "]" { TApp $1 $3 }
+    | fexpr "[" comma_types1 "]"  { foldl TApp (TApp $1 (head $3)) (tail $3) }
     | aexpr              { $1 }
 
 aexpr :: { ReaderExpr }

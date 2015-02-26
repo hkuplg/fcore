@@ -17,21 +17,21 @@ let
   rindex (as : List<Int>) : List<Int> =
     let
       gao (acc : Int -> (List<Int>, Int)) (a : Int) : Int -> (List<Int>, Int) =
-        bind [List<Int>] [List<Int>] [Int]
+        bind [List<Int>, List<Int>, Int]
           acc
           (\(xs : List<Int>) .
-            (bind [Int] [List<Int>] [Int]
+            (bind [Int, List<Int>, Int]
                (get [Int])
                (\(n : Int) .
-                 (bind [Unit] [List<Int>] [Int]
+                 (bind [Unit, List<Int>, Int]
                     (put [Int] (n + 1))
-                    (\(s : Unit) . (inject [List<Int>] [Int] (cons(a, xs))))))))
+                    (\(s : Unit) . (inject [List<Int>, Int] (cons(a, xs))))))))
     in
     let
       foldLeft' (as : List<Int>) : Int -> (List<Int>, Int) =
         foldLeft [Int -> (List<Int>, Int)]
           gao
-          (inject [List<Int>] [Int] (new List<Int>()))
+          (inject [List<Int>, Int] (new List<Int>()))
           as
     in
     (foldLeft' as 0)._1
