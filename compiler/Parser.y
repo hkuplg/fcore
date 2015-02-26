@@ -152,8 +152,9 @@ intertype :: { ReaderType }
   | ftype                    { $1 }
 
 ftype :: { ReaderType }
-  : ftype atype              { OpApp $1 $2 }
-  | atype                    { $1 }
+  : ftype atype                 { OpApp $1 $2 }
+  | ftype "[" comma_types1 "]"  { foldl OpApp (OpApp $1 (head $3)) (tail $3) }
+  | atype                       { $1 }
 
 atype :: { ReaderType }
   : tvar                     { TVar $1 }
@@ -238,9 +239,9 @@ infixexpr :: { ReaderExpr }
     | fexpr                     { $1 }
 
 fexpr :: { ReaderExpr }
-    : fexpr aexpr        { App  $1 $2 }
+    : fexpr aexpr                 { App  $1 $2 }
     | fexpr "[" comma_types1 "]"  { foldl TApp (TApp $1 (head $3)) (tail $3) }
-    | aexpr              { $1 }
+    | aexpr                       { $1 }
 
 aexpr :: { ReaderExpr }
     : var                       { Var $1 }
