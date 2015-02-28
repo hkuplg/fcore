@@ -382,15 +382,14 @@ pat_vars :: { [ReaderId] }
   | pat_var pat_vars  { $1:$2 }
 
 param :: { (ReaderId, ReaderType) }
-  : "(" LOWER_IDENT ":" type ")"  { ($2, $4) }
-  | "(" param ")"                 { $2 }
+  : LOWER_IDENT ":" type          { ($1, $3) }
 
 params :: { [(ReaderId, ReaderType)] }
-  : {- empty -}               { []    }
-  | param params              { $1:$2 }
+  : {- empty -}                   { []    }
+  | "(" param ")" params          { $2:$4 }
 
 params1 :: { [(ReaderId, ReaderType)] }
-  : param params              { $1:$2 }
+  : "(" param ")" params          { $2:$4 }
 
 ------------------------------------------------------------------------
 -- Misc
