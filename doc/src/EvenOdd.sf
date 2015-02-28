@@ -1,5 +1,0 @@
-let rec
-  even (n: Int): Bool = if n == 0 then True else odd (n - 1)
-and
-  odd (n: Int): Bool  = if n == 0 then False else even (n - 1);
-odd 42
