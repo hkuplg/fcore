@@ -78,7 +78,6 @@ tokens :-
     \|          { \_ _ -> Tbar }
     case        { \_ _ -> Tcase }
     of          { \_ _ -> Tof }
-    end         { \_ _ -> Tend }
 
     -- Literals
     $digit+                { \_ s -> Tint (read s) }
@@ -132,7 +131,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule | Tend
+           | Tmodule
            | Temptytree | Tnonemptytree
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
            | Tdata | Tcase | Tbar | Tof | Tto

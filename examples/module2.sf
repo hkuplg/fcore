@@ -1,9 +1,4 @@
-let m =
-  let rec
-    add (a:Int) (b:Int) : Int = a + b
-  and
-    sub (a:Int) (b:Int) : Int = a - b
-  in
-  { add = add, sub = sub }
-in
-m.add 1 2
+module M {
+  add (a:Int) (b:Int) : Int = a + b;
+  sub (a:Int) (b:Int) : Int = a - b
+}

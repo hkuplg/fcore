@@ -70,7 +70,6 @@ import JavaUtils
   "new"     { Tnew }
 
   "module"  { Tmodule }
-  "end"     { Tend }
 
   INT      { Tint $$ }
   STRING   { Tstring $$ }
@@ -129,7 +128,7 @@ import JavaUtils
 
 -- Modules
 module :: { ReaderModule }
-  : "module" module_name semi_binds "end"  { Module $2 $3 }
+  : "module" module_name "{" semi_binds "}"  { Module $2 $4 }
 
 module_name :: { ReaderId }
   : UPPERID  { $1 }
