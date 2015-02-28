@@ -68,4 +68,4 @@ and then
 
      make
 
-If the problem persists, create a issue!
+If the problem persists, create an issue!
