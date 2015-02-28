@@ -59,7 +59,6 @@ tokens :-
     rec         { \_ _ -> Trec }
     \=          { \_ _ -> Teq }
     and         { \_ _ -> Tand }
-    in          { \_ _ -> Tin }
     Int         { \_ _ -> Tjavaclass "java.lang.Integer" }
     String      { \_ _ -> Tjavaclass "java.lang.String" }
     Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
@@ -122,7 +121,7 @@ tokens :-
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote
            -- | Tthis | Tsuper
-           | Ttype | Tlet | Trec | Teq | Tand | Tin
+           | Ttype | Tlet | Trec | Teq | Tand
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse

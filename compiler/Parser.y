@@ -52,7 +52,6 @@ import JavaUtils
   "rec"    { Trec }
   "="      { Teq }
   "and"    { Tand }
-  "in"     { Tin }
   "if"     { Tif }
   "then"   { Tthen }
   "else"   { Telse }
@@ -63,8 +62,8 @@ import JavaUtils
   "|"      { Tbar }
   "of"     { Tof }
 
-  UPPERID  { Tupperid $$ }
-  LOWERID  { Tlowerid $$ }
+  UPPER_IDENT  { Tupperid $$ }
+  LOWER_IDENT  { Tlowerid $$ }
   UNDERID  { Tunderid $$ }
 
   JAVACLASS { Tjavaclass $$ }
@@ -136,23 +135,26 @@ module :: { ReaderModule }
   : "module" module_name "{" semi_binds "}"  { Module $2 $4 }
 
 module_name :: { ReaderId }
-  : UPPERID  { $1 }
+  : UPPER_IDENT  { $1 }
 
 ------------------------------------------------------------------------
 -- Types
 ------------------------------------------------------------------------
 
 type :: { ReaderType }
-  : "forall" tvar "." type   { Forall $2 $4 }
-  | monotype                 { $1 }
+  : "forall" ty_params "." type  { foldr Forall (Forall (last $2) $4) (init $2) }
+  | monotype                     { $1 }
 
 types :: { [Type] }
   : {- empty -}              { [] }
   | atype types              { $1:$2 }
 
+type_list :: { [Type] }
+  : "[" comma_types1 "]"     { $2 }
+
 comma_types1 :: { [Type] }
-    : type                    { [$1]  }
-    | type "," comma_types1   { $1:$3 }
+  : type                   { [$1]  }
+  | type "," comma_types1  { $1:$3 }
 
 monotype :: { ReaderType }
   : intertype "->" monotype  { Fun $1 $3 }
@@ -163,12 +165,11 @@ intertype :: { ReaderType }
   | ftype                    { $1 }
 
 ftype :: { ReaderType }
-  : ftype atype                 { OpApp $1 $2 }
-  | ftype "[" comma_types1 "]"  { foldl OpApp (OpApp $1 (head $3)) (tail $3) }
-  | atype                       { $1 }
+  : ftype type_list  { foldl OpApp (OpApp $1 (head $2)) (tail $2) }
+  | atype            { $1 }
 
 atype :: { ReaderType }
-  : tvar                     { TVar $1 }
+  : UPPER_IDENT                  { TVar $1 }
   | JAVACLASS                { JType (JClass $1) }
   | "Unit"                   { Unit }
   | "(" product_body ")"     { Product $2 }
@@ -186,41 +187,45 @@ record_body :: { [(Label, ReaderType)] }
   : label ":" type                  { [($1, $3)]  }
   | label ":" type "," record_body  { ($1, $3):$5 }
 
-label :: { Label }
-  : LOWERID                  { $1 }
+ty_param :: { ReaderId }
+  : UPPER_IDENT                    { $1 }
 
-tvar :: { ReaderId }
-  : UPPERID                  { $1 }
+ty_params :: { [ReaderId] }
+  : {- empty -}                    { []    }
+  | ty_param ty_params             { $1:$2 }
 
-tvars :: { [ReaderId] }
-  : {- empty -}              { []    }
-  | tvar tvars               { $1:$2 }
-  | "[" comma_tvars1 "]"     { $2 }
+ty_params1 :: { [ReaderId] }
+  : ty_param ty_params             { $1:$2 }
 
-comma_tvars1 :: { [ReaderId] }
-  : tvar                     { [$1]  }
-  | tvar "," comma_tvars1    { $1:$3 }
+ty_param_list :: { [ReaderId] }
+  : "[" comma_ty_params1 "]"       { $2 }
+
+ty_param_list_or_empty :: { [ReaderId] }
+  : ty_param_list                  { $1 }
+  | {- empty -}                    { [] }
+
+comma_ty_params1 :: { [ReaderId] }
+  : ty_param                       { [$1]  }
+  | ty_param "," comma_ty_params1  { $1:$3 }
 
 ------------------------------------------------------------------------
 -- Expressions
 ------------------------------------------------------------------------
 
 expr :: { ReaderExpr }
-    : "/\\" tvar "." expr                 { BLam $2 $4  }
-    | "\\" param "." expr                   { Lam $2 $4 }
-    | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
-    | "let" recflag and_binds ";"  expr   { Let $2 $3 $5 }
+    : "/\\" ty_params1 "->" expr         { foldr BLam (BLam (last $2) $4) (init $2) }
+    | "\\" params1 "->" expr             { foldr Lam (Lam (last $2) $4) (init $2) }
+    | "let" recflag and_binds ";"  expr  { Let $2 $3 $5 }
 
     -- Type synonyms
-    | "type" tvar tvars "=" type "in" expr { Type $2 $3 $5 $7 }
-    | "type" tvar tvars "=" type ";"  expr { Type $2 $3 $5 $7 }
+    | "type" UPPER_IDENT ty_param_list_or_empty "=" type ";"  expr  { Type $2 $3 $5 $7 }
 
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
-    | "data" tvar tvars "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
+    | "data" ty_param ty_params "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
     | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
-    | module expr                   { LetModule $1 $2 }
+    | module expr                         { LetModule $1 $2 }
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
@@ -256,16 +261,16 @@ infixexpr :: { ReaderExpr }
     | fexpr                     { $1 }
 
 fexpr :: { ReaderExpr }
-    : fexpr aexpr                 { App  $1 $2 }
-    | fexpr "[" comma_types1 "]"  { foldl TApp (TApp $1 (head $3)) (tail $3) }
-    | aexpr                       { $1 }
+    : fexpr aexpr      { App  $1 $2 }
+    | fexpr type_list  { foldl TApp (TApp $1 (head $2)) (tail $2) }
+    | aexpr            { $1 }
 
 aexpr :: { ReaderExpr }
-    : var                       { Var $1 }
+    : LOWER_IDENT               { Var $1 }
     | lit                       { $1 }
     | "(" comma_exprs2 ")"      { Tuple $2 }
     | aexpr "." UNDERID         { Proj $1 $3 }
-    | module_name "." var       { ModuleAccess $1 $3 }
+    | module_name "." ident     { ModuleAccess $1 $3 }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 }
     | "{" recordlit_body "}"    { RecordIntro $2 }
@@ -290,10 +295,10 @@ javaexpr :: { ReaderExpr }
     | Empty                                       { JNew "f2j.FunctionalTree" [] }
     | Fork "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3}
 
-    | JAVACLASS "." LOWERID "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
-    | JAVACLASS "." LOWERID "()"                  { JMethod (Static $1) $3 [] undefined }
-    | JAVACLASS "." LOWERID                       { JField  (Static $1) $3 undefined }
-    | JAVACLASS "." UPPERID                       { JField  (Static $1) $3 undefined } -- Constants
+    | JAVACLASS "." LOWER_IDENT "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
+    | JAVACLASS "." LOWER_IDENT "()"                  { JMethod (Static $1) $3 [] undefined }
+    | JAVACLASS "." LOWER_IDENT                       { JField  (Static $1) $3 undefined }
+    | JAVACLASS "." UPPER_IDENT                       { JField  (Static $1) $3 undefined } -- Constants
 
     -- A dot can mean three things:
     -- (1) method invocation
@@ -305,16 +310,16 @@ javaexpr :: { ReaderExpr }
     --   (since the gap between the two parentheses distinguishes the string from the unit literal `()`)
     -- when 1: method invocation or application (with a parenthesized argument)
     -- else:   method invocation or application (with a tuple)
-    | aexpr "." LOWERID "(" comma_exprs0 ")"  { Dot $1 $3 (Just ($5, UnitImpossible)) }
+    | aexpr "." LOWER_IDENT "(" comma_exprs0 ")"  { Dot $1 $3 (Just ($5, UnitImpossible)) }
 
     -- method invocation or application
-    | aexpr "." LOWERID "()"                  { Dot $1 $3 (Just ([], UnitPossible)) }
+    | aexpr "." LOWER_IDENT "()"                  { Dot $1 $3 (Just ([], UnitPossible)) }
 
     -- field access or record elimination
-    | aexpr "." LOWERID                       { Dot $1 $3 Nothing }
+    | aexpr "." LOWER_IDENT                       { Dot $1 $3 Nothing }
 
     -- Is this possible?
-    -- | aexpr "." UPPERID                    { Dot $1 $3 Nothing }
+    -- | aexpr "." UPPER_IDENT                    { Dot $1 $3 Nothing }
 
 lit :: { ReaderExpr }
     : INT                       { Lit (Int $1)    }
@@ -328,14 +333,13 @@ recordlit_body :: { [(Label, ReaderExpr)] }
   | label "=" expr "," recordlit_body  { ($1, $3):$5 }
 
 bind :: { ReaderBind }
-    : var tvars params maybe_sig "=" expr
-        { Bind { bindId       = $1
-               , bindTyParams    = $2
-               , bindParams     = $3
-               , bindRhs      = $6
-               , bindRhsAnnot = $4
-               }
-        }
+  : LOWER_IDENT ty_param_list_or_empty params maybe_sig "=" expr  { Bind { bindId       = $1
+                                                                         , bindTyParams = $2
+                                                                         , bindParams   = $3
+                                                                         , bindRhsAnnot = $4
+                                                                         , bindRhs      = $6
+                                                                         }
+                                                                  }
 
 and_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
@@ -355,36 +359,49 @@ recflag :: { RecFlag }
 
 constrs_decl :: { [Constructor] }
     : constr_decl { [$1] }
-    | constr_decl "|" constrs_decl { $1:$3 }
+    | constr_decl "|" constrs_decl  { $1:$3 }
 
 constr_decl :: { Constructor }
-    : constr_name types { Constructor $1 $2 }
+    : constr_name types  { Constructor $1 $2 }
 
 constr_name :: { ReaderId }
-  : tvar  { $1 }
+  : ty_param  { $1 }
 
 patterns :: { [Alt ReaderId Type] }
-    : pattern { [$1] }
-    | pattern "|" patterns { $1:$3 }
+    : pattern               { [$1] }
+    | pattern "|" patterns  { $1:$3 }
 
 pattern :: { Alt ReaderId Type}
-    : constr_name vars "->" expr { ConstrAlt (Constructor $1 []) $2 $4 }
+    : constr_name pat_vars "->" expr  { ConstrAlt (Constructor $1 []) $2 $4 }
+
+pat_var :: { ReaderId }
+  : LOWER_IDENT  { $1 }
+
+pat_vars :: { [ReaderId] }
+  : {- empty -}       { [] }
+  | pat_var pat_vars  { $1:$2 }
 
 param :: { (ReaderId, ReaderType) }
-    : "(" var ":" type ")"       { ($2, $4) }
-    | "()"                       { ("_", Unit) }
-    | "(" param ")"                { $2 }
+  : "(" LOWER_IDENT ":" type ")"  { ($2, $4) }
+  | "(" param ")"                 { $2 }
 
 params :: { [(ReaderId, ReaderType)] }
-    : {- empty -}               { []    }
-    | param params  { $1:$2 }
+  : {- empty -}               { []    }
+  | param params              { $1:$2 }
 
-var :: { ReaderId }
-    : LOWERID           { $1 }
+params1 :: { [(ReaderId, ReaderType)] }
+  : param params              { $1:$2 }
 
-vars :: { [ReaderId] }
-  : {- empty -}              { []    }
-  | var vars                 { $1:$2 }
+------------------------------------------------------------------------
+-- Misc
+------------------------------------------------------------------------
+
+ident :: { ReaderId }
+  : UPPER_IDENT  { $1 }
+  | LOWER_IDENT  { $1 }
+
+label :: { Label }
+  : LOWER_IDENT  { $1 }
 
 {
 -- The monadic parser

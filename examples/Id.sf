@@ -1,3 +1,2 @@
-let id A (x : A) = x
-in
+let id[A] (x : A) = x;
 id [forall A. A -> A] id 10
