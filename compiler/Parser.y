@@ -207,7 +207,7 @@ comma_tvars1 :: { [ReaderId] }
 
 expr :: { ReaderExpr }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
-    | "\\" arg "." expr                   { Lam $2 $4 }
+    | "\\" param "." expr                   { Lam $2 $4 }
     | "let" recflag and_binds "in" expr   { Let $2 $3 $5 }
     | "let" recflag and_binds ";"  expr   { Let $2 $3 $5 }
 
@@ -328,10 +328,10 @@ recordlit_body :: { [(Label, ReaderExpr)] }
   | label "=" expr "," recordlit_body  { ($1, $3):$5 }
 
 bind :: { ReaderBind }
-    : var tvars args maybe_sig "=" expr
+    : var tvars params maybe_sig "=" expr
         { Bind { bindId       = $1
-               , bindTargs    = $2
-               , bindArgs     = $3
+               , bindTyParams    = $2
+               , bindParams     = $3
                , bindRhs      = $6
                , bindRhsAnnot = $4
                }
@@ -370,14 +370,14 @@ patterns :: { [Alt ReaderId Type] }
 pattern :: { Alt ReaderId Type}
     : constr_name vars "->" expr { ConstrAlt (Constructor $1 []) $2 $4 }
 
-arg :: { (ReaderId, ReaderType) }
+param :: { (ReaderId, ReaderType) }
     : "(" var ":" type ")"       { ($2, $4) }
     | "()"                       { ("_", Unit) }
-    | "(" arg ")"                { $2 }
+    | "(" param ")"                { $2 }
 
-args :: { [(ReaderId, ReaderType)] }
+params :: { [(ReaderId, ReaderType)] }
     : {- empty -}               { []    }
-    | arg args  { $1:$2 }
+    | param params  { $1:$2 }
 
 var :: { ReaderId }
     : LOWERID           { $1 }

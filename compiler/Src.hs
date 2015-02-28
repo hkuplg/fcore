@@ -169,8 +169,8 @@ data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
 
 data Bind id ty = Bind
   { bindId       :: id             -- Identifier
-  , bindTargs    :: [Name]         -- Type arguments
-  , bindArgs     :: [(Name, Type)] -- Arguments, each annotated with a type
+  , bindTyParams :: [Name]         -- Type arguments
+  , bindParams   :: [(Name, Type)] -- Arguments, each annotated with a type
   , bindRhs      :: Expr id ty     -- RHS to the "="
   , bindRhsAnnot :: Maybe Type     -- Type of the RHS
   } deriving (Eq, Show)
@@ -459,8 +459,8 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
   pretty Bind{..} =
     pretty bindId <+>
-    hsep (map pretty bindTargs) <+>
-    hsep (map (\(x,t) -> parens (pretty x <+> colon <+> pretty t)) bindArgs) <+>
+    hsep (map pretty bindTyParams) <+>
+    hsep (map (\(x,t) -> parens (pretty x <+> colon <+> pretty t)) bindParams) <+>
     case bindRhsAnnot of { Nothing -> empty; Just t -> colon <+> pretty t } <+>
     equals <+>
     pretty bindRhs
