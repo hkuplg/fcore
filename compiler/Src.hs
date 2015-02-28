@@ -127,8 +127,8 @@ data Expr id ty
   | Seq [Expr id ty]
   | PolyList [Expr id ty] ty
   | Merge (Expr id ty) (Expr id ty)
-  | RecordIntro [(Label, Expr id ty)]
-  | RecordElim (Expr id ty) Label
+  | RecordCon [(Label, Expr id ty)]
+  | RecordProj (Expr id ty) Label
   | RecordUpdate (Expr id ty) [(Label, Expr id ty)]
   | LetModule (Module id ty) (Expr id ty)
   | ModuleAccess Name Name
@@ -448,7 +448,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (PolyList l _)    = brackets . hcat . intersperse comma $ map pretty l
   pretty (JProxyCall jmethod t) = pretty jmethod
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
-  pretty (RecordIntro fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
+  pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty (Data n tvars cons e) = text "data" <+> intersperseSpace (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>
                            pretty e
 

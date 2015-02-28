@@ -273,7 +273,7 @@ aexpr :: { ReaderExpr }
     | module_name "." ident     { ModuleAccess $1 $3 }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 }
-    | "{" recordlit_body "}"    { RecordIntro $2 }
+    | "{" recordlit_body "}"    { RecordCon $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
     | "new" List "<" type ">" "()"  {PolyList [] $4}
     | "new" List "<" type ">" "(" comma_exprs0 ")"  {PolyList $7 $4}
