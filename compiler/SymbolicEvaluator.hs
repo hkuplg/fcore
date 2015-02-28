@@ -1,7 +1,7 @@
 {- |
 Module      :  SymbolicEvaluator
 Description :  Symbolic evaluator for Core
-Copyright   :  (c) 2014-2015 HKU
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
 Maintainer  :  Weixin <zhangweixinxd@gmail.com>

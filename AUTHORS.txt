@@ -1,0 +1,12 @@
+F2J was written by these people:
+
+Boya Peng <u3502350@connect.hku.hk>
+Bruno C. d. S. Oliveira <bruno@cs.hku.hk>
+Haoyuan Zhang <zhanghaoyuan00@gmail.com>
+Huang Li <lihuanglx@gmail.com>
+Ningning Xie <aphasia1014@gmail.com>
+Tomas Tauber <tomtau@connect.hku.hk>
+Weixin Zhang <zhangweixinxd@gmail.com>
+Xuan Bi <bixuanxbi@gmail.com>
+Zhenrui Zhang <jerryzh@zju.edu.cn>
+Zhiyuan Shi <zhiyuan.shi@gmail.com>

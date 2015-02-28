@@ -9,7 +9,7 @@
 {- |
 Module      :  StackTransCFJava
 Description :  Translation of FCore to Java with Stack-opt
-Copyright   :  (c) 2014-2015 HKU
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
 Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Tomas <tomtau@connect.hku.hk>
