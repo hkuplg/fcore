@@ -3,7 +3,7 @@
 {- |
 Module      :  TypeCheck
 Description :  Type checker for the source language.
-Copyright   :  (c) 2014-2015 HKU
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
 Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>

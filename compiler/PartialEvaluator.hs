@@ -2,7 +2,7 @@
 {- |
 Module      :  PartialEvaluator
 Description :  Partial evaluation of FCore
-Copyright   :  (c) 2014-2015 HKU
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
 Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Weixin <zhangweixinxd@gmail.com>
