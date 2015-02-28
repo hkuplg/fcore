@@ -1,5 +1,6 @@
 {
 {-# LANGUAGE RecordWildCards #-}
+
 {- |
 Module      :  Parser
 Description :  Parser for the source language.
@@ -123,24 +124,35 @@ import JavaUtils
 -- Note: There are times when it is more convenient to parse a more general
 -- language than that which is actually intended, and check it later.
 
--- The parser rules of GHC may come in handy:
--- https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
+-- Parsers of different languages:
+-- Haskell (GHC):  https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
+-- Rust:           https://github.com/rust-lang/rust/blob/master/src/grammar/parser-lalr.y
 
+------------------------------------------------------------------------
 -- Modules
+------------------------------------------------------------------------
+
 module :: { ReaderModule }
   : "module" module_name "{" semi_binds "}"  { Module $2 $4 }
 
 module_name :: { ReaderId }
   : UPPERID  { $1 }
 
-constr_name :: { ReaderId }
-  : tvar  { $1 }
-
+------------------------------------------------------------------------
 -- Types
+------------------------------------------------------------------------
 
 type :: { ReaderType }
   : "forall" tvar "." type   { Forall $2 $4 }
   | monotype                 { $1 }
+
+types :: { [Type] }
+  : {- empty -}              { [] }
+  | atype types              { $1:$2 }
+
+comma_types1 :: { [Type] }
+    : type                    { [$1]  }
+    | type "," comma_types1   { $1:$3 }
 
 monotype :: { ReaderType }
   : intertype "->" monotype  { Fun $1 $3 }
@@ -177,31 +189,21 @@ record_body :: { [(Label, ReaderType)] }
 label :: { Label }
   : LOWERID                  { $1 }
 
-comma_tvars1 :: { [ReaderId] }
-  : tvar                     { [$1]  }
-  | tvar "," comma_tvars1    { $1:$3 }
+tvar :: { ReaderId }
+  : UPPERID                  { $1 }
 
 tvars :: { [ReaderId] }
   : {- empty -}              { []    }
   | tvar tvars               { $1:$2 }
   | "[" comma_tvars1 "]"     { $2 }
 
-tvar :: { ReaderId }
-  : UPPERID                  { $1 }
+comma_tvars1 :: { [ReaderId] }
+  : tvar                     { [$1]  }
+  | tvar "," comma_tvars1    { $1:$3 }
 
-vars :: { [ReaderId] }
-  : {- empty -}              { []    }
-  | var vars                 { $1:$2 }
-
-types :: { [Type] }
-  : {- empty -}              { [] }
-  | atype types              { $1:$2 }
-
-comma_types1 :: { [Type] }
-    : type                    { [$1]  }
-    | type "," comma_types1   { $1:$3 }
-
+------------------------------------------------------------------------
 -- Expressions
+------------------------------------------------------------------------
 
 expr :: { ReaderExpr }
     : "/\\" tvar "." expr                 { BLam $2 $4  }
@@ -219,6 +221,22 @@ expr :: { ReaderExpr }
     | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
     | module expr                   { LetModule $1 $2 }
+
+semi_exprs :: { [ReaderExpr] }
+           : expr                { [$1] }
+           | expr ";" semi_exprs { $1:$3 }
+
+comma_exprs0 :: { [ReaderExpr] }
+    : {- empty -}             { []    }
+    | comma_exprs1            { $1    }
+
+comma_exprs1 :: { [ReaderExpr] }
+    : expr                    { [$1]  }
+    | expr "," comma_exprs1   { $1:$3 }
+
+comma_exprs2 :: { [ReaderExpr] }
+    : expr "," expr           { [$1,$3]  }
+    | expr "," comma_exprs2   { $1:$3    }
 
 infixexpr :: { ReaderExpr }
     : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
@@ -263,12 +281,9 @@ aexpr :: { ReaderExpr }
     | "{" constr_name aexprs "}"{ ConstrTemp $2 [] $3 }
     | "(" expr ")"              { $2 }
 
-lit :: { ReaderExpr }
-    : INT                       { Lit (Int $1)    }
-    | STRING                    { Lit (String $1) }
-    | BOOL                      { Lit (Bool $1)   }
-    | CHAR                      { Lit (Char $1)   }
-    | "()"                      { Lit UnitLit     }
+aexprs :: { [ReaderExpr] }
+    :  {- empty -}            { [] }
+    | aexpr aexprs            { $1:$2 }
 
 javaexpr :: { ReaderExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
@@ -301,29 +316,16 @@ javaexpr :: { ReaderExpr }
     -- Is this possible?
     -- | aexpr "." UPPERID                    { Dot $1 $3 Nothing }
 
+lit :: { ReaderExpr }
+    : INT                       { Lit (Int $1)    }
+    | STRING                    { Lit (String $1) }
+    | BOOL                      { Lit (Bool $1)   }
+    | CHAR                      { Lit (Char $1)   }
+    | "()"                      { Lit UnitLit     }
+
 recordlit_body :: { [(Label, ReaderExpr)] }
   : label "=" expr                     { [($1, $3)]  }
   | label "=" expr "," recordlit_body  { ($1, $3):$5 }
-
-semi_exprs :: { [ReaderExpr] }
-           : expr                { [$1] }
-           | expr ";" semi_exprs { $1:$3 }
-
-comma_exprs0 :: { [ReaderExpr] }
-    : {- empty -}             { []    }
-    | comma_exprs1            { $1    }
-
-comma_exprs1 :: { [ReaderExpr] }
-    : expr                    { [$1]  }
-    | expr "," comma_exprs1   { $1:$3 }
-
-comma_exprs2 :: { [ReaderExpr] }
-    : expr "," expr           { [$1,$3]  }
-    | expr "," comma_exprs2   { $1:$3    }
-
-aexprs :: { [ReaderExpr] }
-    :  {- empty -}            { [] }
-    | aexpr aexprs            { $1:$2 }
 
 bind :: { ReaderBind }
     : var tvars args maybe_sig "=" expr
@@ -335,10 +337,6 @@ bind :: { ReaderBind }
                }
         }
 
-maybe_sig :: { Maybe ReaderType }
-  : ":" type     { Just $2 }
-  | {- empty -} { Nothing }
-
 and_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
@@ -347,9 +345,30 @@ semi_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
     | bind ";" and_binds      { $1:$3 }
 
+maybe_sig :: { Maybe ReaderType }
+  : ":" type     { Just $2 }
+  | {- empty -} { Nothing }
+
 recflag :: { RecFlag }
   : "rec"       { Rec }
   | {- empty -} { NonRec }
+
+constrs_decl :: { [Constructor] }
+    : constr_decl { [$1] }
+    | constr_decl "|" constrs_decl { $1:$3 }
+
+constr_decl :: { Constructor }
+    : constr_name types { Constructor $1 $2 }
+
+constr_name :: { ReaderId }
+  : tvar  { $1 }
+
+patterns :: { [Alt ReaderId Type] }
+    : pattern { [$1] }
+    | pattern "|" patterns { $1:$3 }
+
+pattern :: { Alt ReaderId Type}
+    : constr_name vars "->" expr { ConstrAlt (Constructor $1 []) $2 $4 }
 
 arg :: { (ReaderId, ReaderType) }
     : "(" var ":" type ")"       { ($2, $4) }
@@ -363,19 +382,9 @@ args :: { [(ReaderId, ReaderType)] }
 var :: { ReaderId }
     : LOWERID           { $1 }
 
-constrs_decl :: { [Constructor] }
-    : constr_decl { [$1] }
-    | constr_decl "|" constrs_decl { $1:$3 }
-
-constr_decl :: { Constructor }
-    : constr_name types { Constructor $1 $2 }
-
-patterns :: { [Alt ReaderId Type] }
-    : pattern { [$1] }
-    | pattern "|" patterns { $1:$3 }
-
-pattern :: { Alt ReaderId Type}
-    : constr_name vars "->" expr { ConstrAlt (Constructor $1 []) $2 $4 }
+vars :: { [ReaderId] }
+  : {- empty -}              { []    }
+  | var vars                 { $1:$2 }
 
 {
 -- The monadic parser
