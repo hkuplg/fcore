@@ -1,5 +1,6 @@
 {
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+
 {- |
 Module      :  Lexer
 Description :  Lexer for F2J
@@ -9,6 +10,10 @@ License     :  BSD3
 Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
 Stability   :  experimental
 Portability :  portable
+
+References:
+[1] https://www.haskell.org/happy/doc/happy.pdf
+[2] https://github.com/ghc/ghc/blob/master/compiler/parser/Lexer.x
 -}
 
 module Lexer

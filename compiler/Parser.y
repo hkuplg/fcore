@@ -104,7 +104,7 @@ import JavaUtils
 -- Precedence and associativity directives
 %nonassoc EOF
 
-%right "in"
+%right ";"
 %right "->"
 %nonassoc "else"
 

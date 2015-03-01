@@ -785,10 +785,10 @@ unwrapJCallee (NonStatic c) = (False, c)
 unwrapJCallee (Static    c) = (True, c)
 
 srcLitType :: Lit -> Type
-srcLitType (Int _)    = JType $ JClass "java.lang.Integer"
-srcLitType (String _) = JType $ JClass "java.lang.String"
-srcLitType (Bool _)   = JType $ JClass "java.lang.Boolean"
-srcLitType (Char _)   = JType $ JClass "java.lang.Character"
+srcLitType (Int _)    = JType (JClass "java.lang.Integer")
+srcLitType (String _) = JType (JClass "java.lang.String")
+srcLitType (Bool _)   = JType (JClass "java.lang.Boolean")
+srcLitType (Char _)   = JType (JClass "java.lang.Character")
 srcLitType UnitLit    = Unit
 
 checkDupNames :: [Name] -> Checker ()
