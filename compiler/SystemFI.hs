@@ -101,8 +101,8 @@ data Expr t e
   | Seq [Expr t e]
 
   | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
-  | RecordIntro    (Src.Label, Expr t e)
-  | RecordElim   (Expr t e) Src.Label
+  | RecordCon    (Src.Label, Expr t e)
+  | RecordProj   (Expr t e) Src.Label
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
 
   | Data Src.ReaderId [Src.ReaderId] [Constructor t] (Expr t e)
@@ -172,8 +172,8 @@ mapVar g h (PolyList es t)           = PolyList (map (mapVar g h) es) (h t)
 mapVar g h (JProxyCall jmethod t)    = JProxyCall (mapVar g h jmethod) (h t)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
-mapVar g h (RecordIntro (l, e))      = RecordIntro (l, mapVar g h e)
-mapVar g h (RecordElim e l)          = RecordElim (mapVar g h e) l
+mapVar g h (RecordCon (l, e))        = RecordCon (l, mapVar g h e)
+mapVar g h (RecordProj e l)          = RecordProj (mapVar g h e) l
 mapVar g h (RecordUpdate e (l1,e1))  = RecordUpdate (mapVar g h e) (l1, mapVar g h e1)
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
@@ -353,9 +353,9 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
 prettyExpr' p (i,j) (Merge e1 e2) =
   parens $ prettyExpr' p (i,j) e1 <+> dcomma <+> prettyExpr' p (i,j) e2
 
-prettyExpr' _ (i,j) (RecordIntro (l, e))       = lbrace <+> text l <+> equals <+> prettyExpr' basePrec (i,j) e <+> rbrace
-prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> text l
-prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordIntro (l, e1))
+prettyExpr' _ (i,j) (RecordCon (l, e))       = lbrace <+> text l <+> equals <+> prettyExpr' basePrec (i,j) e <+> rbrace
+prettyExpr' p (i,j) (RecordProj e l)         = prettyExpr' p (i,j) e <> dot <> text l
+prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordCon (l, e1))
 
 prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
 

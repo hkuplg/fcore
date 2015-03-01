@@ -2,5 +2,5 @@
 
 let max (a : Int) (b : Int) : Int =
     if a > b then a else b
-in
+;
 max 7 4

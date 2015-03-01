@@ -147,8 +147,8 @@ infer' _    _ _ (FI.PolyList _ t)      = FI.ListOf t
 infer' _    _ _ (FI.JProxyCall jmethod t) = t
 infer' this i j (FI.Seq es)            = this i j (last es)
 infer' this i j (FI.Merge e1 e2)       = FI.And (this i j e1) (this i j e2)
-infer' this i j (FI.RecordIntro (l,e)) = FI.Record (l, this i j e)
-infer' this i j (FI.RecordElim e l1)   = t1 where Just (t1,_) = getter i j (this i j e) l1
+infer' this i j (FI.RecordCon (l,e))   = FI.Record (l, this i j e)
+infer' this i j (FI.RecordProj e l1)   = t1 where Just (t1,_) = getter i j (this i j e) l1
 infer' this i j (FI.RecordUpdate e _)  = this i j e
 infer' this i j (FI.Data _ _ _ e)      = this i j e
 infer' this i j (FI.Case _ alts)       = inferAlt $ head alts
@@ -243,8 +243,8 @@ transExpr' _ this i j (FI.JMethod callee m args ret)
 transExpr' _ this i j (FI.JField callee m ret)        = JField (fmap (snd . this i j) callee) m ret
 transExpr' _ this i j (FI.Seq es)                     = Seq (snd (unzip (map (this i j) es)))
 transExpr' _ this i j (FI.Merge e1 e2)                = Tuple [snd (this i j e1), snd (this i j e2)]
-transExpr' _ this i j (FI.RecordIntro (_,e))          = snd (this i j e)
-transExpr' super this i j (FI.RecordElim e l1)        = App c (snd (this i j e)) where Just (_,c) = getter i j (super i j e) l1
+transExpr' _ this i j (FI.RecordCon (_,e))            = snd (this i j e)
+transExpr' super this i j (FI.RecordProj e l1)        = App c (snd (this i j e)) where Just (_,c) = getter i j (super i j e) l1
 transExpr' super this i j (FI.RecordUpdate e (l1,e1)) = App c (snd (this i j e)) where Just (_,c) = putter i j (super i j e) l1 (snd (this i j e1))
 
 transExpr :: Index -> Index -> FI.Expr Index (Index, FI.Type Index) -> (FI.Type Index, Expr Index Index)

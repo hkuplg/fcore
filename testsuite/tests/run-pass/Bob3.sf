@@ -1,4 +1,4 @@
 --> Haskell
 
-(\(bob : {language:String}). bob.language)
+(\(bob : {language:String}) -> bob.language)
   { name = "Bob", age = 30, language = "Haskell" }

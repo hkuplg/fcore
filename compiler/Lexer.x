@@ -1,5 +1,6 @@
 {
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+
 {- |
 Module      :  Lexer
 Description :  Lexer for F2J
@@ -9,11 +10,17 @@ License     :  BSD3
 Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
 Stability   :  experimental
 Portability :  portable
+
+References:
+[1] https://www.haskell.org/happy/doc/happy.pdf
+[2] https://github.com/ghc/ghc/blob/master/compiler/parser/Lexer.x
 -}
 
 module Lexer
     ( lexer
     , Token(..)
+    , Located(..)
+    , getLocation
     ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
@@ -34,96 +41,94 @@ tokens :-
     "--".*      ;
     "//".*      ;
 
-    \(          { \_ _ -> Toparen }
-    \)          { \_ _ -> Tcparen }
-    \[          { \_ _ -> Tobrack}
-    \]          { \_ _ -> Tcbrack}
-    \::         { \_ _ -> Tdcolon}
-    \{          { \_ _ -> Tocurly }
-    \}          { \_ _ -> Tccurly }
-    \/\\        { \_ _ -> Ttlam }
-    \\          { \_ _ -> Tlam }
-    \:          { \_ _ -> Tcolon }
-    \;          { \_ _ -> Tsemi }
-    forall      { \_ _ -> Tforall }
-    \-\>        { \_ _ -> Tarrow }
-    \.          { \_ _ -> Tdot }
-    \&          { \_ _ -> Tandtype }
-    \,\,        { \_ _ -> Tmerge }
-    with        { \_ _ -> Twith }
-    \'          { \_ _ -> Tquote }
-    -- this        { \_ _ -> Tthis }
-    -- super       { \_ _ -> Tsuper }
-    type        { \_ _ -> Ttype }
-    let         { \_ _ -> Tlet }
-    rec         { \_ _ -> Trec }
-    \=          { \_ _ -> Teq }
-    and         { \_ _ -> Tand }
-    in          { \_ _ -> Tin }
-    Int         { \_ _ -> Tjavaclass "java.lang.Integer" }
-    String      { \_ _ -> Tjavaclass "java.lang.String" }
-    Bool        { \_ _ -> Tjavaclass "java.lang.Boolean" }
-    Char        { \_ _ -> Tjavaclass "java.lang.Character" }
-    Float       { \_ _ -> Tjavaclass "java.lang.Float" }
-    Double      { \_ _ -> Tjavaclass "java.lang.Double" }
-    List        { \_ _ -> Tlist}
-    Tree        { \_ _ -> Tjavaclass "f2j.FunctionalTree" }
-    if          { \_ _ -> Tif }
-    then        { \_ _ -> Tthen }
-    else        { \_ _ -> Telse }
-    \,          { \_ _ -> Tcomma }
-    new         { \_ _ -> Tnew }
-    module      { \_ _ -> Tmodule }
-    data        { \_ _ -> Tdata }
-    \|          { \_ _ -> Tbar }
-    case        { \_ _ -> Tcase }
-    of          { \_ _ -> Tof }
-    end         { \_ _ -> Tend }
+    \(          { locate (\_ _ -> Toparen) }
+    \)          { locate (\_ _ -> Tcparen) }
+    \[          { locate (\_ _ -> Tobrack) }
+    \]          { locate (\_ _ -> Tcbrack) }
+    \::         { locate (\_ _ -> Tdcolon) }
+    \{          { locate (\_ _ -> Tocurly) }
+    \}          { locate (\_ _ -> Tccurly) }
+    \/\\        { locate (\_ _ -> Ttlam) }
+    \\          { locate (\_ _ -> Tlam) }
+    \:          { locate (\_ _ -> Tcolon) }
+    \;          { locate (\_ _ -> Tsemi) }
+    forall      { locate (\_ _ -> Tforall) }
+    \-\>        { locate (\_ _ -> Tarrow) }
+    \.          { locate (\_ _ -> Tdot) }
+    \&          { locate (\_ _ -> Tandtype) }
+    \,\,        { locate (\_ _ -> Tmerge) }
+    with        { locate (\_ _ -> Twith) }
+    \'          { locate (\_ _ -> Tquote) }
+    -- this     { locate (\_ _ -> Tthis) }
+    -- super    { locate (\_ _ -> Tsuper) }
+    type        { locate (\_ _ -> Ttype) }
+    let         { locate (\_ _ -> Tlet) }
+    rec         { locate (\_ _ -> Trec) }
+    \=          { locate (\_ _ -> Teq) }
+    and         { locate (\_ _ -> Tand) }
+    Int         { locate (\_ _ -> Tjavaclass "java.lang.Integer") }
+    String      { locate (\_ _ -> Tjavaclass "java.lang.String") }
+    Bool        { locate (\_ _ -> Tjavaclass "java.lang.Boolean") }
+    Char        { locate (\_ _ -> Tjavaclass "java.lang.Character") }
+    Float       { locate (\_ _ -> Tjavaclass "java.lang.Float") }
+    Double      { locate (\_ _ -> Tjavaclass "java.lang.Double") }
+    List        { locate (\_ _ -> Tlist) }
+    Tree        { locate (\_ _ -> Tjavaclass "f2j.FunctionalTree") }
+    if          { locate (\_ _ -> Tif) }
+    then        { locate (\_ _ -> Tthen) }
+    else        { locate (\_ _ -> Telse) }
+    \,          { locate (\_ _ -> Tcomma) }
+    new         { locate (\_ _ -> Tnew) }
+    module      { locate (\_ _ -> Tmodule) }
+    data        { locate (\_ _ -> Tdata) }
+    \|          { locate (\_ _ -> Tbar) }
+    case        { locate (\_ _ -> Tcase) }
+    of          { locate (\_ _ -> Tof) }
 
     -- Literals
-    $digit+                { \_ s -> Tint (read s) }
-    \"($printable # \")*\" { \_ s -> Tstring (init $ tail s) }
-    \'($printable # \')\'  { \_ s -> Tchar (s !! 1) }
-    True                   { \_ s -> Tbool True}
-    False                  { \_ s -> Tbool False}
-    Empty                  { \_ _ -> Temptytree}
-    Fork                   { \_ _ -> Tnonemptytree }
-    head                   { \_ _ -> Tlisthead}
-    tail                   { \_ _ -> Tlisttail}
-    cons                   { \_ _ -> Tlistcons}
-    isNil                  { \_ _ -> Tlistisnil}
-    length                 { \_ _ -> Tlistlength}
-    \(\)                   { \_ _ -> Tunitlit }
-    Unit                   { \_ _ -> Tunit }
+    $digit+                { locate (\_ s -> Tint (read s)) }
+    \"($printable # \")*\" { locate (\_ s -> Tstring (init $ tail s)) }
+    \'($printable # \')\'  { locate (\_ s -> Tchar (s !! 1)) }
+    True                   { locate (\_ s -> Tbool True) }
+    False                  { locate (\_ s -> Tbool False) }
+    Empty                  { locate (\_ _ -> Temptytree) }
+    Fork                   { locate (\_ _ -> Tnonemptytree ) }
+    head                   { locate (\_ _ -> Tlisthead) }
+    tail                   { locate (\_ _ -> Tlisttail) }
+    cons                   { locate (\_ _ -> Tlistcons) }
+    isNil                  { locate (\_ _ -> Tlistisnil) }
+    length                 { locate (\_ _ -> Tlistlength) }
+    \(\)                   { locate (\_ _ -> Tunitlit ) }
+    Unit                   { locate (\_ _ -> Tunit) }
 
     -- java.package.path.Classname
-    ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { \_ s -> Tjavaclass s }
+    ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { locate (\_ s -> Tjavaclass s) }
 
     -- ID
-    [A-Z] [$vchar]*     { \_ s -> Tupperid s }
-    [a-z] [$vchar]*     { \_ s -> Tlowerid s }
-    \_ $digit+          { \_ s -> Tunderid (read (tail s))  }
+    [A-Z] [$vchar]*     { locate (\_ s -> Tupperid s) }
+    [a-z] [$vchar]*     { locate (\_ s -> Tlowerid s) }
+    \_ $digit+          { locate (\_ s -> Tunderid (read (tail s))) }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
-    \*          { \_ _ -> Tprimop J.Mult   }
-    \/          { \_ _ -> Tprimop J.Div    }
-    \%          { \_ _ -> Tprimop J.Rem    }
-    \+          { \_ _ -> Tprimop J.Add    }
-    \-          { \_ _ -> Tprimop J.Sub    }
-    \<          { \_ _ -> Tprimop J.LThan  }
-    \<\=        { \_ _ -> Tprimop J.LThanE }
-    \>          { \_ _ -> Tprimop J.GThan  }
-    \>\=        { \_ _ -> Tprimop J.GThanE }
-    \=\=        { \_ _ -> Tprimop J.Equal  }
-    \!\=        { \_ _ -> Tprimop J.NotEq  }
-    \&\&        { \_ _ -> Tprimop J.CAnd   }
-    \|\|        { \_ _ -> Tprimop J.COr    }
+    \*          { locate (\_ _ -> Tprimop J.Mult   ) }
+    \/          { locate (\_ _ -> Tprimop J.Div    ) }
+    \%          { locate (\_ _ -> Tprimop J.Rem    ) }
+    \+          { locate (\_ _ -> Tprimop J.Add    ) }
+    \-          { locate (\_ _ -> Tprimop J.Sub    ) }
+    \<          { locate (\_ _ -> Tprimop J.LThan  ) }
+    \<\=        { locate (\_ _ -> Tprimop J.LThanE ) }
+    \>          { locate (\_ _ -> Tprimop J.GThan  ) }
+    \>\=        { locate (\_ _ -> Tprimop J.GThanE ) }
+    \=\=        { locate (\_ _ -> Tprimop J.Equal  ) }
+    \!\=        { locate (\_ _ -> Tprimop J.NotEq  ) }
+    \&\&        { locate (\_ _ -> Tprimop J.CAnd   ) }
+    \|\|        { locate (\_ _ -> Tprimop J.COr    ) }
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote
            -- | Tthis | Tsuper
-           | Ttype | Tlet | Trec | Teq | Tand | Tin
+           | Ttype | Tlet | Trec | Teq | Tand
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
@@ -132,12 +137,23 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule | Tend
+           | Tmodule
            | Temptytree | Tnonemptytree
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
            | Tdata | Tcase | Tbar | Tof | Tto
            deriving (Eq, Show)
 
-lexer :: String -> [Token]
+data Located a = Located AlexPosn a
+
+getLocation :: Located a -> (Int, Int)
+getLocation (Located (AlexPn _ line col) _) = (line, col)
+
+-- Modify a normal rule inside { ... } so that it returns a *located* token.
+locate
+  :: (AlexPosn -> String -> Token)
+  -> (AlexPosn -> String -> Located Token)
+locate f = \p s -> Located p (f p s)
+
+lexer :: String -> [Located Token]
 lexer = alexScanTokens
 }

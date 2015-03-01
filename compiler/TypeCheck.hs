@@ -395,8 +395,8 @@ infer (Dot e x Nothing) =
   do (t, _) <- infer e
      case deThunkOnce t of
        JType (JClass _) -> infer (JField (NonStatic e) x undefined)
-       Record _         -> infer (RecordElim e x)
-       And _ _          -> infer (RecordElim e x)
+       Record _         -> infer (RecordProj e x)
+       And _ _          -> infer (RecordProj e x)
        _                -> throwError (NotMember x t)
 
 -- e.x ( )
@@ -411,8 +411,8 @@ infer (Dot e x (Just ([], UnitPossible))) =
   do (t, _) <- infer e
      case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
-       Record _         -> infer (App (RecordElim e x) (Lit UnitLit))
-       And _ _          -> infer (App (RecordElim e x) (Lit UnitLit))
+       Record _         -> infer (App (RecordProj e x) (Lit UnitLit))
+       And _ _          -> infer (App (RecordProj e x) (Lit UnitLit))
        _                -> throwError (NotMember x t)
 
 -- e.x (a)
@@ -420,8 +420,8 @@ infer (Dot e x (Just ([arg], _))) =
   do (t, _) <- infer e
      case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x [arg] undefined)
-       Record _         -> infer (App (RecordElim e x) arg)
-       And _ _          -> infer (App (RecordElim e x) arg)
+       Record _         -> infer (App (RecordProj e x) arg)
+       And _ _          -> infer (App (RecordProj e x) arg)
        _                -> throwError (NotMember x t)
 
 -- e.x (a,...)
@@ -429,8 +429,8 @@ infer (Dot e x (Just (args, _))) =
   do (t, _) <- infer e
      case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
-       Record _         -> infer (App (RecordElim e x) (Tuple args))
-       And _ _          -> infer (App (RecordElim e x) (Tuple args))
+       Record _         -> infer (App (RecordProj e x) (Tuple args))
+       And _ _          -> infer (App (RecordProj e x) (Tuple args))
        _                -> throwError (NotMember x t)
 
 -- JNew, JMethod, and JField
@@ -518,15 +518,15 @@ infer (JProxyCall jmethod t) =
             m <- infer jmethod
             return (ty, JProxyCall (snd m) ty)
 
-infer (RecordIntro fs) =
+infer (RecordCon fs) =
   do (ts, es') <- mapAndUnzipM infer (map snd fs)
      let fs' = zip (map fst fs) ts
-     return (foldl (\acc (l,t) -> And acc (Record [(l,t)])) (Record [head fs']) (tail fs'), RecordIntro (zip (map fst fs) es'))
+     return (foldl (\acc (l,t) -> And acc (Record [(l,t)])) (Record [head fs']) (tail fs'), RecordCon (zip (map fst fs) es'))
 
-infer (RecordElim e l) =
+infer (RecordProj e l) =
   do (t, e') <- infer e
      case Map.lookup l (recordFields t) of
-       Just t1 -> return (t1, RecordElim e' l)
+       Just t1 -> return (t1, RecordProj e' l)
        Nothing -> throwError (NotMember l t)
 
 infer (RecordUpdate e fs) =
@@ -537,9 +537,9 @@ infer (RecordUpdate e fs) =
 -- Well, I know the desugaring is too early to happen here...
 infer (LetModule (Module m binds) e) =
   do let fs = map bindId binds
-     let letrec = Let Rec binds (RecordIntro (map (\f -> (f, Var f)) fs))
+     let letrec = Let Rec binds (RecordCon (map (\f -> (f, Var f)) fs))
      infer $ Let NonRec [Bind m [] [] letrec Nothing] e
-infer (ModuleAccess m f) = infer (RecordElim (Var m) f)
+infer (ModuleAccess m f) = infer (RecordProj (Var m) f)
 
 -- Type synonyms: type T A1 ... An = t in e
 -- First make sure that A1 ... An are distinct.
@@ -678,21 +678,21 @@ inferAgainstAnyJClass expr
 normalizeBind :: ReaderBind -> Checker (Name, Type, CheckedExpr)
 normalizeBind bind
   = do bind' <- checkBindLHS bind
-       (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTargs bind')) $
-                                  do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindArgs bind')
+       (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
+                                  do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindParams bind')
                                      withLocalVars expandedBindArgs (infer (bindRhs bind'))
        case bindRhsAnnot bind' of
          Nothing -> return ( bindId bind'
-                           , wrap Forall (bindTargs bind') (wrap Fun (map snd (bindArgs bind')) bindRhsTy)
-                           , wrap BLam (bindTargs bind') (wrap Lam (bindArgs bind') bindRhs'))
+                           , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
+                           , wrap BLam (bindTyParams bind') (wrap Lam (bindParams bind') bindRhs'))
          Just annot ->
-           withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTargs bind')) $
+           withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
              do checkType annot
                 d <- getTypeContext
                 if alphaEq d annot bindRhsTy
                    then return (bindId bind'
-                               , wrap Forall (bindTargs bind') (wrap Fun (map snd (bindArgs bind')) bindRhsTy)
-                               , wrap BLam (bindTargs bind') (wrap Lam (bindArgs bind') bindRhs'))
+                               , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
+                               , wrap BLam (bindTyParams bind') (wrap Lam (bindParams bind') bindRhs'))
                    else throwError (TypeMismatch (expandType d annot) bindRhsTy)
 
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
@@ -700,15 +700,15 @@ normalizeBind bind
 -- Then check and expand the types of value params.
 checkBindLHS :: ReaderBind -> Checker ReaderBind
 checkBindLHS Bind{..}
-  = do checkDupNames bindTargs
-       checkDupNames (map fst bindArgs)
-       bindArgs' <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) bindTargs) $
+  = do checkDupNames bindTyParams
+       checkDupNames (map fst bindParams)
+       bindParams' <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) bindTyParams) $
                     -- Restriction: type params have kind *
                     do d <- getTypeContext
-                       forM bindArgs (\(x,t) ->
+                       forM bindParams (\(x,t) ->
                          do checkType t
                             return (x, expandType d t))
-       return Bind { bindArgs = bindArgs', .. }
+       return Bind { bindParams = bindParams', .. }
 
 collectBindIdSigs :: [ReaderBind] -> Checker [(Name, Type)]
 collectBindIdSigs
@@ -717,10 +717,10 @@ collectBindIdSigs
               Nothing    -> throwError MissingRHSAnnot
               Just rhsTy ->
                 do d <- getTypeContext
-                   let d' = foldr (\a acc -> Map.insert a (Star, TerminalType) acc) d bindTargs
+                   let d' = foldr (\a acc -> Map.insert a (Star, TerminalType) acc) d bindTyParams
                    return (bindId,
-                           wrap Forall bindTargs $
-                           wrap Fun [expandType d' ty |  (_,ty) <- bindArgs]
+                           wrap Forall bindTyParams $
+                           wrap Fun [expandType d' ty |  (_,ty) <- bindParams]
                            rhsTy))
 
 -- | Check that a type has kind *.
@@ -785,10 +785,10 @@ unwrapJCallee (NonStatic c) = (False, c)
 unwrapJCallee (Static    c) = (True, c)
 
 srcLitType :: Lit -> Type
-srcLitType (Int _)    = JType $ JClass "java.lang.Integer"
-srcLitType (String _) = JType $ JClass "java.lang.String"
-srcLitType (Bool _)   = JType $ JClass "java.lang.Boolean"
-srcLitType (Char _)   = JType $ JClass "java.lang.Character"
+srcLitType (Int _)    = JType (JClass "java.lang.Integer")
+srcLitType (String _) = JType (JClass "java.lang.String")
+srcLitType (Bool _)   = JType (JClass "java.lang.Boolean")
+srcLitType (Char _)   = JType (JClass "java.lang.Character")
 srcLitType UnitLit    = Unit
 
 checkDupNames :: [Name] -> Checker ()

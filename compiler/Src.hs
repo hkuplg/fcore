@@ -127,8 +127,8 @@ data Expr id ty
   | Seq [Expr id ty]
   | PolyList [Expr id ty] ty
   | Merge (Expr id ty) (Expr id ty)
-  | RecordIntro [(Label, Expr id ty)]
-  | RecordElim (Expr id ty) Label
+  | RecordCon [(Label, Expr id ty)]
+  | RecordProj (Expr id ty) Label
   | RecordUpdate (Expr id ty) [(Label, Expr id ty)]
   | LetModule (Module id ty) (Expr id ty)
   | ModuleAccess Name Name
@@ -169,8 +169,8 @@ data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
 
 data Bind id ty = Bind
   { bindId       :: id             -- Identifier
-  , bindTargs    :: [Name]         -- Type arguments
-  , bindArgs     :: [(Name, Type)] -- Arguments, each annotated with a type
+  , bindTyParams :: [Name]         -- Type arguments
+  , bindParams   :: [(Name, Type)] -- Arguments, each annotated with a type
   , bindRhs      :: Expr id ty     -- RHS to the "="
   , bindRhsAnnot :: Maybe Type     -- Type of the RHS
   } deriving (Eq, Show)
@@ -448,7 +448,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (PolyList l _)    = brackets . hcat . intersperse comma $ map pretty l
   pretty (JProxyCall jmethod t) = pretty jmethod
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
-  pretty (RecordIntro fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
+  pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty (Data n tvars cons e) = text "data" <+> intersperseSpace (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>
                            pretty e
 
@@ -459,8 +459,8 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
   pretty Bind{..} =
     pretty bindId <+>
-    hsep (map pretty bindTargs) <+>
-    hsep (map (\(x,t) -> parens (pretty x <+> colon <+> pretty t)) bindArgs) <+>
+    hsep (map pretty bindTyParams) <+>
+    hsep (map (\(x,t) -> parens (pretty x <+> colon <+> pretty t)) bindParams) <+>
     case bindRhsAnnot of { Nothing -> empty; Just t -> colon <+> pretty t } <+>
     equals <+>
     pretty bindRhs
