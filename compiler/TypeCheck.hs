@@ -681,7 +681,7 @@ normalizeBind bind
        (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
                                   do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindParams bind')
                                      withLocalVars expandedBindArgs (infer (bindRhs bind'))
-       case bindRhsAnnot bind' of
+       case bindRhsTyAscription bind' of
          Nothing -> return ( bindId bind'
                            , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                            , wrap BLam (bindTyParams bind') (wrap Lam (bindParams bind') bindRhs'))
@@ -713,7 +713,7 @@ checkBindLHS Bind{..}
 collectBindIdSigs :: [ReaderBind] -> Checker [(Name, Type)]
 collectBindIdSigs
   = mapM (\ Bind{..} ->
-            case bindRhsAnnot of
+            case bindRhsTyAscription of
               Nothing    -> throwError MissingRHSAnnot
               Just rhsTy ->
                 do d <- getTypeContext

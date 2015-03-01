@@ -172,7 +172,7 @@ data Bind id ty = Bind
   , bindTyParams :: [Name]         -- Type arguments
   , bindParams   :: [(Name, Type)] -- Arguments, each annotated with a type
   , bindRhs      :: Expr id ty     -- RHS to the "="
-  , bindRhsAnnot :: Maybe Type     -- Type of the RHS
+  , bindRhsTyAscription :: Maybe Type  -- Type annotation for the RHS
   } deriving (Eq, Show)
 
 type ReaderBind = Bind Name Type
@@ -461,7 +461,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
     pretty bindId <+>
     hsep (map pretty bindTyParams) <+>
     hsep (map (\(x,t) -> parens (pretty x <+> colon <+> pretty t)) bindParams) <+>
-    case bindRhsAnnot of { Nothing -> empty; Just t -> colon <+> pretty t } <+>
+    case bindRhsTyAscription of { Nothing -> empty; Just t -> colon <+> pretty t } <+>
     equals <+>
     pretty bindRhs
 

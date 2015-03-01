@@ -333,13 +333,14 @@ recordlit_body :: { [(Label, ReaderExpr)] }
   | label "=" expr "," recordlit_body  { ($1, $3):$5 }
 
 bind :: { ReaderBind }
-  : LOWER_IDENT ty_param_list_or_empty params maybe_sig "=" expr  { Bind { bindId       = $1
-                                                                         , bindTyParams = $2
-                                                                         , bindParams   = $3
-                                                                         , bindRhsAnnot = $4
-                                                                         , bindRhs      = $6
-                                                                         }
-                                                                  }
+  : LOWER_IDENT ty_param_list_or_empty params maybe_ty_ascription "=" expr
+  { Bind { bindId       = $1
+         , bindTyParams = $2
+         , bindParams   = $3
+         , bindRhsTyAscription = $4
+         , bindRhs      = $6
+         }
+  }
 
 and_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
@@ -349,7 +350,7 @@ semi_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
     | bind ";" and_binds      { $1:$3 }
 
-maybe_sig :: { Maybe ReaderType }
+maybe_ty_ascription :: { Maybe ReaderType }
   : ":" type     { Just $2 }
   | {- empty -} { Nothing }
 
