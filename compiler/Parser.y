@@ -227,10 +227,8 @@ expr :: { ReaderExpr }
     : "/\\" ty_params1 "->" expr         { foldr BLam (BLam (last $2) $4) (init $2) }
     | "\\" params1 "->" expr             { foldr Lam (Lam (last $2) $4) (init $2) }
     | "let" recflag and_binds ";"  expr  { Let $2 $3 $5 }
-
-    -- Type synonyms
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type ";"  expr  { Type $2 $3 $5 $7 }
-
+    | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type $2 $3 $5 $6 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | "data" ty_param ty_params "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
