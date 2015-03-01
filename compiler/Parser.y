@@ -23,82 +23,82 @@ import JavaUtils
 }
 
 %name parseExpr expr
-%tokentype { Token }
+%tokentype { Located Token }
 %monad     { P }
 %error     { parseError }
 
 %token
 
-  "("      { Toparen }
-  ")"      { Tcparen }
-  "["      { Tobrack }
-  "]"      { Tcbrack }
-  "::"     { Tdcolon }
-  "{"      { Tocurly }
-  "}"      { Tccurly }
-  "/\\"    { Ttlam }
-  "\\"     { Tlam }
-  ":"      { Tcolon }
-  ";"      { Tsemi }
-  "forall" { Tforall }
-  "->"     { Tarrow }
-  "."      { Tdot }
-  "&"      { Tandtype }
-  ",,"     { Tmerge }
-  "with"   { Twith }
-  "'"      { Tquote }
-  "type"   { Ttype }
-  "let"    { Tlet }
-  "rec"    { Trec }
-  "="      { Teq }
-  "and"    { Tand }
-  "if"     { Tif }
-  "then"   { Tthen }
-  "else"   { Telse }
-  ","      { Tcomma }
+  "("      { Located _ Toparen }
+  ")"      { Located _ Tcparen }
+  "["      { Located _ Tobrack }
+  "]"      { Located _ Tcbrack }
+  "::"     { Located _ Tdcolon }
+  "{"      { Located _ Tocurly }
+  "}"      { Located _ Tccurly }
+  "/\\"    { Located _ Ttlam }
+  "\\"     { Located _ Tlam }
+  ":"      { Located _ Tcolon }
+  ";"      { Located _ Tsemi }
+  "forall" { Located _ Tforall }
+  "->"     { Located _ Tarrow }
+  "."      { Located _ Tdot }
+  "&"      { Located _ Tandtype }
+  ",,"     { Located _ Tmerge }
+  "with"   { Located _ Twith }
+  "'"      { Located _ Tquote }
+  "type"   { Located _ Ttype }
+  "let"    { Located _ Tlet }
+  "rec"    { Located _ Trec }
+  "="      { Located _ Teq }
+  "and"    { Located _ Tand }
+  "if"     { Located _ Tif }
+  "then"   { Located _ Tthen }
+  "else"   { Located _ Telse }
+  ","      { Located _ Tcomma }
 
-  "data"   { Tdata }
-  "case"   { Tcase }
-  "|"      { Tbar }
-  "of"     { Tof }
+  "data"   { Located _ Tdata }
+  "case"   { Located _ Tcase }
+  "|"      { Located _ Tbar }
+  "of"     { Located _ Tof }
 
-  UPPER_IDENT  { Tupperid $$ }
-  LOWER_IDENT  { Tlowerid $$ }
-  UNDERID  { Tunderid $$ }
+  UPPER_IDENT  { Located _ (Tupperid $$) }
+  LOWER_IDENT  { Located _ (Tlowerid $$) }
+  UNDERID  { Located _ (Tunderid $$) }
 
-  JAVACLASS { Tjavaclass $$ }
-  "new"     { Tnew }
+  JAVACLASS { Located _ (Tjavaclass $$) }
+  "new"     { Located _ Tnew }
 
-  "module"  { Tmodule }
+  "module"  { Located _ Tmodule }
 
-  INT      { Tint $$ }
-  STRING   { Tstring $$ }
-  BOOL     { Tbool $$ }
-  Empty    { Temptytree }
-  Fork     { Tnonemptytree}
-  CHAR     { Tchar $$ }
-  "()"     { Tunitlit }
-  "Unit"   { Tunit }
-  List     { Tlist }
-  head     { Tlisthead }
-  tail     { Tlisttail }
-  cons     { Tlistcons }
-  isNil    { Tlistisnil }
-  length   { Tlistlength }
+  INT      { Located _ (Tint $$) }
+  STRING   { Located _ (Tstring $$) }
+  BOOL     { Located _ (Tbool $$) }
+  Empty    { Located _ Temptytree }
+  Fork     { Located _ Tnonemptytree}
+  CHAR     { Located _ (Tchar $$) }
+  "()"     { Located _ Tunitlit }
+  "Unit"   { Located _ Tunit }
+  List     { Located _ Tlist }
+  head     { Located _ Tlisthead }
+  tail     { Located _ Tlisttail }
+  cons     { Located _ Tlistcons }
+  isNil    { Located _ Tlistisnil }
+  length   { Located _ Tlistlength }
 
-  "*"      { Tprimop J.Mult   }
-  "/"      { Tprimop J.Div    }
-  "%"      { Tprimop J.Rem    }
-  "+"      { Tprimop J.Add    }
-  "-"      { Tprimop J.Sub    }
-  "<"      { Tprimop J.LThan  }
-  "<="     { Tprimop J.LThanE }
-  ">"      { Tprimop J.GThan  }
-  ">="     { Tprimop J.GThanE }
-  "=="     { Tprimop J.Equal  }
-  "!="     { Tprimop J.NotEq  }
-  "&&"     { Tprimop J.CAnd   }
-  "||"     { Tprimop J.COr    }
+  "*"      { Located _ (Tprimop J.Mult)   }
+  "/"      { Located _ (Tprimop J.Div)    }
+  "%"      { Located _ (Tprimop J.Rem)    }
+  "+"      { Located _ (Tprimop J.Add)    }
+  "-"      { Located _ (Tprimop J.Sub)    }
+  "<"      { Located _ (Tprimop J.LThan)  }
+  "<="     { Located _ (Tprimop J.LThanE) }
+  ">"      { Located _ (Tprimop J.GThan)  }
+  ">="     { Located _ (Tprimop J.GThanE) }
+  "=="     { Located _ (Tprimop J.Equal)  }
+  "!="     { Located _ (Tprimop J.NotEq)  }
+  "&&"     { Located _ (Tprimop J.CAnd)   }
+  "||"     { Located _ (Tprimop J.COr)    }
 
 
 -- Precedence and associativity directives
@@ -411,8 +411,10 @@ instance Monad P where
     PError msg >>= f = PError msg
     return x         = POk x
 
-parseError :: [Token] -> P a
-parseError tokens = PError ("Parse error before tokens:\n\t" ++ show tokens)
+parseError :: [Located Token] -> P a
+parseError []        = PError ("Parse error")
+parseError (token:_) = PError ("Parse error at " ++ show line ++ ":" ++ show col)
+  where (line, col) = getLocation token
 
 reader :: String -> ReaderExpr
 reader src = case (parseExpr . lexer) src of
