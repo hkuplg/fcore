@@ -1,2 +1,2 @@
-let itr = new java.text.StringCharacterIterator("")
-in itr.current() == java.text.CharacterIterator.DONE
+let itr = new java.text.StringCharacterIterator("");
+itr.current() == java.text.CharacterIterator.DONE
