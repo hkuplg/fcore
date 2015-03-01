@@ -51,7 +51,7 @@ transType i (FI.Forall n f)   = Forall n (\a -> transType (i + 1) $ FI.fsubstTT 
 transType i (FI.Product ts)   = Product (map (transType i) ts)
 transType _  FI.Unit          = Unit
 transType i (FI.And a1 a2)    = Product [transType i a1, transType i a2]
-transType i (FI.Record (_,t)) = transType i t
+transType i (FI.RecordType (_,t)) = transType i t
 transType i (FI.Datatype n ts ns) = Datatype n (map (transType i) ts) ns
 transType i (FI.ListOf t)      = ListOf (transType i t)
 
@@ -69,7 +69,7 @@ subtype' this i (FI.Product ss) (FI.Product ts)
 subtype' _    _  FI.Unit         FI.Unit        = True
 subtype' this i  t1            (FI.And t2 t3)  = this i t1 t2 && this i t1 t3
 subtype' this i (FI.And t1 t2) t3              = this i t1 t3 || this i t2 t3
-subtype' this i (FI.Record (l1,t1)) (FI.Record (l2,t2))
+subtype' this i (FI.RecordType (l1,t1)) (FI.RecordType (l2,t2))
   | l1 == l2                                  = this i t1 t2
   | otherwise                                 = False
 subtype' this i (FI.Datatype n1 ts1 _) (FI.Datatype n2 ts2 _)  = n1 == n2 && length ts1 == length ts2 && uncurry (this i) `all` zip ts1 ts2
@@ -113,7 +113,7 @@ coerce i (FI.And t1 t2) t3 =
       case coerce i t2 t3 of
         Nothing -> Nothing
         Just c  -> return (lam (transType i (FI.And t1 t2)) (App c . Proj 2 . var))
-coerce i (FI.Record (l1,t1)) (FI.Record (l2,t2)) | l1 == l2  = coerce i t1 t2
+coerce i (FI.RecordType (l1,t1)) (FI.RecordType (l2,t2)) | l1 == l2  = coerce i t1 t2
                                                | otherwise = Nothing
 coerce i d@(FI.Datatype n1 _ _) (FI.Datatype n2 _ _) -- TODO
     | n1 == n2  = return (lam (transType i d) var)
@@ -147,7 +147,7 @@ infer' _    _ _ (FI.PolyList _ t)      = FI.ListOf t
 infer' _    _ _ (FI.JProxyCall jmethod t) = t
 infer' this i j (FI.Seq es)            = this i j (last es)
 infer' this i j (FI.Merge e1 e2)       = FI.And (this i j e1) (this i j e2)
-infer' this i j (FI.RecordCon (l,e))   = FI.Record (l, this i j e)
+infer' this i j (FI.RecordCon (l,e))   = FI.RecordType (l, this i j e)
 infer' this i j (FI.RecordProj e l1)   = t1 where Just (t1,_) = getter i j (this i j e) l1
 infer' this i j (FI.RecordUpdate e _)  = this i j e
 infer' this i j (FI.Data _ _ _ e)      = this i j e
@@ -256,8 +256,8 @@ transExpr = new (infer' `with` transExpr'')
     transExpr'' super this i j e  = (super i j e, transExpr' super this i j e)
 
 getter :: Index -> Index -> FI.Type Index -> S.Label -> Maybe (FI.Type Index, Expr Index Index)
-getter i j (FI.Record (l,t)) l1
-  | l1 == l   = Just (t, lam (transType i (FI.Record (l,t))) var)
+getter i j (FI.RecordType (l,t)) l1
+  | l1 == l   = Just (t, lam (transType i (FI.RecordType (l,t))) var)
   | otherwise = Nothing
 getter i j (FI.And t1 t2) l
   = case getter i j t2 l of
@@ -271,8 +271,8 @@ getter i j (FI.And t1 t2) l
 getter _ _ _ _ = Nothing
 
 putter :: Index -> Index -> FI.Type Index -> S.Label -> Expr Index Index -> Maybe (FI.Type Index, Expr Index Index)
-putter i j (FI.Record (l,t)) l1 e
-  | l1 == l   = Just (t, Simplify.const (transType i (FI.Record (l,t))) e)
+putter i j (FI.RecordType (l,t)) l1 e
+  | l1 == l   = Just (t, Simplify.const (transType i (FI.RecordType (l,t))) e)
   | otherwise = Nothing
 putter i j (FI.And t1 t2) l e
   = case putter i j t2 l e of

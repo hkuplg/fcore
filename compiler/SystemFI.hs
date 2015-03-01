@@ -51,7 +51,7 @@ data Type t
   | Unit
 
   | And (Type t) (Type t)               -- t1 & t2
-  | Record (Src.Label, Type t)
+  | RecordType (Src.Label, Type t)
   | Datatype Src.ReaderId [Type t] [Src.ReaderId]
   | ListOf (Type t)
     -- Warning: If you ever add a case to this, you *must* also define the
@@ -142,7 +142,7 @@ mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
 mapTVar g (ListOf t)     = ListOf (mapTVar g t)
 mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
-mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
+mapTVar g (RecordType (l,t)) = RecordType (l, mapTVar g t)
 mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
 
 mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
@@ -194,7 +194,7 @@ joinType (Forall n g)     = Forall n (joinType . g . TVar "_") -- Right?
 joinType (Product ts)     = Product (map joinType ts)
 joinType  Unit            = Unit
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
-joinType (Record (l,t))   = Record (l, joinType t)
+joinType (RecordType (l,t))   = RecordType (l, joinType t)
 joinType (Datatype n ts ns)  = Datatype n (map joinType ts) ns
 joinType (ListOf t)       = ListOf (joinType t)
 
@@ -239,7 +239,7 @@ prettyType' p i (And t1 t2) =
      ampersand  <+>
      prettyType' (2,PrecPlus) i t2)
 
-prettyType' _ i (Record (l,t)) = lbrace <+> text l <+> colon <+> prettyType' basePrec i t <+> rbrace
+prettyType' _ i (RecordType (l,t)) = lbrace <+> text l <+> colon <+> prettyType' basePrec i t <+> rbrace
 
 -- instance Show (Expr Index Index) where
 --   show = show . pretty

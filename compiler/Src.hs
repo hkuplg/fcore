@@ -78,7 +78,7 @@ data Type
   | Product [Type]
   -- Extensions
   | And Type Type
-  | Record [(Label, Type)]
+  | RecordType [(Label, Type)]
   | Thunk Type
 
   -- Type synonyms
@@ -224,7 +224,7 @@ expandType _ Unit         = Unit
 expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
 expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalType) d) t)
 expandType d (Product ts) = Product (map (expandType d) ts)
-expandType d (Record fs)  = Record (map (second (expandType d)) fs)
+expandType d (RecordType fs)  = RecordType (map (second (expandType d)) fs)
 expandType d (ListOf t)   = ListOf (expandType d t)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
 expandType d (Thunk t)    = Thunk (expandType d t)
@@ -255,8 +255,8 @@ alphaEqS (JType c)      (JType d)      = c == d
 alphaEqS (Fun t1 t2)    (Fun t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4
 alphaEqS (Forall a1 t1) (Forall a2 t2) = alphaEqS (fsubstTT (a2, TVar a1) t2) t1
 alphaEqS (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEqS `all` zip ts1 ts2
-alphaEqS (Record [(l1,t1)]) (Record [(l2,t2)]) = l1 == l2 && alphaEqS t1 t2
-alphaEqS (Record fs1)   (Record fs2)           = alphaEqS (desugarMultiRecord fs1) (desugarMultiRecord fs2)
+alphaEqS (RecordType [(l1,t1)]) (RecordType [(l2,t2)]) = l1 == l2 && alphaEqS t1 t2
+alphaEqS (RecordType fs1)   (RecordType fs2)           = alphaEqS (desugarMultiRecordType fs1) (desugarMultiRecordType fs2)
 alphaEqS (ListOf t1)    (ListOf t2)    = alphaEqS t1 t2
 alphaEqS (And t1 t2)    (And t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4
 alphaEqS Unit           Unit           = True
@@ -281,8 +281,8 @@ subtypeS (JType c)      (JType d)              = c == d
 subtypeS (Fun t1 t2)    (Fun t3 t4)            = subtypeS t3 t1 && subtypeS t2 t4
 subtypeS (Forall a1 t1) (Forall a2 t2)         = subtypeS (fsubstTT (a1,TVar a2) t1) t2
 subtypeS (Product ts1)  (Product ts2)          = length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
-subtypeS (Record [(l1,t1)]) (Record [(l2,t2)]) = l1 == l2 && subtypeS t1 t2
-subtypeS (Record fs1)   (Record fs2)           = subtypeS (desugarMultiRecord fs1) (desugarMultiRecord fs2)
+subtypeS (RecordType [(l1,t1)]) (RecordType [(l2,t2)]) = l1 == l2 && subtypeS t1 t2
+subtypeS (RecordType fs1)   (RecordType fs2)           = subtypeS (desugarMultiRecordType fs1) (desugarMultiRecordType fs2)
 subtypeS (ListOf t1)    (ListOf t2)            = subtypeS t1 t2  -- List :: * -> * is covariant
 -- The order is significant for the two `And` cases below.
 subtypeS t1             (And t2 t3) = subtypeS t1 t2 && subtypeS t1 t3
@@ -296,19 +296,19 @@ subtypeS t1             t2          = False `panicOnSameDataCons` ("Src.subtypeS
 
 -- TODO: refactor the following two functions
 
-desugarRecord :: Type -> Type
-desugarRecord (Record [(l,t)]) = Record [(l,t)]
-desugarRecord (Record fs)      = desugarMultiRecord fs
-desugarRecord (And t1 t2)      = And (desugarRecord t1) (desugarRecord t2)
-desugarRecord t                = t
+desugarRecordType :: Type -> Type
+desugarRecordType (RecordType [(l,t)]) = RecordType [(l,t)]
+desugarRecordType (RecordType fs)      = desugarMultiRecordType fs
+desugarRecordType (And t1 t2)      = And (desugarRecordType t1) (desugarRecordType t2)
+desugarRecordType t                = t
 -- FIXME: incomplete cases
 
 
 
-desugarMultiRecord :: [(Label,Type)] -> Type
-desugarMultiRecord []         = panic "Src.desugarMultiRecordTy"
-desugarMultiRecord [(l,t)]    = Record [(l,t)]
-desugarMultiRecord ((l,t):fs) = Record [(l,t)] `And` desugarMultiRecord fs
+desugarMultiRecordType :: [(Label,Type)] -> Type
+desugarMultiRecordType []         = panic "Src.desugarMultiRecordTy"
+desugarMultiRecordType [(l,t)]    = RecordType [(l,t)]
+desugarMultiRecordType ((l,t):fs) = RecordType [(l,t)] `And` desugarMultiRecordType fs
 
 -- | Returns the record fields of a type. Note that a type does not have to be a
 -- record by itself in order for it to have fields. (See the second example
@@ -317,7 +317,7 @@ desugarMultiRecord ((l,t):fs) = Record [(l,t)] `And` desugarMultiRecord fs
 --   recordFields(String) = {}
 --   recordFields(String&{name:String, age:Int}) = {"name" => String, "age" => Int}
 recordFields :: Type -> Map.Map Label Type
-recordFields (Record fs) =
+recordFields (RecordType fs) =
   case intersectionBias of
     -- `Map.fromList` is right-biased.
     -- For example:
@@ -352,7 +352,7 @@ fsubstTT (x,r) (Forall a t)
   | otherwise                  = Forall a (fsubstTT (x,r) t)
 fsubstTT (x,r) (ListOf a)      = ListOf (fsubstTT (x,r) a)
 fsubstTT (_,_) Unit            = Unit
-fsubstTT (x,r) (Record fs)     = Record (map (second (fsubstTT (x,r))) fs)
+fsubstTT (x,r) (RecordType fs)     = RecordType (map (second (fsubstTT (x,r))) fs)
 fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Thunk t1)      = Thunk (fsubstTT (x,r) t1)
 fsubstTT (x,r) (OpAbs a t)
@@ -370,7 +370,7 @@ freeTVars Unit         = Set.empty
 freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
 freeTVars (Forall a t) = Set.delete a (freeTVars t)
 freeTVars (Product ts) = Set.unions (map freeTVars ts)
-freeTVars (Record fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
+freeTVars (RecordType fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
 freeTVars (ListOf t)   = freeTVars t
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
 freeTVars (Thunk t)    = freeTVars t
@@ -397,7 +397,7 @@ instance Pretty Type where
   pretty (Forall a t) = parens $ forall <+> text a <> dot <+> pretty t
   pretty (Product ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
   pretty (And t1 t2)  = pretty t1 <> text "&" <> pretty t2
-  pretty (Record fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
+  pretty (RecordType fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
   pretty (Thunk t)    = squote <> parens (pretty t)
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)

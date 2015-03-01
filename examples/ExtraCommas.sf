@@ -1,0 +1,2 @@
+type Order = { qty: Int, price: Double,};
+{qty = 100, price = 800,}.price

@@ -231,7 +231,7 @@ kind _  Unit        = return (Just Star)
 kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, TerminalType) d
 kind d (Product ts) = justStarIffAllHaveKindStar d ts
-kind d (Record fs)  = justStarIffAllHaveKindStar d (map snd fs)
+kind d (RecordType fs)  = justStarIffAllHaveKindStar d (map snd fs)
 kind d (ListOf t)   = kind d t
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Thunk t)    = kind d t
@@ -395,7 +395,7 @@ infer (Dot e x Nothing) =
   do (t, _) <- infer e
      case deThunkOnce t of
        JType (JClass _) -> infer (JField (NonStatic e) x undefined)
-       Record _         -> infer (RecordProj e x)
+       RecordType _         -> infer (RecordProj e x)
        And _ _          -> infer (RecordProj e x)
        _                -> throwError (NotMember x t)
 
@@ -411,7 +411,7 @@ infer (Dot e x (Just ([], UnitPossible))) =
   do (t, _) <- infer e
      case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x [] undefined)
-       Record _         -> infer (App (RecordProj e x) (Lit UnitLit))
+       RecordType _         -> infer (App (RecordProj e x) (Lit UnitLit))
        And _ _          -> infer (App (RecordProj e x) (Lit UnitLit))
        _                -> throwError (NotMember x t)
 
@@ -420,7 +420,7 @@ infer (Dot e x (Just ([arg], _))) =
   do (t, _) <- infer e
      case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x [arg] undefined)
-       Record _         -> infer (App (RecordProj e x) arg)
+       RecordType _         -> infer (App (RecordProj e x) arg)
        And _ _          -> infer (App (RecordProj e x) arg)
        _                -> throwError (NotMember x t)
 
@@ -429,7 +429,7 @@ infer (Dot e x (Just (args, _))) =
   do (t, _) <- infer e
      case deThunkOnce t of
        JType (JClass _) -> infer (JMethod (NonStatic e) x args undefined)
-       Record _         -> infer (App (RecordProj e x) (Tuple args))
+       RecordType _         -> infer (App (RecordProj e x) (Tuple args))
        And _ _          -> infer (App (RecordProj e x) (Tuple args))
        _                -> throwError (NotMember x t)
 
@@ -501,7 +501,7 @@ infer (JProxyCall (JNew c args) t) =
     else
         do ([t1, t2], expr') <- mapAndUnzipM infer args
            d <- getTypeContext
-           if ( alphaEq d (ListOf t1) t2)
+           if alphaEq d (ListOf t1) t2
              then return (t2, JProxyCall (JNew c expr') t2)
              else throwError $ TypeMismatch t1 t2
 
@@ -521,7 +521,7 @@ infer (JProxyCall jmethod t) =
 infer (RecordCon fs) =
   do (ts, es') <- mapAndUnzipM infer (map snd fs)
      let fs' = zip (map fst fs) ts
-     return (foldl (\acc (l,t) -> And acc (Record [(l,t)])) (Record [head fs']) (tail fs'), RecordCon (zip (map fst fs) es'))
+     return (foldl (\acc (l,t) -> And acc (RecordType [(l,t)])) (RecordType [head fs']) (tail fs'), RecordCon (zip (map fst fs) es'))
 
 infer (RecordProj e l) =
   do (t, e') <- infer e
