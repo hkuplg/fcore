@@ -1,10 +1,10 @@
-type Pair A B = (A, B);
-type PairInt A = Pair (Int, A);
+type Pair[A, B] = (A, B);
+type PairInt[A] = Pair[(Int, A)];
 
-type Point2D A = { x : A, y : A };
-type Point3D A = { x : A, y : A, z : A };
+type Point2D[A] = { x : A, y : A };
+type Point3D[A] = { x : A, y : A, z : A };
 
-let diff (p : Point2D Int) (q : Point2D Int) = (q.x - p.x, q.y - p.y);
+let diff (p : Point2D[Int]) (q : Point2D[Int]) = (q.x - p.x, q.y - p.y);
 
 let red = (255,0,0) and blue = (0,0,255);
 let origin = { x = 0, y = 0 } and vertex = { x = 6, y = 4 };

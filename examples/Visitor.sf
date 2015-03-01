@@ -1,17 +1,17 @@
-type ExpAlg E = { lit : Int -> E, add : E -> E -> E };
-type Exp = { accept : forall A. ExpAlg A -> A };
-let lit (n : Int) = { accept = /\A. \(f:{ lit : Int -> A, add : A -> A -> A }). f.lit n };
+type ExpAlg[E] = { lit : Int -> E, add : E -> E -> E };
+type Exp = { accept : forall A. ExpAlg[A] -> A };
+let lit (n : Int) = { accept = /\A -> \(f:{ lit : Int -> A, add : A -> A -> A }) -> f.lit n };
 let add (e1 : Exp) (e2 : Exp) =
-  { accept = /\A. \(f:{ lit : Int -> A, add : A -> A -> A }).
-             f.add (e1.accept [A] f) (e2.accept [A] f) };
-let evalAlg = { lit = \(x : Int). x, add = \(x : Int). \(y : Int). x + y };
+  { accept = /\A -> \(f:{ lit : Int -> A, add : A -> A -> A }) ->
+             f.add (e1.accept[A] f) (e2.accept[A] f) };
+let evalAlg = { lit = \(x : Int) -> x, add = \(x : Int) (y : Int) -> x + y };
 let e1 = add (lit 2) (lit 3);
 -- e1.accept Int evalAlg
-type SubExpAlg E = (ExpAlg E) & { sub : E -> E -> E };
-type ExpExt = { accept : forall A. SubExpAlg A -> A };
+type SubExpAlg[E] = (ExpAlg[E]) & { sub : E -> E -> E };
+type ExpExt = { accept : forall A. SubExpAlg[A] -> A };
 let sub (e1 : ExpExt) (e2 : ExpExt)
-  = { accept = /\A. \(f:{ lit : Int -> A, add : A -> A -> A, sub : A -> A -> A }).
-               f.sub (e1.accept [A] f) (e2.accept [A] f) };
+  = { accept = /\A -> \(f:{ lit : Int -> A, add : A -> A -> A, sub : A -> A -> A }) ->
+               f.sub (e1.accept[A] f) (e2.accept[A] f) };
 let e2 = sub (lit 2) (lit 3);
 -- Note that Exp <: ExpExt
 let f (x : ExpExt) = 1;
