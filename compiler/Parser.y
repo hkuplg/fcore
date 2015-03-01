@@ -64,7 +64,7 @@ import JavaUtils
 
   UPPER_IDENT  { Located _ (Tupperid $$) }
   LOWER_IDENT  { Located _ (Tlowerid $$) }
-  UNDERID  { Located _ (Tunderid $$) }
+  UNDERID      { Located _ (Tunderid $$) }
 
   JAVACLASS { Located _ (Tjavaclass $$) }
   "new"     { Located _ Tnew }
@@ -74,17 +74,17 @@ import JavaUtils
   INT      { Located _ (Tint $$) }
   STRING   { Located _ (Tstring $$) }
   BOOL     { Located _ (Tbool $$) }
-  Empty    { Located _ Temptytree }
-  Fork     { Located _ Tnonemptytree}
+  "Empty"    { Located _ Temptytree }
+  "Fork"     { Located _ Tnonemptytree}
   CHAR     { Located _ (Tchar $$) }
   "()"     { Located _ Tunitlit }
   "Unit"   { Located _ Tunit }
-  List     { Located _ Tlist }
-  head     { Located _ Tlisthead }
-  tail     { Located _ Tlisttail }
-  cons     { Located _ Tlistcons }
-  isNil    { Located _ Tlistisnil }
-  length   { Located _ Tlistlength }
+  "List"     { Located _ Tlist }
+  "head"     { Located _ Tlisthead }
+  "tail"     { Located _ Tlisttail }
+  "cons"     { Located _ Tlistcons }
+  "isNil"    { Located _ Tlistisnil }
+  "length"   { Located _ Tlistlength }
 
   "*"      { Located _ (Tprimop J.Mult)   }
   "/"      { Located _ (Tprimop J.Div)    }
@@ -177,7 +177,7 @@ atype :: { ReaderType }
   | "{" record_body "}"      { foldl (\ acc (l,t) -> And acc (Record [(l,t)])) (Record [(head $2)]) (tail $2) }
   | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
-  | List "<" type ">"        { ListOf $3}
+  | "List" "<" type ">"        { ListOf $3}
 
 product_body :: { [ReaderType] }
   : type "," type             { $1:[$3] }
@@ -275,13 +275,13 @@ aexpr :: { ReaderExpr }
     | "{" semi_exprs "}"        { Seq $2 }
     | "{" recordlit_body "}"    { RecordCon $2 }
     | aexpr "with" "{" recordlit_body "}"  { RecordUpdate $1 $4 }
-    | "new" List "<" type ">" "()"  {PolyList [] $4}
-    | "new" List "<" type ">" "(" comma_exprs0 ")"  {PolyList $7 $4}
-    | head "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined) undefined}
-    | tail "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "tail" [] undefined) undefined}
-    | isNil "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined}
-    | length "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined}
-    | cons "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
+    | "new" "List" "<" type ">" "()"  {PolyList [] $4}
+    | "new" "List" "<" type ">" "(" comma_exprs0 ")"  {PolyList $7 $4}
+    | "head" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined) undefined}
+    | "tail" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "tail" [] undefined) undefined}
+    | "isNil" "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined}
+    | "length" "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined}
+    | "cons" "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
     --TODO: type can be infered?
     | "{" constr_name aexprs "}"{ ConstrTemp $2 [] $3 }
     | "(" expr ")"              { $2 }
@@ -292,8 +292,8 @@ aexprs :: { [ReaderExpr] }
 
 javaexpr :: { ReaderExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
-    | Empty                                       { JNew "f2j.FunctionalTree" [] }
-    | Fork "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3}
+    | "Empty"                                       { JNew "f2j.FunctionalTree" [] }
+    | "Fork" "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3}
 
     | JAVACLASS "." LOWER_IDENT "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
     | JAVACLASS "." LOWER_IDENT "()"                  { JMethod (Static $1) $3 [] undefined }
