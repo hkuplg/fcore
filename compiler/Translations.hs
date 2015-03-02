@@ -155,8 +155,8 @@ instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
 -- prettyJ = putStrLn . prettyPrint
 
 -- SystemF to Java
-sf2java :: Bool -> DumpOption -> Compilation -> ClassName -> String -> IO String
-sf2java optInline optDump compilation className src =
+sf2java :: Bool -> Bool -> DumpOption -> Compilation -> ClassName -> String -> IO String
+sf2java optInline optCPS optDump compilation className src =
   do let readSrc = Parser.reader src
      when (optDump == DumpParsed) $ print readSrc
      result <- readSrc `seq` typeCheck readSrc
@@ -181,10 +181,10 @@ sf2java optInline optDump compilation className src =
             let (cu, _) = compilation className inlinedCore
             return $ prettyPrint cu
 
-compilesf2java :: Bool -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
-compilesf2java optInline optDump compilation srcPath outputPath = do
+compilesf2java :: Bool -> Bool -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
+compilesf2java optInline optCPS optDump compilation srcPath outputPath = do
     src <- readFile srcPath
-    output <- sf2java optInline optDump compilation (inferClassName outputPath) src
+    output <- sf2java optInline optCPS optDump compilation (inferClassName outputPath) src
     writeFile outputPath output
     --let closureClassDef = closureClass compilation
     --writeFile "Closure.java" (prettyPrint closureClassDef)

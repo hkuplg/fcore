@@ -68,7 +68,7 @@ send h (n, opt, method) flagC flagS f = do
   contents <- readFile f
   let path = dropFileName f
   let className = getClassName $ dropExtension (takeFileName f)
-  result <- E.try (sf2java False NoDump opt className contents)
+  result <- E.try (sf2java False False NoDump opt className contents)
   case result of 
     Left  (_ :: E.SomeException) -> 
       do putStrLn ("\x1b[31m" ++ "invalid expression sf2Java")
