@@ -283,7 +283,7 @@ aexpr :: { ReaderExpr }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 }
     | record_construct                { $1 }
-    | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (revere $4) }
+    | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (reverse $4) }
     | "new" "List" "<" type ">" "()"  {PolyList [] $4}
     | "new" "List" "<" type ">" "(" comma_exprs0 ")"  {PolyList $7 $4}
     | "head" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined) undefined}
