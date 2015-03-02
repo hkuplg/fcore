@@ -70,6 +70,8 @@ Record update: `let r = {name="George", age = 17}; r with {name="Nicole", age = 
 
 Local type synonyms: `type Arrow[A,B] = A -> B; ...`
 
+You may leave out the final semicolon.
+
 Expression sequences: `{1; 2; 3}`
 
 Java construction: `new String("abc")`
