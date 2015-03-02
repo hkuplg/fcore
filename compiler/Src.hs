@@ -139,7 +139,7 @@ data Expr id ty
       (Expr id ty) -- e         -- The rest of the expression
   | Data Name [Name] [Constructor] (Expr id ty)
   | Case (Expr id ty) [Alt id ty]
-  | ConstrTemp Name [Type] [Expr id ty]
+  | ConstrTemp Name
   | Constr Constructor [Expr id ty] -- post typecheck only
   | JProxyCall (Expr id ty) ty
   deriving (Eq, Show)
@@ -453,7 +453,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
                            pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (Constr c es) = braces $ intersperseSpace $ text (constrName c) : map pretty es
+  pretty (Constr c es) = parens $ intersperseSpace $ text (constrName c) : map pretty es
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where

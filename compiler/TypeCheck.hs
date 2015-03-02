@@ -289,31 +289,41 @@ infer (Lam (x1,t1) e)
 infer (App e1 e2) =
   do (t1, e1') <- infer e1
      (t2, e2') <- infer e2
-     case t1 of
-       -- Local type inference:
-       -- `f [T] e` can be written as `f e` if the type of e is just T.
-       Forall _ _ -> infer (App (TApp e1 t2) e2)
 
-       Fun t11 t12 ->
-         do d <- getTypeContext
-            unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
-            case (t11, t2) of
-              (Thunk _, Thunk _) -> return (t12, App e1' e2')
-              (Thunk _, _)       -> return (t12, App e1' (Lam ("_", Unit) e2'))
-              (_, Thunk _)       -> return (t12, App e1' (App e2' (Lit UnitLit)))
-              (_, _)             -> return (t12, App e1' e2')
+     case e1' of
+       Constr (Constructor n ts) es ->
+           case t1 of
+             Fun t11 t12 ->
+                 do d <- getTypeContext
+                    unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
+                    return (t12, Constr (Constructor n ts) (es ++ [e2']))
+             _ -> throwError (NotAFunction t1)
+       _ ->
+        case t1 of
+          -- Local type inference:
+          -- `f [T] e` can be written as `f e` if the type of e is just T.
+          Forall _ _ -> infer (App (TApp e1 t2) e2)
 
-       Thunk (Fun t11 t12) ->
-         do d <- getTypeContext
-            unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
-            case (t11, t2) of
-              (Thunk _, Thunk _) -> return (t12, App e1'' e2')
-              (Thunk _, _)       -> return (t12, App e1'' (Lam ("_", Unit) e2'))
-              (_, Thunk _)       -> return (t12, App e1'' (App e2' (Lit UnitLit)))
-              (_, _)             -> return (t12, App e1'' e2')
-         where e1'' = App e1' (Lit UnitLit)
+          Fun t11 t12 ->
+            do d <- getTypeContext
+               unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
+               case (t11, t2) of
+                 (Thunk _, Thunk _) -> return (t12, App e1' e2')
+                 (Thunk _, _)       -> return (t12, App e1' (Lam ("_", Unit) e2'))
+                 (_, Thunk _)       -> return (t12, App e1' (App e2' (Lit UnitLit)))
+                 (_, _)             -> return (t12, App e1' e2')
 
-       _ -> throwError (NotAFunction t1)
+          Thunk (Fun t11 t12) ->
+            do d <- getTypeContext
+               unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2)
+               case (t11, t2) of
+                 (Thunk _, Thunk _) -> return (t12, App e1'' e2')
+                 (Thunk _, _)       -> return (t12, App e1'' (Lam ("_", Unit) e2'))
+                 (_, Thunk _)       -> return (t12, App e1'' (App e2' (Lit UnitLit)))
+                 (_, _)             -> return (t12, App e1'' e2')
+            where e1'' = App e1' (Lit UnitLit)
+
+          _ -> throwError (NotAFunction t1)
 
 infer (BLam a e)
   = do (t, e') <- withLocalTVars [(a, (Star, TerminalType))] (infer e)
@@ -325,7 +335,13 @@ infer (TApp e arg)
        d <- getTypeContext
        let arg' = expandType d arg
        case t of
-         Forall a t1 -> return (fsubstTT (a, arg') t1, TApp e' arg')
+         Forall a t1 -> let t' = fsubstTT (a, arg') t1
+                        in case e' of
+                             Constr (Constructor n _) es ->
+                               case t' of
+                                 Forall _ _ -> return (t', e')
+                                 _ -> return (t', Constr (Constructor n (unwrapFun t')) es) -- all type parameters instantiated
+                             _ -> return (t', TApp e' arg')
          _           -> sorry "TypeCheck.infer: TApp"
 
 infer (Tuple es)
@@ -364,14 +380,10 @@ infer (If pred b1 b2) =
 
 infer (Let rec_flag binds e) =
   do checkDupNames (map bindId binds)
-     -- type_ctxt <- getTypeContext
-     -- when True $
-     --     throwError (General $ text (show type_ctxt))
      binds' <- case rec_flag of
                  NonRec -> mapM normalizeBind binds
                  Rec    -> do sigs <- collectBindIdSigs binds
                               withLocalVars sigs (mapM normalizeBind binds)
-     -- when True $ throwError (General $ text (show binds'))
      (t, e') <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (infer e)
      return (t, LetOut rec_flag binds' e')
 
@@ -572,29 +584,13 @@ infer (Data name params cs e) =
        (t, e') <- withLocalTVars [(name, kind_dt)] (withLocalVars constr_binds (infer e))
        return (t, Data name params cs' e')
 
--- C A1..An e1..en
-infer (ConstrTemp n ts es) =
-  do value_ctxt <- getValueContext
-     mapM_ checkType ts
-     delta <- getTypeContext
-     let ts_expanded = map (expandType delta) ts
-     constr_fun <- case Map.lookup n value_ctxt of
-                      Just t -> return t
-                      Nothing -> throwError (NotInScope n)
-
-
-     let len_targ_expected = countForall constr_fun
-         len_targ = length ts_expanded
-     unless (len_targ_expected == len_targ) $
-            throwError $ General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_targ_expected <+> text "type arguments, but has been given" <+> int len_targ
-
-     let constr_ts = unwrapFun $ feedToForall constr_fun ts_expanded
-         constr_targs = init constr_ts
-         (len_arg_expected, len_arg) = (length constr_targs, length es)
-     unless (len_arg_expected == len_arg) $
-            throwError $ General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int len_arg_expected <+> text "arguments, but has been given" <+> int len_arg
-     (_, es') <- mapAndUnzipM (uncurry inferAgainst) (zip es constr_targs)
-     return (last constr_ts, Constr (Constructor n constr_ts) es')
+infer (ConstrTemp name) =
+    do g <- getValueContext
+       case Map.lookup name g of
+         Just t  -> case t of
+                      Forall _ _ -> return (t, Constr (Constructor name []) [])
+                      _ -> return (t, Constr (Constructor name (unwrapFun t)) []) -- non-parameterized constructors
+         Nothing -> throwError (NotInScope name)
 
 infer (Case e alts) =
   do (t, e') <- infer e

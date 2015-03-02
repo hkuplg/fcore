@@ -7,10 +7,10 @@ let myIsNil A (xs: PolyList A): Bool =
 type IntList = PolyList Int;
 let headIs0 (xs : IntList) : Bool =
    case xs of
-       Nil -> if myIsNil Int xs
+       Nil -> if myIsNil [Int] xs
               then False
               else True -- unreachable
-     | Cons y ys -> if myIsNil Int xs
+     | Cons y ys -> if myIsNil [Int] xs
                     then True -- unreachable
                     else y == 0;
 headIs0
