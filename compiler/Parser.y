@@ -185,18 +185,18 @@ product_body :: { [ReaderType] }
 -- record types
 record_type :: { ReaderType }
   -- TODO: desugaring might be too early. But the benefit is avoid a traversal of the type structure later.
-  : "{" record_type_fields "}"      { foldl (\acc (l,t) -> And acc (RecordType [(l,t)])) (RecordType [(head (reverse $2))]) (tail (reverse $2)) }
-  | "{" record_type_fields "," "}"  { foldl (\acc (l,t) -> And acc (RecordType [(l,t)])) (RecordType [(head (reverse $2))]) (tail (reverse $2)) }
+  : "{" record_type_fields_rev "}"      { foldl (\acc (l,t) -> And acc (RecordType [(l,t)])) (RecordType [(head (reverse $2))]) (tail (reverse $2)) }
+  | "{" record_type_fields_rev "," "}"  { foldl (\acc (l,t) -> And acc (RecordType [(l,t)])) (RecordType [(head (reverse $2))]) (tail (reverse $2)) }
 
 -- Allowing an extra "," before "}" will introduce a shift-reduce conflict;
 -- but using left-recursion will solve it. :)
 -- And Happy is more efficient at parsing left-recursive rules!
-record_type_fields :: { [(Label, ReaderType)] }
-  : record_type_field                         { [$1]  }
-  | record_type_fields "," record_type_field  { $3:$1 }
+record_type_fields_rev :: { [(Label, ReaderType)] }
+  : record_type_field                             { [$1]  }
+  | record_type_fields_rev "," record_type_field  { $3:$1 }
 
 record_type_field :: { (Label, ReaderType) }
-  : label ":" type                            { ($1, $3) }
+  : label ":" type                                { ($1, $3) }
 
 ty_param :: { ReaderId }
   : UPPER_IDENT                    { $1 }
@@ -283,7 +283,7 @@ aexpr :: { ReaderExpr }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 }
     | record_construct                { $1 }
-    | aexpr "with" "{" record_construct_fields "}"  { RecordUpdate $1 $4 }
+    | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (revere $4) }
     | "new" "List" "<" type ">" "()"  {PolyList [] $4}
     | "new" "List" "<" type ">" "(" comma_exprs0 ")"  {PolyList $7 $4}
     | "head" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined) undefined}
@@ -339,18 +339,18 @@ lit :: { ReaderExpr }
 
 -- record-construction expr
 record_construct :: { ReaderExpr }
-  : "{" record_construct_fields "}"                     { RecordCon (reverse $2) }
-  | "{" record_construct_fields "," "}"                 { RecordCon (reverse $2) }
+  : "{" record_construct_fields_rev "}"                     { RecordCon (reverse $2) }
+  | "{" record_construct_fields_rev "," "}"                 { RecordCon (reverse $2) }
 
 -- Allowing an extra "," before "}" will introduce a shift-reduce conflict;
 -- but using left-recursion will solve it. :)
 -- And Happy is more efficient at parsing left-recursive rules!
-record_construct_fields :: { [(Label, ReaderExpr)] }
-  : record_construct_field                              { [$1]  }
-  | record_construct_fields "," record_construct_field  { $3:$1 }
+record_construct_fields_rev :: { [(Label, ReaderExpr)] }
+  : record_construct_field                                  { [$1]  }
+  | record_construct_fields_rev "," record_construct_field  { $3:$1 }
 
 record_construct_field :: { (Label, ReaderExpr) }
-  : label "=" expr                                      { ($1, $3) }
+  : label "=" expr                                          { ($1, $3) }
 
 bind :: { ReaderBind }
   : LOWER_IDENT ty_param_list_or_empty params maybe_ty_ascription "=" expr
