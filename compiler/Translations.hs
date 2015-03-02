@@ -30,9 +30,9 @@ import           ApplyTransCFJava
 import           BaseTransCFJava
 import           BenchGenCF2J
 import           BenchGenStack
+import           CPS
 import           ClosureF
 import qualified Core
-import qualified SystemFI
 import           Desugar (desugar)
 import           Inheritance
 import           Inliner
@@ -43,6 +43,7 @@ import           PartialEvaluator
 import           PrettyUtils
 import           Simplify (simplify)
 import           StackTransCFJava
+import qualified SystemFI
 import           TypeCheck (typeCheck)
 -- import           UnboxTransCFJava
 
@@ -176,8 +177,9 @@ sf2java optInline optCPS optDump compilation className src =
                                1 -> inliner rewrittencore
                                2 -> inliner . inliner $ rewrittencore
                                _ -> rewrittencore
+            let cpsCore = if optCPS then cpsTrans inlinedCore else inlinedCore
             when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittencore)
-            when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
+            when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp cpsCore))
             let (cu, _) = compilation className inlinedCore
             return $ prettyPrint cu
 
