@@ -106,8 +106,8 @@ pathsZ3 env (Fork e (Right ts)) conds stop =
                     assertCnstr astEq
                     mapM_ (assertProj app) (zip paramFds varAsts)
 
-                    -- whenSat $ pathsZ3 env' (f $ supply ns ids) (doc <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : ns)) (stop-1)
-                    let cond = pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : map (("x"++) . show) ids)
+                    -- whenSat $ pathsZ3 env' (f $ supply ns ids) (doc <+> text "&&" <+> pretty e <+> equals <+> hsep (map text $ sconstrName c : ns)) (stop-1)
+                    let cond = pretty e <+> equals <+> hsep (map text $ sconstrName c : map (("x"++) . show) ids)
                     whenSat $ pathsZ3 env' (f $ supply (repeat "x") ids) (cond : conds) (stop-1)
 
 symtype2sort :: Z3Env -> SymType -> Sort

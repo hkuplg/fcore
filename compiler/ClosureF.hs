@@ -278,7 +278,7 @@ prettyType _ _ CFChar = text "Char"
 prettyType _ _ CFCharacter = text "Character"
 
 prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
-prettyType p i (Datatype n tvars _) = intersperseSpace $ text n : map (prettyType p i) tvars
+prettyType p i (Datatype n tvars _) = hsep $ text n : map (prettyType p i) tvars
 
 prettyExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
@@ -375,13 +375,13 @@ prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text 
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
 
-prettyExpr p (i,j) (Data n tvars cons e) = text "data" <+> intersperseSpace (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr p (i,j) e
+prettyExpr p (i,j) (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr p (i,j) e
   where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType p i) $ ctrParams)
 
-prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (intersperseSpace $ map (prettyExpr p i) es))
+prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
 prettyExpr p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> text " " <+> S.intersperseBar (map pretty_alt alts)
     where pretty_alt (ConstrAlt c ns es) =
               let n = length ns
                   ids = [j..j+n-1]
-              in intersperseSpace (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr p (i, j+n) (es ids)
+              in hsep (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr p (i, j+n) (es ids)

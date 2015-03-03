@@ -402,7 +402,7 @@ instance Pretty Type where
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (ListOf a)   = brackets $ pretty a
-  pretty (Datatype n ts _) = intersperseSpace (text n : map pretty ts)
+  pretty (Datatype n ts _) = hsep (text n : map pretty ts)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Var x) = pretty x
@@ -449,11 +449,11 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (JProxyCall jmethod t) = pretty jmethod
   pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
   pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
-  pretty (Data n tvars cons e) = text "data" <+> intersperseSpace (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>
+  pretty (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>
                            pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (Constr c es) = parens $ intersperseSpace $ text (constrName c) : map pretty es
+  pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
@@ -470,10 +470,10 @@ instance Pretty RecFlag where
   pretty NonRec = empty
 
 instance Pretty Constructor where
-    pretty (Constructor n ts) = intersperseSpace $ text n : map pretty ts
+    pretty (Constructor n ts) = hsep $ text n : map pretty ts
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
-    pretty (ConstrAlt c ns e2) = intersperseSpace (text (constrName c) : map text ns) <+> arrow <+> pretty e2
+    pretty (ConstrAlt c ns e2) = hsep (text (constrName c) : map text ns) <+> arrow <+> pretty e2
     -- pretty (Default e) = text "_" <+> arrow <+> pretty e
 
 -- Utilities

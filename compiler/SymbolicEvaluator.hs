@@ -314,7 +314,7 @@ instance Pretty SymValue where
     pretty (SApp e1 e2) = pretty e1 <+> pretty e2
     pretty (SOp op e1 e2) = parens $ pretty e1 <+> pretty op <+> pretty e2
     pretty (SFun{}) = text "<<fun>>"
-    pretty (SConstr c es) = parens $ intersperseSpace $ text (sconstrName c) : map pretty es
+    pretty (SConstr c es) = parens $ hsep $ text (sconstrName c) : map pretty es
 
 instance Pretty ExecutionTree where
     pretty t = fst $ prettyTree t (text "True") 5
@@ -329,7 +329,7 @@ prettyTree (Fork e (Left (l,r))) s stop =
     in (s2 <> s3, stop3)
 prettyTree (Fork e (Right ts)) s stop =
     foldl (\(sacc, i) (c,ns,f) ->
-               let (snew, i') = prettyTree (f $ supply ns [1..]) (s <+> text "&&" <+> pretty e <+> equals <+> intersperseSpace (map text $ sconstrName c : ns)) i
+               let (snew, i') = prettyTree (f $ supply ns [1..]) (s <+> text "&&" <+> pretty e <+> equals <+> hsep (map text $ sconstrName c : ns)) i
                in (sacc <> snew, i'))
        (empty, stop)
        ts
