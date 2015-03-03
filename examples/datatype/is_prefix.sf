@@ -1,16 +1,16 @@
 data PolyList A = Nil
-                | Cons A (PolyList A)
+                | Cons A (PolyList[A])
 	        ;
-let rec concat A (xs : PolyList A) (ys : PolyList A) : PolyList A =
+let rec concat [A] (xs : PolyList[A]) (ys : PolyList[A]) : PolyList[A] =
     case xs of
         Nil       -> ys
-      | Cons z zs -> { Cons A z (concat A zs ys) };
+      | Cons z zs -> Cons [A] z (concat [A] zs ys);
 
-let rec isPrefix A (xs : PolyList A) (ys : PolyList A) : Bool =
+let rec isPrefix [A] (xs : PolyList[A]) (ys : PolyList[A]) : Bool =
     case xs of
     	Nil -> True
       | Cons a as -> (case ys of
       	       	     	   Nil -> False
-			 | Cons b bs -> a == b && isPrefix A as bs);
-let prop_isPrefix A (xs : PolyList A) (ys : PolyList A) = isPrefix A xs (concat A xs ys);
+			 | Cons b bs -> a == b && isPrefix [A] as bs);
+let prop_isPrefix [A] (xs : PolyList[A]) (ys : PolyList[A]) = isPrefix [A] xs (concat [A] xs ys);
 prop_isPrefix

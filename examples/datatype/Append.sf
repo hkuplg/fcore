@@ -1,16 +1,14 @@
 data PolyList A = Nil
-                | Cons A (PolyList A)
+                | Cons A (PolyList[A])
 	        ;
-let rec list_length A (xs : PolyList A) : Int =
-    case xs of
-        Nil       -> 0
-      | Cons y ys -> 1 + list_length A ys;
-
-let rec append A (xs : PolyList A) (ys : PolyList A) : PolyList A =
+let rec append [A] (xs : PolyList[A]) (ys : PolyList[A]) : PolyList[A] =
     case xs of
        Nil       -> ys
-     | Cons z zs -> { Cons A z (append A zs ys) };
-
-let prop_append A (xs : PolyList A) (ys : PolyList A) =
-    list_length A xs + list_length A ys + 1==  list_length A (append A xs ys);
+     | Cons z zs -> Cons [A] z (append [A] zs ys);
+let rec list_length [A] (xs : PolyList[A]) : Int =
+    case xs of
+        Nil       -> 0
+      | Cons y ys -> 1 + list_length [A] ys;
+let prop_append [A] (xs : PolyList[A]) (ys : PolyList[A]) =
+    list_length [A] xs + list_length [A] ys ==  list_length [A] (append [A] xs ys);
 prop_append

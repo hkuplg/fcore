@@ -1,23 +1,23 @@
 data PolyList A = Nil
-                | Cons A (PolyList A)
+                | Cons A (PolyList[A])
                 ;
-let rec eq A (xs: PolyList A) (ys: PolyList A) : Bool =
+let rec eq [A] (xs: PolyList [A]) (ys: PolyList [A]) : Bool =
   case xs of
      Nil -> (case ys of
                 Nil -> True
 	      | Cons z zs -> False)
    | Cons a as -> (case ys of
      	       	     Nil -> False
-		   | Cons b bs -> (a == b) && (eq A as bs)) ;
-let rec append A (xs : PolyList A) (ys : PolyList A) : PolyList A =
+		   | Cons b bs -> (a == b) && (eq [A] as bs)) ;
+let rec append [A] (xs : PolyList [A]) (ys : PolyList [A]) : PolyList [A] =
   case xs of
       Nil       -> ys
-    | Cons z zs -> { Cons A z (append A zs ys) };
+    | Cons z zs -> Cons [A] z (append [A] zs ys);
 
-let rec reverse A (xs: PolyList A) : PolyList A =
+let rec reverse [A] (xs: PolyList [A]) : PolyList [A] =
     case xs of
-    	Nil -> {Nil A}
-      | Cons y ys -> append A (reverse A ys) {Cons A y {Nil A}} ;
+    	Nil -> Nil [A]
+      | Cons y ys -> append [A] (reverse [A] ys) (Cons [A] y (Nil [A]));
 
-let prop_reverse A (xs: PolyList A) : Bool = eq A (reverse A (reverse A xs)) xs;
+let prop_reverse [A] (xs: PolyList [A]) : Bool = eq [A] (reverse [A] (reverse [A] xs)) xs;
 prop_reverse

@@ -315,12 +315,10 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 prettyExpr' p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr' p i ) $ es
-prettyExpr' p (i,j) (Data name params ctrs e)
-  = (text $ "Data " ++ name ++ " " ++ prettyParams params ++ " =") <+>
-    (hcat . intersperse (text " | ") . map prettyCtr $ ctrs) <$>
-    (prettyExpr' p (i,j) e)
-  where prettyParams pa = concat . intersperse " " $ pa
-        prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
+
+prettyExpr' p (i,j) (Data n tvars cons e) = text "data" <+> intersperseSpace (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr' p (i,j) e
+  where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
+
 prettyExpr' p i (JProxyCall jmethod t) = prettyExpr' p i jmethod
 
 prettyExpr' p (i,j) (Fix n1 n2 f t1 t)
@@ -357,7 +355,7 @@ prettyExpr' _ (i,j) (RecordCon (l, e))       = lbrace <+> text l <+> equals <+> 
 prettyExpr' p (i,j) (RecordProj e l)         = prettyExpr' p (i,j) e <> dot <> text l
 prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordCon (l, e1))
 
-prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (Constr c es)            = parens $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)

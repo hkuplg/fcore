@@ -337,14 +337,10 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
                   pretty_ids pretty_sigs pretty_defs
     pretty_body  = prettyExpr' p (i, j + n) (body ids)
 
-prettyExpr' p (i,j) (Data name params ctrs e)
-  = (text $ "Data " ++ name ++ " " ++ prettyParams params ++ " =") <+>
-    (hcat . intersperse (text " | ") . map prettyCtr $ ctrs) <$>
-    (prettyExpr' p (i,j) e)
-  where prettyParams pa = concat . intersperse " " $ pa
-        prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
+prettyExpr' p (i,j) (Data n tvars cons e) = text "data" <+> intersperseSpace (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr' p (i,j) e
+  where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
 
-prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (Constr c es)            = parens $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)

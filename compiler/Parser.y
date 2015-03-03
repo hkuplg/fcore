@@ -231,7 +231,7 @@ expr :: { ReaderExpr }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type $2 $3 $5 $6 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
-    | "data" ty_param ty_params "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
+    | "data" UPPER_IDENT ty_params "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
     | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
     | module expr                         { LetModule $1 $2 }
@@ -283,7 +283,7 @@ aexpr :: { ReaderExpr }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 }
     | record_construct                { $1 }
-    | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (revere $4) }
+    | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (reverse $4) }
     | "new" "List" "<" type ">" "()"  {PolyList [] $4}
     | "new" "List" "<" type ">" "(" comma_exprs0 ")"  {PolyList $7 $4}
     | "head" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined) undefined}
@@ -291,8 +291,7 @@ aexpr :: { ReaderExpr }
     | "isNil" "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined}
     | "length" "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined}
     | "cons" "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
-    --TODO: type can be infered?
-    | "{" constr_name aexprs "}"{ ConstrTemp $2 [] $3 }
+    | constr_name               { ConstrTemp $1 }
     | "(" expr ")"              { $2 }
 
 aexprs :: { [ReaderExpr] }
@@ -386,7 +385,7 @@ constr_decl :: { Constructor }
     : constr_name types  { Constructor $1 $2 }
 
 constr_name :: { ReaderId }
-  : ty_param  { $1 }
+  : UPPER_IDENT  { $1 }
 
 patterns :: { [Alt ReaderId Type] }
     : pattern               { [$1] }

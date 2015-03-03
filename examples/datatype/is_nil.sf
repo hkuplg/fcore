@@ -1,16 +1,17 @@
 data PolyList A = Nil
-                | Cons A (PolyList A);
-let myIsNil A (xs: PolyList A): Bool =
+                | Cons A (PolyList[A]);
+let null [A] (xs: PolyList[A]): Bool =
     case xs of
        Nil -> True
      | Cons y ys -> False;
-type IntList = PolyList Int;
+type IntList = PolyList[Int];
 let headIs0 (xs : IntList) : Bool =
    case xs of
-       Nil -> if myIsNil Int xs
+       Nil -> if null [Int] xs
               then False
               else True -- unreachable
-     | Cons y ys -> if myIsNil Int xs
+     | Cons y ys -> if null [Int] xs
                     then True -- unreachable
                     else y == 0;
+-- headIs0 (Cons [Int] 0 (Nil [Int]))
 headIs0
