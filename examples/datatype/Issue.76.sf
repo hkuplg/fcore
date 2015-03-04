@@ -1,2 +1,0 @@
-data T = T Int;
-T 5

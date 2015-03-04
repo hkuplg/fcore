@@ -1,3 +1,0 @@
-data T = T Int;
-data T = T1 Int;
-T 5
