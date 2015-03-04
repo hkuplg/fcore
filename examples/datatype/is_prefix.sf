@@ -1,4 +1,4 @@
-data PolyList A = Nil
+data PolyList [A] = Nil
                 | Cons A (PolyList[A])
 	        ;
 let rec concat [A] (xs : PolyList[A]) (ys : PolyList[A]) : PolyList[A] =

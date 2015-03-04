@@ -1,4 +1,4 @@
-data PolyList A = Nil
+data PolyList [A] = Nil
                 | Cons A (PolyList[A])
                 ;
 let rec eq [A] (xs: PolyList [A]) (ys: PolyList [A]) : Bool =
@@ -20,4 +20,13 @@ let rec reverse [A] (xs: PolyList [A]) : PolyList [A] =
       | Cons y ys -> append [A] (reverse [A] ys) (Cons [A] y (Nil [A]));
 
 let prop_reverse [A] (xs: PolyList [A]) : Bool = eq [A] (reverse [A] (reverse [A] xs)) xs;
+
+-- type IntList = PolyList[Int];
+-- let showInt (x: Int) : String = x.toString();
+-- let rec show (xs: IntList) : String =
+--     case xs of
+--          Nil -> ""
+--       |  Cons y ys -> (showInt y).concat(show ys);
+-- let xs = Cons [Int] 5 (Cons [Int] 4 (Nil [Int]));
+-- show (reverse [Int] xs)
 prop_reverse
