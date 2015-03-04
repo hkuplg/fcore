@@ -1,7 +1,10 @@
-Source layout for the testsuite:
+# Testsuite
 
-| Path                 | Description                                |
-| ---------------------| -------------------------------------------|
-| `tests/compile-fail` | Tests that should fail to compile          |
-| `tests/run-fail`     | Tests that should compile, run and fail    |
-| `tests/run-pass`     | Tests that should compile, run and succeed |
+The layout of the testsuite is this:
+
+| Path                | Description                       |
+| --------------------| ----------------------------------|
+| `tests`             | The actual test cases to run      |
+| ` └ should_compile` | Tests that should compile only    |
+| ` └ should_run`     | Tests that should compile, run, and generate a particular output |
+| ` └ should_fail`    | Tests that should fail to compile |
