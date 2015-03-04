@@ -7,7 +7,7 @@ Description :  Parser for the source language.
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
-Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>, Weixin Zhang <zhangweixinxd@gmail.com>
 Stability   :  experimental
 Portability :  portable
 -}
@@ -147,7 +147,7 @@ type :: { ReaderType }
 
 types :: { [Type] }
   : {- empty -}              { [] }
-  | atype types              { $1:$2 }
+  | ftype types              { $1:$2 }
 
 type_list :: { [Type] }
   : "[" comma_types1 "]"     { $2 }
@@ -231,7 +231,7 @@ expr :: { ReaderExpr }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type $2 $3 $5 $6 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
-    | "data" UPPER_IDENT ty_params "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
+    | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
     | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
     | module expr                         { LetModule $1 $2 }
@@ -293,10 +293,6 @@ aexpr :: { ReaderExpr }
     | "cons" "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
     | constr_name               { ConstrTemp $1 }
     | "(" expr ")"              { $2 }
-
-aexprs :: { [ReaderExpr] }
-    :  {- empty -}            { [] }
-    | aexpr aexprs            { $1:$2 }
 
 javaexpr :: { ReaderExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
