@@ -1,6 +1,16 @@
 {-# Language RankNTypes, FlexibleInstances #-}
 {-# OPTIONS_GHC -fno-warn-unused-matches #-}
+{- |
+Module      :  ClosureF
+Description :   Abstract syntax and pretty printer for ClosureF.
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
+License     :  BSD3
 
+Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Tomas <tomtau@connect.hku.hk>
+Stability   :  stable
+Portability :  non-portable (MPTC)
+
+-}
 module ClosureF where
 
 import qualified Src  as S
@@ -10,7 +20,7 @@ import JavaUtils
 import Panic
 
 import PrettyUtils
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 import qualified Language.Java.Pretty (prettyPrint)
 import Data.List (intersperse)
 
@@ -29,16 +39,19 @@ data Type t =
       TVar t
     | Forall (TScope t)
     | JClass ClassName
+    | Unit
     | CFInt
     | CFInteger
     | CFChar
     | CFCharacter
     | TupleType [Type t]
+    | ListType (Type t)
+    | Datatype S.ReaderId [Type t] [S.ReaderId]
 
 data Expr t e =
-     Var e
+     Var S.ReaderId e
    | FVar Int
-   | Lam (EScope t e)
+   | Lam S.ReaderId (EScope t e)
    | App (Expr t e) (Expr t e)
    | TApp (Expr t e) (Type t)
    | PrimOp (Expr t e) S.Operator (Expr t e)
@@ -46,21 +59,28 @@ data Expr t e =
    | If (Expr t e) (Expr t e) (Expr t e)
    | Tuple [Expr t e]
    | Proj Int (Expr t e)
-   | Let (Expr t e) (e -> Expr t e)
+   | Let S.ReaderId (Expr t e) (e -> Expr t e)
    -- fixpoints
-   | LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
-   | Fix (Type t) (e -> EScope t e)
+   | LetRec [S.ReaderId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
+   | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
    -- Java
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
    | JField  (Either ClassName (Expr t e)) FieldName ClassName
+   | PolyList [Expr t e] (Type t)
+   | JProxyCall (Expr t e) (Type t)
    | SeqExprs [Expr t e]
+   | Data S.ReaderId [S.ReaderId] [Constructor t] (Expr t e)
+   | Constr (Constructor t) [Expr t e]
+   | Case (Expr t e) [Alt t e]
 
+data Constructor t = Constructor {constrName :: S.ReaderId, constrParams :: [Type t]}
+data Alt t e = ConstrAlt (Constructor t) [S.ReaderId] ([e] -> Expr t e)
 
 -- System F to Closure F
 
 ftyp2scope :: C.Type t -> TScope t
-ftyp2scope (C.Forall f)   = Kind (\a -> ftyp2scope (f a))
+ftyp2scope (C.Forall _ f)   = Kind (\a -> ftyp2scope (f a))
 ftyp2scope (C.Fun t1 t2)  = Type (ftyp2ctyp t1) (\_ -> ftyp2scope t2)
 ftyp2scope t             = Body (ftyp2ctyp t)
 -- ftyp2scope PFInt         = Body CInt
@@ -72,12 +92,16 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 -}
 
 ftyp2ctyp :: C.Type t -> Type t
-ftyp2ctyp (C.TVar x)                     = TVar x
-ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
-ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
+ftyp2ctyp (C.TVar _ x)                     = TVar x
+-- ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
+ftyp2ctyp (C.JClass "java.lang.Integer") = JClass "java.lang.Integer"
+-- ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
+ftyp2ctyp (C.JClass "java.lang.Character") = JClass "java.lang.Character"
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
-ftyp2ctyp (C.Unit)                       = JClass "java.lang.Integer"
+ftyp2ctyp (C.Unit)                       = Unit
+ftyp2ctyp (C.ListOf t)                   = ListType (ftyp2ctyp t)
+ftyp2ctyp (C.Datatype name params ctrnames ) = Datatype name (map ftyp2ctyp params) ctrnames
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-
@@ -100,7 +124,7 @@ CTApp (fexp2cexp e) (ftyp2ctyp t)
 
 
 fexp2cexp :: C.Expr t e -> Expr t e
-fexp2cexp (C.Var _ x)                = Var x
+fexp2cexp (C.Var rid x)                = Var rid x
 fexp2cexp (C.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (C.TApp e t)               = TApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (C.PrimOp e1 op e2)        = PrimOp (fexp2cexp e1) op (fexp2cexp e2)
@@ -109,11 +133,11 @@ fexp2cexp (C.Lit e)         = Lit e
 fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
-fexp2cexp (C.Let n bind body)        = Let (fexp2cexp bind) (\e -> fexp2cexp $ body e)
-fexp2cexp (C.LetRec ts f g) = LetRec (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
-fexp2cexp (C.Fix f t1 t2) =
+fexp2cexp (C.Let n bind body)        = Let n (fexp2cexp bind) (\e -> fexp2cexp $ body e)
+fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
+fexp2cexp (C.Fix n1 n2 f t1 t2) =
   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
-  in   Fix (Forall (adjust (C.Fun t1 t2) (g undefined))) g
+  in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
@@ -121,12 +145,22 @@ fexp2cexp (C.JMethod c mName args r) =
 fexp2cexp (C.JField c fName r) =
   case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName r
             (S.Static cn)    -> JField (Left cn) fName r
+fexp2cexp (C.PolyList es t)     = PolyList (map fexp2cexp es) (ftyp2ctyp t)
+fexp2cexp (C.JProxyCall jmethod t) = JProxyCall (fexp2cexp jmethod) (ftyp2ctyp t)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
-fexp2cexp e                         = Lam (groupLambda e)
+fexp2cexp (C.Data name params ctrs e) = Data name params (map fctr2cctr ctrs) (fexp2cexp e)
+fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
+fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
+  where falt2calt (C.ConstrAlt ctr names f) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp.f)
+fexp2cexp e                         = Lam "Fun" (groupLambda e)
+
+fctr2cctr :: C.Constructor t -> Constructor t
+fctr2cctr (C.Constructor ctrname ctrparams) = Constructor ctrname (map ftyp2ctyp ctrparams)
+
 
 adjust :: C.Type t -> EScope t e -> TScope t
 adjust (C.Fun t1 t2) (Type t1' g) = Type t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
-adjust (C.Forall f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
+adjust (C.Forall _ f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
 adjust t (Body b)               = Body (ftyp2ctyp t)
 adjust _ _ = sorry "ClosureF.adjust: no idea how to do"
 
@@ -138,7 +172,7 @@ groupLambda2 (FLam t f) tenv env =
 -}
 
 groupLambda :: C.Expr t e -> EScope t e
-groupLambda (C.BLam f)  = Kind (\a -> groupLambda (f a))
+groupLambda (C.BLam _ f)  = Kind (\a -> groupLambda (f a))
 groupLambda (C.Lam _ t f) = Type (ftyp2ctyp t) (\x -> groupLambda (f x))
 groupLambda e          = Body (fexp2cexp e)
 
@@ -148,8 +182,13 @@ scope2ctyp :: TScope t -> Type t
 scope2ctyp (Body t)  = t
 scope2ctyp s         = Forall s
 
+getArity :: TScope t -> Int
+getArity (Type _ g) = 1 + getArity (g ())
+getArity _ = 0
+
 joinType :: Type (Type t) -> Type t
 joinType (TVar t)   = t
+joinType Unit = Unit
 joinType CFInt = CFInt
 joinType CFInteger = CFInteger
 joinType CFChar = CFChar
@@ -157,6 +196,8 @@ joinType CFCharacter = CFCharacter
 joinType (Forall s) = Forall (joinTScope s)
 joinType (JClass c) = JClass c
 joinType (TupleType ts) = TupleType (map joinType ts)
+joinType (Datatype name params ctrnames) = Datatype name (map joinType params) ctrnames
+joinType (ListType t) = ListType (joinType t)
 
 joinTScope :: TScope (Type t) -> TScope t
 joinTScope (Body b)   = Body (joinType b)
@@ -165,7 +206,7 @@ joinTScope (Type t f) = let t' = joinType t in Type t' (\x -> joinTScope (f x))
 
 -- Free variable substitution
 
-substScope :: Subst t => Int -> Type Int -> Scope (Type t) t () -> Scope (Type t) t ()
+substScope :: Subst t => Int -> Type Int -> TScope t  -> TScope t
 substScope n t (Body t1) = Body (substType n t t1)
 substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
 substScope n t (Type t1 f) = Type (substType n t t1) (\x -> substScope n t (f x))
@@ -187,13 +228,13 @@ instance Subst t => Subst (Type t) where
    subst n t x = TVar (substType n t x)
 
 -- Pretty Printing
-
+-- TODO: fix pretty printing with the propagated names
 type Index = Int
 
 isSimpleExpr :: Expr Index Index -> Bool
-isSimpleExpr (Var _)         = True
+isSimpleExpr (Var _ _)         = True
 isSimpleExpr (PrimOp _ _ _)  = True
-isSimpleExpr (App (Var _) _) = True
+isSimpleExpr (App (Var _ _) _) = True
 isSimpleExpr (Lit _)         = True
 isSimpleExpr _               = False
 
@@ -221,11 +262,14 @@ prettyType _ _ (TVar t) = prettyTVar t
 
 prettyType p i (Forall f) = prettyTScope p i f
 
+prettyType _ _ Unit = text "Unit"
+
 prettyType _ _ (JClass "java.lang.Integer") = text "Int"
 prettyType _ _ (JClass "java.lang.String") = text "String"
 prettyType _ _ (JClass "java.lang.Boolean") = text "Bool"
 prettyType _ _ (JClass "java.lang.Character") = text "Char"
 prettyType _ _ (JClass c) = text c
+prettyType p i (ListType t) = brackets $ prettyType p i t
 
 prettyType _ _ CFInt = text "Int"
 prettyType _ _ CFInteger = text "Integer"
@@ -234,18 +278,19 @@ prettyType _ _ CFChar = text "Char"
 prettyType _ _ CFCharacter = text "Character"
 
 prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
+prettyType p i (Datatype n tvars _) = hsep $ text n : map (prettyType p i) tvars
 
 prettyExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
-prettyExpr _ _ (Var x) = prettyVar x
+prettyExpr _ _ (Var _ x) = prettyVar x
 
 prettyExpr _ _ (FVar x) = text "FVar()"
 
-prettyExpr p i (Lam e) = nest 2 (text "Lam(" <$> prettyEScope p i e) <$> text ")"
+prettyExpr p i (Lam _ e) = nest 2 (text "Lam(" <$> prettyEScope p i e) <$> text ")"
 
-prettyExpr p i (App (Lam e1) e2) =
+prettyExpr p i (App (Lam _ e1) e2) =
   nest 2 (text "App(" <$>
-  prettyExpr p i (Lam e1) <> comma <$>
+  prettyExpr p i (Lam "" e1) <> comma <$>
   prettyExpr p i e2) <$>
   text ")"
 
@@ -285,7 +330,7 @@ prettyExpr p i (Tuple l) = tupled (map (prettyExpr p i) l)
 --To be modified. Remove useless parens.
 prettyExpr p i (Proj n e) = parensIf p 5 (prettyExpr (5, PrecMinus) i e <> text "._" <> int n)
 
-prettyExpr p (i, j) (LetRec sigs binds body)
+prettyExpr p (i, j) (LetRec _ sigs binds body)
   = text "let" <+> text "rec" <$$>
     vcat (intersperse (text "and") (map (indent 2) pretty_binds)) <$$>
     nest 2 (text "in" <$> pretty_body)
@@ -301,13 +346,13 @@ prettyExpr p (i, j) (LetRec sigs binds body)
     pretty_body  = prettyExpr p (i, j + n) (body ids)
 
 
-prettyExpr p (i, j) (Let x f) =
+prettyExpr p (i, j) (Let _ x f) =
   text "let" <$$>
   indent 2 (prettyVar j <+> text "=" <+> prettyExpr basePrec (i, succ j) x) <$$>
   text "in" <$$>
   indent 2 (prettyExpr basePrec (i, succ j) (f j))
 
-prettyExpr p (i, j) (Fix t f) =
+prettyExpr p (i, j) (Fix _ _ t f) =
   nest 2 (text "Fix(" <$>
   backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$>
   prettyEScope p (i, succ j) (f j)) <$>
@@ -325,4 +370,18 @@ prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
     fieldStr (Left x)  = text x
     fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
 
+prettyExpr p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr p i ) $ es
+prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text ")" <> prettyExpr p (i,j) jmethod
+
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
+
+prettyExpr p (i,j) (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr p (i,j) e
+  where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType p i) $ ctrParams)
+
+prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
+prettyExpr p (i,j) (Case e alts) =
+    hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> text " " <+> S.intersperseBar (map pretty_alt alts)
+    where pretty_alt (ConstrAlt c ns es) =
+              let n = length ns
+                  ids = [j..j+n-1]
+              in hsep (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr p (i, j+n) (es ids)

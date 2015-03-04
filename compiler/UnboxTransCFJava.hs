@@ -131,18 +131,14 @@ transUnbox this super =
                          return (cvar,var (localvarstr ++ show n), Type t (\_ -> t1) )
 
                    _ -> translateScopeM super e m
-              ,translateApply = \m1 m2 ->
-                    do  (n :: Int) <- get
-                        put (n+1)
-                        (s1,j1, Forall (Type t1 g)) <- m1
+              ,translateApply = \flag m1 m2 ->
+                    do  (s1,j1', Forall (Type t1 g)) <- m1
                         (s2,j2,_) <- m2
-                        let retTyp = g ()
-                        cName <- getClassType (up this) t1 (scope2ctyp retTyp)
                         -- let (wrapS, jS) = wrap j2 t1 t2
-                        let fname = localvarstr ++ show n -- use a fresh variable
-                        let closureVars = [localVar (classTy cName) (varDecl fname (unwrap j1))
-                                          ,assignField (fieldAccExp (left $ var fname) closureInput) (unwrap j2)]
-                        (s3, nje3) <- getS3 (up this) (left . var $ fname) (unwrap j2) retTyp (classTy cName)
+                        let retTyp = g ()
+                        j1 <- genClosureVar (up this) flag (getArity retTyp) j1'
+                        cName <- getClassType (up this) t1 (scope2ctyp retTyp)
+                        (s3, nje3) <- getS3 (up this) j1 (unwrap j2) retTyp (classTy cName)
                         return (s1 ++ s2 ++ s3, nje3, scope2ctyp retTyp)
               ,javaType = \typ ->
                             case typ of
@@ -156,11 +152,11 @@ transUnbox this super =
               ,getPrefix = return (namespace ++ "unbox.")
               ,chooseCastBox = \typ ->
                                  case typ of
-                                   CFInt -> return (\s n e -> localFinalVar (J.PrimType J.IntT)
-                                                                            (varDecl (s ++ show n) (cast (J.PrimType J.IntT) e))
+                                   CFInt -> return (\s e -> localFinalVar (J.PrimType J.IntT)
+                                                                            (varDecl s (cast (J.PrimType J.IntT) e))
                                                    ,J.PrimType J.IntT)
-                                   CFChar -> return (\s n e -> localFinalVar (J.PrimType J.CharT)
-                                                                            (varDecl (s ++ show n) (cast (J.PrimType J.CharT) e))
+                                   CFChar -> return (\s e -> localFinalVar (J.PrimType J.CharT)
+                                                                            (varDecl s (cast (J.PrimType J.CharT) e))
                                                    ,J.PrimType J.CharT)
                                    (Forall (Type t1 f)) ->
                                      case f () of

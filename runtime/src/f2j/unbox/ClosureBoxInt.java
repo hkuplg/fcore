@@ -2,8 +2,8 @@ package f2j.unbox;
 
 public abstract class ClosureBoxInt implements Closure
 {
-  public Object x;
-  public int out;
+  public Object arg;
+  public int res;
   public boolean hasApply = true;
   public abstract void apply () ;
   public ClosureBoxInt clone () {

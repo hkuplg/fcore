@@ -18,13 +18,11 @@ smt :
 .PHONY : test
 test :
 	make parsers
-	cp runtime/runtime.jar .
 	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
 
 .PHONY : test2
-test2 : 
+test2 :
 	make parsers
-	cp runtime/runtime.jar .
 	runhaskell -i$(srcdir) $(srcdir)/FileLoad.hs
 
 .PHONY : parsers
@@ -38,6 +36,7 @@ guard :
 
 .PHONY : clean
 clean :
+	rm -rf dist
 	rm -f *.class *.jar Main.java
 	rm -f $(testdir)/tests/run-pass/*.java
 	cd compiler; make clean

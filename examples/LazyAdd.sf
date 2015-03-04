@@ -1,3 +1,2 @@
-let add (x : 'Int) (y : 'Int) = x + y
-in
+let add (x : Int) (y : Int) = x + y;
 add 1 2

@@ -1,0 +1,9 @@
+desc "Compile and run all examples"
+task :run_all do
+  Dir["*.sf"].each { |f| system("f2j -r #{f}") }
+end
+
+desc "Remove Java source files"
+task :clean do
+  system("rm *.java")
+end

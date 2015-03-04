@@ -1,4 +1,0 @@
---> 12
-
-let id A (x : A) = x in let pair = (id Int 1, id String "2") in
-pair._1.toString().concat(pair._2)

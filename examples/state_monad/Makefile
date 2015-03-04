@@ -1,5 +1,5 @@
 all : state_monad.sf
-	f2j -m naive -r $^
+	f2j -m apply -m stack -r $^
 
 .PHONY : clean
 clean :

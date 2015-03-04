@@ -1,4 +1,14 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{- |
+Module      :  Panic
+Description :  Utilities for throwing exceptions in the compiler.
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
 
 module Panic
   ( F2jException(..)
@@ -10,7 +20,7 @@ module Panic
   , panicOnSameDataCons
   ) where
 
-import Text.PrettyPrint.Leijen
+import Text.PrettyPrint.ANSI.Leijen
 import Control.Exception
 import Data.Data
 

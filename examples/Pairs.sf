@@ -1,0 +1,10 @@
+type Arrow[A, B] = A -> B;
+type Arr = Arrow;
+type BinaryOp[A] = Arr[A, Arr[A, A]];
+type Pair[A, B] = (A,B);
+type PairInt = Pair[Int];
+let add (x:Int) (y:Int) = x + y;
+let mul (x:Int) (y:Int) = x * y;
+let foldl (op: BinaryOp[Int]) (p: Pair[PairInt[Int], PairInt[Int]]) =
+  op (op (op p._1._1 p._1._2) p._2._1) p._2._2;
+foldl add ((1, 2), (3,4))

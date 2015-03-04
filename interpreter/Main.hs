@@ -22,16 +22,24 @@ import qualified Environment as Env
 import qualified History as Hist
 import FileIO 				(TransMethod (Naive))
 
-runtimeBytes :: Data.ByteString.ByteString
+import qualified Data.ByteString as B
+import System.Directory (getTemporaryDirectory)
+import System.FilePath ((</>))
+
+runtimeBytes :: B.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
 
+writeRuntimeToTemp :: IO ()
+writeRuntimeToTemp =
+  do tempdir <- getTemporaryDirectory
+     let tempFile = tempdir </> "runtime.jar"
+     B.writeFile tempFile runtimeBytes
+
 main :: IO ()
-main = do 
-     exists <- doesFileExist =<< getRuntimeJarPath
-     existsCur <- doesFileExist "./runtime.jar"
-     unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
-     fileExist "runtime.jar"
-     let p = (proc "java" ["-cp", "runtime.jar:.", (namespace ++ "FileServer")])
+main = do
+     writeRuntimeToTemp
+     cp <- getClassPath
+     let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP LineBuffering
@@ -39,7 +47,7 @@ main = do
      liftIO printHelp
      runInputT defaultSettings 
 	       (Loop.loop (inP, outP) (0, compileN, [Naive])  
-		          Map.empty Env.empty Hist.empty 0 False False False 0)
+		          Map.empty Env.empty Hist.empty Hist.empty 0 False False False False 0)
      terminateProcess proch
      
 fileExist :: String -> IO ()
@@ -53,6 +61,3 @@ printFile = do
 	f <- getLine
 	contents <- readFile f
 	putStr contents
-
-
-

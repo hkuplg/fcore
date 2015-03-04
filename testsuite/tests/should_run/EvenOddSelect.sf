@@ -1,0 +1,9 @@
+--> 1
+
+let rec evenOdd (select : Int) : Int -> Int =
+  if select == 0 then
+    \(n : Int) -> if n == 0 then 1 else if n == 1 then 0 else evenOdd 1 (n-1)
+  else
+    \(n : Int) -> if n == 0 then 0 else if n == 1 then 1 else evenOdd 0 (n-1)
+;
+evenOdd 1 7

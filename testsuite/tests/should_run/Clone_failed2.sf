@@ -1,0 +1,7 @@
+--> 9
+
+let func (acc : Int) (n : Int) : Int =
+    acc + n
+;
+let g (x : Int) (n : Int) : Int = x + n;
+(\(f: Int -> Int -> Int) -> f 1 (g 3 (func 2 3))) func

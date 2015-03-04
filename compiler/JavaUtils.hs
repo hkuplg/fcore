@@ -1,4 +1,15 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
+{- |
+Module      :  JavaUtils
+Description :  Utilities for compiling and running Java from Haskell, etc.
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
+License     :  BSD3
+
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
 
 module JavaUtils
   ( getRuntimeJarPath
@@ -8,24 +19,24 @@ module JavaUtils
   , ClassName, MethodName, FieldName
   ) where
 
-import StringUtils       (capitalize)
+import StringUtils (capitalize)
 
-import System.FilePath   (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>))
-import System.Directory  (setCurrentDirectory, getCurrentDirectory, getHomeDirectory)
-import System.Process    (system)
+import System.Directory (setCurrentDirectory, getCurrentDirectory, getTemporaryDirectory)
+import System.FilePath (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>))
+import System.Process (system)
 
 type ClassName  = String
 type MethodName = String
 type FieldName  = String
 
 getRuntimeJarPath :: IO FilePath
-getRuntimeJarPath
-  = do home <- getHomeDirectory
-       return $ home </> ".cabal/share/systemfcompiler-0.1.0.1/runtime/runtime.jar"
+getRuntimeJarPath =
+  do tempdir <- getTemporaryDirectory
+     return (tempdir </> "runtime.jar")
 
 getClassPath :: IO FilePath
 getClassPath = do r <- getRuntimeJarPath
-                  return $ r ++ ":./runtime.jar:."
+                  return $ r ++ ":."
 
 -- Given the path to the source file,
 -- infer the output path for the corresponding Java source.
@@ -49,6 +60,6 @@ runJava srcPath = do
     let workDir = takeDirectory srcPath
     setCurrentDirectory workDir
     cp <- getClassPath
-    system $ "java -cp " ++ currDir ++ "/runtime.jar:" ++ cp ++ " " ++ takeBaseName srcPath
+    system $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
     system "rm *.class"
     setCurrentDirectory currDir

@@ -1,16 +1,23 @@
-{-# LANGUAGE TemplateHaskell #-}
+{- |
+Module      :  Client
+Description :  Controller for the REPL
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
+License     :  BSD3
+
+Maintainer  :  Boya Peng <u3502350@connect.hku.hk>
+Stability   :  stable
+Portability :  portable
+-}
 
 module Client where
 
 import System.Console.Haskeline		(runInputT, defaultSettings)
 import System.IO
 import System.Process hiding (runCommand)
-import System.Directory			(removeFile, doesFileExist)
+import System.Directory			(doesFileExist)
 
 import Control.Monad.Error
 
-import Data.FileEmbed			(embedFile)
-import qualified Data.ByteString 	(ByteString, writeFile)
 import qualified Data.Map as Map
 
 import Translations
@@ -22,16 +29,11 @@ import qualified Environment as Env
 import qualified History as Hist
 import FileIO 				(TransMethod (Naive))
 
-runtimeBytes :: Data.ByteString.ByteString
-runtimeBytes = $(embedFile "../runtime/runtime.jar")
 
 main :: IO ()
 main = do 
-     exists <- doesFileExist =<< getRuntimeJarPath
-     existsCur <- doesFileExist "./runtime.jar"
-     unless (exists || existsCur) $ Data.ByteString.writeFile "./runtime.jar" runtimeBytes 
-     fileExist "runtime.jar"
-     let p = (proc "java" ["-cp", "runtime.jar:.", (namespace ++ "FileServer")])
+     cp <- getClassPath
+     let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP LineBuffering
@@ -39,7 +41,7 @@ main = do
      liftIO printHelp
      runInputT defaultSettings 
 	       (Loop.loop (inP, outP) (0, compileN, [Naive]) 
-		          Map.empty Env.empty Hist.empty 0 False False False 0)
+		          Map.empty Env.empty Hist.empty Hist.empty 0 False False False False 0)
      terminateProcess proch
      
 fileExist :: String -> IO ()
@@ -53,6 +55,3 @@ printFile = do
 	f <- getLine
 	contents <- readFile f
 	putStr contents
-
-
-

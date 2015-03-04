@@ -1,8 +1,0 @@
---> 1
-
-let rec
-  bar (f : Int -> Int -> Int) (x : Int) (y : Int) : Int = bar f x y
-and
-  foo (c : Int) : Int = 1
-in
-1
