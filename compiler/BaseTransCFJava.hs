@@ -417,8 +417,9 @@ trans self =
                    let statements = concatMap (\(x,_,_) -> x) es'
                    return (statements,lastExp,lastType)
               FVar _ -> sorry "BaseTransCFJava.trans.FVar: no idea how to do"
-              Constr (Constructor ctrName ctrParams) es ->
+              Constr (Constructor ctrName' ctrParams) es ->
                 do let Datatype nam _ _ = last ctrParams
+                       ctrName = nam ++ ctrName'
                    es' <- mapM (translateM this) es
                    newVarName <- getNewVarName this
                    let (stmts, oexpr, _) =  concatFirst $ unzip3 es'
@@ -434,16 +435,18 @@ trans self =
                         proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
                     (s',e',t') <- translateM this e
                     return([classdef,proxy] ++ s',e', t')
-                where translateCtr (Constructor ctrname []) tagnum = do
-                          let fielddecl = memberDecl $ fieldDecl (classTy nam) (varDeclNoInit ctrname )
+                where translateCtr (Constructor ctrname' []) tagnum = do
+                          let ctrname = nam ++ ctrname'
+                              fielddecl = memberDecl $ fieldDecl (classTy nam) (varDeclNoInit ctrname )
                               singleton = bStmt $ ifthen (eq (varExp ctrname) nullExp)
                                                           (assignE (name [ctrname]) (instCreat (classTyp nam) [integerExp tagnum]))
                               methoddecl = memberDecl $ methodDecl [] (Just $ classTy nam) ctrname []
                                                         (Just $ block [singleton, returnExpS $ varExp ctrname])
                           return [fielddecl, methoddecl]
-                      translateCtr (Constructor ctrname types) tagnum = do
+                      translateCtr (Constructor ctrname' types) tagnum = do
                           javaty <- mapM (javaType this) types
-                          let fields = map ((fieldtag ++ ) . show) [1..length types]
+                          let ctrname = nam ++ ctrname'
+                              fields = map ((fieldtag ++ ) . show) [1..length types]
                               fieldsdec = map memberDecl $ zipWith  fieldDecl javaty (map varDeclNoInit fields)
                               ctrdecl = memberDecl $ constructorDecl ctrname (zipWith paramDecl javaty fields)
                                                      (Just $ J.SuperInvoke [] [integerExp tagnum])
@@ -469,7 +472,7 @@ trans self =
                             len = length types - 1
                             objtype = case len of
                                          0  -> classTy nam
-                                         _  -> classTy (nam ++ "." ++ ctrname)
+                                         _  -> classTy (nam ++ "." ++ nam ++ ctrname)
                         (n :: Int) <- get
                         put (n+len+1)
                         let varname = localvarstr ++ show n
