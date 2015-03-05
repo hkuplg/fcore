@@ -248,8 +248,8 @@ alphaEqS :: Type -> Type -> Bool
 alphaEqS (TVar a) (TVar b)             = a == b
 
 -- The ground for this? Can you provide an example?
-alphaEqS (JType (JPrim "char")) (JType (JClass "java.lang.Character")) = True
-alphaEqS (JType (JClass "java.lang.Character")) (JType (JPrim "char")) = True
+-- alphaEqS (JType (JPrim "char")) (JType (JClass "java.lang.Character")) = True
+-- alphaEqS (JType (JClass "java.lang.Character")) (JType (JPrim "char")) = True
 
 alphaEqS (JType c)      (JType d)      = c == d
 alphaEqS (Fun t1 t2)    (Fun t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4

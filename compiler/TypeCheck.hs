@@ -459,7 +459,7 @@ infer (JMethod callee m args _) =
       do (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
          ret_c <- checkMethodCall (Static c) m arg_cs
          let ret_type = case ret_c of "java.lang.Void" -> Unit
-                                      "char" -> JType (JPrim "char")
+                                      -- "char" -> JType (JPrim "char")
                                       _ -> JType (JClass ret_c)
          return (ret_type, JMethod (Static c) m args' ret_c)
     NonStatic e ->
@@ -467,7 +467,7 @@ infer (JMethod callee m args _) =
          (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
          ret_c <- checkMethodCall (NonStatic c) m arg_cs
          let ret_type = case ret_c of "java.lang.Void" -> Unit
-                                      "char" -> JType (JPrim "char")
+                                      -- "char" -> JType (JPrim "char")
                                       _ -> JType (JClass ret_c)
          return (ret_type, JMethod (NonStatic e') m args' ret_c)
 
@@ -475,17 +475,19 @@ infer (JField callee f _) =
   case callee of
     Static c ->
       do ret_c <- checkFieldAccess (Static c) f
-         if ret_c == "char"
-            then return (JType (JPrim ret_c), JField (Static c) f ret_c)
-            else return (JType (JClass ret_c), JField (Static c) f ret_c)
+         return (JType (JClass ret_c), JField (Static c) f ret_c)
+         -- if ret_c == "char"
+         --    then return (JType (JPrim ret_c), JField (Static c) f ret_c)
+         --    else return (JType (JClass ret_c), JField (Static c) f ret_c)
     NonStatic e ->
       do (t, e') <- infer e
          case t of
            JType (JClass c) ->
              do ret_c   <- checkFieldAccess (NonStatic c) f
-                if ret_c == "char"
-                  then return (JType (JPrim "char"), JField (NonStatic e') f ret_c)
-                  else return (JType (JClass ret_c), JField (NonStatic e') f ret_c)
+                return (JType (JClass ret_c), JField (NonStatic e') f ret_c)
+                -- if ret_c == "char"
+                --   then return (JType (JPrim "char"), JField (NonStatic e') f ret_c)
+                --   else return (JType (JClass ret_c), JField (NonStatic e') f ret_c)
            _ -> throwError (NotMember f t)
 
 infer (Seq es) =
@@ -662,7 +664,7 @@ inferAgainstAnyJClass :: ReaderExpr -> Checker (ClassName, CheckedExpr)
 inferAgainstAnyJClass expr
   = do (ty, expr') <- infer expr
        case deThunkOnce ty of
-        JType (JPrim "char") -> return ("java.lang.Character", expr')
+        -- JType (JPrim "char") -> return ("java.lang.Character", expr')
         JType (JClass c) -> return (c, expr')
         ListOf _         -> return (namespace ++ "FunctionalList", expr')
         _ -> throwError $
