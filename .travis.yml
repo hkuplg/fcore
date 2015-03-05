@@ -1,3 +1,6 @@
+notifications:
+  slack: hkuplgroup:7jiTM7QOayfuaA2tm7YgOhHa
+
 env:
   #- GHCVER=7.4.2
   #- GHCVER=7.6.3
