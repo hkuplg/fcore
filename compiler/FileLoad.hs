@@ -1,7 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 {- |
-Module      :  FileLoad 
+Module      :  FileLoad
 Description :  Testing framework for make test 2
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
@@ -16,8 +16,8 @@ module Main where
 
 import System.IO
 import System.Process
-import System.Directory			(doesFileExist, getDirectoryContents)
-import System.FilePath			(takeFileName)
+import System.Directory                 (doesFileExist, getDirectoryContents)
+import System.FilePath                  (takeFileName)
 import System.TimeIt        (timeIt)
 
 import Data.Time            (getCurrentTime, diffUTCTime)
@@ -41,7 +41,7 @@ writeRuntimeToTemp =
      let tempFile = tempdir </> "runtime.jar"
      B.writeFile tempFile runtimeBytes
 
-testCasesPath = "testsuite/tests/run-pass/"
+testCasesPath = "testsuite/tests/should_run/"
 
 initReplEnv :: [TransMethod] -> Compilation -> [String] -> IO ()
 initReplEnv method opt xs =  do
@@ -59,19 +59,19 @@ loadFile inP outP method opt xs = do
     putStrLn "-------------------------------------"
     putStrLn ("Compileation Option: " ++ show (method))
     loadAll inP outP method opt xs
-   
+
 loadAll ::  Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO ()
-loadAll _ _ _ _ [] = return () 
+loadAll _ _ _ _ [] = return ()
 loadAll inP outP method opt (x:xs) = do
     let compileOpt = (0, opt, method)
     let name = takeFileName x
-    when (head name /= '.') $ 
+    when (head name /= '.') $
      do putStrLn ("Running " ++ name)
         output <- getStandardOutput x
         putStrLn $ "\x1b[32m" ++ "Standard output: " ++ output
-        wrap (inP, outP) (receiveMsg2 output) compileOpt True False x 
-    loadAll inP outP method opt xs 
-  
+        wrap (inP, outP) (receiveMsg2 output) compileOpt True False x
+    loadAll inP outP method opt xs
+
 getStandardOutput :: FilePath -> IO String
 getStandardOutput file = do
   content <- readFile file
@@ -80,11 +80,11 @@ getStandardOutput file = do
 
 fileExist :: String -> IO ()
 fileExist name = do
-	exist <- doesFileExist name
-	if (exist) 
-	  then return ()
-	  else fileExist name
-	
+        exist <- doesFileExist name
+        if (exist)
+          then return ()
+          else fileExist name
+
 addFilePath :: [FilePath] -> [FilePath]
 addFilePath [] = []
 addFilePath (x:xs) = (testCasesPath ++ x) : (addFilePath xs)
@@ -93,8 +93,8 @@ main :: IO ()
 main = do
   writeRuntimeToTemp
   start <- getCurrentTime
-  xs <- getDirectoryContents testCasesPath 
-  let (x:y:ys) = xs 
+  xs <- getDirectoryContents testCasesPath
+  let (x:y:ys) = xs
   let zs = addFilePath ys
   putStrLn ""
   putStrLn $ "Running test from " ++ testCasesPath
@@ -107,5 +107,3 @@ main = do
   putStrLn "Finished!"
   end <- getCurrentTime
   putStrLn $ "Running Time " ++ show (diffUTCTime end start)
-
- 
