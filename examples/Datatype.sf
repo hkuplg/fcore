@@ -1,9 +1,0 @@
---> 2
-data MList = Nil
-         | Cons Int MList
-     ;
-let rec size (xs : MList) : Int =
-   case xs of
-       Nil -> 0
-     | Cons y ys -> 1 + size ys
-; size (Cons 5 (Cons 4 Nil))
