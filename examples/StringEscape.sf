@@ -1,0 +1,14 @@
+let print (s: String) = {
+  java.lang.System.out.print(s);
+  "\"Escaped string tests done!\""
+};
+
+{
+  print("\"Hello, world\"\n");
+  print("中文測試\n");
+  print(String.valueOf('\'').concat("Single quotation marks'").concat(String.valueOf('\n')));
+  print("Unicode test: \u2318\n");
+  print("Hex test: \u003cHex\u003e\n");
+  print("Oct test: \173Oct\175\n");
+  print("------\n")
+}
