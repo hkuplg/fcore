@@ -3,7 +3,7 @@
 {- |
 Module      :  Core
 Description :  Abstract syntax and pretty printer for Core.
-Copyright   :  (c) 2014-2015 HKU
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
 Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>, Haoyuan Zhang <zhanghaoyuan00@gmail.com>
@@ -211,7 +211,7 @@ prettyType' :: Prec -> Index -> Type Index -> Doc
 
 prettyType' _ _ (TVar n _)   = text n
 
-prettyType' p i (Datatype n tvars _) = intersperseSpace $ text n : map (prettyType' p i) tvars
+prettyType' p i (Datatype n tvars _) = hsep $ text n : map (prettyType' p i) tvars
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2
@@ -337,21 +337,17 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
                   pretty_ids pretty_sigs pretty_defs
     pretty_body  = prettyExpr' p (i, j + n) (body ids)
 
-prettyExpr' p (i,j) (Data name params ctrs e)
-  = (text $ "Data " ++ name ++ " " ++ prettyParams params ++ " =") <+>
-    (hcat . intersperse (text " | ") . map prettyCtr $ ctrs) <$>
-    (prettyExpr' p (i,j) e)
-  where prettyParams pa = concat . intersperse " " $ pa
-        prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
+prettyExpr' p (i,j) (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr' p (i,j) e
+  where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
 
-prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)
     where pretty_alt (ConstrAlt c ns es) =
               let n = length ns
                   ids = [j..j+n-1]
-              in intersperseSpace (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
+              in hsep (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
 
 javaInt :: Type t
 javaInt = JClass "java.lang.Integer"

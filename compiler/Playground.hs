@@ -1,7 +1,3 @@
-{-# OPTIONS_GHC
-    -fno-warn-missing-signatures
-    -fno-warn-orphans
-    -fno-warn-unused-imports #-}
 
 module Examples where
 

@@ -1,7 +1,7 @@
 -- Adapted from
 -- http://stackoverflow.com/questions/13337338/call-by-name-vs-call-by-value-in-scala-clarification-needed
 
-let something () = {
+let something (x: Unit) = {
   java.lang.System.out.println("something called");
   1
 };
@@ -13,7 +13,7 @@ let callByValue (x: Int) = {
   "Leaving callByValue"
 };
 
-let callByName (x: 'Int) = {
+let callByName (x: Int) = {
   java.lang.System.out.println(x);
   java.lang.System.out.println(x);
   java.lang.System.out.println(x);

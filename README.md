@@ -1,20 +1,32 @@
-# F2j: A Compiler For FCore
+# F2J: A Compiler for FCore
+[![Build Status](https://travis-ci.org/hkuplg/fcore.svg?branch=develop)](https://travis-ci.org/hkuplg/fcore)
 
-## Installing
+## Building from Source
 
 The following instructions should work on any platform, from OS X to
-Ubuntu. It builds the compiler from source, and may take some time.
+Ubuntu. It builds the compiler from source, thus may take some time.
 
-1. Download the [Haskell Platfrom](https://www.haskell.org/platform/).
+1. Install the [Haskell Platform](https://www.haskell.org/platform/).
 
-2. In the top directory, running the following commands in a console
+2. Clone the [source] with [git]:
 
-        cabal update
-        make
+   ```bash
+   git clone https://github.com/hkuplg/fcore.git
+   cd fcore
+   ```
+[source]: https://github.com/hkuplg/fcore
+[git]: http://git-scm.com/
 
-3. After the installation, invoking `f2j` in your console will show
+3. Build an install:
+
+   ```bash
+   cabal update
+   make
+   ```
+
+4. After the installation, invoking `f2j` in your console will show
    its usage. If not, you probably want to add `.cabal/bin` to your
-   $PATH.
+   `$PATH`.
 
 
 ## Compilation Methods
@@ -23,19 +35,19 @@ F2j has a few built-in compilation methods (by default, it doesn't use
 any optimization), namely `apply`, `stack` and `unbox`.
 
 + Apply: multi-argument optimization
-+ Stack: tail call elimination 
++ Stack: tail call elimination
 + Unbox: auto-unboxing optimization
 
-To use one or some of them, simply append the compilation
-methods you want to use to the command line.
+To use one or more of them, simply append the compilation methods you
+want to use as the command line arguments.
 
 For example, say you want to use the `apply` method, running the
-following command
+following command:
 
     f2j -m apply some_file
 
 If you want to combine different methods (say, `apply` and `stack`),
-just type
+just type:
 
     f2j -m apply -m stack some_file
 
@@ -49,14 +61,14 @@ you to the REPL.
 
 ## Examples
 
-In the "example" directory, you will see a lot of example programs
+In the `example` directory, you will see a lot of example programs
 written in FCore. You may want to take a look at them to get familiar
 with the syntax. These examples demonstrate different features of our
 compiler, such as call-by-name, record syntax, modules, thunk, type
 synonyms, etc.
 
-Particularly, in the "sierpinsky" sub-directory, there is a
-interesting program that draws a Sierpinsky curve.
+Particularly, in `examples/fractals`, there is an interesting program
+that draws a fractal.
 
 ## Troubleshooter
 
@@ -68,4 +80,10 @@ and then
 
      make
 
-If the problem persists, create a issue!
+If the problem persists, create an issue!
+
+## License
+
+BSD3
+
+See `LICENSE` at the top-level directory for details.

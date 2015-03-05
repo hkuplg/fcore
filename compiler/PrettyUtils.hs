@@ -2,7 +2,7 @@
 {- |
 Module      :  PrettyUtils
 Description :  Utilities for pretty printing.
-Copyright   :  (c) 2014-2015 HKU
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
 Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
@@ -86,6 +86,3 @@ prependNot d = text "not" <+> d
 
 combineWithAnd :: Doc -> Doc -> Doc
 combineWithAnd d1 d2 = d1 <+> text "&&" <+> d2
-
-intersperseSpace :: [Doc] -> Doc
-intersperseSpace = hcat . (intersperse space)

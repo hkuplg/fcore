@@ -1,5 +1,5 @@
-type Three A B C = { fst : A, snd : B, thd : C};
-let x : Three Int String Bool = {
+type Three[A, B, C] = { fst : A, snd : B, thd : C};
+let x : Three[Int, String, Bool] = {
   snd = "a", thd = True, fst = 1
 };
 x

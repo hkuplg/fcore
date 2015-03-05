@@ -1,6 +1,0 @@
---> c
-
-let myCharAt(s : java.lang.String)(i : Int) : java.lang.Character =
-    new java.lang.Character(s.charAt(i))
-in
-myCharAt("abcde")(2)

@@ -1,0 +1,10 @@
+let user = { name = "George", admin = True };
+let id1 (user: { name: String }) = user;
+let id2 [A] (user: A & { name: String }) = user;
+-- This encodes bounded polymorphism:
+-- let id2 [A <: { name: String }] (user: A) = user;
+
+(id2 [{ admin: Bool }] user).admin
+
+-- Won't typecheck:
+-- (id1 user).admin

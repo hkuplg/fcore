@@ -3,7 +3,7 @@
 {- |
 Module      :  Desugar
 Description :  The desugarer turns the source language into System FI.
-Copyright   :  (c) 2014-2015 HKU
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
 Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
@@ -45,10 +45,10 @@ transType d (Fun t1 t2)  = F.Fun (transType d t1) (transType d t2)
 transType d (Product ts) = F.Product (map (transType d) ts)
 transType d (Forall a t) = F.Forall a (\a' -> transType (Map.insert a a' d) t)
 transType d (And t1 t2)  = F.And (transType d t1) (transType d t2)
-transType d (Record fs)  =
+transType d (RecordType fs)  =
                 case fs  of
-                  [(l,t)]  -> F.Record (l, transType d t)
-                  _        -> transType d (Record (take (length fs - 1) fs)) `F.And` F.Record (let (l,t) = last fs in (l,transType d t))
+                  [(l,t)]  -> F.RecordType (l, transType d t)
+                  _        -> transType d (RecordType (take (length fs - 1) fs)) `F.And` F.RecordType (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = F.Unit
 transType i (Thunk t)    = F.Fun F.Unit (transType i t)
 transType i (Datatype n ts ns) = F.Datatype n (map (transType i) ts) ns
@@ -73,12 +73,12 @@ desugarExpr (d, g) = go
     go Let{..}           = panic "Desugar.desugarExpr: Let"
     go (LetOut _ [] e)   = go e
     go (Merge e1 e2)     = F.Merge (go e1) (go e2)
-    go (RecordIntro fs)       =
+    go (RecordCon fs)       =
       case fs of
         []       -> panic "Desugar.desugarExpr: Record"
-        [(l,e)]  -> F.RecordIntro (l, go e)
-        _        -> go (RecordIntro (take (length fs - 1) fs)) `F.Merge` F.RecordIntro (let (l,e) = last fs in (l,go e))
-    go (RecordElim e l) = F.RecordElim (go e) l
+        [(l,e)]  -> F.RecordCon (l, go e)
+        _        -> go (RecordCon (take (length fs - 1) fs)) `F.Merge` F.RecordCon (let (l,e) = last fs in (l,go e))
+    go (RecordProj e l) = F.RecordProj (go e) l
     go (RecordUpdate e fs) =
       case fs of
         [] -> go e

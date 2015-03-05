@@ -2,7 +2,7 @@
 {- |
 Module      :  BaseTransCFJava
 Description :  Basic translation of FCore to Java
-Copyright   :  (c) 2014-2015 HKU
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
 Maintainer  :  Jeremy <bixuanxbi@gmail.com>, Tomas <tomtau@connect.hku.hk>
@@ -297,7 +297,7 @@ trans self =
                    let rhs =
                          J.InstanceCreation
                            (map (\y -> case y of
-                                         JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
                                          -- CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                          -- CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
@@ -322,7 +322,7 @@ trans self =
                    let rhs =
                          J.InstanceCreation
                            (map (\y -> case y of
-                                         JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                         -- JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                          JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
                                          -- CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                          -- CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
@@ -354,7 +354,7 @@ trans self =
                                      -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                      -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                      -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                                     _ -> sorry "BaseTransCFJava.trans.JMethod: no idea how to do")
                              types
                    realJavaType <- javaType this realType
                    (classStatement,rhs) <- case c of
@@ -385,7 +385,7 @@ trans self =
                                      -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                      -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                      -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                                     _ -> sorry "BaseTransCFJava.trans.JMethod: no idea how to do")
                              types
                    (classStatement,rhs) <- case c of
                                              Right ce ->
@@ -417,8 +417,9 @@ trans self =
                    let statements = concatMap (\(x,_,_) -> x) es'
                    return (statements,lastExp,lastType)
               FVar _ -> sorry "BaseTransCFJava.trans.FVar: no idea how to do"
-              Constr (Constructor ctrName ctrParams) es ->
+              Constr (Constructor ctrName' ctrParams) es ->
                 do let Datatype nam _ _ = last ctrParams
+                       ctrName = nam ++ ctrName'
                    es' <- mapM (translateM this) es
                    newVarName <- getNewVarName this
                    let (stmts, oexpr, _) =  concatFirst $ unzip3 es'
@@ -434,16 +435,18 @@ trans self =
                         proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
                     (s',e',t') <- translateM this e
                     return([classdef,proxy] ++ s',e', t')
-                where translateCtr (Constructor ctrname []) tagnum = do
-                          let fielddecl = memberDecl $ fieldDecl (classTy nam) (varDeclNoInit ctrname )
+                where translateCtr (Constructor ctrname' []) tagnum = do
+                          let ctrname = nam ++ ctrname'
+                              fielddecl = memberDecl $ fieldDecl (classTy nam) (varDeclNoInit ctrname )
                               singleton = bStmt $ ifthen (eq (varExp ctrname) nullExp)
                                                           (assignE (name [ctrname]) (instCreat (classTyp nam) [integerExp tagnum]))
                               methoddecl = memberDecl $ methodDecl [] (Just $ classTy nam) ctrname []
                                                         (Just $ block [singleton, returnExpS $ varExp ctrname])
                           return [fielddecl, methoddecl]
-                      translateCtr (Constructor ctrname types) tagnum = do
+                      translateCtr (Constructor ctrname' types) tagnum = do
                           javaty <- mapM (javaType this) types
-                          let fields = map ((fieldtag ++ ) . show) [1..length types]
+                          let ctrname = nam ++ ctrname'
+                              fields = map ((fieldtag ++ ) . show) [1..length types]
                               fieldsdec = map memberDecl $ zipWith  fieldDecl javaty (map varDeclNoInit fields)
                               ctrdecl = memberDecl $ constructorDecl ctrname (zipWith paramDecl javaty fields)
                                                      (Just $ J.SuperInvoke [] [integerExp tagnum])
@@ -464,21 +467,24 @@ trans self =
                        switchstmt = bStmt $ switchStmt tagaccess (blocks' ++ [defaultBlock])
                    return (s' ++ [newvardecl, switchstmt], var newVarName, head type')
                 where mapAlt e' resultName (ConstrAlt (Constructor ctrname types) _ f) = do
-                        let (Datatype nam _ ctrnames) = last types
+                        let (Datatype nam tvars ctrnames) = last types
                             Just label = elemIndex ctrname ctrnames
                             len = length types - 1
                             objtype = case len of
                                          0  -> classTy nam
-                                         _  -> classTy (nam ++ "." ++ ctrname)
+                                         _  -> classTy (nam ++ "." ++ nam ++ ctrname)
                         (n :: Int) <- get
                         put (n+len+1)
                         let varname = localvarstr ++ show n
                         jtypes <- mapM (javaType this) (init types)
+                        tvarjtypes <- mapM (javaType this) tvars
                         let objdecl = case len of
                                          0 -> localVar objtype $ varDecl varname e'
                                          _ -> localVar objtype $ varDecl varname (cast objtype e')
-                            vardecls = zipWith (\i ty -> localVar ty $ varDecl (localvarstr ++ show (n+i))
-                                                                     $ fieldAccess (varExp varname) (fieldtag ++ show i))
+                            vardecls = zipWith (\i ty -> let fieldaccess = fieldAccess (varExp varname) (fieldtag ++ show i)
+                                                         in  if (ty == objClassTy || not (elem ty tvarjtypes))
+                                                              then localVar ty $ varDecl (localvarstr ++ show (n+i)) fieldaccess
+                                                              else localVar ty $ varDecl (localvarstr ++ show (n+i)) (cast ty fieldaccess) )
                                                 [1..len]
                                                 jtypes
                         (altstmt, alte, altt) <- translateM this $ f (zip [(n+1) ..] (init types))

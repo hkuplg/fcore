@@ -1,2 +1,2 @@
-let f A = 0
-in 0
+let f[A] = 0;
+0

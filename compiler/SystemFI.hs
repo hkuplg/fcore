@@ -3,7 +3,7 @@
 {- |
 Module      :  SystemFI
 Description :  Abstract syntax and pretty printer for SystemFI.
-Copyright   :  (c) 2014-2015 HKU
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
 Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>, Haoyuan Zhang <zhanghaoyuan00@gmail.com>
@@ -51,7 +51,7 @@ data Type t
   | Unit
 
   | And (Type t) (Type t)               -- t1 & t2
-  | Record (Src.Label, Type t)
+  | RecordType (Src.Label, Type t)
   | Datatype Src.ReaderId [Type t] [Src.ReaderId]
   | ListOf (Type t)
     -- Warning: If you ever add a case to this, you *must* also define the
@@ -101,8 +101,8 @@ data Expr t e
   | Seq [Expr t e]
 
   | Merge (Expr t e) (Expr t e)  -- e1 ,, e2
-  | RecordIntro    (Src.Label, Expr t e)
-  | RecordElim   (Expr t e) Src.Label
+  | RecordCon    (Src.Label, Expr t e)
+  | RecordProj   (Expr t e) Src.Label
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
 
   | Data Src.ReaderId [Src.ReaderId] [Constructor t] (Expr t e)
@@ -142,7 +142,7 @@ mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
 mapTVar g (ListOf t)     = ListOf (mapTVar g t)
 mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
-mapTVar g (Record (l,t)) = Record (l, mapTVar g t)
+mapTVar g (RecordType (l,t)) = RecordType (l, mapTVar g t)
 mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
 
 mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
@@ -172,8 +172,8 @@ mapVar g h (PolyList es t)           = PolyList (map (mapVar g h) es) (h t)
 mapVar g h (JProxyCall jmethod t)    = JProxyCall (mapVar g h jmethod) (h t)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
-mapVar g h (RecordIntro (l, e))      = RecordIntro (l, mapVar g h e)
-mapVar g h (RecordElim e l)          = RecordElim (mapVar g h e) l
+mapVar g h (RecordCon (l, e))        = RecordCon (l, mapVar g h e)
+mapVar g h (RecordProj e l)          = RecordProj (mapVar g h e) l
 mapVar g h (RecordUpdate e (l1,e1))  = RecordUpdate (mapVar g h e) (l1, mapVar g h e1)
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
@@ -194,7 +194,7 @@ joinType (Forall n g)     = Forall n (joinType . g . TVar "_") -- Right?
 joinType (Product ts)     = Product (map joinType ts)
 joinType  Unit            = Unit
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
-joinType (Record (l,t))   = Record (l, joinType t)
+joinType (RecordType (l,t))   = RecordType (l, joinType t)
 joinType (Datatype n ts ns)  = Datatype n (map joinType ts) ns
 joinType (ListOf t)       = ListOf (joinType t)
 
@@ -211,7 +211,7 @@ prettyType' :: Prec -> Index -> Type Index -> Doc
 
 prettyType' _ _ (TVar n a)   = text n
 
-prettyType' p i (Datatype n ts _) = intersperseSpace $ text n : map (prettyType' p i) ts
+prettyType' p i (Datatype n ts _) = hsep $ text n : map (prettyType' p i) ts
 
 prettyType' p i (Fun t1 t2)  =
   parensIf p 2
@@ -239,7 +239,7 @@ prettyType' p i (And t1 t2) =
      ampersand  <+>
      prettyType' (2,PrecPlus) i t2)
 
-prettyType' _ i (Record (l,t)) = lbrace <+> text l <+> colon <+> prettyType' basePrec i t <+> rbrace
+prettyType' _ i (RecordType (l,t)) = lbrace <+> text l <+> colon <+> prettyType' basePrec i t <+> rbrace
 
 -- instance Show (Expr Index Index) where
 --   show = show . pretty
@@ -315,12 +315,10 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 prettyExpr' p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr' p i ) $ es
-prettyExpr' p (i,j) (Data name params ctrs e)
-  = (text $ "Data " ++ name ++ " " ++ prettyParams params ++ " =") <+>
-    (hcat . intersperse (text " | ") . map prettyCtr $ ctrs) <$>
-    (prettyExpr' p (i,j) e)
-  where prettyParams pa = concat . intersperse " " $ pa
-        prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
+
+prettyExpr' p (i,j) (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr' p (i,j) e
+  where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
+
 prettyExpr' p i (JProxyCall jmethod t) = prettyExpr' p i jmethod
 
 prettyExpr' p (i,j) (Fix n1 n2 f t1 t)
@@ -353,15 +351,15 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
 prettyExpr' p (i,j) (Merge e1 e2) =
   parens $ prettyExpr' p (i,j) e1 <+> dcomma <+> prettyExpr' p (i,j) e2
 
-prettyExpr' _ (i,j) (RecordIntro (l, e))       = lbrace <+> text l <+> equals <+> prettyExpr' basePrec (i,j) e <+> rbrace
-prettyExpr' p (i,j) (RecordElim e l)         = prettyExpr' p (i,j) e <> dot <> text l
-prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordIntro (l, e1))
+prettyExpr' _ (i,j) (RecordCon (l, e))       = lbrace <+> text l <+> equals <+> prettyExpr' basePrec (i,j) e <+> rbrace
+prettyExpr' p (i,j) (RecordProj e l)         = prettyExpr' p (i,j) e <> dot <> text l
+prettyExpr' p (i,j) (RecordUpdate e (l, e1)) = prettyExpr' p (i,j) e <+> text "with" <+> prettyExpr' p (i,j) (RecordCon (l, e1))
 
-prettyExpr' p (i,j) (Constr c es)            = braces $ intersperseSpace $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)
     where pretty_alt (ConstrAlt c ns es) =
               let n = length ns
                   ids = [j..j+n-1]
-              in intersperseSpace (text (constrName c) : map prettyVar ids) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
+              in hsep (text (constrName c) : map prettyVar ids) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
