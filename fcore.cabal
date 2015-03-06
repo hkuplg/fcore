@@ -36,7 +36,7 @@ library
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
 
-  hs-source-dirs:       compiler,interpreter
+  hs-source-dirs:       lib
 
   exposed-modules:      ApplyTransCFJava
                         BaseTransCFJava
@@ -96,7 +96,7 @@ Flag Z3
   default: False
 
 executable f2ji
-  hs-source-dirs:       interpreter,compiler
+  hs-source-dirs:       interpreter
   main-is:              Main.hs
   build-depends:        fcore
   ghc-options:          -Wall
