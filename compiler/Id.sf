@@ -1,9 +1,0 @@
---> 3
-
-# let id = /\A -> \(x:A) -> x : forall A . A -> A;
-# let const = /\A -> \(x : A) -> \(y : A). x : forall A. A -> A -> A;
-# const[Int] (id[Int] 3) 4
-
-let id = /\A -> \(x:A) -> x;
-let const = /\A -> \(x : A) (y : A) -> x;
-const (id 3) 4
