@@ -5,14 +5,11 @@ testdir=testsuite
 
 .PHONY : compiler
 compiler :
-	cd runtime; ant
-	cabal install
+	cd runtime && ant && cabal install
 
 .PHONY : smt
 smt :
-	cd runtime; ant
-	./select-cabal.sh
-	cabal install -f Z3
+	cd runtime && ant && cabal install -f Z3
 
 .PHONY : test
 test :
