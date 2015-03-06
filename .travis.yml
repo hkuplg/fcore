@@ -1,6 +1,11 @@
 notifications:
   slack: hkuplgroup:7jiTM7QOayfuaA2tm7YgOhHa
 
+branches:
+  only:
+    - master
+    - develop
+
 env:
   #- GHCVER=7.4.2
   #- GHCVER=7.6.3
