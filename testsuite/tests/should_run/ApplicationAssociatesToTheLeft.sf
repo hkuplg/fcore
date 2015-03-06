@@ -1,0 +1,3 @@
+let function (str : String) = str;
+let function2 (str : String) = str;
+function (function2 "abc")
