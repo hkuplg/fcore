@@ -6,7 +6,6 @@ testdir=testsuite
 .PHONY : compiler
 compiler :
 	cd runtime; ant
-	./select-cabal.sh
 	cabal install
 
 .PHONY : smt
