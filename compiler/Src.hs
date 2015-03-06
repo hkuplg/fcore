@@ -347,20 +347,25 @@ fsubstTT (_,_) (JType c)       = JType c
 fsubstTT (x,r) (Fun t1 t2)     = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Product ts)    = Product (map (fsubstTT (x,r)) ts)
 fsubstTT (x,r) (Forall a t)
-  | a == x                     = Forall a t
-  | a `Set.member` freeTVars r = Forall a t -- The freshness condition, crucial!
-  | otherwise                  = Forall a (fsubstTT (x,r) t)
+    | a == x || a `Set.member` freeTVars r = -- The freshness condition, crucial!
+        let fresh = freshName a (freeTVars t `Set.union` freeTVars r)
+        in Forall fresh (fsubstTT (x,r) (fsubstTT (a, TVar fresh) t))
+    | otherwise                = Forall a (fsubstTT (x,r) t)
 fsubstTT (x,r) (ListOf a)      = ListOf (fsubstTT (x,r) a)
 fsubstTT (_,_) Unit            = Unit
 fsubstTT (x,r) (RecordType fs)     = RecordType (map (second (fsubstTT (x,r))) fs)
 fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Thunk t1)      = Thunk (fsubstTT (x,r) t1)
 fsubstTT (x,r) (OpAbs a t)
-  | a == x                     = OpAbs a t
-  | a `Set.member` freeTVars r = OpAbs a t -- The freshness condition, crucial!
-  | otherwise                  = OpAbs a (fsubstTT (x,r) t)
+    | a == x || a `Set.member` freeTVars r = -- The freshness condition, crucial!
+        let fresh = freshName a (freeTVars t `Set.union` freeTVars r)
+        in OpAbs fresh (fsubstTT (x,r) (fsubstTT (a, TVar fresh) t))
+    | otherwise                = OpAbs a (fsubstTT (x,r) t)
 fsubstTT (x,r) (OpApp t1 t2)   = OpApp (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Datatype n ts ns) = Datatype n (map (fsubstTT (x,r)) ts) ns
+
+freshName :: Name -> Set.Set Name -> Name
+freshName name existedNames = head $ dropWhile (`Set.member` existedNames) [name ++ show i | i <- [1..]]
 
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x
