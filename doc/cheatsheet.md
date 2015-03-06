@@ -94,9 +94,10 @@ module M {
 };
 ...
 ```
-1. Link modules with source file:
+Link modules with source file:
 - f2ji: ```-l --module=MODULE```
 - f2j: ```:link <sourceFile> -m <module1> <module2> ...```
-2. f2ji:
+
+F2ji:
 - ```:load M``` Load module M into REPL environment, allow user to use functions defined in M, say M.add
 - ```:import M``` Allow user to directly use add instead of M.add
