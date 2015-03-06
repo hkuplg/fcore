@@ -24,7 +24,10 @@ empty :: Env
 empty = []
 
 insert :: (String, String) -> Env -> Env
-insert (var, exp) env = (var, (exp, Parser.reader exp)) : env
+insert (var, exp) env = 
+  case Parser.reader exp of
+    Left  expr           -> (var, (exp, expr)) : env
+    Right (PError error) -> env
 
 createExp :: [String] -> String
 createExp [] = ""

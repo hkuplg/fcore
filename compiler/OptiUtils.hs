@@ -220,11 +220,14 @@ src2fi :: String -> IO (FI.Expr t e)
 src2fi fname = do
      path <- getCurrentDirectory
      string <- readFile (path ++ "/" ++ fname)
-     result <- typeCheck . reader $ string
-     case result of
-       Left typeError -> error $ show typeError
-       Right (_, tcheckedSrc) ->
-             return . desugar $ tcheckedSrc
+     case reader string of
+       Left expr -> do 
+         result <- typeCheck expr
+         case result of
+           Left typeError -> error $ show typeError
+           Right (_, tcheckedSrc) ->
+                 return . desugar $ tcheckedSrc
+       Right msg -> error "Parse error!"
 
 applyFi :: (FI.Expr t e -> r) -> String -> IO r
 applyFi f fname = liftM f $ src2fi fname
