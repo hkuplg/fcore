@@ -432,8 +432,8 @@ parseError []        = PError ("Parse error")
 parseError (token:_) = PError ("Parse error at " ++ show line ++ ":" ++ show col)
   where (line, col) = getLocation token
 
-reader :: String -> ReaderExpr
+reader :: String -> Either ReaderExpr (P msg)
 reader src = case (parseExpr . lexer) src of
-                 POk expr   -> expr
-                 PError msg -> error msg
+                 POk expr   -> Left expr
+                 PError msg -> Right (error msg)
 }

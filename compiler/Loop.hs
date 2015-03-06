@@ -93,13 +93,15 @@ runCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num msg
                   Right line -> processCMD handle opt val_ctx env hist histOld index
                                            flagC flagH flagT flagS num line
           Nothing   -> do
-                result <- liftIO (checkType val_ctx msg)
-                case result of
-                  Left typeErr        -> do
+                case reader msg of
+                  Left readSrc -> do
+                    result <- liftIO (typeCheckWithEnv val_ctx readSrc)
+                    case result of
+                      Left typeErr        -> do
                         outputStrLn (show typeErr)
                         loop handle opt val_ctx env hist histOld index
                              flagC flagH flagT flagS num
-                  Right (t, tchecked) -> do
+                      Right (t, tchecked) -> do
                         let filename = "main_" ++ (show num) ++ ".sf"
                         let bind = Env.reverseEnv env
                         let msgEnv = (Env.createBindEnv bind) ++ msg
@@ -112,6 +114,10 @@ runCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num msg
                                        flagC flagH flagT flagS (num+1)
                           else loop handle opt val_ctx env hist histOld index
                                     flagC flagH flagT flagS (num+1)
+                  Right msg -> do
+                    outputStrLn "Parse error!"
+                    loop handle opt val_ctx env hist histOld index 
+                         flagC flagH flagT flagS num
 
 processCMD :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Bool -> Int -> [String] -> InputT IO ()
 processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num (x:xs) = do
@@ -189,19 +195,22 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                       loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                     else do
                       let (var, exp) = Env.createPair xs
-                      --outputStrLn exp
-                      result <- liftIO (checkType val_ctx exp)
-                      case result of
-                        Left  typeErr     -> do
-                          --outputStrLn "typeCheck error!"
-                          outputStrLn (show typeErr)
-                          loop handle opt val_ctx env hist histOld index
-                               flagC flagH flagT flagS num
-                        Right (t, tchecked) -> do
-                          let val_ctx_new = Map.insert var t val_ctx
-                          --outputStrLn (show val_ctx_new)
-                          let envNew = Env.insert (var, exp) env
-                          loop handle opt val_ctx_new envNew hist histOld index
+                      case reader exp of
+                        Left readSrc -> do
+                          result <- liftIO (typeCheckWithEnv val_ctx readSrc)
+                          case result of
+                            Left  typeErr     -> do
+                              outputStrLn (show typeErr)
+                              loop handle opt val_ctx env hist histOld index
+                                   flagC flagH flagT flagS num
+                            Right (t, tchecked) -> do
+                              let val_ctx_new = Map.insert var t val_ctx
+                              let envNew = Env.insert (var, exp) env
+                              loop handle opt val_ctx_new envNew hist histOld index
+                                   flagC flagH flagT flagS num
+                        Right msg -> do
+                          outputStrLn "Parse error!"
+                          loop handle opt val_ctx env hist histOld index 
                                flagC flagH flagT flagS num
           ":type" -> do
                 case getCMD xs of
@@ -321,10 +330,11 @@ wrapFlag handle opt flagC flagT flagS filename = case flagT of
              putStrLn ("CPU time: " ++ (show ((end - start) `div` 1000)) ++ "ns")
         False -> wrap handle receiveMsg opt flagC flagS filename
 
-checkType :: ValueContext -> String -> IO (Either TypeError (ReaderType, CheckedExpr))
+{-checkType :: ValueContext -> String -> IO (Either TypeError (ReaderType, CheckedExpr))
 checkType val_ctx s =
   do let parsed = reader s
      typeCheckWithEnv val_ctx parsed
+       -}
 
 printHelp :: IO ()
 printHelp = do

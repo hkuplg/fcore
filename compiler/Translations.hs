@@ -38,7 +38,7 @@ import           Inheritance
 import           Inliner
 import           JavaUtils (ClassName, inferClassName)
 import           MonadLib
-import           Parser (reader)
+import           Parser 
 import           PartialEvaluator
 import           PrettyUtils
 import           Simplify (simplify)
@@ -157,30 +157,33 @@ instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
 -- SystemF to Java
 sf2java :: Bool -> DumpOption -> Compilation -> ClassName -> String -> IO String
 sf2java optInline optDump compilation className src =
-  do let readSrc = Parser.reader src
-     when (optDump == DumpParsed) $ print readSrc
-     result <- readSrc `seq` typeCheck readSrc
-     case result of
-       Left typeError ->
-         do print (Text.PrettyPrint.ANSI.Leijen.pretty typeError)
-            exitFailure -- TODO: Ugly
-       Right (_, tcheckedSrc)   ->
-         do when (optDump == DumpTChecked) $ print tcheckedSrc
-            let core = desugar tcheckedSrc
-            when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
-            let simpleCore = simplify core
-            let rewrittencore = rewriteAndEval (Hide simpleCore)
-            let recurNumOfCore = if optInline then recurNum rewrittencore else 0 -- inline
-            let inlineNum = if recurNumOfCore > 2 then 0 else recurNumOfCore
-            let inlinedCore = case inlineNum of
-                               1 -> inliner rewrittencore
-                               2 -> inliner . inliner $ rewrittencore
-                               _ -> rewrittencore
-            when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittencore)
-            when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
-            let (cu, _) = compilation className inlinedCore
-            return $ prettyPrint cu
-
+  do case Parser.reader src of
+       Left readSrc -> do
+         when (optDump == DumpParsed) $ print readSrc
+         result <- readSrc `seq` typeCheck readSrc
+         case result of
+           Left typeError ->
+             do print (Text.PrettyPrint.ANSI.Leijen.pretty typeError)
+                exitFailure -- TODO: Ugly
+           Right (_, tcheckedSrc)   ->
+             do when (optDump == DumpTChecked) $ print tcheckedSrc
+                let core = desugar tcheckedSrc
+                when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
+                let simpleCore = simplify core
+                let rewrittencore = rewriteAndEval (Hide simpleCore)
+                let recurNumOfCore = if optInline then recurNum rewrittencore else 0 -- inline
+                let inlineNum = if recurNumOfCore > 2 then 0 else recurNumOfCore
+                let inlinedCore = case inlineNum of
+                                    1 -> inliner rewrittencore
+                                    2 -> inliner . inliner $ rewrittencore
+                                    _ -> rewrittencore
+                when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittencore)
+                when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
+                let (cu, _) = compilation className inlinedCore
+                return $ prettyPrint cu
+       Right msg -> do return "Parse error!"
+                       exitFailure 
+     
 compilesf2java :: Bool -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java optInline optDump compilation srcPath outputPath = do
     src <- readFile srcPath
