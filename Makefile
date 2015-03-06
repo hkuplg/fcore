@@ -16,8 +16,7 @@ smt :
 
 .PHONY : test
 test :
-	make parsers
-	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
+	cabal configure --enable-tests && cabal build && cabal test
 
 .PHONY : test2
 test2 :
