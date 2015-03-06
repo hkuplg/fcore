@@ -181,8 +181,8 @@ sf2java optInline optDump compilation className src =
                 when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
                 let (cu, _) = compilation className inlinedCore
                 return $ prettyPrint cu
-       Right msg -> do return "Parse error!"
-                       exitFailure 
+       Right (PError msg) -> do print msg 
+                                exitFailure 
      
 compilesf2java :: Bool -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java optInline optDump compilation srcPath outputPath = do
