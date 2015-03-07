@@ -4,21 +4,25 @@ srcdir=lib
 testdir=testsuite
 
 .PHONY : compiler
-compiler : runtime
+compiler : dependencies runtime
 	cabal install
 
 .PHONY : smt
-smt : runtime
+smt : dependencies runtime
 	cabal install -f Z3
 
 .PHONY : test
-test : runtime
+test : dependencies runtime
 	cabal configure --enable-tests && cabal build && cabal test
 
 .PHONY : test2
-test2 :
+test2 : dependencies runtime
 	make parsers
 	runhaskell -i$(srcdir) $(srcdir)/FileLoad.hs
+
+.PHONY : dependencies
+dependencies : 
+	cabal install --only-dependencies --enable-tests
 
 .PHONY : runtime
 runtime :
