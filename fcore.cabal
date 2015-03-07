@@ -105,9 +105,6 @@ executable f2j
                       , time == 1.4.*
                       , timeit == 1.0.*
                       , transformers == 0.3.*
-  build-tools:          alex == 3.1.*,
-                        happy == 1.19.*
-  other-modules:        Lexer, Parser
   ghc-options:          -Wall
                         -fno-warn-missing-signatures
                         -fno-warn-name-shadowing
@@ -144,9 +141,6 @@ executable f2ji
                       , time == 1.4.*
                       , timeit == 1.0.*
                       , transformers == 0.3.*
-  build-tools:          alex == 3.1.*,
-                        happy == 1.19.*
-  other-modules:        Lexer, Parser
   ghc-options:          -Wall
                         -fno-warn-missing-signatures
                         -fno-warn-name-shadowing
