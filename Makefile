@@ -4,21 +4,25 @@ srcdir=lib
 testdir=testsuite
 
 .PHONY : compiler
-compiler :
-	cd runtime && ant && cd .. && cabal install
+compiler : runtime
+	cabal install
 
 .PHONY : smt
-smt :
-	cd runtime && ant && cd .. && cabal install -f Z3
+smt : runtime
+	cabal install -f Z3
 
 .PHONY : test
-test :
+test : runtime
 	cabal configure --enable-tests && cabal build && cabal test
 
 .PHONY : test2
 test2 :
 	make parsers
 	runhaskell -i$(srcdir) $(srcdir)/FileLoad.hs
+
+.PHONY : runtime
+runtime :
+	cd runtime && ant && cd ..
 
 .PHONY : parsers
 parsers :
