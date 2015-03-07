@@ -52,6 +52,3 @@ before_install:
 install:
   - $CABAL install --dependencies-only --enable-tests
   - $CABAL configure -flib-Werror --enable-tests $MODE
-
-script:
-  - cd runtime; ant; cd ..; make test2
