@@ -1,144 +1,233 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset='utf-8'>
-    <meta http-equiv="X-UA-Compatible" content="chrome=1">
-    <link href='https://fonts.googleapis.com/css?family=Chivo:900' rel='stylesheet' type='text/css'>
-    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
-    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen">
-    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print">
-    <!--[if lt IE 9]>
-    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
-    <![endif]-->
+<html lang="en">
+
+<head>
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
     <title>fcore by hkuplg</title>
-  </head>
 
-  <body>
-    <div id="container">
-      <div class="inner">
+    <!-- Bootstrap Core CSS -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
 
-        <header>
-          <h1>fcore</h1>
-          <h2>Research middleware compiler from System F-based languages to Java with the Imperative Functional Object encoding</h2>
-        </header>
+    <!-- Custom CSS -->
+    <link href="css/modern-business.css" rel="stylesheet">
 
-        <section id="downloads" class="clearfix">
-          <a href="https://github.com/hkuplg/fcore/zipball/master" id="download-zip" class="button"><span>Download .zip</span></a>
-          <a href="https://github.com/hkuplg/fcore/tarball/master" id="download-tar-gz" class="button"><span>Download .tar.gz</span></a>
-          <a href="https://github.com/hkuplg/fcore" id="view-on-github" class="button"><span>View on GitHub</span></a>
-        </section>
+    <!-- Custom Fonts -->
+    <link href="font-awesome/css/font-awesome.min.css" rel="stylesheet" type="text/css">
+
+    <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+    <!--[if lt IE 9]>
+        <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+        <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+
+</head>
+
+<body>
+
+    <!-- Navigation -->
+    <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+        <div class="container">
+            <!-- Brand and toggle get grouped for better mobile display -->
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="index.html">FCore</a>
+            </div>
+            <!-- Collect the nav links, forms, and other content for toggling -->
+            <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                <ul class="nav navbar-nav navbar-right">
+                    <li>
+                        <a href="index.html">Overview</a>
+                    </li>
+                    <li>
+                        <a href="project.html">Projects</a>
+                    </li>
+                    <li>
+                        <a href="contact.html">Contacts</a>
+                    </li>
+                    <!--<li class="dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown">Portfolio <b class="caret"></b></a>
+                        <ul class="dropdown-menu">
+                            <li>
+                                <a href="portfolio-1-col.html">1 Column Portfolio</a>
+                            </li>
+                            <li>
+                                <a href="portfolio-2-col.html">2 Column Portfolio</a>
+                            </li>
+                            <li>
+                                <a href="portfolio-3-col.html">3 Column Portfolio</a>
+                            </li>
+                            <li>
+                                <a href="portfolio-4-col.html">4 Column Portfolio</a>
+                            </li>
+                            <li>
+                                <a href="portfolio-item.html">Single Portfolio Item</a>
+                            </li>
+                        </ul>
+                    </li>-->
+               </ul>
+            </div>
+            <!-- /.navbar-collapse -->
+        </div>
+        <!-- /.container -->
+    </nav>
+
+    <!-- Header Carousel -->
+    <header id="myCarousel" class="carousel slide">
+        <!-- Wrapper for slides -->
+        <div class="carousel-inner">
+            <div class="fill" >FCore</div>
+        </div>
+
+    </header>
+
+    <!-- Page Content -->
+    <div class="container">
+
+        <!-- Marketing Icons Section -->
+        <div class="row">
+            <div class="col-lg-12">
+                <h1 class="page-header">
+                    Welcome to FCore!
+                </h1>
+            </div>
+            <div class="col-md-4">
+              <h4><i class="fa fa-fw fa-check"></i> 
+                  <a href="https://github.com/hkuplg/fcore/zipball/master" class="btn btn-default">Download .zip</a>
+              </h4>
+            </div>
+            <div class="col-md-4">
+               <h4><i class="fa fa-fw fa-check"></i> 
+                   <a href="https://github.com/hkuplg/fcore/tarball/master" class="btn btn-default">Download .tar.gz</a>
+               </h4>
+            </div>
+            <div class="col-md-4">
+               <h4><i class="fa fa-fw fa-check"></i> 
+                   <a href="https://github.com/hkuplg/fcore" class="btn btn-default">View on GitHub</a>
+               </h4>
+            </div>
+        </div>
+        <!-- /.row -->
+
+        <!-- Portfolio Section -->
+        <!--<div class="row">
+            <div class="col-lg-12">
+                <h2 class="page-header">Portfolio Heading</h2>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <a href="portfolio-item.html">
+                    <img class="img-responsive img-portfolio img-hover" src="http://placehold.it/700x450" alt="">
+                </a>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <a href="portfolio-item.html">
+                    <img class="img-responsive img-portfolio img-hover" src="http://placehold.it/700x450" alt="">
+                </a>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <a href="portfolio-item.html">
+                    <img class="img-responsive img-portfolio img-hover" src="http://placehold.it/700x450" alt="">
+                </a>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <a href="portfolio-item.html">
+                    <img class="img-responsive img-portfolio img-hover" src="http://placehold.it/700x450" alt="">
+                </a>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <a href="portfolio-item.html">
+                    <img class="img-responsive img-portfolio img-hover" src="http://placehold.it/700x450" alt="">
+                </a>
+            </div>
+            <div class="col-md-4 col-sm-6">
+                <a href="portfolio-item.html">
+                    <img class="img-responsive img-portfolio img-hover" src="http://placehold.it/700x450" alt="">
+                </a>
+            </div>
+        </div>-->
+        <!-- /.row -->
+        
+
+        <!-- Features Section -->
+        <div class="row">
+            <div class="col-lg-12">
+                <h2 class="page-header">Overview</h2>
+            </div>
+            <div class="col-md-6" style="width: 80%; font-size: 120%">
+                <p>
+                Developing compilers for functional languages targeting the JVM is well-known to be difficult: compiler writers usually have to implement difficult optimizations; or find compromising solutions for their languages to work around the limitations of the JVM. Thereby we present FCore:
+                </p>
+                <ul>
+                  <li>
+                  FCore is an efficient JVM implementation of System F with support for full tail-call elimination (TCE).
+                  </li>  
+                  <li>FCore aims at removing the high burden faced by functional compiler writers in the JVM. Variants of System F are often used by compilers for languages such as ML or Haskell as a target for the source language. Therefore, instead of developing a compiler from scratch, compiler writers can simply use FCore as a target and enjoy of multiple optimizations for free.
+                  </li>
+                  <li>
+                  <a href="file:///Users/Emma/Desktop/gh-pages/project.html" style="font-style: italic; font-weigth: bold">F2J</a>
+                  , a compiler for FCore, is currently under active development.
+                  </li>
+                </ul>
+            </div>
+            <!--
+            <div class="col-md-6">
+                <img class="img-responsive" src="http://placehold.it/700x450" alt="">
+            </div> -->
+        </div>
+        <!-- /.row -->
 
         <hr>
 
-        <section id="main_content">
-          <h1>
-<a id="f2j-a-compiler-for-fcore" class="anchor" href="#f2j-a-compiler-for-fcore" aria-hidden="true"><span class="octicon octicon-link"></span></a>F2J: A Compiler for FCore</h1>
+        <!-- Call to Action Section -->
+       <!-- <div class="well">
+            <div class="row">
+                <div class="col-md-8">
+                    <p>Lorem ipsum dolor sit amet, consectetur adipisicing elit. Molestias, expedita, saepe, vero rerum deleniti beatae veniam harum neque nemo praesentium cum alias asperiores commodi.</p>
+                </div>
+                <div class="col-md-4">
+                    <a class="btn btn-lg btn-default btn-block" href="#">Call to Action</a>
+                </div>
+            </div>
+        </div>-->
 
-<p><a href="https://travis-ci.org/hkuplg/fcore"><img src="https://travis-ci.org/hkuplg/fcore.svg?branch=develop" alt="Build Status"></a></p>
+        <hr>
 
-<h2>
-<a id="building-from-source" class="anchor" href="#building-from-source" aria-hidden="true"><span class="octicon octicon-link"></span></a>Building from Source</h2>
-
-<p>The following instructions should work on any platform, from OS X to
-Ubuntu. It builds the compiler from source, thus may take some time.</p>
-
-<ol>
-<li><p>Install the <a href="https://www.haskell.org/platform/">Haskell Platform</a>.</p></li>
-<li>
-<p>Clone the <a href="https://github.com/hkuplg/fcore">source</a> with <a href="http://git-scm.com/">git</a>:</p>
-
-<div class="highlight highlight-bash"><pre>git clone https://github.com/hkuplg/fcore.git
-<span class="pl-s3">cd</span> fcore</pre></div>
-</li>
-<li>
-<p>Build an install:</p>
-
-<div class="highlight highlight-bash"><pre>cabal update
-make</pre></div>
-</li>
-<li><p>After the installation, invoking <code>f2j</code> in your console will show
-its usage. If not, you probably want to add <code>.cabal/bin</code> to your
-<code>$PATH</code>.</p></li>
-</ol>
-
-<h2>
-<a id="compilation-methods" class="anchor" href="#compilation-methods" aria-hidden="true"><span class="octicon octicon-link"></span></a>Compilation Methods</h2>
-
-<p>F2j has a few built-in compilation methods (by default, it doesn't use
-any optimization), namely <code>apply</code>, <code>stack</code> and <code>unbox</code>.</p>
-
-<ul>
-<li>Apply: multi-argument optimization</li>
-<li>Stack: tail call elimination</li>
-<li>Unbox: auto-unboxing optimization</li>
-</ul>
-
-<p>To use one or more of them, simply append the compilation methods you
-want to use as the command line arguments.</p>
-
-<p>For example, say you want to use the <code>apply</code> method, running the
-following command:</p>
-
-<pre><code>f2j -m apply some_file
-</code></pre>
-
-<p>If you want to combine different methods (say, <code>apply</code> and <code>stack</code>),
-just type:</p>
-
-<pre><code>f2j -m apply -m stack some_file
-</code></pre>
-
-<p>Finally, passing <code>-r</code> flag will make the compiler compile and run the
-generated Java code.</p>
-
-<h2>
-<a id="repl" class="anchor" href="#repl" aria-hidden="true"><span class="octicon octicon-link"></span></a>REPL</h2>
-
-<p>There is also a REPL at your service. Simply invoking <code>f2ji</code> will take
-you to the REPL.</p>
-
-<h2>
-<a id="examples" class="anchor" href="#examples" aria-hidden="true"><span class="octicon octicon-link"></span></a>Examples</h2>
-
-<p>In the <code>example</code> directory, you will see a lot of example programs
-written in FCore. You may want to take a look at them to get familiar
-with the syntax. These examples demonstrate different features of our
-compiler, such as call-by-name, record syntax, modules, thunk, type
-synonyms, etc.</p>
-
-<p>Particularly, in <code>examples/fractals</code>, there is an interesting program
-that draws a fractal.</p>
-
-<h2>
-<a id="troubleshooter" class="anchor" href="#troubleshooter" aria-hidden="true"><span class="octicon octicon-link"></span></a>Troubleshooter</h2>
-
-<p>If you run into any problem, try to do</p>
-
-<pre><code>make clean
-</code></pre>
-
-<p>and then</p>
-
-<pre><code> make
-</code></pre>
-
-<p>If the problem persists, create an issue!</p>
-
-<h2>
-<a id="license" class="anchor" href="#license" aria-hidden="true"><span class="octicon octicon-link"></span></a>License</h2>
-
-<p>BSD3</p>
-
-<p>See <code>LICENSE</code> at the top-level directory for details.</p>
-        </section>
-
+        <!-- Footer -->
         <footer>
-          fcore is maintained by <a href="https://github.com/hkuplg">hkuplg</a><br>
-          This page was generated by <a href="http://pages.github.com">GitHub Pages</a>. Tactile theme by <a href="https://twitter.com/jasonlong">Jason Long</a>.
+            <div class="row">
+                <div class="col-lg-12">
+                    <p>Copyright &copy; Your Website 2014</p>
+                </div>
+            </div>
         </footer>
 
-        
-      </div>
-    </div>
-  </body>
+    </div> 
+    <!-- /.container -->
+
+    <!-- jQuery -->
+    <script src="js/jquery.js"></script>
+
+    <!-- Bootstrap Core JavaScript -->
+    <script src="js/bootstrap.min.js"></script>
+
+    <!-- Script to Activate the Carousel -->
+    <script>
+    $('.carousel').carousel({
+        interval: 5000 //changes the speed
+    })
+    </script>
+
+</body>
+
 </html>
