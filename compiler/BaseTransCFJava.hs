@@ -511,7 +511,7 @@ trans self =
 -}
               Kind f ->
                 do n <- get
-                   -- put (n + 1) -- needed?
+                   put (n + 1) -- needed to distingush type variable
                    (s,je,t1) <- translateScopeM this (f n) m
                    return (s,je,Kind (\a -> substScope n (TVar a) t1))
 
