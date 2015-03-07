@@ -1,24 +1,19 @@
 # General project-wide tasks
 
-srcdir=compiler
+srcdir=lib
 testdir=testsuite
 
 .PHONY : compiler
 compiler :
-	cd runtime; ant
-	./select-cabal.sh
-	cabal install
+	cd runtime && ant && cd .. && cabal install
 
 .PHONY : smt
 smt :
-	cd runtime; ant
-	./select-cabal.sh
-	cabal install -f Z3
+	cd runtime && ant && cd .. && cabal install -f Z3
 
 .PHONY : test
 test :
-	make parsers
-	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
+	cabal configure --enable-tests && cabal build && cabal test
 
 .PHONY : test2
 test2 :

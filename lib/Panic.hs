@@ -46,7 +46,7 @@ showF2jException exception
           "panic! (the 'impossible' happened)\n" ++
           s ++ showMaybeDoc maybe_doc ++ "\n\n" ++
           "Please report this as a bug:  " ++
-          "https://bitbucket.org/brunosoliveira/systemfcompiler/issues/new"
+          "https://github.com/hkuplg/fcore/issues/new"
 
       Sorry s maybe_doc ->
         showString $
