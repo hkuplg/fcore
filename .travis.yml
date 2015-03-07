@@ -25,7 +25,6 @@ before_install:
   # We can also have faster builds by installing some libraries with
   # `apt`. If it isn't, install the GHC we want from hvr's PPA along
   # with cabal-1.18.
-  - cp systemfcompiler.cabal.ghc-7.8.3 systemfcompiler.cabal
   - |
     if [ $GHCVER = `ghc --numeric-version` ]; then
       # Try installing some of the build-deps with apt-get for speed.
