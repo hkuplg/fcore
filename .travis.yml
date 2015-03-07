@@ -5,6 +5,7 @@ branches:
   only:
     - master
     - develop
+    - testsuite
 
 env:
   #- GHCVER=7.4.2
