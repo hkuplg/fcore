@@ -88,3 +88,5 @@ If the problem persists, create an issue!
 BSD 3
 
 See `LICENSE` at the top-level directory for details.
+
+[badge-license]: https://img.shields.io/badge/license-BSD_3-green.svg
