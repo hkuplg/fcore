@@ -1,3 +1,0 @@
-module M4 {
-  id[A] (x:A): A = x
-}

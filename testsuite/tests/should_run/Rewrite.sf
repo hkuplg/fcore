@@ -1,0 +1,6 @@
+--> 4
+
+let const = /\A -> /\B -> \ (x : A) -> \ (y : B) -> x;
+let const2 = const [Int, Bool];
+let const3 = const2;
+const2 4 False

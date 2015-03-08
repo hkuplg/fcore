@@ -1,4 +1,4 @@
-# F2J Language Cheatsheat
+# F2J Language Cheatsheet
 
 Quick reference of language syntax
 
@@ -70,6 +70,12 @@ Record update: `let r = {name="George", age = 17}; r with {name="Nicole", age = 
 
 Local type synonyms: `type Arrow[A,B] = A -> B; ...`
 
+Algebraic data types:
+```
+data BTree [A,B] = Leaf A
+                 | Node BTree[A,B] B BTree[A,B];
+Node[Bool,Int] (Leaf[Bool,Int] True) 7 (Leaf[Bool,Int] False)
+```
 You may leave out the final semicolon.
 
 Expression sequences: `{1; 2; 3}`
@@ -88,3 +94,10 @@ module M {
 };
 ...
 ```
+Link modules with source file:
+- f2ji: ```-l --module=MODULE```
+- f2j: ```:link <sourceFile> -m <module1> <module2> ...```
+
+F2ji:
+- ```:load M``` Load module M into REPL environment, allow user to use functions defined in M, say M.add
+- ```:import M``` Allow user to directly use add instead of M.add
