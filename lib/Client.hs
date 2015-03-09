@@ -1,16 +1,23 @@
-{-# LANGUAGE TemplateHaskell #-}
+{- |
+Module      :  Client
+Description :  Controller for the REPL
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
+License     :  BSD3
 
-module Main where
+Maintainer  :  Boya Peng <u3502350@connect.hku.hk>
+Stability   :  stable
+Portability :  portable
+-}
+
+module Client where
 
 import System.Console.Haskeline		(runInputT, defaultSettings)
 import System.IO
 import System.Process hiding (runCommand)
-import System.Directory			(removeFile, doesFileExist)
+import System.Directory			(doesFileExist)
 
 import Control.Monad.Error
 
-import Data.FileEmbed			(embedFile)
-import qualified Data.ByteString 	(ByteString, writeFile)
 import qualified Data.Map as Map
 
 import Translations
@@ -21,22 +28,9 @@ import Loop
 import qualified Environment as Env
 import qualified History as Hist
 import FileIO 				(TransMethod (Naive))
-import qualified Data.ByteString as B
-import System.Directory (getTemporaryDirectory)
-import System.FilePath ((</>))
-
-runtimeBytes :: B.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
-
-writeRuntimeToTemp :: IO ()
-writeRuntimeToTemp =
-  do tempdir <- getTemporaryDirectory
-     let tempFile = tempdir </> "runtime.jar"
-     B.writeFile tempFile runtimeBytes
 
 main :: IO ()
-main = do
-     writeRuntimeToTemp
+main = do 
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
@@ -45,7 +39,7 @@ main = do
      hSetBuffering outP LineBuffering
      liftIO printHelp
      runInputT defaultSettings 
-	       (Loop.loop (inP, outP) (0, compileN, [Naive])  
+	       (Loop.loop (inP, outP) (0, compileN, [Naive]) 
 		          Map.empty Env.empty Hist.empty Hist.empty 0 False False False False 0)
      terminateProcess proch
      

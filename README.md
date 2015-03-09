@@ -1,4 +1,5 @@
 # F2J: A Compiler for FCore
+[![License BSD 3][badge-license]](LICENSE)
 [![Build Status](https://travis-ci.org/hkuplg/fcore.svg?branch=develop)](https://travis-ci.org/hkuplg/fcore)
 
 ## Building from Source
@@ -78,12 +79,14 @@ If you run into any problem, try to do
 
 and then
 
-    make
+     make
 
 If the problem persists, create an issue!
 
 ## License
 
-BSD3
+BSD 3
 
 See `LICENSE` at the top-level directory for details.
+
+[badge-license]: https://img.shields.io/badge/license-BSD_3-green.svg
