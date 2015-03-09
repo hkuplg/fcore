@@ -1,0 +1,19 @@
+--> 3
+
+data BTree [A,B] = Leaf A
+                 | Node BTree[A,B] B BTree[A,B]
+                 ;
+
+let rec countLeaves[A,B] (tree: BTree[A,B]): Int =
+    case tree of
+        Leaf a -> 1
+      | Node l b r -> countLeaves[A,B] l + countLeaves[A,B] r
+      ;
+#   1
+#  / \
+# 2   3
+#    / \
+#   4   5
+let tree = Node[Int,Int] (Leaf[Int,Int] 2) 1 (Node[Int,Int] (Leaf[Int,Int] 4) 3 (Leaf[Int,Int] 5))
+
+# countLeaves[Int,Int] tree
