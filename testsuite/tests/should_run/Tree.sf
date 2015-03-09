@@ -14,6 +14,5 @@ let rec countLeaves[A,B] (tree: BTree[A,B]): Int =
 # 2   3
 #    / \
 #   4   5
-let tree = Node[Int,Int] (Leaf[Int,Int] 2) 1 (Node[Int,Int] (Leaf[Int,Int] 4) 3 (Leaf[Int,Int] 5))
-
-# countLeaves[Int,Int] tree
+let tree = Node[Int,Int] (Leaf[Int,Int] 2) 1 (Node[Int,Int] (Leaf[Int,Int] 4) 3 (Leaf[Int,Int] 5));
+countLeaves[Int,Int] tree
