@@ -223,6 +223,7 @@ trans self =
 -}
               TApp expr t ->
                 do n <- get
+                   put (n + 1) -- needed to distinguish different type variables
                    (s,je,Forall (Kind f)) <- translateM this expr
                    return (s,je,scope2ctyp (substScope n t (f n)))
 {-
