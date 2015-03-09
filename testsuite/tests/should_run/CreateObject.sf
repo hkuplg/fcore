@@ -1,1 +1,3 @@
-new java.util.ArrayList()
+--> []
+
+new java.util.ArrayList( )
