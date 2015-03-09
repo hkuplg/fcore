@@ -196,15 +196,15 @@ transS this super =
                    do (bs,e,t) <- translateM (up this) expr
                       returnType <- applyRetType (up this) t
                       let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
-                      box <- getBox (up this) t
-                      empyClosure' <- empyClosure (up this) (unwrap e) box
+                      -- box <- getBox (up this) t
+                      -- empyClosure' <- empyClosure (up this) (unwrap e) box
                       mainbody <- stackMainBody (up this) t
                       isTest <- genTest (up this)
                       let stackDecl =
                             wrapperClass
                               nam
                               (bs ++
-                               (if containsNext bs then [] else [empyClosure']) ++
+                               -- (if containsNext bs then [] else [empyClosure']) ++
                                returnStmt)
                               returnType (Just $ J.Block mainbody) [] Nothing isTest
                       return (createCUB (up this :: Translate m) [stackDecl]
