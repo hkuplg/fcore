@@ -8,7 +8,7 @@ import System.Directory
 import Parser (reader)
 import TypeCheck (typeCheck)
 import Desugar (desugar)
-import Simplify (simplify)
+import Simplify (simplify')
 import Control.Monad (liftM)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
@@ -211,7 +211,7 @@ checkCall n (Src.NonStatic e1) (Src.NonStatic e2) = peq n e1 e2
 checkCall _ _ _ = False
 
 src2core :: String -> IO (Expr t e)
-src2core fname = liftM simplify $ src2fi fname
+src2core fname = liftM simplify' $ src2fi fname
 
 fCore :: (Expr t e -> b) -> String -> IO b
 fCore f fname = liftM f $ src2core fname
