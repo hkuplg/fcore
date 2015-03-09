@@ -70,12 +70,24 @@ Record update: `let r = {name="George", age = 17}; r with {name="Nicole", age = 
 
 Local type synonyms: `type Arrow[A,B] = A -> B; ...`
 
-Algebraic data types:
+Algebraic data types (ADTs):
 ```
 data BTree [A,B] = Leaf A
-                 | Node BTree[A,B] B BTree[A,B];
-Node[Bool,Int] (Leaf[Bool,Int] True) 7 (Leaf[Bool,Int] False)
+                 | Node BTree[A,B] B BTree[A,B]
+                 ;
+let tree = Node[Bool,Int] (Leaf[Bool,Int] True) 7 (Leaf[Bool,Int] False);...
 ```
+
+Pattern matching on ADTs (Case expressions):
+
+```
+let rec countLeaves[A,B] (tree: BTree[A,B]): Int =
+    case tree of
+        Leaf a -> 1
+      | Node l b r -> countLeaves[A,B] l + countLeaves[A,B] r
+countLeaves tree -- 2
+```
+
 You may leave out the final semicolon.
 
 Expression sequences: `{1; 2; 3}`
