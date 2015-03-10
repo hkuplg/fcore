@@ -58,7 +58,9 @@ infer i j (FI.Let _ b f)          = infer i (j + 1) $ f (j, infer i j b)
 infer i j (FI.LetRec _ ts _ e)    = infer i (j + n) $ e (zip [j..j+n-1] ts)      where n = length ts
 infer i j (FI.BLam n f)           = FI.Forall n (\a -> infer (i + 1) j $ f a)
 infer i j (FI.App f x)            = t                                            where FI.Fun _ t = infer i j f
-infer i j (FI.TApp f x)           = substTT i x $ g i                            where FI.Forall n g = infer i j f
+infer i j (FI.TApp f x)           = FI.mapTVar (\n1 a1 -> if a1 == i + 10000 && n1 == n then x else FI.TVar n1 a1) (g (i + 10000))
+  where FI.Forall n g = infer (i + 1) j f
+  -- Warning! Workaround: please use distinct names for sorts.
 infer i j (FI.If _ e _)           = infer i j e
 infer i j (FI.PrimOp _ op _)      = case op of S.Arith   _ -> FI.JClass "java.lang.Integer"
                                                S.Compare _ -> FI.JClass "java.lang.Boolean"

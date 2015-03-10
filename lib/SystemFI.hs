@@ -20,7 +20,7 @@ module SystemFI
 --, ValueContext
 --, Index
 --, alphaEq
---, mapTVar
+  , mapTVar
 --, mapVar
   , fsubstTT
   , fsubstTE
