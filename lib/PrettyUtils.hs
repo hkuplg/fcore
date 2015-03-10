@@ -47,7 +47,7 @@ prettyError = (bold . dullred) (text "error" <> colon)
 
 -- | Prettify a document as code.
 code :: Doc -> Doc
-code = bold
+code doc = char '‘' <> doc <> char '’'
 
 
 type PrecLevel = Int
