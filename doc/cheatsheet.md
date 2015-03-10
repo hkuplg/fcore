@@ -16,6 +16,8 @@ Function types: `Int -> String`
 
 Product types: `(String, Int)`
 
+List types: `List<Int>`
+
 Universal quantification: `forall A B. A -> B -> A`
 
 Note that one `forall` can lead multiple type parameters as long as they are distinct.
@@ -59,6 +61,12 @@ There should be at least two items. Otherwise `(1)` just means `1`.
 Tuple projection: `(1,2,3)._1` (index starts with 1, just like in Scala)
 
 Tuple projection is type-safe: `(1,2)._3` won't compile.
+
+List construction: `new List<Int>(1,2,3)`, `cons(1, new List<Int>(2,3))`
+
+List can have no element: `new List<Int>()`
+
+List support functions: `head(a)`, `tail(a)`, `isNil(a)`, `length(a)`
 
 Merge of two values: `1 ,, "hi"`
 
