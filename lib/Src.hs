@@ -1,20 +1,15 @@
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
 {- |
 Module      :  Src
 Description :  Abstract syntax and pretty printer for the source language.
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
-
 Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
 Stability   :  experimental
 Portability :  portable
 -}
 
-{- References for syntax:
-   http://www.haskell.org/onlinereport/exps.html
-   http://www.haskell.org/onlinereport/decls.html
-   http://caml.inria.fr/pub/docs/manual-ocaml/expr.html -}
+{-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module Src
   ( Module(..), ReaderModule
