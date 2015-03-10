@@ -1,8 +1,8 @@
 let rec
-  filter [A] (f:A->Bool) (xs:List<A>) :List<A> =
+  filter [A] (f:A->Bool) (xs:List[A]) :List[A] =
     if(isNil(xs))
     then
-        new List<A>()
+        new List[A]()
     else if(f head(xs))
     then
         cons( head(xs), filter [A] f tail(xs))
@@ -11,4 +11,4 @@ let rec
 
 let  f(x:Int):Bool = x >0;
 
-length(filter [Int] f (new List<Int>(-1,0,1,2,3)))
+length(filter [Int] f (new List[Int](-1,0,1,2,3)))
