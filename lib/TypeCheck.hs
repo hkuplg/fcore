@@ -25,7 +25,7 @@ module TypeCheck
   -- For REPL
   , typeCheckWithEnv
   , mkInitTcEnvWithEnv
-  , TypeError 
+  , TypeError
   ) where
 
 import Src
@@ -504,7 +504,7 @@ infer (PolyList l t) =
      case ts of [] -> return (ListOf t, PolyList es t)
                 _  ->
                      do d <- getTypeContext
-                        if all (alphaEq d t) ts
+                        if all (compatible d t) ts
                           then return (ListOf t, PolyList es t)
                           else throwError $ General (text "List Type mismatch" <+> pretty (PolyList l t))
 
@@ -515,7 +515,7 @@ infer (JProxyCall (JNew c args) t) =
     else
         do ([t1, t2], expr') <- mapAndUnzipM infer args
            d <- getTypeContext
-           if alphaEq d (ListOf t1) t2
+           if compatible d (ListOf t1) t2
              then return (t2, JProxyCall (JNew c expr') t2)
              else throwError $ TypeMismatch t1 t2
 
@@ -605,7 +605,7 @@ infer (Case e alts) =
      constrs' <- mapM (\c -> let n = constrName c
                              in case Map.lookup n value_ctxt of
                                   Just t_constr -> let ts = unwrapFun $ feedToForall t_constr ts_feed
-                                                   in if alphaEq d (last ts) t
+                                                   in if compatible d (last ts) t
                                                       then return $ Constructor n ts
                                                       else throwError $ TypeMismatch t t_constr
                                   Nothing -> throwError $ NotInScope n)
@@ -623,7 +623,7 @@ infer (Case e alts) =
                  alts'
 
      let resType = head ts
-     unless (all (alphaEq d resType) ts) $
+     unless (all (compatible d resType) ts) $
             throwError $ General $ text "All the alternatives should be of the same type"
 
      let allConstrs = Set.fromList ns
@@ -656,7 +656,7 @@ inferAgainst :: ReaderExpr -> Type -> Checker (Type, CheckedExpr)
 inferAgainst expr expected_ty
   = do (actual_ty, expr') <- infer expr
        d <- getTypeContext
-       if alphaEq d actual_ty expected_ty
+       if compatible d actual_ty expected_ty
           then return (actual_ty, expr')
           else throwError (TypeMismatch expected_ty actual_ty)
 
@@ -687,7 +687,7 @@ normalizeBind bind
            withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
              do checkType annot
                 d <- getTypeContext
-                if alphaEq d annot bindRhsTy
+                if compatible d annot bindRhsTy
                    then return (bindId bind'
                                , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                                , wrap BLam (bindTyParams bind') (wrap Lam (bindParams bind') bindRhs'))

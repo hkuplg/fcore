@@ -21,7 +21,7 @@ module Src
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId
   , TypeValue(..), TypeContext, ValueContext
-  , expandType, alphaEq, subtype
+  , expandType, compatible, subtype
   , deThunkOnce
   , recordFields
   , freeTVars
@@ -85,7 +85,7 @@ data Type
 
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
-  -- `alphaEq` and `subtype` below.
+  -- `compatible` and `subtype` below.
   deriving (Eq, Show, Data, Typeable)
 
 type ReaderType = Type
@@ -196,7 +196,7 @@ type ValueContext = Map.Map ReaderId Type              -- Gamma
 
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
--- Used in `alphaEq` and `subtype`.
+-- Used in `compatible` and `subtype`.
 expandType :: TypeContext -> Type -> Type
 
 -- Interesting cases:
@@ -225,44 +225,15 @@ expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
 expandType d (Thunk t)    = Thunk (expandType d t)
 expandType d (Datatype n ts ns) = Datatype n (map (expandType d) ts) ns
 
--- Type equivalence(s) and subtyping
 
 deThunkOnce :: Type -> Type
 deThunkOnce (Thunk t) = t
 deThunkOnce t         = t
 
--- | Alpha equivalence.
-alphaEq :: TypeContext -> Type -> Type -> Bool
-alphaEq d t1 t2 = subtype d t1' t2' && subtype d t2' t1'
-  where
-    t1' = expandType d t1
-    t2' = expandType d t2
 
--- | Alpha equivalance of two *expanded* types.
-alphaEqS :: Type -> Type -> Bool
-alphaEqS (TVar a) (TVar b)             = a == b
+-- Relations between types
 
--- The ground for this? Can you provide an example?
--- alphaEqS (JType (JPrim "char")) (JType (JClass "java.lang.Character")) = True
--- alphaEqS (JType (JClass "java.lang.Character")) (JType (JPrim "char")) = True
-
-alphaEqS (JType c)      (JType d)      = c == d
-alphaEqS (Fun t1 t2)    (Fun t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4
-alphaEqS (Forall a1 t1) (Forall a2 t2) = alphaEqS (fsubstTT (a2, TVar a1) t2) t1
-alphaEqS (Product ts1)  (Product ts2)  = length ts1 == length ts2 && uncurry alphaEqS `all` zip ts1 ts2
-alphaEqS (RecordType [(l1,t1)]) (RecordType [(l2,t2)]) = l1 == l2 && alphaEqS t1 t2
-alphaEqS (RecordType fs1)   (RecordType fs2)           = alphaEqS (desugarMultiRecordType fs1) (desugarMultiRecordType fs2)
-alphaEqS (ListOf t1)    (ListOf t2)    = alphaEqS t1 t2
-alphaEqS (And t1 t2)    (And t3 t4)    = alphaEqS t1 t3 && alphaEqS t2 t4
-alphaEqS Unit           Unit           = True
-alphaEqS (Thunk t1)     t2             = alphaEqS t1 t2
-alphaEqS t1             (Thunk t2)     = alphaEqS t1 t2
-alphaEqS (Datatype n1 ts1 m1) (Datatype n2 ts2 m2) =
-    n1 == n2 && m1 == m2 && length ts1 == length ts2 && (uncurry alphaEqS `all` zip ts1 ts2)
-alphaEqS t1             t2             = False `panicOnSameDataCons` ("Src.alphaEqS", t1, t2)
-
-
--- | Subtyping.
+-- | Subtyping (<:) is defined only between types of kind *.
 subtype :: TypeContext -> Type -> Type -> Bool
 subtype d t1 t2 = subtypeS (expandType d t1) (expandType d t2)
 
@@ -286,6 +257,15 @@ subtypeS Unit           Unit        = True
 subtypeS (Datatype n1 ts1 m1) (Datatype n2 ts2 m2) =
     n1 == n2 && m1 == m2 && length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
 subtypeS t1             t2          = False `panicOnSameDataCons` ("Src.subtypeS", t1, t2)
+
+
+-- | Two types are called "compatible" iff they are subtype of each other.
+compatible :: TypeContext -> Type -> Type -> Bool
+compatible d t1 t2 = subtype d t1' t2' && subtype d t2' t1'
+  where
+    t1' = expandType d t1
+    t2' = expandType d t2
+
 
 -- Records
 
