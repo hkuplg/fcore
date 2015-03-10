@@ -1,3 +1,0 @@
---> 1
-
-(\(x: Unit) -> 1) java.lang.System.out.println("hello")
