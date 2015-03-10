@@ -1,11 +1,8 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
 {- |
 Module      :  Desugar
 Description :  The desugarer turns the source language into System FI.
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
-
 Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
 Stability   :  experimental
 Portability :  portable
@@ -14,6 +11,9 @@ The desugarer turns the source language into System F (with intersection types),
 including the removal of type synonyms. No desugaring should happen before this
 stage.
 -}
+
+{-# LANGUAGE RecordWildCards #-}
+{-# OPTIONS_GHC -Wall #-}
 
 module Desugar (desugar) where
 
@@ -25,7 +25,6 @@ import Panic
 
 import Data.Maybe       (fromMaybe)
 import Data.List        (intercalate)
-import StringPrefixes
 
 import Text.PrettyPrint.ANSI.Leijen
 
@@ -173,10 +172,10 @@ desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
           (transType d t1)
           (transType d t2))
           where
-            addToEnv binds g = foldr (\(x,x') acc -> Map.insert x x' acc) g binds -- TODO: subsumed
+            addToEnv binds g0 = foldr (\(x,x') acc -> Map.insert x x' acc) g0 binds -- TODO: subsumed
             (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
               where
-                peel Nothing (Lam (x1,t1) e, Fun _ t) = (Just (x1,t1), t, e)
+                peel Nothing (Lam param b, Fun _ ret_ty) = (Just param, ret_ty, b)
                 peel _ _ = panic "Desugar.desugarLetRecToFix: not a function"
 desugarLetRecToFix _ _ = panic "Desugar.desugarLetRecToFix"
 
