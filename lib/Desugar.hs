@@ -37,7 +37,7 @@ type TVarMap t  = Map.Map ReaderId t
 type VarMap t e = Map.Map ReaderId (F.Expr t e)
 
 transType :: TVarMap t -> ReaderType -> F.Type t
-transType d (TVar a)     = F.TVar a (fromMaybe (panic ("Desugar.transType: " ++ show (TVar a))) (Map.lookup a d))
+transType d (TVar a)     = F.TVar a (fromMaybe (panic ("transType: " ++ show (TVar a))) (Map.lookup a d))
 transType _ (JType (JClass c)) = F.JClass c
 transType _ (JType (JPrim c))  = F.JClass c
 transType d (Fun t1 t2)  = F.Fun (transType d t1) (transType d t2)
@@ -52,12 +52,12 @@ transType _ Unit         = F.Unit
 transType i (Thunk t)    = F.Fun F.Unit (transType i t)
 transType i (Datatype n ts ns) = F.Datatype n (map (transType i) ts) ns
 transType d (ListOf c)   = F.ListOf (transType d c)
-transType _ t            = prettySorry "Desugar.transType" (pretty t)
+transType _ t            = prettySorry "transType" (pretty t)
 
 desugarExpr :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
 desugarExpr (d, g) = go
   where
-    go (Var (x,_t))      = fromMaybe (panic "Desugar.desugarExpr: Var") (Map.lookup x g)
+    go (Var (x,_t))      = fromMaybe (panic "desugarExpr: Var") (Map.lookup x g)
     go (Lit lit)         = F.Lit lit
     go (App f x)         = F.App (go f) (go x)
     go (TApp e t)        = F.TApp (go e) (transType d t)
@@ -69,12 +69,12 @@ desugarExpr (d, g) = go
                                (transType d t)
                                (\x' -> desugarExpr (d, Map.insert x (F.Var x x') g) e)
     go (BLam a e)        = F.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
-    go Let{..}           = panic "Desugar.desugarExpr: Let"
+    go Let{..}           = panic "desugarExpr: Let"
     go (LetOut _ [] e)   = go e
     go (Merge e1 e2)     = F.Merge (go e1) (go e2)
     go (RecordCon fs)       =
       case fs of
-        []       -> panic "Desugar.desugarExpr: Record"
+        []       -> panic "desugarExpr: Record"
         [(l,e)]  -> F.RecordCon (l, go e)
         _        -> go (RecordCon (take (length fs - 1) fs)) `F.Merge` F.RecordCon (let (l,e) = last fs in (l,go e))
     go (RecordProj e l) = F.RecordProj (go e) l
@@ -176,8 +176,8 @@ desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
             (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
               where
                 peel Nothing (Lam param b, Fun _ ret_ty) = (Just param, ret_ty, b)
-                peel _ _ = panic "Desugar.desugarLetRecToFix: not a function"
-desugarLetRecToFix _ _ = panic "Desugar.desugarLetRecToFix"
+                peel _ _ = panic "desugarLetRecToFix: not a function"
+desugarLetRecToFix _ _ = panic "desugarLetRecToFix"
 
 {-
     let rec f1 = e1, ..., fn = en in e
@@ -211,7 +211,7 @@ desugarLetRecToFixEncoded (d,g) = go
                            (\f i -> (f, F.Proj i (F.App (F.Var f y) (F.Lit (Int 0)))))
                            fs
                            [1..length bs]
-    go _ = panic "Desugar.desugarLetRecEncode"
+    go _ = panic "desugarLetRecEncode"
 
 -- Convert from: LetOut RecFlag [(Name, Type, CheckedExpr)] (CheckedExpr)
 -- To:           LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
@@ -224,7 +224,7 @@ desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = F.LetRec names' sigs
     binds' ids'       = map (desugarExpr (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g)) defs
     body'  ids'       = desugarExpr (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g) body
 
-desugarLetRecToLetRec _ _ = panic "Desugar.desugarLetRecToLetRec"
+desugarLetRecToLetRec _ _ = panic "desugarLetRecToLetRec"
 
 addToVarMap :: [(ReaderId, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
