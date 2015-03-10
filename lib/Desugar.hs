@@ -7,7 +7,7 @@ Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
 Stability   :  experimental
 Portability :  portable
 
-The desugarer turns the source language into System F (with intersection types),
+The desugarer turns the source language into System FI,
 including the removal of type synonyms. No desugaring should happen before this
 stage.
 -}
