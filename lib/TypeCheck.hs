@@ -372,11 +372,14 @@ infer (PrimOp e1 op e2) =
          (_, e2') <- inferAgainst e2 (JType (JClass "java.lang.Boolean"))
          return (JType (JClass "java.lang.Boolean"), PrimOp e1' op e2')
 
-infer (If pred b1 b2) =
-  do (_, pred') <- inferAgainst pred (JType (JClass "java.lang.Boolean"))
-     (t1, b1')  <- infer b1
-     (_,  b2')  <- inferAgainst b2 t1
-     return (t1, If pred' b1' b2')
+infer (If e1 e2 e3)
+  = do (_, e1')  <- inferAgainst e1 (JType (JClass "java.lang.Boolean"))
+       (t2, e2') <- infer e2
+       (t3, e3') <- infer e3
+       d <- getTypeContext
+       return (fromMaybe (panic message) (leastUpperBound d t2 t3), If e1' e2' e3')
+  where
+    message = "infer: least upper bound of types of two branches does not exist"
 
 infer (Let rec_flag binds e) =
   do checkDupNames (map bindId binds)

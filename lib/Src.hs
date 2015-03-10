@@ -21,7 +21,13 @@ module Src
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId
   , TypeValue(..), TypeContext, ValueContext
-  , expandType, compatible, subtype
+  , expandType
+
+  -- Relations between types
+  , subtype
+  , compatible
+  , leastUpperBound
+
   , deThunkOnce
   , recordFields
   , freeTVars
@@ -265,6 +271,13 @@ compatible d t1 t2 = subtype d t1' t2' && subtype d t2' t1'
   where
     t1' = expandType d t1
     t2' = expandType d t2
+
+-- | Computes the least upper bound of two types.
+leastUpperBound :: TypeContext -> Type -> Type -> Maybe Type
+leastUpperBound d t1 t2
+  | subtype d t1 t2 = Just t2
+  | subtype d t2 t1 = Just t1
+  | otherwise       = Nothing
 
 
 -- Records
