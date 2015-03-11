@@ -2,9 +2,9 @@
 
 data PolyList [A] = Nil | Cons A PolyList[A];
 
-let rec len [A] (l : PolyList[A]) : Int =
+let rec _len [A] (l : PolyList[A]) : Int =
     case l of
         Nil         ->  0
-     |  Cons _ xs   ->  1 + len[A] xs;
+     |  Cons _ _xs   ->  1 + _len[A] _xs;
 
-len[Int] (Cons [Int] 5 (Nil[Int]))
+_len[Int] (Cons [Int] 5 (Nil[Int]))
