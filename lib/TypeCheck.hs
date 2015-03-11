@@ -599,9 +599,9 @@ infer (Case e alts) =
    (t, e') <- infer e
    if not (isDatatype t)
     then if (isString t)
-           then inferString (t, e') alts
-           else throwError $ General $ bquotes (pretty e) <+> text "is of type" <+>
-                                     bquotes (pretty t) <> comma <+> text "which is not a datatype"
+           then inferString e'
+           else throwError $ General $
+              bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"
     else do
      value_ctxt <- getValueContext
      d <- getTypeContext
@@ -648,7 +648,7 @@ infer (Case e alts) =
         isString (JType (JClass "java.lang.String")) = True
         isString _ = False
 
-        inferString (t, e') alts =
+        inferString e' =
           do
             let alts' = [ n | ConstrAlt (Constructor n _) _ _ <-  alts]
             unless ((length alts == 2) && (Set.fromList alts') == (Set.fromList ["cons", "empty"])) $
@@ -661,8 +661,8 @@ infer (Case e alts) =
             (t1, emptyexpr) <- infer b1
             (_, b2') <- withLocalVars [(var1, JType (JClass "java.lang.Character")), (var2, JType(JClass "java.lang.String"))]
                                       $ inferAgainst b2 t1
-            headfetch <- normalizeBind $ Bind var1 [] [] (JMethod (NonStatic e) "charAt" [Lit (Int 0)] "") Nothing
-            tailfetch <- normalizeBind $ Bind var2 [] [] (JMethod (NonStatic e) "substring" [Lit (Int 1)] "") Nothing
+            let headfetch = (var1, JType(JClass "java.lang.Character"), JMethod (NonStatic e') "charAt" [Lit (Int 0)] "java.lang.Character")
+                tailfetch = (var2, JType(JClass "java.lang.String"), JMethod (NonStatic e') "substring" [Lit (Int 1)] "java.lang.String")
             let nonemptyexpr = LetOut NonRec [headfetch] $ LetOut NonRec [tailfetch] b2'
             return (t1, If emptytest emptyexpr nonemptyexpr)
 
