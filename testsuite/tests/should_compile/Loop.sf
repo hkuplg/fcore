@@ -1,0 +1,2 @@
+let rec loop[A]: A = loop[A];
+loop[String]

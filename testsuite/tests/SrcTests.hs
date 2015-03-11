@@ -7,9 +7,16 @@ import Test.Tasty.HUnit
 
 import Src
 
-srcTests = testGroup "Src" [groupForallTest]
+import qualified Data.Map as Map
 
-groupForallTest = testGroup "groupForall" 
+srcTests = testGroup "Src" [compatibleTests, groupForallTests]
+
+compatibleTests = testGroup "compatible" 
+  [ testCase "A = A" $ 
+      compatible (Map.fromList [("A", (Star, TerminalType))]) a a @?= True
+  ]
+
+groupForallTests = testGroup "groupForall" 
   [ testCase "forall A. forall B. A -> B" $
       groupForall (forallAB (a `Fun` b)) @?= (["A", "B"], a `Fun` b)
 

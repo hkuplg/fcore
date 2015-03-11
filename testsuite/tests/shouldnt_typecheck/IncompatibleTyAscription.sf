@@ -1,0 +1,5 @@
+-- Incompatible type ascription
+let rec loop[A]: A = loop;
+    --  ^ This is of type `forall A. A`. So is the right-hand side.
+    --    But the type ascription is `A`.
+loop
