@@ -110,7 +110,7 @@ data TypeError
   | IndexTooLarge
   | TypeMismatch Type Type
   | KindMismatch Kind Kind
-  | MissingRHSAnnot
+  | MissingTyAscription Name
   | NotInScope Name
   | ProjectionOfNonProduct
   | NotWellKinded Type
@@ -157,6 +157,10 @@ instance Pretty TypeError where
   pretty (NoSuchField (Static c) f) =
     prettyError <+> text "no such static field" <+> code (text f) <+>
     text "on" <+> code (pretty (JType (JClass c)))
+
+  pretty (MissingTyAscription ident) =
+    prettyError <+> text "recursive definition" <+> code (text ident) <+>
+    text "needs type ascription for the right-hand side"
 
   pretty e = prettyError <+> text (show e)
 
@@ -715,7 +719,7 @@ collectBindIdSigs :: [ReaderBind] -> Checker [(Name, Type)]
 collectBindIdSigs
   = mapM (\ Bind{..} ->
             case bindRhsTyAscription of
-              Nothing    -> throwError MissingRHSAnnot
+              Nothing    -> throwError (MissingTyAscription bindId)
               Just rhsTy ->
                 do d <- getTypeContext
                    let d' = foldr (\a acc -> Map.insert a (Star, TerminalType) acc) d bindTyParams
