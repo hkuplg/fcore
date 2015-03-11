@@ -95,6 +95,7 @@ tokens :-
     \|          { locate (\_ _ -> Tbar) }
     case        { locate (\_ _ -> Tcase) }
     of          { locate (\_ _ -> Tof) }
+    \_          { locate (\_ _ -> Tunderscore) }
 
     -- Literals
     $digit+                { locate (\_ s -> Tint (read s)) }
@@ -151,7 +152,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tmodule
            | Temptytree | Tnonemptytree
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
-           | Tdata | Tcase | Tbar | Tof | Tto
+           | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
            deriving (Eq, Show)
 
 data Located a = Located AlexPosn a
