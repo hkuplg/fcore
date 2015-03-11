@@ -176,7 +176,7 @@ atype :: { ReaderType }
   | record_type              { $1 }
   | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
-  | "List" "<" type ">"      { ListOf $3}
+  | "List" "[" type "]"      { ListOf $3}
 
 product_body :: { [ReaderType] }
   : type "," type             { $1:[$3] }
@@ -284,8 +284,8 @@ aexpr :: { ReaderExpr }
     | "{" semi_exprs "}"        { Seq $2 }
     | record_construct                { $1 }
     | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (reverse $4) }
-    | "new" "List" "<" type ">" "()"  {PolyList [] $4}
-    | "new" "List" "<" type ">" "(" comma_exprs0 ")"  {PolyList $7 $4}
+    | "new" "List" "[" type "]" "()"  {PolyList [] $4}
+    | "new" "List" "[" type "]" "(" comma_exprs0 ")"  {PolyList $7 $4}
     | "head" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined) undefined}
     | "tail" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "tail" [] undefined) undefined}
     | "isNil" "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined}
