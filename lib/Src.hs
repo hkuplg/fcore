@@ -42,7 +42,7 @@ import Config
 import JavaUtils
 import PrettyUtils
 import Panic
-
+import Lexer
 
 import qualified Language.Java.Syntax as J (Op(..))
 -- import qualified Language.Java.Pretty as P
@@ -104,7 +104,7 @@ data Expr id ty
   = Var id                                    -- Variable
   | Lit Lit                                   -- Literals
   | Lam (Name, ty) (Expr id ty)             -- Lambda
-  | App  (Expr id ty) (Expr id ty)            -- Application
+  | App (Expr id ty) (Expr id ty)            -- Application
   | BLam Name (Expr id ty)                    -- Big lambda
   | TApp (Expr id ty) ty                    -- Type application
   | Tuple [Expr id ty]                        -- Tuples
@@ -154,7 +154,7 @@ data Alt id ty = ConstrAlt Constructor [Name] (Expr id ty)
               deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
-type ReaderExpr  = Expr ReaderId  Type
+type ReaderExpr  = Expr ReaderId Type
 type CheckedExpr = Expr CheckedId Type
 -- type TcExpr  = Expr TcId
 -- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
@@ -168,6 +168,8 @@ data Lit -- Data constructor names match Haskell types
   deriving (Eq, Show)
 
 data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
+
+-- data L a = L AlexPosn
 
 data Bind id ty = Bind
   { bindId       :: id             -- Identifier
@@ -399,7 +401,7 @@ instance Pretty Type where
   pretty (Datatype n ts _) = hsep (text n : map pretty ts)
 
 groupForall :: Type -> ([Name], Type)
-groupForall (Forall a t) = let (as, t') = groupForall t in (a:as, t') 
+groupForall (Forall a t) = let (as, t') = groupForall t in (a:as, t')
 groupForall t            = ([], t)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where

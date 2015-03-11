@@ -5,7 +5,7 @@ module OptiUtils where
 
 import Core
 import System.Directory
-import Parser (reader)
+import Parser (reader, P(..))
 import TypeCheck (typeCheck)
 import Desugar (desugar)
 import Simplify (simplify')
@@ -221,13 +221,13 @@ src2fi fname = do
      path <- getCurrentDirectory
      string <- readFile (path ++ "/" ++ fname)
      case reader string of
-       Left expr -> do 
+       POk expr -> do
          result <- typeCheck expr
          case result of
            Left typeError -> error $ show typeError
            Right (_, tcheckedSrc) ->
                  return . desugar $ tcheckedSrc
-       Right msg -> error "Parse error!"
+       PError msg -> error msg
 
 applyFi :: (FI.Expr t e -> r) -> String -> IO r
 applyFi f fname = liftM f $ src2fi fname
