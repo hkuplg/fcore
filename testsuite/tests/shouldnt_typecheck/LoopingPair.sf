@@ -1,2 +1,2 @@
-let rec loop (n : Int) : Int = loop n in
+let rec loop (n : Int) : Int = loop n;
 (loop 1, 2)._2
