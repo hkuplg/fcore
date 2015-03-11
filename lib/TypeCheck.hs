@@ -25,7 +25,7 @@ module TypeCheck
   -- For REPL
   , typeCheckWithEnv
   , mkInitTcEnvWithEnv
-  , TypeError 
+  , TypeError
   ) where
 
 import Src
@@ -110,7 +110,7 @@ data TypeError
   | IndexTooLarge
   | TypeMismatch Type Type
   | KindMismatch Kind Kind
-  | MissingRHSAnnot
+  | MissingTyAscription Name
   | NotInScope Name
   | ProjectionOfNonProduct
   | NotWellKinded Type
@@ -157,6 +157,10 @@ instance Pretty TypeError where
   pretty (NoSuchField (Static c) f) =
     prettyError <+> text "no such static field" <+> code (text f) <+>
     text "on" <+> code (pretty (JType (JClass c)))
+
+  pretty (MissingTyAscription ident) =
+    prettyError <+> text "recursive definition" <+> code (text ident) <+>
+    text "needs type ascription for the right-hand side"
 
   pretty e = prettyError <+> text (show e)
 
@@ -372,11 +376,14 @@ infer (PrimOp e1 op e2) =
          (_, e2') <- inferAgainst e2 (JType (JClass "java.lang.Boolean"))
          return (JType (JClass "java.lang.Boolean"), PrimOp e1' op e2')
 
-infer (If pred b1 b2) =
-  do (_, pred') <- inferAgainst pred (JType (JClass "java.lang.Boolean"))
-     (t1, b1')  <- infer b1
-     (_,  b2')  <- inferAgainst b2 t1
-     return (t1, If pred' b1' b2')
+infer (If e1 e2 e3)
+  = do (_, e1')  <- inferAgainst e1 (JType (JClass "java.lang.Boolean"))
+       (t2, e2') <- infer e2
+       (t3, e3') <- infer e3
+       d <- getTypeContext
+       return (fromMaybe (panic message) (leastUpperBound d t2 t3), If e1' e2' e3')
+  where
+    message = "infer: least upper bound of types of two branches does not exist"
 
 infer (Let rec_flag binds e) =
   do checkDupNames (map bindId binds)
@@ -504,7 +511,7 @@ infer (PolyList l t) =
      case ts of [] -> return (ListOf t, PolyList es t)
                 _  ->
                      do d <- getTypeContext
-                        if all (alphaEq d t) ts
+                        if all (compatible d t) ts
                           then return (ListOf t, PolyList es t)
                           else throwError $ General (text "List Type mismatch" <+> pretty (PolyList l t))
 
@@ -515,7 +522,7 @@ infer (JProxyCall (JNew c args) t) =
     else
         do ([t1, t2], expr') <- mapAndUnzipM infer args
            d <- getTypeContext
-           if alphaEq d (ListOf t1) t2
+           if compatible d (ListOf t1) t2
              then return (t2, JProxyCall (JNew c expr') t2)
              else throwError $ TypeMismatch t1 t2
 
@@ -605,7 +612,7 @@ infer (Case e alts) =
      constrs' <- mapM (\c -> let n = constrName c
                              in case Map.lookup n value_ctxt of
                                   Just t_constr -> let ts = unwrapFun $ feedToForall t_constr ts_feed
-                                                   in if alphaEq d (last ts) t
+                                                   in if compatible d (last ts) t
                                                       then return $ Constructor n ts
                                                       else throwError $ TypeMismatch t t_constr
                                   Nothing -> throwError $ NotInScope n)
@@ -623,7 +630,7 @@ infer (Case e alts) =
                  alts'
 
      let resType = head ts
-     unless (all (alphaEq d resType) ts) $
+     unless (all (compatible d resType) ts) $
             throwError $ General $ text "All the alternatives should be of the same type"
 
      let allConstrs = Set.fromList ns
@@ -656,7 +663,7 @@ inferAgainst :: ReaderExpr -> Type -> Checker (Type, CheckedExpr)
 inferAgainst expr expected_ty
   = do (actual_ty, expr') <- infer expr
        d <- getTypeContext
-       if alphaEq d actual_ty expected_ty
+       if compatible d actual_ty expected_ty
           then return (actual_ty, expr')
           else throwError (TypeMismatch expected_ty actual_ty)
 
@@ -687,7 +694,7 @@ normalizeBind bind
            withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
              do checkType annot
                 d <- getTypeContext
-                if alphaEq d annot bindRhsTy
+                if compatible d annot bindRhsTy
                    then return (bindId bind'
                                , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                                , wrap BLam (bindTyParams bind') (wrap Lam (bindParams bind') bindRhs'))
@@ -712,14 +719,14 @@ collectBindIdSigs :: [ReaderBind] -> Checker [(Name, Type)]
 collectBindIdSigs
   = mapM (\ Bind{..} ->
             case bindRhsTyAscription of
-              Nothing    -> throwError MissingRHSAnnot
-              Just rhsTy ->
+              Nothing    -> throwError (MissingTyAscription bindId)
+              Just tyAscription ->
                 do d <- getTypeContext
                    let d' = foldr (\a acc -> Map.insert a (Star, TerminalType) acc) d bindTyParams
                    return (bindId,
                            wrap Forall bindTyParams $
-                           wrap Fun [expandType d' ty |  (_,ty) <- bindParams]
-                           rhsTy))
+                           wrap Fun [expandType d' ty |  (_,ty) <- bindParams] $
+                           expandType d' tyAscription))
 
 -- | Check that a type has kind *.
 checkType :: Type -> Checker ()
