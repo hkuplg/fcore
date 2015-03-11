@@ -720,13 +720,13 @@ collectBindIdSigs
   = mapM (\ Bind{..} ->
             case bindRhsTyAscription of
               Nothing    -> throwError (MissingTyAscription bindId)
-              Just rhsTy ->
+              Just tyAscription ->
                 do d <- getTypeContext
                    let d' = foldr (\a acc -> Map.insert a (Star, TerminalType) acc) d bindTyParams
                    return (bindId,
                            wrap Forall bindTyParams $
-                           wrap Fun [expandType d' ty |  (_,ty) <- bindParams]
-                           rhsTy))
+                           wrap Fun [expandType d' ty |  (_,ty) <- bindParams] $
+                           expandType d' tyAscription))
 
 -- | Check that a type has kind *.
 checkType :: Type -> Checker ()
