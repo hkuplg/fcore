@@ -21,6 +21,7 @@ module Src
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId
   , TypeValue(..), TypeContext, ValueContext
+  , groupForall
   , expandType
 
   -- Relations between types
@@ -387,7 +388,7 @@ instance Pretty Type where
   pretty (JType (JPrim c))   = text c
   pretty Unit         = text "Unit"
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
-  pretty (Forall a t) = parens $ forall <+> text a <> dot <+> pretty t
+  pretty (Forall a t) = parens $ forall <+> hsep (map text as) <> dot <+> pretty t' where (as, t') = groupForall (Forall a t)
   pretty (Product ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
   pretty (And t1 t2)  = pretty t1 <> text "&" <> pretty t2
   pretty (RecordType fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
@@ -396,6 +397,10 @@ instance Pretty Type where
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (ListOf a)   = brackets $ pretty a
   pretty (Datatype n ts _) = hsep (text n : map pretty ts)
+
+groupForall :: Type -> ([Name], Type)
+groupForall (Forall a t) = let (as, t') = groupForall t in (a:as, t') 
+groupForall t            = ([], t)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Var x) = pretty x

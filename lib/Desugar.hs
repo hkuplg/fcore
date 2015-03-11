@@ -133,7 +133,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 ~> (\(f : forall A1...An. t1 -> t2). body)
      (/\A1...An. fix y (x1 : t1) : t2. peeled_e)
 -}
-    go (LetOut Rec [(f,t@(Fun _ _),e)] body) = desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body)
+    go (LetOut Rec [(f,t@(Fun _ _),e)] body) = desugarLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec [(f,t,e)] body)           = desugarLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
     go (LetOut Rec bs body)                  = desugarLetRecToLetRec (d,g) (LetOut Rec bs body)
     go (JNew c args)          = F.JNew c (map go args)
@@ -161,6 +161,8 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
         let c' = desugarConstructor c
             f ns' = desugarExpr (d, zipWith (\n e' -> (n, F.Var n e')) ns ns' `addToVarMap` g) e
         in F.ConstrAlt c' ns f
+
+
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
 desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
   F.App
@@ -176,7 +178,7 @@ desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
             (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
               where
                 peel Nothing (Lam param b, Fun _ ret_ty) = (Just param, ret_ty, b)
-                peel _ _ = panic "desugarLetRecToFix: not a function"
+                peel _ (e,t) = prettyPanic "desugarLetRecToFix: not a function" (text (show e))
 desugarLetRecToFix _ _ = panic "desugarLetRecToFix"
 
 {-

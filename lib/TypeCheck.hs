@@ -105,7 +105,7 @@ mkInitTcEnvWithEnv value_ctxt type_server
 
 data TypeError
   = General Doc
-  | ConflictingDefinitions Name
+  | DuplicateParam Name
   | ExpectJClass
   | IndexTooLarge
   | TypeMismatch Type Type
@@ -127,15 +127,16 @@ data TypeError
 instance Pretty TypeError where
   pretty (General doc)      = prettyError <+> doc
   pretty (NotInScope x)  = prettyError <+> code (text x) <+> text "is not in scope"
+  pretty (DuplicateParam ident) = prettyError <+> text "duplicate parameter" <+> code (text ident)
   pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
-  pretty (KindMismatch expected actual) =
+  pretty (KindMismatch expected found) =
     prettyError <+> text "kind mismatch" <> colon <$>
-    indent 2 (text "expected:" <+> code (pretty expected) <$>
-              text "  actual:" <+> code (pretty actual))
-  pretty (TypeMismatch expected actual) =
+    indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
+              text "   found" <+> code (pretty found))
+  pretty (TypeMismatch expected found) =
     prettyError <+> text "type mismatch" <> colon <$>
-    indent 2 (text "expected:" <+> code (pretty expected) <$>
-              text "  actual:" <+> code (pretty actual))
+    indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
+              text "   found" <+> code (pretty found))
 
   pretty (NoSuchClass c)  = prettyError <+> text "no such class:" <+> code (text c)
   pretty (NotMember x t)  = prettyError <+> code (text x) <+> text "is not a member of the type" <+> code (pretty t)
@@ -661,11 +662,11 @@ pullRightForall params t = foldr Forall t params
 
 inferAgainst :: ReaderExpr -> Type -> Checker (Type, CheckedExpr)
 inferAgainst expr expected_ty
-  = do (actual_ty, expr') <- infer expr
+  = do (found_ty, expr') <- infer expr
        d <- getTypeContext
-       if compatible d actual_ty expected_ty
-          then return (actual_ty, expr')
-          else throwError (TypeMismatch expected_ty actual_ty)
+       if compatible d found_ty expected_ty
+          then return (found_ty, expr')
+          else throwError (TypeMismatch expected_ty found_ty)
 
 inferAgainstAnyJClass :: ReaderExpr -> Checker (ClassName, CheckedExpr)
 inferAgainstAnyJClass expr
@@ -679,7 +680,7 @@ inferAgainstAnyJClass expr
              (code (pretty expr) <+> text "has type" <+> code (pretty ty) <> comma <+>
               text "but is expected to be of some Java class")
 
--- | Check "f A1 ... An (x1:T1) ... (xn:Tn) : t = e"
+-- | Check "f [A1,...,An] (x1:t1) ... (xn:tn): t = e"
 normalizeBind :: ReaderBind -> Checker (Name, Type, CheckedExpr)
 normalizeBind bind
   = do bind' <- checkBindLHS bind
@@ -690,15 +691,16 @@ normalizeBind bind
          Nothing -> return ( bindId bind'
                            , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                            , wrap BLam (bindTyParams bind') (wrap Lam (bindParams bind') bindRhs'))
-         Just annot ->
+         Just ty_ascription ->
            withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
-             do checkType annot
+             do checkType ty_ascription
                 d <- getTypeContext
-                if compatible d annot bindRhsTy
+                let ty_ascription' = expandType d ty_ascription
+                if compatible d ty_ascription' bindRhsTy
                    then return (bindId bind'
                                , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                                , wrap BLam (bindTyParams bind') (wrap Lam (bindParams bind') bindRhs'))
-                   else throwError (TypeMismatch (expandType d annot) bindRhsTy)
+                   else throwError (TypeMismatch (expandType d ty_ascription') bindRhsTy)
 
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.
@@ -800,7 +802,7 @@ checkDupNames :: [Name] -> Checker ()
 checkDupNames names
   = case findOneDup names of
       Nothing   -> return ()
-      Just name -> throwError (ConflictingDefinitions name)
+      Just name -> throwError (DuplicateParam name)
 
 -- | Find one instance of duplicate in a list.
 findOneDup :: Ord a => [a] -> Maybe a
