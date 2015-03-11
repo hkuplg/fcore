@@ -680,7 +680,7 @@ inferAgainstAnyJClass expr
              (code (pretty expr) <+> text "has type" <+> code (pretty ty) <> comma <+>
               text "but is expected to be of some Java class")
 
--- | Check "f A1 ... An (x1:T1) ... (xn:Tn) : t = e"
+-- | Check "f [A1,...,An] (x1:t1) ... (xn:tn): t = e"
 normalizeBind :: ReaderBind -> Checker (Name, Type, CheckedExpr)
 normalizeBind bind
   = do bind' <- checkBindLHS bind
@@ -691,15 +691,16 @@ normalizeBind bind
          Nothing -> return ( bindId bind'
                            , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                            , wrap BLam (bindTyParams bind') (wrap Lam (bindParams bind') bindRhs'))
-         Just annot ->
+         Just ty_ascription ->
            withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
-             do checkType annot
+             do checkType ty_ascription
                 d <- getTypeContext
-                if compatible d annot bindRhsTy
+                let ty_ascription' = expandType d ty_ascription
+                if compatible d ty_ascription' bindRhsTy
                    then return (bindId bind'
                                , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                                , wrap BLam (bindTyParams bind') (wrap Lam (bindParams bind') bindRhs'))
-                   else throwError (TypeMismatch (expandType d annot) bindRhsTy)
+                   else throwError (TypeMismatch (expandType d ty_ascription') bindRhsTy)
 
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.
