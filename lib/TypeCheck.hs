@@ -105,7 +105,7 @@ mkInitTcEnvWithEnv value_ctxt type_server
 
 data TypeError
   = General Doc
-  | ConflictingDefinitions Name
+  | DuplicateParam Name
   | ExpectJClass
   | IndexTooLarge
   | TypeMismatch Type Type
@@ -127,6 +127,7 @@ data TypeError
 instance Pretty TypeError where
   pretty (General doc)      = prettyError <+> doc
   pretty (NotInScope x)  = prettyError <+> code (text x) <+> text "is not in scope"
+  pretty (DuplicateParam ident) = prettyError <+> text "duplicate parameter" <+> code (text ident)
   pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
   pretty (KindMismatch expected found) =
     prettyError <+> text "kind mismatch" <> colon <$>
@@ -800,7 +801,7 @@ checkDupNames :: [Name] -> Checker ()
 checkDupNames names
   = case findOneDup names of
       Nothing   -> return ()
-      Just name -> throwError (ConflictingDefinitions name)
+      Just name -> throwError (DuplicateParam name)
 
 -- | Find one instance of duplicate in a list.
 findOneDup :: Ord a => [a] -> Maybe a
