@@ -625,7 +625,7 @@ infer (Case e alts) =
                       let n = constrName c
                           ts = init $ constrParams c
                       in if length ts == length vars
-                         then withLocalVars (zip vars ts) (infer e2)
+                         then withLocalVars (filter ((/= "_") . fst) $ zip vars ts) (infer e2)
                          else throwError $ General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
                                                                    <+> text "arguments, bus has been given" <+> int (length vars))
                  alts'

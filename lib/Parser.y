@@ -61,6 +61,7 @@ import JavaUtils
   "case"   { Located _ Tcase }
   "|"      { Located _ Tbar }
   "of"     { Located _ Tof }
+  "_"      { Located _ Tunderscore }
 
   UPPER_IDENT  { Located _ (Tupperid $$) }
   LOWER_IDENT  { Located _ (Tlowerid $$) }
@@ -392,6 +393,7 @@ pattern :: { Alt ReaderId Type}
 
 pat_var :: { ReaderId }
   : LOWER_IDENT  { $1 }
+  | "_"          { "_" }
 
 pat_vars :: { [ReaderId] }
   : {- empty -}       { [] }
