@@ -25,7 +25,7 @@ module TypeCheck
   -- For REPL
   , typeCheckWithEnv
   , mkInitTcEnvWithEnv
-  , TypeError 
+  , TypeError
   ) where
 
 import Src
@@ -595,9 +595,12 @@ infer (ConstrTemp name) =
          Nothing -> throwError (NotInScope name)
 
 infer (Case e alts) =
-  do (t, e') <- infer e
-     unless (isDatatype t) $
-       throwError $ General $ bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"
+ do
+   (t, _) <- infer e
+   if not (isDatatype t)
+    then inferString t e alts
+    else do
+     (_, e') <- infer e
      value_ctxt <- getValueContext
      d <- getTypeContext
      let Datatype _ ts_feed ns = t
@@ -639,6 +642,27 @@ infer (Case e alts) =
 
         isDatatype (Datatype{}) = True
         isDatatype _ = False
+
+        isString (JType (JClass "java.lang.String")) = True
+        isString _ = False
+
+        inferString t e alts =
+          do
+            unless (isString t) $
+              throwError $ General $ bquotes (pretty e) <+> text "is of type" <+>
+                                     bquotes (pretty t) <> comma <+> text "which is not a datatype"
+            let alts' = [ n | ConstrAlt (Constructor n _) _ _ <-  alts]
+            unless ((length alts == 2) && (Set.fromList alts') == (Set.fromList ["cons", "empty"])) $
+              throwError $ General $ bquotes (pretty e) <+> text "is of type String" <+>
+                                     text "which can only has two patterns: [] and head:tail"
+            let [emptyexpr] = [ expr | ConstrAlt (Constructor "empty" _) _ expr <-  alts]
+                [(var1, var2, nonemptyexpr')] = [ (var1',var2',expr) |
+                                                ConstrAlt (Constructor "cons" _) [var1',var2'] expr <-  alts]
+            let emptytest = JMethod (NonStatic e) "isEmpty" [] ""
+                headfetch = Bind var1 [] [] (JMethod (NonStatic e) "charAt" [Lit (Int 0)] "") Nothing
+                tailfetch = Bind var2 [] [] (JMethod (NonStatic e) "substring" [Lit (Int 1)] "") Nothing
+                nonemptyexpr = Let NonRec [tailfetch] $ Let NonRec [headfetch] nonemptyexpr'
+            infer (If emptytest emptyexpr nonemptyexpr)
 
 -- | "Pull" the type params at the LHS of the equal sign to the right.
 -- A (high-level) example:
