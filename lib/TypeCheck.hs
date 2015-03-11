@@ -128,14 +128,14 @@ instance Pretty TypeError where
   pretty (General doc)      = prettyError <+> doc
   pretty (NotInScope x)  = prettyError <+> code (text x) <+> text "is not in scope"
   pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
-  pretty (KindMismatch expected actual) =
+  pretty (KindMismatch expected found) =
     prettyError <+> text "kind mismatch" <> colon <$>
-    indent 2 (text "expected:" <+> code (pretty expected) <$>
-              text "  actual:" <+> code (pretty actual))
-  pretty (TypeMismatch expected actual) =
+    indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
+              text "   found" <+> code (pretty found))
+  pretty (TypeMismatch expected found) =
     prettyError <+> text "type mismatch" <> colon <$>
-    indent 2 (text "expected:" <+> code (pretty expected) <$>
-              text "  actual:" <+> code (pretty actual))
+    indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
+              text "   found" <+> code (pretty found))
 
   pretty (NoSuchClass c)  = prettyError <+> text "no such class:" <+> code (text c)
   pretty (NotMember x t)  = prettyError <+> code (text x) <+> text "is not a member of the type" <+> code (pretty t)
@@ -661,11 +661,11 @@ pullRightForall params t = foldr Forall t params
 
 inferAgainst :: ReaderExpr -> Type -> Checker (Type, CheckedExpr)
 inferAgainst expr expected_ty
-  = do (actual_ty, expr') <- infer expr
+  = do (found_ty, expr') <- infer expr
        d <- getTypeContext
-       if compatible d actual_ty expected_ty
-          then return (actual_ty, expr')
-          else throwError (TypeMismatch expected_ty actual_ty)
+       if compatible d found_ty expected_ty
+          then return (found_ty, expr')
+          else throwError (TypeMismatch expected_ty found_ty)
 
 inferAgainstAnyJClass :: ReaderExpr -> Checker (ClassName, CheckedExpr)
 inferAgainstAnyJClass expr
