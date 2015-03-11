@@ -1,5 +1,5 @@
 let rec
-  foldLeft[A] (f : A -> Int -> A) (v : A) (xs : List<Int>) : A =
+  foldLeft[A] (f : A -> Int -> A) (v : A) (xs : List[Int]) : A =
     if isNil(xs) then v
     else foldLeft [A] f (f v head(xs)) tail(xs);
 let
@@ -13,26 +13,26 @@ and
   put[S] (s : S) = \(dummy : S) -> ((), s)
 ;
 let
-  rindex (as : List<Int>) : List<Int> =
+  rindex (as : List[Int]) : List[Int] =
     let
-      gao (acc : Int -> (List<Int>, Int)) (a : Int) : Int -> (List<Int>, Int) =
-        bind [List<Int>, List<Int>, Int]
+      gao (acc : Int -> (List[Int], Int)) (a : Int) : Int -> (List[Int], Int) =
+        bind [List[Int], List[Int], Int]
           acc
-          (\(xs : List<Int>) ->
-            (bind [Int, List<Int>, Int]
+          (\(xs : List[Int]) ->
+            (bind [Int, List[Int], Int]
                (get [Int])
                (\(n : Int) ->
-                 (bind [Unit, List<Int>, Int]
+                 (bind [Unit, List[Int], Int]
                     (put [Int] (n + 1))
-                    (\(s : Unit) -> (inject [List<Int>, Int] (cons(a, xs))))))))
+                    (\(s : Unit) -> (inject [List[Int], Int] (cons(a, xs))))))))
     ;
     let
-      foldLeft' (as : List<Int>) : Int -> (List<Int>, Int) =
-        foldLeft [Int -> (List<Int>, Int)]
+      foldLeft' (as : List[Int]) : Int -> (List[Int], Int) =
+        foldLeft [Int -> (List[Int], Int)]
           gao
-          (inject [List<Int>, Int] (new List<Int>()))
+          (inject [List[Int], Int] (new List[Int]()))
           as
     ;
     (foldLeft' as 0)._1
 ;
-1
+length(rindex (new List[Int](1,2,3,4)))
