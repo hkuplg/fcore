@@ -118,7 +118,7 @@ tokens :-
 
     -- ID
     [A-Z] [$vchar]*     { locate (\_ s -> Tupperid s) }
-    \_ $alpha [$vchar]* | [a-z] [$vchar]*     { locate (\_ s -> Tlowerid s) }
+    \_ [$alpha \_] [$vchar]* | [a-z] [$vchar]*     { locate (\_ s -> Tlowerid s) }
     \_ $digit+          { locate (\_ s -> Tunderid (read (tail s))) }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
