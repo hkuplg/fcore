@@ -20,12 +20,12 @@ References:
 module Lexer
     ( lexer
     , Token(..)
-    , Located(..)
     ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
 import Numeric (readOct)
 import Data.Char (isHexDigit, isOctDigit)
+import Src (Located(..))
 
 }
 
@@ -153,13 +153,6 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
            deriving (Eq, Show)
-
--- data Located a = Located AlexPosn a
-
--- Position wrapper
-
-data Located a = L { unL :: a, line :: !Int, column :: !Int }
-         deriving (Show, Eq)
 
 -- Modify a normal rule inside { ... } so that it returns a *located* token.
 locate
