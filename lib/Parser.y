@@ -29,77 +29,76 @@ import JavaUtils
 
 %token
 
-  "("      { Located _ Toparen }
-  ")"      { Located _ Tcparen }
-  "["      { Located _ Tobrack }
-  "]"      { Located _ Tcbrack }
-  "::"     { Located _ Tdcolon }
-  "{"      { Located _ Tocurly }
-  "}"      { Located _ Tccurly }
-  "/\\"    { Located _ Ttlam }
-  "\\"     { Located _ Tlam }
-  ":"      { Located _ Tcolon }
-  ";"      { Located _ Tsemi }
-  "forall" { Located _ Tforall }
-  "->"     { Located _ Tarrow }
-  "."      { Located _ Tdot }
-  "&"      { Located _ Tandtype }
-  ",,"     { Located _ Tmerge }
-  "with"   { Located _ Twith }
-  "'"      { Located _ Tquote }
-  "type"   { Located _ Ttype }
-  "let"    { Located _ Tlet }
-  "rec"    { Located _ Trec }
-  "="      { Located _ Teq }
-  "and"    { Located _ Tand }
-  "if"     { Located _ Tif }
-  "then"   { Located _ Tthen }
-  "else"   { Located _ Telse }
-  ","      { Located _ Tcomma }
+  "("      { L { unL = Toparen} }
+  ")"      { L { unL = Tcparen } }
+  "["      { L { unL = Tobrack } }
+  "]"      { L { unL = Tcbrack } }
+  "::"     { L { unL = Tdcolon } }
+  "{"      { L { unL = Tocurly } }
+  "}"      { L { unL = Tccurly } }
+  "/\\"    { L { unL = Ttlam } }
+  "\\"     { L { unL = Tlam } }
+  ":"      { L { unL = Tcolon } }
+  ";"      { L { unL = Tsemi } }
+  "forall" { L { unL = Tforall } }
+  "->"     { L { unL = Tarrow } }
+  "."      { L { unL = Tdot } }
+  "&"      { L { unL = Tandtype } }
+  ",,"     { L { unL = Tmerge } }
+  "with"   { L { unL = Twith } }
+  "'"      { L { unL = Tquote } }
+  "type"   { L { unL = Ttype } }
+  "let"    { L { unL = Tlet } }
+  "rec"    { L { unL = Trec } }
+  "="      { L { unL = Teq } }
+  "and"    { L { unL = Tand } }
+  "if"     { L { unL = Tif } }
+  "then"   { L { unL = Tthen } }
+  "else"   { L { unL = Telse } }
+  ","      { L { unL = Tcomma } }
+  "data"   { L { unL = Tdata } }
+  "case"   { L { unL = Tcase } }
+  "|"      { L { unL = Tbar } }
+  "of"     { L { unL = Tof } }
+  "_"      { L { unL = Tunderscore } }
 
-  "data"   { Located _ Tdata }
-  "case"   { Located _ Tcase }
-  "|"      { Located _ Tbar }
-  "of"     { Located _ Tof }
-  "_"      { Located _ Tunderscore }
+  UPPER_IDENT  { L { unL = (Tupperid $$) } }
+  LOWER_IDENT  { L { unL = (Tlowerid $$) } }
+  UNDERID      { L { unL = (Tunderid $$) } }
 
-  UPPER_IDENT  { Located _ (Tupperid $$) }
-  LOWER_IDENT  { Located _ (Tlowerid $$) }
-  UNDERID      { Located _ (Tunderid $$) }
+  JAVACLASS { L { unL = (Tjavaclass $$) } }
+  "new"     { L { unL = Tnew } }
 
-  JAVACLASS { Located _ (Tjavaclass $$) }
-  "new"     { Located _ Tnew }
+  "module"  { L { unL = Tmodule } }
 
-  "module"  { Located _ Tmodule }
+  INT      { L { unL = (Tint $$) } }
+  STRING   { L { unL = (Tstring $$) } }
+  BOOL     { L { unL = (Tbool $$) } }
+  "Empty"    { L { unL = Temptytree } }
+  "Fork"     { L { unL = Tnonemptytree} }
+  CHAR     { L { unL = (Tchar $$) } }
+  "()"     { L { unL = Tunitlit } }
+  "Unit"   { L { unL = Tunit } }
+  "List"     { L { unL = Tlist } }
+  "head"     { L { unL = Tlisthead } }
+  "tail"     { L { unL = Tlisttail } }
+  "cons"     { L { unL = Tlistcons } }
+  "isNil"    { L { unL = Tlistisnil } }
+  "length"   { L { unL = Tlistlength } }
 
-  INT      { Located _ (Tint $$) }
-  STRING   { Located _ (Tstring $$) }
-  BOOL     { Located _ (Tbool $$) }
-  "Empty"    { Located _ Temptytree }
-  "Fork"     { Located _ Tnonemptytree}
-  CHAR     { Located _ (Tchar $$) }
-  "()"     { Located _ Tunitlit }
-  "Unit"   { Located _ Tunit }
-  "List"     { Located _ Tlist }
-  "head"     { Located _ Tlisthead }
-  "tail"     { Located _ Tlisttail }
-  "cons"     { Located _ Tlistcons }
-  "isNil"    { Located _ Tlistisnil }
-  "length"   { Located _ Tlistlength }
-
-  "*"      { Located _ (Tprimop J.Mult)   }
-  "/"      { Located _ (Tprimop J.Div)    }
-  "%"      { Located _ (Tprimop J.Rem)    }
-  "+"      { Located _ (Tprimop J.Add)    }
-  "-"      { Located _ (Tprimop J.Sub)    }
-  "<"      { Located _ (Tprimop J.LThan)  }
-  "<="     { Located _ (Tprimop J.LThanE) }
-  ">"      { Located _ (Tprimop J.GThan)  }
-  ">="     { Located _ (Tprimop J.GThanE) }
-  "=="     { Located _ (Tprimop J.Equal)  }
-  "!="     { Located _ (Tprimop J.NotEq)  }
-  "&&"     { Located _ (Tprimop J.CAnd)   }
-  "||"     { Located _ (Tprimop J.COr)    }
+  "*"      { L { unL = (Tprimop J.Mult)   } }
+  "/"      { L { unL = (Tprimop J.Div)    } }
+  "%"      { L { unL = (Tprimop J.Rem)    } }
+  "+"      { L { unL = (Tprimop J.Add)    } }
+  "-"      { L { unL = (Tprimop J.Sub)    } }
+  "<"      { L { unL = (Tprimop J.LThan)  } }
+  "<="     { L { unL = (Tprimop J.LThanE) } }
+  ">"      { L { unL = (Tprimop J.GThan)  } }
+  ">="     { L { unL = (Tprimop J.GThanE) } }
+  "=="     { L { unL = (Tprimop J.Equal)  } }
+  "!="     { L { unL = (Tprimop J.NotEq)  } }
+  "&&"     { L { unL = (Tprimop J.CAnd)   } }
+  "||"     { L { unL = (Tprimop J.COr)    } }
 
 
 -- Precedence and associativity directives
@@ -431,8 +430,7 @@ instance Monad P where
 
 parseError :: [Located Token] -> P a
 parseError []        = PError ("Parse error")
-parseError (token:_) = PError ("Parse error at " ++ show line ++ ":" ++ show col)
-  where (line, col) = getLocation token
+parseError (token:_) = PError ("Parse error at " ++ show (line token) ++ ":" ++ show (column token))
 
 reader :: String -> P ReaderExpr
 reader src = parseExpr $ lexer src

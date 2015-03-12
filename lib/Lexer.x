@@ -21,7 +21,6 @@ module Lexer
     ( lexer
     , Token(..)
     , Located(..)
-    , getLocation
     ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
@@ -155,16 +154,18 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
            deriving (Eq, Show)
 
-data Located a = Located AlexPosn a
+-- data Located a = Located AlexPosn a
 
-getLocation :: Located a -> (Int, Int)
-getLocation (Located (AlexPn _ line col) _) = (line, col)
+-- Position wrapper
+
+data Located a = L { unL :: a, line :: !Int, column :: !Int }
+         deriving (Show, Eq)
 
 -- Modify a normal rule inside { ... } so that it returns a *located* token.
 locate
   :: (AlexPosn -> String -> Token)
   -> (AlexPosn -> String -> Located Token)
-locate f = \p s -> Located p (f p s)
+locate f = \p@(AlexPn _ l c) s -> L (f p s) l c
 
 -- From Language.Java v0.2.7 (BSD3 License)
 lexicalError :: String -> a
