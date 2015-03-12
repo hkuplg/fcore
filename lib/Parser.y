@@ -232,7 +232,7 @@ expr :: { ReaderExpr }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type $2 $3 $5 $6 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
     | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
-    | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
+    | "data" recflag and_databinds ";" expr        { Data $2 $3 $5 }
     | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
     | module expr                         { LetModule $1 $2 }
@@ -361,6 +361,13 @@ bind :: { ReaderBind }
 and_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
+
+and_databinds :: { [DataBind]}
+    : databind                       { [$1] }
+    | databind "and" and_databinds   { $1:$3 }
+
+databind :: { DataBind }
+    : UPPER_IDENT ty_param_list_or_empty "=" constrs_decl { DataBind $1 $2 $4 }
 
 semi_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
