@@ -155,6 +155,15 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 
     go (Constr c es) = F.Constr (desugarConstructor c) (map go es)
     go (Case e alts) = F.Case (go e) (map desugarAlts alts)
+    go (CaseString e alts) =
+            let emptytest = JMethod (NonStatic e) "isEmpty" [] "java.lang.Boolean"
+                [emptyexpr]        = [ expr | ConstrAlt (Constructor "empty" _) _ expr <-  alts]
+                [(var1, var2, b2)] = [ (var1',var2',expr) | ConstrAlt (Constructor "cons" _) [var1',var2'] expr <-  alts]
+                headfetch = (var1, JType(JClass "java.lang.Character"), JMethod (NonStatic e) "charAt" [Lit (Int 0)] "java.lang.Character")
+                tailfetch = (var2, JType(JClass "java.lang.String"), JMethod (NonStatic e) "substring" [Lit (Int 1)] "java.lang.String")
+                nonemptyexpr = LetOut NonRec [headfetch] $ LetOut NonRec [tailfetch] b2
+            in
+            go (If emptytest emptyexpr nonemptyexpr)
 
     desugarConstructor (Constructor n ts) = F.Constructor n (map (transType d) ts)
     desugarAlts (ConstrAlt c ns e) =

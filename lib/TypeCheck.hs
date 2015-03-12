@@ -603,9 +603,14 @@ infer (ConstrTemp name) =
          Nothing -> throwError (NotInScope name)
 
 infer (Case e alts) =
-  do (t, e') <- infer e
-     unless (isDatatype t) $
-       throwError $ General $ bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"
+ do
+   (t, e') <- infer e
+   if not (isDatatype t)
+    then if (isString t)
+           then inferString e'
+           else throwError $ General $
+              bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"
+    else do
      value_ctxt <- getValueContext
      d <- getTypeContext
      let Datatype _ ts_feed ns = t
@@ -647,6 +652,25 @@ infer (Case e alts) =
 
         isDatatype (Datatype{}) = True
         isDatatype _ = False
+
+        isString (JType (JClass "java.lang.String")) = True
+        isString _ = False
+
+        inferString e' =
+          do
+            let alts' = [ n | ConstrAlt (Constructor n _) _ _ <-  alts]
+            unless ((length alts == 2) && (Set.fromList alts') == (Set.fromList ["cons", "empty"])) $
+              throwError $ General $ bquotes (pretty e) <+> text "is of type String" <+>
+                                     text "which should have two patterns [] and head:tail"
+
+            let [b1]               = [ expr | ConstrAlt (Constructor "empty" _) _ expr <-  alts]
+                [(var1, var2, b2)] = [ (var1',var2',expr) | ConstrAlt (Constructor "cons" _) [var1',var2'] expr <-  alts]
+            (t1, emptyexpr) <- infer b1
+            (_,  nonemptyexpr) <- withLocalVars [(var1, JType (JClass "java.lang.Character")), (var2, JType(JClass "java.lang.String"))]
+                                      $ inferAgainst b2 t1
+            let emptyalt = ConstrAlt (Constructor "empty" []) [] emptyexpr
+                nonemptyalt = ConstrAlt (Constructor "cons" []) [var1, var2] nonemptyexpr
+            return (t1, CaseString e' [emptyalt, nonemptyalt])
 
 -- | "Pull" the type params at the LHS of the equal sign to the right.
 -- A (high-level) example:

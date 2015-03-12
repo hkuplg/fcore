@@ -390,6 +390,8 @@ patterns :: { [Alt ReaderId Type] }
 
 pattern :: { Alt ReaderId Type}
     : constr_name pat_vars "->" expr  { ConstrAlt (Constructor $1 []) $2 $4 }
+    | "[" "]" "->" expr               { ConstrAlt (Constructor "empty" []) [] $4}
+    | pat_var ":" pat_var "->" expr   { ConstrAlt (Constructor "cons" []) [$1,$3] $5}
 
 pat_var :: { ReaderId }
   : LOWER_IDENT  { $1 }
