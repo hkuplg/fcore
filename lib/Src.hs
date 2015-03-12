@@ -139,6 +139,7 @@ data Expr id ty
       (Expr id ty) -- e         -- The rest of the expression
   | Data Name [Name] [Constructor] (Expr id ty)
   | Case (Expr id ty) [Alt id ty]
+  | CaseString (Expr id ty) [Alt id ty] --pattern match on string
   | ConstrTemp Name
   | Constr Constructor [Expr id ty] -- post typecheck only
   | JProxyCall (Expr id ty) ty
@@ -458,6 +459,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
                            pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
+  pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
   pretty e = text (show e)
 

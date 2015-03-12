@@ -655,16 +655,14 @@ infer (Case e alts) =
               throwError $ General $ bquotes (pretty e) <+> text "is of type String" <+>
                                      text "which should have two patterns [] and head:tail"
 
-            let emptytest = JMethod (NonStatic e') "isEmpty" [] "java.lang.Boolean"
             let [b1]               = [ expr | ConstrAlt (Constructor "empty" _) _ expr <-  alts]
                 [(var1, var2, b2)] = [ (var1',var2',expr) | ConstrAlt (Constructor "cons" _) [var1',var2'] expr <-  alts]
             (t1, emptyexpr) <- infer b1
-            (_, b2') <- withLocalVars [(var1, JType (JClass "java.lang.Character")), (var2, JType(JClass "java.lang.String"))]
+            (_,  nonemptyexpr) <- withLocalVars [(var1, JType (JClass "java.lang.Character")), (var2, JType(JClass "java.lang.String"))]
                                       $ inferAgainst b2 t1
-            let headfetch = (var1, JType(JClass "java.lang.Character"), JMethod (NonStatic e') "charAt" [Lit (Int 0)] "java.lang.Character")
-                tailfetch = (var2, JType(JClass "java.lang.String"), JMethod (NonStatic e') "substring" [Lit (Int 1)] "java.lang.String")
-            let nonemptyexpr = LetOut NonRec [headfetch] $ LetOut NonRec [tailfetch] b2'
-            return (t1, If emptytest emptyexpr nonemptyexpr)
+            let emptyalt = ConstrAlt (Constructor "empty" []) [] emptyexpr
+                nonemptyalt = ConstrAlt (Constructor "cons" []) [var1, var2] nonemptyexpr
+            return (t1, CaseString e' [emptyalt, nonemptyalt])
 
 -- | "Pull" the type params at the LHS of the equal sign to the right.
 -- A (high-level) example:
