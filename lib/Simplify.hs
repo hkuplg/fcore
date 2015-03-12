@@ -169,7 +169,7 @@ coerce i this@(FI.Fun t1 t2) (FI.Fun t3 t4) = do
   return $ lam (transType i this) (\f -> lam (transType i t3) $ (App c2 . App (var f) . App c1) . var)
 coerce i this@(FI.Forall _ f) (FI.Forall _ g) = do
   c <- coerce (i + 1) (f i) (g i)
-  return $ lam (transType i this) (\f' -> bLam $ (App c . TApp (var f')) . TVar "")
+  return $ lam (transType i this) (\f' -> bLam $ (App c . TApp (var f')) . TVar "_")
 coerce i this@(FI.Product ss) (FI.Product ts)
   | length ss /= length ts = Nothing
   | otherwise = do
