@@ -666,8 +666,9 @@ infer (Case e alts) =
             let [b1]               = [ expr | ConstrAlt (Constructor "empty" _) _ expr <-  alts]
                 [(var1, var2, b2)] = [ (var1',var2',expr) | ConstrAlt (Constructor "cons" _) [var1',var2'] expr <-  alts]
             (t1, emptyexpr) <- infer b1
-            (_,  nonemptyexpr) <- withLocalVars [(var1, JType (JClass "java.lang.Character")), (var2, JType(JClass "java.lang.String"))]
-                                      $ inferAgainst b2 t1
+            (_,  nonemptyexpr) <- withLocalVars
+                                    (filter ((/= "_") . fst)[(var1, JType (JClass "java.lang.Character")), (var2, JType(JClass "java.lang.String"))])
+                                  $ inferAgainst b2 t1
             let emptyalt = ConstrAlt (Constructor "empty" []) [] emptyexpr
                 nonemptyalt = ConstrAlt (Constructor "cons" []) [var1, var2] nonemptyexpr
             return (t1, CaseString e' [emptyalt, nonemptyalt])

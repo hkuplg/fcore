@@ -161,7 +161,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                 [(var1, var2, b2)] = [ (var1',var2',expr) | ConstrAlt (Constructor "cons" _) [var1',var2'] expr <-  alts]
                 headfetch = (var1, JType(JClass "java.lang.Character"), JMethod (NonStatic e) "charAt" [Lit (Int 0)] "java.lang.Character")
                 tailfetch = (var2, JType(JClass "java.lang.String"), JMethod (NonStatic e) "substring" [Lit (Int 1)] "java.lang.String")
-                nonemptyexpr = LetOut NonRec [headfetch] $ LetOut NonRec [tailfetch] b2
+                nonemptyexpr = foldr (\x@(name,_,_) b -> if (name =="_") then b else LetOut NonRec [x] b) b2 [headfetch, tailfetch]
             in
             go (If emptytest emptyexpr nonemptyexpr)
 
