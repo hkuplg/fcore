@@ -38,7 +38,7 @@ import           Inheritance
 import           Inliner
 import           JavaUtils (ClassName, inferClassName)
 import           MonadLib
-import           Parser 
+import           Parser
 import           PartialEvaluator
 import           PrettyUtils
 import           Simplify (simplify, FExp(..))
@@ -158,7 +158,7 @@ instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
 sf2java :: Bool -> DumpOption -> Compilation -> ClassName -> String -> IO String
 sf2java optInline optDump compilation className src =
   do case Parser.reader src of
-       Left readSrc -> do
+       POk readSrc -> do
          when (optDump == DumpParsed) $ print readSrc
          result <- readSrc `seq` typeCheck readSrc
          case result of
@@ -181,9 +181,9 @@ sf2java optInline optDump compilation className src =
                 when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
                 let (cu, _) = compilation className inlinedCore
                 return $ prettyPrint cu
-       Right (PError msg) -> do print msg 
-                                exitFailure 
-     
+       PError msg -> do print msg
+                        exitFailure
+
 compilesf2java :: Bool -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java optInline optDump compilation srcPath outputPath = do
     src <- readFile srcPath

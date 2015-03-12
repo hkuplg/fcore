@@ -42,5 +42,5 @@ clean :
 	rm -rf dist
 	rm -f *.class *.jar Main.java
 	rm -f $(testdir)/tests/run-pass/*.java
-	cd compiler; make clean
+	cd lib; make clean
 	cd runtime; ant clean

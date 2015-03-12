@@ -76,6 +76,7 @@ library
                         Translations
                         TypeCheck
   if flag(Z3)
+                        exposed-modules: SymbolicEvaluator, Z3Backend
                         build-depends: z3 >= 0.3.2
                         cpp-options: -DZ3
 

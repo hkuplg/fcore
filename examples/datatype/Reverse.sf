@@ -5,7 +5,7 @@ let rec eq [A] (xs: PolyList [A]) (ys: PolyList [A]) : Bool =
   case xs of
      Nil -> (case ys of
                 Nil -> True
-	      | Cons z zs -> False)
+	      | Cons _ _ -> False)
    | Cons a as -> (case ys of
      	       	     Nil -> False
 		   | Cons b bs -> (a == b) && (eq [A] as bs)) ;

@@ -248,7 +248,7 @@ prettyExpr' _ _ (Var n _) = text n
 
 prettyExpr' p (i,j) (Lam n t f)
   = parensIf p 2 $ group $ hang 2 $
-      lambda <+> parens (text n <+> colon <+> prettyType' basePrec i t) <> dot <$>
+      lambda <+> parens (text n <+> colon <+> prettyType' basePrec i t) <+> text "->" <$>
       prettyExpr' (2,PrecMinus) (i, j + 1) (f j)
 
 prettyExpr' p (i,j) (App e1 e2)
@@ -257,12 +257,12 @@ prettyExpr' p (i,j) (App e1 e2)
 
 prettyExpr' p (i,j) (BLam n f) =
   parensIf p 2
-    (biglambda <+> text n <> dot <+>
+    (biglambda <+> text n <+> text "->" <+>
      prettyExpr' (2,PrecMinus) (succ i, j) (f i))
 
 prettyExpr' p (i,j) (TApp e t) =
   parensIf p 4
-    (group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e <$> prettyType' (4,PrecPlus) i t)
+    (group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e <$> brackets (prettyType' basePrec i t))
 
 prettyExpr' _ _ (Lit (Src.Int n))    = integer n
 prettyExpr' _ _ (Lit (Src.String s)) = dquotes (string s)

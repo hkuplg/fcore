@@ -1,5 +1,5 @@
 {- |
-Module      :  FileLoad 
+Module      :  FileLoad
 Description :  The main loop for the REPL
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
@@ -94,7 +94,7 @@ runCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num msg
                                            flagC flagH flagT flagS num line
           Nothing   -> do
                 case reader msg of
-                  Left readSrc -> do
+                  POk readSrc -> do
                     result <- liftIO (typeCheckWithEnv val_ctx readSrc)
                     case result of
                       Left typeErr        -> do
@@ -114,9 +114,9 @@ runCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num msg
                                        flagC flagH flagT flagS (num+1)
                           else loop handle opt val_ctx env hist histOld index
                                     flagC flagH flagT flagS (num+1)
-                  Right msg -> do
-                    outputStrLn "Parse error!"
-                    loop handle opt val_ctx env hist histOld index 
+                  PError msg -> do
+                    outputStrLn msg
+                    loop handle opt val_ctx env hist histOld index
                          flagC flagH flagT flagS num
 
 processCMD :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Bool -> Int -> [String] -> InputT IO ()
@@ -196,7 +196,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                     else do
                       let (var, exp) = Env.createPair xs
                       case reader exp of
-                        Left readSrc -> do
+                        POk readSrc -> do
                           result <- liftIO (typeCheckWithEnv val_ctx readSrc)
                           case result of
                             Left  typeErr     -> do
@@ -208,9 +208,9 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                               let envNew = Env.insert (var, exp) env
                               loop handle opt val_ctx_new envNew hist histOld index
                                    flagC flagH flagT flagS num
-                        Right msg -> do
-                          outputStrLn "Parse error!"
-                          loop handle opt val_ctx env hist histOld index 
+                        PError msg -> do
+                          outputStrLn msg
+                          loop handle opt val_ctx env hist histOld index
                                flagC flagH flagT flagS num
           ":type" -> do
                 case getCMD xs of

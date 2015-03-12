@@ -61,6 +61,7 @@ import JavaUtils
   "case"   { Located _ Tcase }
   "|"      { Located _ Tbar }
   "of"     { Located _ Tof }
+  "_"      { Located _ Tunderscore }
 
   UPPER_IDENT  { Located _ (Tupperid $$) }
   LOWER_IDENT  { Located _ (Tlowerid $$) }
@@ -389,9 +390,12 @@ patterns :: { [Alt ReaderId Type] }
 
 pattern :: { Alt ReaderId Type}
     : constr_name pat_vars "->" expr  { ConstrAlt (Constructor $1 []) $2 $4 }
+    | "[" "]" "->" expr               { ConstrAlt (Constructor "empty" []) [] $4}
+    | pat_var ":" pat_var "->" expr   { ConstrAlt (Constructor "cons" []) [$1,$3] $5}
 
 pat_var :: { ReaderId }
   : LOWER_IDENT  { $1 }
+  | "_"          { "_" }
 
 pat_vars :: { [ReaderId] }
   : {- empty -}       { [] }
@@ -432,8 +436,6 @@ parseError []        = PError ("Parse error")
 parseError (token:_) = PError ("Parse error at " ++ show line ++ ":" ++ show col)
   where (line, col) = getLocation token
 
-reader :: String -> Either ReaderExpr (P msg)
-reader src = case (parseExpr . lexer) src of
-                 POk expr   -> Left expr
-                 PError msg -> Right (error msg)
+reader :: String -> P ReaderExpr
+reader src = parseExpr $ lexer src
 }
