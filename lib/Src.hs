@@ -8,6 +8,7 @@ Stability   :  experimental
 Portability :  portable
 -}
 
+
 {-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
 {-# OPTIONS_GHC -Wall #-}
 
@@ -19,8 +20,9 @@ module Src
   , Constructor(..), Alt(..)
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
-  , Name, ReaderId, CheckedId
+  , Name, ReaderId, CheckedId, LReaderId
   , TypeValue(..), TypeContext, ValueContext
+  , Located(..)
   , groupForall
   , expandType
 
@@ -29,6 +31,7 @@ module Src
   , compatible
   , leastUpperBound
 
+  , withLoc
   , deThunkOnce
   , recordFields
   , freeTVars
@@ -42,13 +45,13 @@ import Config
 import JavaUtils
 import PrettyUtils
 import Panic
-import Lexer
 
 import qualified Language.Java.Syntax as J (Op(..))
 -- import qualified Language.Java.Pretty as P
 import Text.PrettyPrint.ANSI.Leijen
 
 import Control.Arrow (second)
+-- import Control.Applicative (Applicative(..))
 
 import Data.Data
 import Data.List (intersperse)
@@ -56,16 +59,24 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 
+-- Position wrapper
+data Located a = L { unL :: a, line :: !Int, column :: !Int }
+         deriving (Show, Eq)
+
+withLoc :: b -> Located a -> Located b
+x `withLoc` l = l { unL = x }
+
 -- Names and identifiers.
 type Name      = String
 type ReaderId  = Name
+type LReaderId = Located ReaderId
 type CheckedId = (ReaderId, Type)
 type Label      = Name
 -- type ConstrName = Name
 
 -- Modules.
 data Module id ty = Module id [Bind id ty] deriving (Eq, Show)
-type ReaderModule = Module ReaderId Type
+type ReaderModule = Located (Module Name Type)
 
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
@@ -99,63 +110,65 @@ type ReaderType = Type
 
 data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
 
+type LExpr id ty = Located (Expr id ty)
+type LName = Located Name
+
 -- Expressions.
 data Expr id ty
   = Var id                                    -- Variable
   | Lit Lit                                   -- Literals
-  | Lam (Name, ty) (Expr id ty)             -- Lambda
-  | App (Expr id ty) (Expr id ty)            -- Application
-  | BLam Name (Expr id ty)                    -- Big lambda
-  | TApp (Expr id ty) ty                    -- Type application
-  | Tuple [Expr id ty]                        -- Tuples
-  | Proj (Expr id ty) Int                     -- Tuple projection
-  | PrimOp (Expr id ty) Operator (Expr id ty) -- Primitive operation
-  | If (Expr id ty) (Expr id ty) (Expr id ty) -- If expression
-  | Let RecFlag [Bind id ty] (Expr id ty)     -- Let (rec) ... (and) ... in ...
+  | Lam (Name, ty) (LExpr id ty)             -- Lambda
+  | App (LExpr id ty) (LExpr id ty)            -- Application
+  | BLam Name (LExpr id ty)                    -- Big lambda
+  | TApp (LExpr id ty) ty                    -- Type application
+  | Tuple [LExpr id ty]                        -- Tuples
+  | Proj (LExpr id ty) Int                     -- Tuple projection
+  | PrimOp (LExpr id ty) Operator (LExpr id ty) -- Primitive operation
+  | If (LExpr id ty) (LExpr id ty) (LExpr id ty) -- If expression
+  | Let RecFlag [Bind id ty] (LExpr id ty)     -- Let (rec) ... (and) ... in ...
   | LetOut                                    -- Post typecheck only
       RecFlag
       [(Name, Type, Expr (Name,Type) Type)]
       (Expr (Name,Type) Type)
 
-  | Dot (Expr id ty) Name (Maybe ([Expr id ty], UnitPossibility))
+  | Dot (LExpr id ty) Name (Maybe ([LExpr id ty], UnitPossibility))
   -- The flag `UnitPossibility` is only used when length of the argument list is
   -- 0, to distinguish the different possible interpretations of `e.x ( )` and
   -- `e.x ()` -- the latter can be an application (of unit literal to a record
   -- elim), while the former cannot.
 
-  | JNew ClassName [Expr id ty]
-  | JMethod (JCallee (Expr id ty)) MethodName [Expr id ty] ClassName
-  | JField  (JCallee (Expr id ty)) FieldName            ClassName
-  | Seq [Expr id ty]
-  | PolyList [Expr id ty] ty
-  | Merge (Expr id ty) (Expr id ty)
-  | RecordCon [(Label, Expr id ty)]
-  | RecordProj (Expr id ty) Label
-  | RecordUpdate (Expr id ty) [(Label, Expr id ty)]
-  | LetModule (Module id ty) (Expr id ty)
+  | JNew ClassName [LExpr id ty]
+  | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName
+  | JField  (JCallee (LExpr id ty)) FieldName            ClassName
+  | Seq [LExpr id ty]
+  | PolyList [LExpr id ty] ty
+  | Merge (LExpr id ty) (LExpr id ty)
+  | RecordCon [(Label, LExpr id ty)]
+  | RecordProj (LExpr id ty) Label
+  | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
+  | LetModule (Module id ty) (LExpr id ty)
   | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
       Name         -- T         -- Name of type constructor
       [Name]       -- A1 ... An -- Type parameters
       Type   -- t         -- RHS of the equal sign
-      (Expr id ty) -- e         -- The rest of the expression
-  | Data Name [Name] [Constructor] (Expr id ty)
-  | Case (Expr id ty) [Alt id ty]
-  | CaseString (Expr id ty) [Alt id ty] --pattern match on string
+      (LExpr id ty) -- e         -- The rest of the expression
+  | Data Name [Name] [Constructor] (LExpr id ty)
+  | Case (LExpr id ty) [Alt id ty]
   | ConstrTemp Name
-  | Constr Constructor [Expr id ty] -- post typecheck only
-  | JProxyCall (Expr id ty) ty
+  | Constr Constructor [LExpr id ty] -- post typecheck only
+  | JProxyCall (LExpr id ty) ty
   deriving (Eq, Show)
 
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
                    deriving (Eq, Show)
 
-data Alt id ty = ConstrAlt Constructor [Name] (Expr id ty)
+data Alt id ty = ConstrAlt Constructor [Name] (LExpr id ty)
             -- | Default (Expr id)
               deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
-type ReaderExpr  = Expr ReaderId Type
+type ReaderExpr  = LExpr Name Type
 type CheckedExpr = Expr CheckedId Type
 -- type TcExpr  = Expr TcId
 -- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
@@ -170,13 +183,12 @@ data Lit -- Data constructor names match Haskell types
 
 data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
 
--- data L a = L AlexPosn
 
 data Bind id ty = Bind
   { bindId       :: id             -- Identifier
   , bindTyParams :: [Name]         -- Type arguments
   , bindParams   :: [(Name, Type)] -- Arguments, each annotated with a type
-  , bindRhs      :: Expr id ty     -- RHS to the "="
+  , bindRhs      :: LExpr id ty     -- RHS to the "="
   , bindRhsTyAscription :: Maybe Type  -- Type annotation for the RHS
   } deriving (Eq, Show)
 
@@ -412,50 +424,49 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Lit (Bool n))    = bool n
   pretty (Lit (Char n))    = char n
   pretty (Lit  UnitLit)    = unit
-  pretty (BLam a e) = parens $ text "/\\" <> text a <> dot <+> pretty e
+  pretty (BLam a e) = parens $ text "/\\" <> text a <> dot <+> pretty (unL e)
   pretty (Lam (x,t) e) =
     parens $
       backslash <> parens (pretty x <+> colon <+> pretty t) <> dot <+>
-      pretty e
-  pretty (TApp e t) = parens $ pretty e <+> pretty t
-  pretty (App e1 e2) = parens $ pretty e1 <+> pretty e2
-  pretty (Tuple es) = lparen <> hcat (intersperse comma (map pretty es)) <> rparen
-  pretty (Proj e i) = parens (pretty e) <> text "._" <> int i
+      pretty (unL e)
+  pretty (TApp e t) = parens $ pretty (unL e) <+> pretty t
+  pretty (App e1 e2) = parens $ pretty (unL e1) <+> pretty (unL e2)
+  pretty (Tuple es) = lparen <> (hcat . intersperse comma . map (pretty . unL)) es <> rparen
+  pretty (Proj e i) = parens (pretty $ unL e) <> text "._" <> int i
   pretty (PrimOp e1 op e2) = parens $
-                               parens (pretty e1) <+>
+                               parens (pretty $ unL e1) <+>
                                text (show op) <+>
                                -- text (P.prettyPrint op) <+>
-                               parens (pretty e2)
+                               parens (pretty $ unL e2)
   pretty (If e1 e2 e3) = parens $
-                            text "if" <+> pretty e1 <+>
-                            text "then" <+> pretty e2 <+>
-                            text "else" <+> pretty e3
+                            text "if" <+> pretty (unL e1) <+>
+                            text "then" <+> pretty (unL e2) <+>
+                            text "else" <+> pretty (unL e3)
   pretty (Let recFlag bs e) =
     text "let" <+> pretty recFlag <+>
     encloseSep empty empty (softline <> text "and" <> space) (map pretty bs) <+>
     text "in" <+>
-    pretty e
+    pretty (unL e)
   pretty (LetOut recFlag bs e) =
     text "let" <+> pretty recFlag <+>
     encloseSep empty empty (softline <> text "and" <> space)
       (map (\(f1,t1,e1) -> text f1 <+> colon <+> pretty t1 <+> equals <+> pretty e1) bs) <+>
     text "in" <+>
     pretty e
-  pretty (JNew c args)  = text "new" <+> text c <> tupled (map pretty args)
-  pretty (JMethod e m args _) = case e of (Static c)     -> pretty c  <> dot <> text m <> tupled (map pretty args)
-                                          (NonStatic e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
+  pretty (JNew c args)  = text "new" <+> text c <> tupled (map (pretty . unL) args)
+  pretty (JMethod e m args _) = case e of (Static c)     -> pretty c  <> dot <> text m <> tupled (map (pretty . unL) args)
+                                          (NonStatic e') -> pretty (unL e') <> dot <> text m <> tupled (map (pretty. unL)  args)
   pretty (JField e f _) = case e of (Static c)     -> pretty c  <> dot <> text f
-                                    (NonStatic e') -> pretty e' <> dot <> text f
-  pretty (PolyList l _)    = brackets . hcat . intersperse comma $ map pretty l
-  pretty (JProxyCall jmethod t) = pretty jmethod
-  pretty (Merge e1 e2)  = parens (pretty e1 <+> text ",," <+> pretty e2)
-  pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
+                                    (NonStatic e') -> pretty (unL e') <> dot <> text f
+  pretty (PolyList l _)    = brackets . hcat . intersperse comma $ map (pretty . unL) l
+  pretty (JProxyCall jmethod _) = pretty $ unL jmethod
+  pretty (Merge e1 e2)  = parens $ pretty (unL e1) <+> text ",," <+> pretty (unL e2)
+  pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty (unL t)) fs)) <> rbrace
   pretty (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>
-                           pretty e
+                           pretty (unL e)
 
-  pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
+  pretty (Case e alts) = hang 2 (text "case" <+> pretty (unL e) <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
+  pretty (Constr c es) = parens $ hsep $ text (constrName c) : map (pretty . unL) es
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
@@ -465,7 +476,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
     hsep (map (\(x,t) -> parens (pretty x <+> colon <+> pretty t)) bindParams) <+>
     case bindRhsTyAscription of { Nothing -> empty; Just t -> colon <+> pretty t } <+>
     equals <+>
-    pretty bindRhs
+    pretty (unL bindRhs)
 
 instance Pretty RecFlag where
   pretty Rec    = text "rec"
@@ -475,7 +486,7 @@ instance Pretty Constructor where
     pretty (Constructor n ts) = hsep $ text n : map pretty ts
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
-    pretty (ConstrAlt c ns e2) = hsep (text (constrName c) : map text ns) <+> arrow <+> pretty e2
+    pretty (ConstrAlt c ns e2) = hsep (text (constrName c) : map text ns) <+> arrow <+> pretty (unL e2)
     -- pretty (Default e) = text "_" <+> arrow <+> pretty e
 
 -- Utilities

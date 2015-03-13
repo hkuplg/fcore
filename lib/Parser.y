@@ -62,21 +62,21 @@ import JavaUtils
   "of"     { L { unL = Tof } }
   "_"      { L { unL = Tunderscore } }
 
-  UPPER_IDENT  { L { unL = (Tupperid $$) } }
-  LOWER_IDENT  { L { unL = (Tlowerid $$) } }
+  UPPER_IDENT  { L { unL = Tupperid _ } }
+  LOWER_IDENT  { L { unL = Tlowerid _ } }
   UNDERID      { L { unL = (Tunderid $$) } }
 
-  JAVACLASS { L { unL = (Tjavaclass $$) } }
+  JAVACLASS { L { unL = Tjavaclass _ } }
   "new"     { L { unL = Tnew } }
 
   "module"  { L { unL = Tmodule } }
 
-  INT      { L { unL = (Tint $$) } }
-  STRING   { L { unL = (Tstring $$) } }
-  BOOL     { L { unL = (Tbool $$) } }
+  INT      { L { unL = Tint _ } }
+  STRING   { L { unL = Tstring _ } }
+  BOOL     { L { unL = Tbool _ } }
+  CHAR     { L { unL = Tchar _ } }
   "Empty"    { L { unL = Temptytree } }
   "Fork"     { L { unL = Tnonemptytree} }
-  CHAR     { L { unL = (Tchar $$) } }
   "()"     { L { unL = Tunitlit } }
   "Unit"   { L { unL = Tunit } }
   "List"     { L { unL = Tlist } }
@@ -132,27 +132,27 @@ import JavaUtils
 ------------------------------------------------------------------------
 
 module :: { ReaderModule }
-  : "module" module_name "{" semi_binds "}"  { Module $2 $4 }
+  : "module" module_name "{" semi_binds "}"  { Module (unL $2) $4 `withLoc` $1 }
 
-module_name :: { ReaderId }
-  : UPPER_IDENT  { $1 }
+module_name :: { LReaderId }
+  : UPPER_IDENT  { toUpperid $1 `withLoc` $1 }
 
 ------------------------------------------------------------------------
 -- Types
 ------------------------------------------------------------------------
 
 type :: { ReaderType }
-  : "forall" ty_params "." type  { foldr Forall (Forall (last $2) $4) (init $2) }
+  : "forall" ty_params "." type  { foldr Forall (Forall (unL $ last $2) $4) (map unL $ init $2) }
   | monotype                     { $1 }
 
-types :: { [Type] }
+types :: { [ReaderType] }
   : {- empty -}              { [] }
   | ftype types              { $1:$2 }
 
-type_list :: { [Type] }
+type_list :: { [ReaderType] }
   : "[" comma_types1 "]"     { $2 }
 
-comma_types1 :: { [Type] }
+comma_types1 :: { [ReaderType] }
   : type                   { [$1]  }
   | type "," comma_types1  { $1:$3 }
 
@@ -169,8 +169,8 @@ ftype :: { ReaderType }
   | atype            { $1 }
 
 atype :: { ReaderType }
-  : UPPER_IDENT              { TVar $1 }
-  | JAVACLASS                { JType (JClass $1) }
+  : UPPER_IDENT              { TVar $ toUpperid $1 }
+  | JAVACLASS                { JType (JClass $ toJavaclass $1) }
   | "Unit"                   { Unit }
   | "(" product_body ")"     { Product $2 }
   | record_type              { $1 }
@@ -198,24 +198,24 @@ record_type_fields_rev :: { [(Label, ReaderType)] }
 record_type_field :: { (Label, ReaderType) }
   : label ":" type                                { ($1, $3) }
 
-ty_param :: { ReaderId }
-  : UPPER_IDENT                    { $1 }
+ty_param :: { LReaderId }
+  : UPPER_IDENT                    { toUpperid $1 `withLoc` $1 }
 
-ty_params :: { [ReaderId] }
+ty_params :: { [LReaderId] }
   : {- empty -}                    { []    }
   | ty_param ty_params             { $1:$2 }
 
-ty_params1 :: { [ReaderId] }
+ty_params1 :: { [LReaderId] }
   : ty_param ty_params             { $1:$2 }
 
-ty_param_list :: { [ReaderId] }
+ty_param_list :: { [LReaderId] }
   : "[" comma_ty_params1 "]"       { $2 }
 
-ty_param_list_or_empty :: { [ReaderId] }
+ty_param_list_or_empty :: { [LReaderId] }
   : ty_param_list                  { $1 }
   | {- empty -}                    { [] }
 
-comma_ty_params1 :: { [ReaderId] }
+comma_ty_params1 :: { [LReaderId] }
   : ty_param                       { [$1]  }
   | ty_param "," comma_ty_params1  { $1:$3 }
 
@@ -224,17 +224,17 @@ comma_ty_params1 :: { [ReaderId] }
 ------------------------------------------------------------------------
 
 expr :: { ReaderExpr }
-    : "/\\" ty_params1 "->" expr         { foldr BLam (BLam (last $2) $4) (init $2) }
-    | "\\" params1 "->" expr             { foldr Lam (Lam (last $2) $4) (init $2) }
-    | "let" recflag and_binds ";"  expr  { Let $2 $3 $5 }
-    | "type" UPPER_IDENT ty_param_list_or_empty "=" type ";"  expr  { Type $2 $3 $5 $7 }
-    | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type $2 $3 $5 $6 }
-    | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
-    | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
-    | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
-    | "case" expr "of" patterns           { Case $2 $4 }
+    : "/\\" ty_params1 "->" expr         { foldr (\t acc -> BLam (unL t) acc `withLoc` t) (BLam (unL $ last $2) $4 `withLoc` (last $2)) (init $2) }
+    | "\\" params1 "->" expr             { foldr (\x acc -> Lam (unL x) acc `withLoc` x) (Lam (unL $ last $2) $4 `withLoc` (last $2)) (init $2) }
+    | "let" recflag and_binds ";"  expr  { Let $2 $3 $5 `withLoc` $1 }
+    | "type" UPPER_IDENT ty_param_list_or_empty "=" type ";"  expr  { Type (toUpperid $2) (map unL $3) $5 $7 `withLoc` $1 }
+    | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type (toUpperid $2) (map unL $3) $5 $6 `withLoc` $1 }
+    | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
+    | "-" INT %prec UMINUS                { Lit (Int $ negate $ toInt $2) `withLoc` $1 }
+    | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data (toUpperid $2) (map unL $3) $5 $7 `withLoc` $1 }
+    | "case" expr "of" patterns           { Case $2 $4 `withLoc` $1 }
     | infixexpr                           { $1 }
-    | module expr                         { LetModule $1 $2 }
+    | module expr                         { LetModule (unL $1) $2 `withLoc` $1 }
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
@@ -253,56 +253,56 @@ comma_exprs2 :: { [ReaderExpr] }
     | expr "," comma_exprs2   { $1:$3    }
 
 infixexpr :: { ReaderExpr }
-    : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 }
-    | infixexpr "/"  infixexpr  { PrimOp $1 (Arith J.Div)    $3 }
-    | infixexpr "%"  infixexpr  { PrimOp $1 (Arith J.Rem)    $3 }
-    | infixexpr "+"  infixexpr  { PrimOp $1 (Arith J.Add)    $3 }
-    | infixexpr "-"  infixexpr  { PrimOp $1 (Arith J.Sub)    $3 }
-    | infixexpr "<"  infixexpr  { PrimOp $1 (Compare J.LThan)  $3 }
-    | infixexpr "<=" infixexpr  { PrimOp $1 (Compare J.LThanE) $3 }
-    | infixexpr ">"  infixexpr  { PrimOp $1 (Compare J.GThan)  $3 }
-    | infixexpr ">=" infixexpr  { PrimOp $1 (Compare J.GThanE) $3 }
-    | infixexpr "==" infixexpr  { PrimOp $1 (Compare J.Equal)  $3 }
-    | infixexpr "!=" infixexpr  { PrimOp $1 (Compare J.NotEq)  $3 }
-    | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 }
-    | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
-    | infixexpr ",," infixexpr  { Merge $1 $3 }
+    : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 `withLoc` $1 }
+    | infixexpr "/"  infixexpr  { PrimOp $1 (Arith J.Div)    $3 `withLoc` $1 }
+    | infixexpr "%"  infixexpr  { PrimOp $1 (Arith J.Rem)    $3 `withLoc` $1 }
+    | infixexpr "+"  infixexpr  { PrimOp $1 (Arith J.Add)    $3 `withLoc` $1 }
+    | infixexpr "-"  infixexpr  { PrimOp $1 (Arith J.Sub)    $3 `withLoc` $1 }
+    | infixexpr "<"  infixexpr  { PrimOp $1 (Compare J.LThan)  $3 `withLoc` $1 }
+    | infixexpr "<=" infixexpr  { PrimOp $1 (Compare J.LThanE) $3 `withLoc` $1 }
+    | infixexpr ">"  infixexpr  { PrimOp $1 (Compare J.GThan)  $3 `withLoc` $1 }
+    | infixexpr ">=" infixexpr  { PrimOp $1 (Compare J.GThanE) $3 `withLoc` $1 }
+    | infixexpr "==" infixexpr  { PrimOp $1 (Compare J.Equal)  $3 `withLoc` $1 }
+    | infixexpr "!=" infixexpr  { PrimOp $1 (Compare J.NotEq)  $3 `withLoc` $1 }
+    | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 `withLoc` $1 }
+    | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 `withLoc` $1 }
+    | infixexpr ",," infixexpr  { Merge $1 $3 `withLoc` $1 }
     | fexpr                     { $1 }
 
 fexpr :: { ReaderExpr }
-    : fexpr aexpr      { App  $1 $2 }
-    | fexpr type_list  { foldl TApp (TApp $1 (head $2)) (tail $2) }
+    : fexpr aexpr      { App  $1 $2 `withLoc` $1 }
+    | fexpr type_list  { foldl (\acc t -> TApp acc t `withLoc` acc) (TApp $1 (head $2) `withLoc` $1) (tail $2) }
     | aexpr            { $1 }
 
 aexpr :: { ReaderExpr }
-    : LOWER_IDENT               { Var $1 }
+    : LOWER_IDENT               { Var (toLowerid $1) `withLoc` $1 }
     | lit                       { $1 }
-    | "(" comma_exprs2 ")"      { Tuple $2 }
-    | aexpr "." UNDERID         { Proj $1 $3 }
-    | module_name "." ident     { ModuleAccess $1 $3 }
+    | "(" comma_exprs2 ")"      { Tuple $2 `withLoc` $1 }
+    | aexpr "." UNDERID         { Proj $1 $3 `withLoc` $1 }
+    | module_name "." ident     { ModuleAccess (unL $1) (unL $3) `withLoc` $1 }
     | javaexpr                  { $1 }
-    | "{" semi_exprs "}"        { Seq $2 }
+    | "{" semi_exprs "}"        { Seq $2 `withLoc` $1 }
     | record_construct                { $1 }
-    | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (reverse $4) }
-    | "new" "List" "[" type "]" "()"  {PolyList [] $4}
-    | "new" "List" "[" type "]" "(" comma_exprs0 ")"  {PolyList $7 $4}
-    | "head" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined) undefined}
-    | "tail" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "tail" [] undefined) undefined}
-    | "isNil" "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined}
-    | "length" "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined}
-    | "cons" "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
-    | constr_name               { ConstrTemp $1 }
+    | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (reverse $4) `withLoc` $1 }
+    | "new" "List" "[" type "]" "()"  {PolyList [] $4 `withLoc` $1 }
+    | "new" "List" "[" type "]" "(" comma_exprs0 ")"  { PolyList $7 $4 `withLoc` $1 }
+    | "head" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined `withLoc` $1) undefined `withLoc` $1 }
+    | "tail" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "tail" [] undefined `withLoc` $1) undefined `withLoc` $1 }
+    | "isNil" "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined `withLoc` $1 }
+    | "length" "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined `withLoc` $1 }
+    | "cons" "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5] `withLoc` $1) undefined `withLoc` $1 }
+    | constr_name               { ConstrTemp (unL $1) `withLoc` $1 }
     | "(" expr ")"              { $2 }
 
 javaexpr :: { ReaderExpr }
-    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
-    | "Empty"                                       { JNew "f2j.FunctionalTree" [] }
-    | "Fork" "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3}
+    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew (toJavaclass $2) $4 `withLoc` $1 }
+    | "Empty"                                       { JNew "f2j.FunctionalTree" [] `withLoc` $1 }
+    | "Fork" "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3`withLoc` $1 }
 
-    | JAVACLASS "." LOWER_IDENT "(" comma_exprs0 ")"  { JMethod (Static $1) $3 $5 undefined }
-    | JAVACLASS "." LOWER_IDENT "()"                  { JMethod (Static $1) $3 [] undefined }
-    | JAVACLASS "." LOWER_IDENT                       { JField  (Static $1) $3 undefined }
-    | JAVACLASS "." UPPER_IDENT                       { JField  (Static $1) $3 undefined } -- Constants
+    | JAVACLASS "." LOWER_IDENT "(" comma_exprs0 ")"  { JMethod (Static $ toJavaclass $1) (toLowerid $3) $5 undefined `withLoc` $1 }
+    | JAVACLASS "." LOWER_IDENT "()"                  { JMethod (Static $ toJavaclass $1) (toLowerid $3) [] undefined `withLoc` $1 }
+    | JAVACLASS "." LOWER_IDENT                       { JField  (Static $ toJavaclass $1) (toLowerid $3) undefined `withLoc` $1 }
+    | JAVACLASS "." UPPER_IDENT                       { JField  (Static $ toJavaclass $1) (toLowerid $3) undefined `withLoc` $1 } -- Constants
 
     -- A dot can mean three things:
     -- (1) method invocation
@@ -314,28 +314,28 @@ javaexpr :: { ReaderExpr }
     --   (since the gap between the two parentheses distinguishes the string from the unit literal `()`)
     -- when 1: method invocation or application (with a parenthesized argument)
     -- else:   method invocation or application (with a tuple)
-    | aexpr "." LOWER_IDENT "(" comma_exprs0 ")"  { Dot $1 $3 (Just ($5, UnitImpossible)) }
+    | aexpr "." LOWER_IDENT "(" comma_exprs0 ")"  { Dot $1 (toLowerid $3) (Just ($5, UnitImpossible)) `withLoc` $1 }
 
     -- method invocation or application
-    | aexpr "." LOWER_IDENT "()"                  { Dot $1 $3 (Just ([], UnitPossible)) }
+    | aexpr "." LOWER_IDENT "()"                  { Dot $1 (toLowerid $3) (Just ([], UnitPossible)) `withLoc` $1 }
 
     -- field access or record elimination
-    | aexpr "." LOWER_IDENT                       { Dot $1 $3 Nothing }
+    | aexpr "." LOWER_IDENT                       { Dot $1 (toLowerid $3) Nothing `withLoc` $1 }
 
     -- Is this possible?
-    -- | aexpr "." UPPER_IDENT                    { Dot $1 $3 Nothing }
+    -- | aexpr "." UPPER_IDENT                    { Dot $1 $3 Nothing `withLoc` $1 }
 
 lit :: { ReaderExpr }
-    : INT                       { Lit (Int $1)    }
-    | STRING                    { Lit (String $1) }
-    | BOOL                      { Lit (Bool $1)   }
-    | CHAR                      { Lit (Char $1)   }
-    | "()"                      { Lit UnitLit     }
+    : INT                       { Lit (Int $ toInt $1)       `withLoc` $1 }
+    | STRING                    { Lit (String $ toString $1) `withLoc` $1 }
+    | BOOL                      { Lit (Bool $ toBool $1)     `withLoc` $1 }
+    | CHAR                      { Lit (Char $ toChar $1)     `withLoc` $1 }
+    | "()"                      { Lit UnitLit                `withLoc` $1 }
 
 -- record-construction expr
 record_construct :: { ReaderExpr }
-  : "{" record_construct_fields_rev "}"                     { RecordCon (reverse $2) }
-  | "{" record_construct_fields_rev "," "}"                 { RecordCon (reverse $2) }
+  : "{" record_construct_fields_rev "}"                     { RecordCon (reverse $2) `withLoc` $1 }
+  | "{" record_construct_fields_rev "," "}"                 { RecordCon (reverse $2) `withLoc` $1 }
 
 -- Allowing an extra "," before "}" will introduce a shift-reduce conflict;
 -- but using left-recursion will solve it. :)
@@ -349,9 +349,9 @@ record_construct_field :: { (Label, ReaderExpr) }
 
 bind :: { ReaderBind }
   : LOWER_IDENT ty_param_list_or_empty params maybe_ty_ascription "=" expr
-  { Bind { bindId       = $1
-         , bindTyParams = $2
-         , bindParams   = $3
+  { Bind { bindId       = toLowerid $1
+         , bindTyParams = map unL $2
+         , bindParams   = map unL $3
          , bindRhsTyAscription = $4
          , bindRhs      = $6
          }
@@ -378,48 +378,48 @@ constrs_decl :: { [Constructor] }
     | constr_decl "|" constrs_decl  { $1:$3 }
 
 constr_decl :: { Constructor }
-    : constr_name types  { Constructor $1 $2 }
+    : constr_name types  { Constructor (unL $1) $2 }
 
-constr_name :: { ReaderId }
-  : UPPER_IDENT  { $1 }
+constr_name :: { LReaderId }
+    : UPPER_IDENT  { toUpperid $1 `withLoc` $1 }
 
 patterns :: { [Alt ReaderId Type] }
     : pattern               { [$1] }
     | pattern "|" patterns  { $1:$3 }
 
 pattern :: { Alt ReaderId Type}
-    : constr_name pat_vars "->" expr  { ConstrAlt (Constructor $1 []) $2 $4 }
+    : constr_name pat_vars "->" expr  { ConstrAlt (Constructor (unL $1) []) $2 $4 }
     | "[" "]" "->" expr               { ConstrAlt (Constructor "empty" []) [] $4}
     | pat_var ":" pat_var "->" expr   { ConstrAlt (Constructor "cons" []) [$1,$3] $5}
 
 pat_var :: { ReaderId }
-  : LOWER_IDENT  { $1 }
+  : LOWER_IDENT  { toLowerid $1 }
   | "_"          { "_" }
 
 pat_vars :: { [ReaderId] }
   : {- empty -}       { [] }
   | pat_var pat_vars  { $1:$2 }
 
-param :: { (ReaderId, ReaderType) }
-  : LOWER_IDENT ":" type          { ($1, $3) }
+param :: { Located (ReaderId, ReaderType) }
+  : LOWER_IDENT ":" type          { (toLowerid $1, $3) `withLoc` $1 }
 
-params :: { [(ReaderId, ReaderType)] }
+params :: { [Located (ReaderId, ReaderType)] }
   : {- empty -}                   { []    }
   | "(" param ")" params          { $2:$4 }
 
-params1 :: { [(ReaderId, ReaderType)] }
+params1 :: { [Located (ReaderId, ReaderType)] }
   : "(" param ")" params          { $2:$4 }
 
 ------------------------------------------------------------------------
 -- Misc
 ------------------------------------------------------------------------
 
-ident :: { ReaderId }
-  : UPPER_IDENT  { $1 }
-  | LOWER_IDENT  { $1 }
+ident :: { LReaderId }
+  : UPPER_IDENT  { toUpperid $1 `withLoc` $1 }
+  | LOWER_IDENT  { toLowerid $1 `withLoc` $1 }
 
 label :: { Label }
-  : LOWER_IDENT  { $1 }
+  : LOWER_IDENT  { toLowerid $1 }
 
 {
 -- The monadic parser
@@ -436,4 +436,13 @@ parseError (token:_) = PError ("Parse error at " ++ show (line token) ++ ":" ++ 
 
 reader :: String -> P ReaderExpr
 reader src = parseExpr $ lexer src
+
+-- Helper functions to extract located token value
+toInt L{ unL = Tint x} = x
+toString L{ unL = Tstring x} = x
+toBool L{ unL = Tbool x} = x
+toChar L{ unL = Tchar x} = x
+toJavaclass L{ unL = Tjavaclass x} = x
+toUpperid L{ unL = Tupperid x} = x
+toLowerid L{ unL = Tlowerid x} = x
 }
