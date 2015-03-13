@@ -44,6 +44,7 @@ data Type t =
     | CFInteger
     | CFChar
     | CFCharacter
+    | CFBool
     | TupleType [Type t]
     | ListType (Type t)
     | Datatype S.ReaderId [Type t] [S.ReaderId]

@@ -20,17 +20,21 @@ import qualified Language.Java.Syntax as J
 import           ClosureF
 import           Inheritance
 import           MonadLib
-import           JavaEDSL(wrapperClass,bStmt,unwrap,mainBody)
+import           JavaEDSL(wrapperClass,bStmt,unwrap,mainBody,var,classTy,
+                          objClassTy,localFinalVar,varDecl)
+import qualified Src as S
+import           StringPrefixes(localvarstr)
 
-type Var = Int -- Either normal variable or class name
-type TransJavaExp = Either J.Name J.Literal -- either variable or special case: Lit
-type TransType = ([J.BlockStmt], TransJavaExp, Type Int)
+type Var = (J.Name, J.Name) -- Either normal variable or class name
+type TransJavaExp = Either Var J.Literal -- either variable or special case: Lit
+type TransType = ([J.BlockStmt], TransJavaExp, Type Var)
 type InitVars = [J.BlockStmt]
 
 
 data Translate m =
-    T {createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
-
+    T {
+    translateM :: Expr Var (Var,Type Var) -> m TransType,
+    createWrap :: String -> Expr Var (Var,Type Var) -> m (J.CompilationUnit,Type Var)}
 
 instance (:<) (Translate m) (Translate m) where
   up = id
@@ -39,13 +43,55 @@ createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
 createCUB _ compDef = cu
   where cu = J.CompilationUnit Nothing [] compDef
 
+getNewVarName :: MonadState Int m => Translate m -> m String
+getNewVarName _ = do (n :: Int) <- get
+                     put (n + 1)
+                     return $ localvarstr ++ show n
+
+javaType :: Type Var -> J.Type
+javaType = \typ -> case typ of
+    (JClass c) -> classTy c
+    CFInt -> J.PrimType J.LongT
+    CFBool -> J.PrimType J.BooleanT
+    CFChar -> J.PrimType J.CharT
+    _ -> objClassTy
+
+assignVar :: Type Var -> String -> J.Exp -> J.BlockStmt
+assignVar t varId e = localFinalVar (javaType t) (varDecl varId e)
+
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
-trans self = T{createWrap = \className fExp ->
-  do
-    let (bs,e) = ([],J.Lit J.Null)
-    let returnStmt = []
-    let mainDecl = wrapperClass className (bs ++ returnStmt) Nothing mainBody [] Nothing False
-    return (createCUB self [mainDecl],Unit)}
+trans self = let this = up self
+  in T {
+  translateM = \e -> case e of
+      Lit lit ->
+          case lit of
+            (S.Int i)    -> return ([], Right $ J.Int i, CFInt)
+            (S.UnitLit)  -> return ([], Right J.Null, Unit)
+            (S.String s) -> return ([], Right $ J.String s,  JClass "java.lang.String")
+            (S.Bool b)   -> return ([], Right $ J.Boolean b, CFBool)
+            (S.Char c)   -> return ([], Right $ J.Char c, CFChar)
+            _ -> error "Ooops, this literal is not implemented."
+      PrimOp e1 op e2 ->
+            do (s1,j1,_) <- translateM this e1
+               (s2,j2,_) <- translateM this e2
+               let j1' = unwrap j1
+               let j2' = unwrap j2
+               let (jexpr,typ) = case op of
+                                   (S.Arith realOp) -> (J.BinOp j1' realOp j2', CFInt)
+                                   (S.Compare realOp) -> (J.BinOp j1' realOp j2', CFBool)
+                                   (S.Logic realOp) -> (J.BinOp j1' realOp j2', CFBool)
+                                   _ -> error "Ooops, this operator is not implemented."
+               newVarName <- getNewVarName this
+               let assignExpr = assignVar typ newVarName jexpr
+               return (s1 ++ s2 ++ [assignExpr],var newVarName,typ),
+
+  createWrap = \className fExp ->
+    do
+      (bs,e,t) <- translateM this fExp
+      let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
+      let mainDecl = wrapperClass className (bs ++ returnStmt) (Just (javaType t)) mainBody [] Nothing False
+      return (createCUB self [mainDecl],Unit)
+}
 
 {-
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
