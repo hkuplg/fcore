@@ -23,6 +23,34 @@ tail-call elimination.
 module StackTransCFJava where
 -- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
 
+import           BaseTransCFJava
+import           Inheritance
+import           MonadLib
+
+data TranslateStack m = TS {
+  toTS :: Translate m -- supertype is a subtype of Translate (later on at least)
+}
+
+instance {-(r :< Translate m) =>-} (:<) (TranslateStack m) (Translate m) where
+  up              = up . toTS
+
+instance (:<) (TranslateStack m) (TranslateStack m) where -- reflexivity
+  up = id
+
+transS :: forall m selfType.
+  (MonadState Int m,
+  MonadReader Bool m,
+  selfType :< TranslateStack m,
+  selfType :< Translate m)
+  => Mixin selfType (Translate m) (TranslateStack m)
+transS this super =
+    TS {toTS = super { createWrap = error "STACK IS BROKEN AS WELL!"
+    }}
+
+transSA :: (MonadState Int m, MonadReader Bool m, selfType :< TranslateStack m, selfType :< Translate m) => Mixin selfType (Translate m) (TranslateStack m)
+transSA this super =     TS {toTS = super { createWrap = error "STACK/APPLY IS BROKEN AS WELL!"}}
+
+{-
 import qualified Language.Java.Syntax as J
 import           Data.Maybe (fromJust)
 
@@ -286,3 +314,4 @@ transSA this super = TS {toTS = (up (transS this super)) {
 --            then nextApply (up this) f x jType
 --            else whileApply (up this) False f ("c" ++ show n) x jType ctempCastTyp
 --   }}
+-}

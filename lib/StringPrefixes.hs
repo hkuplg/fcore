@@ -23,6 +23,19 @@ closureInput = "arg"
 closureOutput :: String
 closureOutput = "res"
 
+-- Unboxed
+closureInputO :: String
+closureInputO = "oarg"
+
+closureOutputO :: String
+closureOutputO = "ores"
+
+closureInputL :: String
+closureInputL = "larg"
+
+closureOutputL :: String
+closureOutputL = "lres"
+
 -- Datatype tag
 datatypetag :: String
 datatypetag = "tag"

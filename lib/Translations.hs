@@ -136,6 +136,8 @@ instance (:<)  (ApplyOptTranslate m) (TranslateStack m) where
 -- instance (:<) (ApplyOptTranslate m) (UnboxTranslate m) where
 --   up = UT . toT
 
+-- ALL BROKEN START
+{-
 instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
   up = NT . toTBA
 
@@ -147,6 +149,8 @@ instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
 
 instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
   up = TS . toTBSA
+-}
+-- ALL BROKEN END
 
 -- instance (:<) (BenchGenTranslateStackOpt m) (UnboxTranslate m) where
 --   up = UT . toTBSA

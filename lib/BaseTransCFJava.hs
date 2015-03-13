@@ -14,7 +14,40 @@ more information, please refer to the paper on wiki.
 -}
 
 
-module BaseTransCFJava where
+module BaseTransCFJava(Translate,InitVars,createWrap,trans,Var) where
+
+import qualified Language.Java.Syntax as J
+import           ClosureF
+import           Inheritance
+import           MonadLib
+import           JavaEDSL(wrapperClass,bStmt,unwrap,mainBody)
+
+type Var = Int -- Either normal variable or class name
+type TransJavaExp = Either J.Name J.Literal -- either variable or special case: Lit
+type TransType = ([J.BlockStmt], TransJavaExp, Type Int)
+type InitVars = [J.BlockStmt]
+
+
+data Translate m =
+    T {createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
+
+
+instance (:<) (Translate m) (Translate m) where
+  up = id
+
+createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
+createCUB _ compDef = cu
+  where cu = J.CompilationUnit Nothing [] compDef
+
+trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
+trans self = T{createWrap = \className fExp ->
+  do
+    let (bs,e) = ([],J.Lit J.Null)
+    let returnStmt = []
+    let mainDecl = wrapperClass className (bs ++ returnStmt) Nothing mainBody [] Nothing False
+    return (createCUB self [mainDecl],Unit)}
+
+{-
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 -- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
 import qualified Language.Java.Syntax as J
@@ -635,3 +668,4 @@ trans self =
                isTest <- genTest this
                let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody [] Nothing isTest
                return (createCUB this [mainDecl],t)}
+-}
