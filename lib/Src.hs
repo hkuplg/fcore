@@ -31,7 +31,9 @@ module Src
   , compatible
   , leastUpperBound
 
+  , defaultLoc
   , withLoc
+  , withLocs
   , deThunkOnce
   , recordFields
   , freeTVars
@@ -51,7 +53,6 @@ import qualified Language.Java.Syntax as J (Op(..))
 import Text.PrettyPrint.ANSI.Leijen
 
 import Control.Arrow (second)
--- import Control.Applicative (Applicative(..))
 
 import Data.Data
 import Data.List (intersperse)
@@ -65,6 +66,13 @@ data Located a = L { unL :: a, line :: !Int, column :: !Int }
 
 withLoc :: b -> Located a -> Located b
 x `withLoc` l = l { unL = x }
+
+defaultLoc :: a -> Located a
+defaultLoc x = L x 0 0
+
+withLocs :: b -> [Located a] -> Located b
+withLocs x [] = defaultLoc x
+withLocs x (l:_) = x `withLoc` l
 
 -- Names and identifiers.
 type Name      = String
@@ -128,8 +136,8 @@ data Expr id ty
   | Let RecFlag [Bind id ty] (LExpr id ty)     -- Let (rec) ... (and) ... in ...
   | LetOut                                    -- Post typecheck only
       RecFlag
-      [(Name, Type, Expr (Name,Type) Type)]
-      (Expr (Name,Type) Type)
+      [(Name, Type, LExpr (Name,Type) Type)]
+      (LExpr (Name,Type) Type)
 
   | Dot (LExpr id ty) Name (Maybe ([LExpr id ty], UnitPossibility))
   -- The flag `UnitPossibility` is only used when length of the argument list is
@@ -155,6 +163,7 @@ data Expr id ty
       (LExpr id ty) -- e         -- The rest of the expression
   | Data Name [Name] [Constructor] (LExpr id ty)
   | Case (LExpr id ty) [Alt id ty]
+  | CaseString (LExpr id ty) [Alt id ty] --pattern match on string
   | ConstrTemp Name
   | Constr Constructor [LExpr id ty] -- post typecheck only
   | JProxyCall (LExpr id ty) ty
@@ -169,7 +178,7 @@ data Alt id ty = ConstrAlt Constructor [Name] (LExpr id ty)
 
 -- type RdrExpr = Expr Name
 type ReaderExpr  = LExpr Name Type
-type CheckedExpr = Expr CheckedId Type
+type CheckedExpr = LExpr CheckedId Type
 -- type TcExpr  = Expr TcId
 -- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
 
@@ -450,9 +459,9 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (LetOut recFlag bs e) =
     text "let" <+> pretty recFlag <+>
     encloseSep empty empty (softline <> text "and" <> space)
-      (map (\(f1,t1,e1) -> text f1 <+> colon <+> pretty t1 <+> equals <+> pretty e1) bs) <+>
+      (map (\(f1,t1,e1) -> text f1 <+> colon <+> pretty t1 <+> equals <+> pretty (unL e1)) bs) <+>
     text "in" <+>
-    pretty e
+    pretty (unL e)
   pretty (JNew c args)  = text "new" <+> text c <> tupled (map (pretty . unL) args)
   pretty (JMethod e m args _) = case e of (Static c)     -> pretty c  <> dot <> text m <> tupled (map (pretty . unL) args)
                                           (NonStatic e') -> pretty (unL e') <> dot <> text m <> tupled (map (pretty. unL)  args)
@@ -466,6 +475,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
                            pretty (unL e)
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty (unL e) <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
+  pretty (CaseString e alts) = hang 2 (text "case" <+> pretty (unL e) <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (Constr c es) = parens $ hsep $ text (constrName c) : map (pretty . unL) es
   pretty e = text (show e)
 
