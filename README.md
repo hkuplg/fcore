@@ -1,6 +1,6 @@
 # F2J: A Compiler for FCore
 [![License BSD 3][badge-license]](LICENSE)
-[![Build Status](https://travis-ci.org/hkuplg/fcore.svg?branch=develop)](https://travis-ci.org/hkuplg/fcore)
+[![Build Status](https://travis-ci.org/tomtau/fcore.svg?branch=develop)](https://travis-ci.org/tomtau/fcore)
 [![Stories in Ready](https://badge.waffle.io/hkuplg/fcore.png?label=ready&title=Ready)](https://waffle.io/hkuplg/fcore)
 
 ## Building from Source
