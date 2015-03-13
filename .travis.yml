@@ -1,12 +1,6 @@
 notifications:
   slack: hkuplgroup:7jiTM7QOayfuaA2tm7YgOhHa
 
-branches:
-  only:
-    - master
-    - develop
-    - testsuite
-
 language: haskell
 
 env:
