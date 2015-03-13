@@ -151,7 +151,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (JProxyCall jmethod t)     = F.JProxyCall (go jmethod) (transType d t)
 
     go (Seq es) = F.Seq (map go es)
-    go (Data n params ctrs e) = F.Data n params (map desugarConstructor ctrs) (go e)
+    go (Data recflag databinds e) = F.Data recflag (map desugarDatabind databinds) (go e)
 
     go (Constr c es) = F.Constr (desugarConstructor c) (map go es)
     go (Case e alts) = F.Case (go e) (map desugarAlts alts)
@@ -165,6 +165,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
             in
             go (If emptytest emptyexpr nonemptyexpr)
 
+    desugarDatabind (DataBind n params ctrs) = F.DataBind n params (map desugarConstructor ctrs)
     desugarConstructor (Constructor n ts) = F.Constructor n (map (transType d) ts)
     desugarAlts (ConstrAlt c ns e) =
         let c' = desugarConstructor c
