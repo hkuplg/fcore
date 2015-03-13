@@ -1,0 +1,3 @@
+if True
+   then { status = "placed" }
+   else { status = "cancelled", cancelledAt = "2015-03-10" }

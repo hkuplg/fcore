@@ -19,18 +19,18 @@ public class TypeServer {
         map.put(void.class, Void.class);
     }
 
-   private final static Map<Class<?>, Class<?>> retMap = new HashMap<Class<?>, Class<?>>();
-   static {
-      retMap.put(boolean.class, Boolean.class);
-      retMap.put(byte.class, Byte.class);
-      retMap.put(short.class, Short.class);
-      retMap.put(char.class, char.class);
-      retMap.put(int.class, Integer.class);
-      retMap.put(long.class, Long.class);
-      retMap.put(float.class, Float.class);
-      retMap.put(double.class, Double.class);
-      retMap.put(void.class, Void.class);
-   }
+   // private final static Map<Class<?>, Class<?>> retMap = new HashMap<Class<?>, Class<?>>();
+   // static {
+   //    retMap.put(boolean.class, Boolean.class);
+   //    retMap.put(byte.class, Byte.class);
+   //    retMap.put(short.class, Short.class);
+   //    retMap.put(char.class, char.class);
+   //    retMap.put(int.class, Integer.class);
+   //    retMap.put(long.class, Long.class);
+   //    retMap.put(float.class, Float.class);
+   //    retMap.put(double.class, Double.class);
+   //    retMap.put(void.class, Void.class);
+   // }
 
 
     public static void main(String[] args) {
@@ -96,7 +96,7 @@ public class TypeServer {
                 if (Modifier.isStatic(m.getModifiers()) == stat && m.getName().equals(methodName)) {
                     Class<?>[] actualClasses = m.getParameterTypes();
                     if (isArrayAssignableFrom(actualClasses, givenClasses))
-                        return retClassFix(m.getReturnType()).getName();
+                        return classFix(m.getReturnType()).getName();
                 }
             }
             return "$";
@@ -111,7 +111,7 @@ public class TypeServer {
             Class<?> c = Class.forName(classFullName);
             Field f = c.getField(fieldName);
             if (Modifier.isStatic(f.getModifiers()) == stat)
-                return retClassFix(f.getType()).getName();
+                return classFix(f.getType()).getName();
             else
                 return "$";
         } catch (Exception e) {
@@ -143,8 +143,8 @@ public class TypeServer {
         return c.isPrimitive() ? map.get(c) : c;
     }
 
-    private static Class<?> retClassFix(Class<?> c) {
-      return c.isPrimitive() ? retMap.get(c) : c;
-    }
+    // private static Class<?> retClassFix(Class<?> c) {
+    //   return c.isPrimitive() ? retMap.get(c) : c;
+    // }
 }
 

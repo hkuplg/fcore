@@ -1,0 +1,6 @@
+--> Turbo C 2.0
+
+let bob = { name = "Bob", age = 30, language = { language = "Haskell", compiler = "GHC"}}
+with { language = { language = "C", compiler = "Turbo C 2.0"}, age = 12 }
+;
+bob.language.compiler

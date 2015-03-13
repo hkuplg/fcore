@@ -1,0 +1,78 @@
+-- List definition
+
+data PolyList [A] = Nil
+                  | Cons A (PolyList[A]);
+
+-- String definition
+
+type PolyString = PolyList[Char];
+
+-- Parser type definition
+
+type Parser [A] = PolyString -> PolyList[(A, PolyString)];
+
+-- Utilities
+
+let singleton [A] (x : A) : PolyList[A] =
+    Cons[A] x (Nil[A]);
+
+let rec map [A, B] (f : A -> B) (l : PolyList[A]) : PolyList[B] =
+    case l of
+        Nil             ->      Nil[B]
+     |  Cons x xs       ->      Cons[B] (f x) (map [A, B] f xs);
+
+let rec concat2 [A] (a : PolyList[A]) (b : PolyList[A]) : PolyList[A] =
+    case a of
+        Nil         ->  b
+      | Cons x xs   ->  Cons[A] x (concat2[A] xs b);
+
+let rec concat [A] (l : PolyList[PolyList[A]]) : PolyList[A] =
+    case l of
+        Nil         ->  Nil[A]
+     |  Cons x xs   ->  concat2[A] x (concat[A] xs);
+
+-- Primitive Parsers
+
+let result [V] (value : V) : Parser[V] =
+    \(inp : PolyString) -> singleton [(V, PolyString)] (value, inp);
+
+let zero [V] : Parser[V] =
+    \(inp : PolyString) -> Nil[(V, PolyString)];
+
+let item : Parser[Char] =
+    \(inp : PolyString) ->
+        case inp of
+            Nil         ->      Nil[(Char, PolyString)]
+          | Cons c xs   ->      singleton [(Char, PolyString)] (c, xs);
+
+
+-- Combinators
+
+let bind [A, B] (p : Parser[A]) (f : A -> Parser[B]) : Parser[B] =
+    \(inp : PolyString) ->
+        concat [(B, PolyString)]
+               (map [(A, PolyString), PolyList[(B, PolyString)]]
+                    (\(v : (A, PolyString)) -> f v._1 v._2) (p inp));
+
+let sat (f : Char -> Bool) : Parser[Char] =
+    bind [Char, Char] item (\(x : Char) -> if f x then (result [Char] x) else zero [Char]);
+
+let upper : Parser[Char] =
+    sat (\(x : Char) -> 'A' <= x && x <= 'Z');
+
+let lower : Parser[Char] =
+    sat (\(x : Char) -> 'a' <= x && x <= 'z');
+
+let plus [A] (p : Parser[A]) (q : Parser[A]) : Parser[A] =
+    \(inp : PolyString) ->
+        concat2 [(A, PolyString)] (p inp) (q inp);
+
+let letter : Parser[Char] =
+    plus [Char] lower upper;
+
+let rec word : Parser[PolyString] =
+    (let nWord = bind [Char, PolyString] letter (\(x : Char) ->
+                 bind [PolyString, PolyString] word (\(xs : PolyString) ->
+                 result [PolyString] (Cons[Char] x xs))); plus [PolyString] nWord (zero [PolyString]));
+
+Nil[Char]

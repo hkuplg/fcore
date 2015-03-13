@@ -1,0 +1,8 @@
+--> 87178291200
+
+let rec fact (n : java.math.BigInteger) : java.math.BigInteger =
+    if n.intValue() == 0
+        then new java.math.BigInteger("1")
+        else n.multiply(fact(n.subtract(new java.math.BigInteger("1"))))
+;
+fact (new java.math.BigInteger("14"))
