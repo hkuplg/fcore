@@ -66,6 +66,7 @@ import JavaUtils
   UPPER_IDENT  { Located _ (Tupperid $$) }
   LOWER_IDENT  { Located _ (Tlowerid $$) }
   UNDERID      { Located _ (Tunderid $$) }
+  INFIX_FUNC   { Located _ (TinfixFunc $$) }
 
   JAVACLASS { Located _ (Tjavaclass $$) }
   "new"     { Located _ Tnew }
@@ -118,6 +119,7 @@ import JavaUtils
 %left "+" "-"
 %left "*" "/" "%"
 %nonassoc NEG
+%left INFIX_FUNC
 
 %%
 
@@ -268,6 +270,7 @@ infixexpr :: { ReaderExpr }
     | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 }
     | infixexpr ",," infixexpr  { Merge $1 $3 }
+    | infixexpr INFIX_FUNC infixexpr   { App (App (Var $2) $1) $3 }
     | fexpr                     { $1 }
 
 fexpr :: { ReaderExpr }
