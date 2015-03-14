@@ -1,0 +1,4 @@
+--> false
+
+let booltrue : Bool = True;
+!booltrue
