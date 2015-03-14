@@ -254,19 +254,22 @@ trans self =
                    let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
                    let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
                    newvars <- liftM (pairUp bindings) vars
-                   closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
-                   let mDecls = map (\x -> memberDecl (fieldDecl (classTy closureClass) (varDeclNoInit (localvarstr ++ show x)))) bindings
+                   -- closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
 
                    let finalFuns = mfuns newvars
                    let appliedBody = body newvars
                    let varnums = map fst newvars
-                   (bindStmts,bindExprs,_) <- liftM unzip3 finalFuns
+                   (bindStmts,bindExprs,tbind) <- liftM unzip3 finalFuns
                    (bodyStmts,bodyExpr,t') <- translateM this appliedBody
+                   bindtyps <- mapM (javaType this) tbind
                    typ <- javaType this t'
+
+                   -- initialize declarations
+                   let mDecls = map (\(x, typ) -> memberDecl (fieldDecl typ (varDeclNoInit (localvarstr ++ show x)))) (zip bindings bindtyps)
+
                    -- assign new created closures bindings to variables
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
                                   (varnums `zip` map unwrap bindExprs)
-
                    let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap bodyExpr)]
                    let letClass =
                          [localClass ("Let" ++ show n)
