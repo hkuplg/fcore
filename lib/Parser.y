@@ -236,6 +236,7 @@ expr :: { ReaderExpr }
     | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
     | module expr                         { LetModule $1 $2 }
+    | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0)) (Arith J.Sub) $2 }
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
@@ -295,7 +296,6 @@ aexpr :: { ReaderExpr }
     | constr_name               { ConstrTemp $1 }
     | "(" expr ")"              { $2 }
     | "!" aexpr                  { PrimOp (Lit (Bool False)) (Compare J.Equal) $2 }
-    | "-" aexpr %prec NEG        { PrimOp (Lit (Int 0)) (Arith J.Sub) $2 }
 
 javaexpr :: { ReaderExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }

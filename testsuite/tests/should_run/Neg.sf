@@ -1,4 +1,4 @@
 --> -70
 
 let ten : Int = 10;
-7 * -ten
+7 * (-ten)
