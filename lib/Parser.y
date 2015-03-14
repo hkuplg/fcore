@@ -117,7 +117,7 @@ import JavaUtils
 %nonassoc "<" "<=" ">" ">="
 %left "+" "-"
 %left "*" "/" "%"
-%nonassoc UMINUS
+%nonassoc NEG
 
 %%
 
@@ -231,11 +231,11 @@ expr :: { ReaderExpr }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type ";"  expr  { Type (toUpperid $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type (toUpperid $2) (map unLoc $3) $5 $6 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
-    | "-" INT %prec UMINUS                { Lit (Int $ negate $ toInt $2) `withLoc` $1 }
     | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data (toUpperid $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "case" expr "of" patterns           { Case $2 $4 `withLoc` $1 }
     | infixexpr                           { $1 }
     | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
+    | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
