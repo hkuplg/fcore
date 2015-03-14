@@ -100,7 +100,6 @@ import JavaUtils
   "!="     { Located _ (Tprimop J.NotEq)  }
   "&&"     { Located _ (Tprimop J.CAnd)   }
   "||"     { Located _ (Tprimop J.COr)    }
-  "!"      { Located _ TpreNot }
 
 
 -- Precedence and associativity directives
@@ -118,7 +117,7 @@ import JavaUtils
 %nonassoc "<" "<=" ">" ">="
 %left "+" "-"
 %left "*" "/" "%"
-%nonassoc NEG "!"
+%nonassoc NEG
 
 %%
 
@@ -295,7 +294,6 @@ aexpr :: { ReaderExpr }
     | "cons" "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
     | constr_name               { ConstrTemp $1 }
     | "(" expr ")"              { $2 }
-    | "!" aexpr                  { PrimOp (Lit (Bool False)) (Compare J.Equal) $2 }
 
 javaexpr :: { ReaderExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }
