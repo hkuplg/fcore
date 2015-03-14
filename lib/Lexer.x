@@ -116,9 +116,10 @@ tokens :-
     ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { locate (\_ s -> Tjavaclass s) }
 
     -- ID
-    [A-Z] [$vchar]*     { locate (\_ s -> Tupperid s) }
-    \_ [$alpha \_] [$vchar]* | [a-z] [$vchar]*     { locate (\_ s -> Tlowerid s) }
-    \_ $digit+          { locate (\_ s -> Tunderid (read (tail s))) }
+    [A-Z] [$vchar]*                                      { locate (\_ s -> Tupperid s) }
+    \_ [$alpha \_] [$vchar]* | [a-z] [$vchar]*           { locate (\_ s -> Tlowerid s) }
+    \` (\_ [$alpha \_] [$vchar]* | [a-z] [$vchar]*) \`   { locate (\_ s -> TinfixFunc (init (tail s))) }
+    \_ $digit+                                           { locate (\_ s -> Tunderid (read (tail s))) }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
     \*          { locate (\_ _ -> Tprimop J.Mult   ) }
@@ -144,7 +145,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tnew
            | Tif | Tthen | Telse
            | Tcomma | Tsemi
-           | Tupperid String | Tlowerid String | Tunderid Int
+           | Tupperid String | Tlowerid String | Tunderid Int | TinfixFunc String
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
