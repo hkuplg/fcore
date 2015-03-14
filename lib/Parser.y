@@ -100,6 +100,7 @@ import JavaUtils
   "!="     { Located _ (Tprimop J.NotEq)  }
   "&&"     { Located _ (Tprimop J.CAnd)   }
   "||"     { Located _ (Tprimop J.COr)    }
+  "!"      { Located _ TpreNot }
 
 
 -- Precedence and associativity directives
@@ -117,7 +118,7 @@ import JavaUtils
 %nonassoc "<" "<=" ">" ">="
 %left "+" "-"
 %left "*" "/" "%"
-%nonassoc UMINUS
+%nonassoc NEG "!"
 
 %%
 
@@ -231,7 +232,6 @@ expr :: { ReaderExpr }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type ";"  expr  { Type $2 $3 $5 $7 }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type $2 $3 $5 $6 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 }
-    | "-" INT %prec UMINUS                { Lit (Int (-$2)) }
     | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data $2 $3 $5 $7 }
     | "case" expr "of" patterns           { Case $2 $4 }
     | infixexpr                           { $1 }
@@ -294,6 +294,8 @@ aexpr :: { ReaderExpr }
     | "cons" "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5]) undefined}
     | constr_name               { ConstrTemp $1 }
     | "(" expr ")"              { $2 }
+    | "!" aexpr                  { PrimOp (Lit (Bool False)) (Compare J.Equal) $2 }
+    | "-" aexpr %prec NEG        { PrimOp (Lit (Int 0)) (Arith J.Sub) $2 }
 
 javaexpr :: { ReaderExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew $2 $4 }

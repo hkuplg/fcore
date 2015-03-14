@@ -135,6 +135,7 @@ tokens :-
     \!\=        { locate (\_ _ -> Tprimop J.NotEq  ) }
     \&\&        { locate (\_ _ -> Tprimop J.CAnd   ) }
     \|\|        { locate (\_ _ -> Tprimop J.COr    ) }
+    \!          { locate (\_ _ -> TpreNot          ) }
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
@@ -147,7 +148,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tcomma | Tsemi
            | Tupperid String | Tlowerid String | Tunderid Int
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
-           | Tprimop J.Op
+           | Tprimop J.Op | TpreNot
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule
            | Temptytree | Tnonemptytree
