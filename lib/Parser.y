@@ -66,7 +66,7 @@ import JavaUtils
   UPPER_IDENT  { L _ (Tupperid _) }
   LOWER_IDENT  { L _ (Tlowerid _) }
   UNDERID      { L _ (Tunderid $$) }
-  INFIX_FUNC   { L _ (TinfixFunc $$) }
+  INFIX_FUNC   { L _ (TinfixFunc _) }
 
   JAVACLASS { L _ (Tjavaclass _) }
   "new"     { L _ Tnew }
@@ -138,7 +138,7 @@ module :: { ReaderModule }
   : "module" module_name "{" semi_binds "}"  { Module (unLoc $2) $4 `withLoc` $1 }
 
 module_name :: { LReaderId }
-  : UPPER_IDENT  { toUpperid $1 `withLoc` $1 }
+  : UPPER_IDENT  { toString $1 `withLoc` $1 }
 
 ------------------------------------------------------------------------
 -- Types
@@ -172,8 +172,8 @@ ftype :: { ReaderType }
   | atype            { $1 }
 
 atype :: { ReaderType }
-  : UPPER_IDENT              { TVar $ toUpperid $1 }
-  | JAVACLASS                { JType (JClass $ toJavaclass $1) }
+  : UPPER_IDENT              { TVar $ toString $1 }
+  | JAVACLASS                { JType (JClass $ toString $1) }
   | "Unit"                   { Unit }
   | "(" product_body ")"     { Product $2 }
   | record_type              { $1 }
@@ -202,7 +202,7 @@ record_type_field :: { (Label, ReaderType) }
   : label ":" type                                { ($1, $3) }
 
 ty_param :: { LReaderId }
-  : UPPER_IDENT                    { toUpperid $1 `withLoc` $1 }
+  : UPPER_IDENT                    { toString $1 `withLoc` $1 }
 
 ty_params :: { [LReaderId] }
   : {- empty -}                    { []    }
@@ -230,10 +230,10 @@ expr :: { ReaderExpr }
     : "/\\" ty_params1 "->" expr         { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "\\" params1 "->" expr             { foldr (\x acc -> Lam (unLoc x) acc `withLoc` x) (Lam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "let" recflag and_binds ";"  expr  { Let $2 $3 $5 `withLoc` $1 }
-    | "type" UPPER_IDENT ty_param_list_or_empty "=" type ";"  expr  { Type (toUpperid $2) (map unLoc $3) $5 $7 `withLoc` $1 }
-    | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type (toUpperid $2) (map unLoc $3) $5 $6 `withLoc` $1 }
+    | "type" UPPER_IDENT ty_param_list_or_empty "=" type ";"  expr  { Type (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
+    | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type (toString $2) (map unLoc $3) $5 $6 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
-    | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data (toUpperid $2) (map unLoc $3) $5 $7 `withLoc` $1 }
+    | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "case" expr "of" patterns           { Case $2 $4 `withLoc` $1 }
     | infixexpr                           { $1 }
     | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
@@ -270,7 +270,7 @@ infixexpr :: { ReaderExpr }
     | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 `withLoc` $1 }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 `withLoc` $1 }
     | infixexpr ",," infixexpr  { Merge $1 $3 `withLoc` $1 }
-    | infixexpr INFIX_FUNC infixexpr   { App (App (fmap Var $2) $1 `withLoc` $2) $3  `withLoc` $1 }
+    | infixexpr INFIX_FUNC infixexpr   { App (App (Var (toString $2) `withLoc` $2) $1 `withLoc` $2) $3  `withLoc` $1 }
     | fexpr                     { $1 }
 
 fexpr :: { ReaderExpr }
@@ -279,7 +279,7 @@ fexpr :: { ReaderExpr }
     | aexpr            { $1 }
 
 aexpr :: { ReaderExpr }
-    : LOWER_IDENT               { Var (toLowerid $1) `withLoc` $1 }
+    : LOWER_IDENT               { Var (toString $1) `withLoc` $1 }
     | lit                       { $1 }
     | "(" comma_exprs2 ")"      { Tuple $2 `withLoc` $1 }
     | aexpr "." UNDERID         { Proj $1 $3 `withLoc` $1 }
@@ -299,14 +299,14 @@ aexpr :: { ReaderExpr }
     | "(" expr ")"              { $2 }
 
 javaexpr :: { ReaderExpr }
-    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew (toJavaclass $2) $4 `withLoc` $1 }
+    : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew (toString $2) $4 `withLoc` $1 }
     | "Empty"                                       { JNew "f2j.FunctionalTree" [] `withLoc` $1 }
     | "Fork" "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3`withLoc` $1 }
 
-    | JAVACLASS "." LOWER_IDENT "(" comma_exprs0 ")"  { JMethod (Static $ toJavaclass $1) (toLowerid $3) $5 undefined `withLoc` $1 }
-    | JAVACLASS "." LOWER_IDENT "()"                  { JMethod (Static $ toJavaclass $1) (toLowerid $3) [] undefined `withLoc` $1 }
-    | JAVACLASS "." LOWER_IDENT                       { JField  (Static $ toJavaclass $1) (toLowerid $3) undefined `withLoc` $1 }
-    | JAVACLASS "." UPPER_IDENT                       { JField  (Static $ toJavaclass $1) (toLowerid $3) undefined `withLoc` $1 } -- Constants
+    | JAVACLASS "." LOWER_IDENT "(" comma_exprs0 ")"  { JMethod (Static $ toString $1) (toString $3) $5 undefined `withLoc` $1 }
+    | JAVACLASS "." LOWER_IDENT "()"                  { JMethod (Static $ toString $1) (toString $3) [] undefined `withLoc` $1 }
+    | JAVACLASS "." LOWER_IDENT                       { JField  (Static $ toString $1) (toString $3) undefined `withLoc` $1 }
+    | JAVACLASS "." UPPER_IDENT                       { JField  (Static $ toString $1) (toString $3) undefined `withLoc` $1 } -- Constants
 
     -- A dot can mean three things:
     -- (1) method invocation
@@ -318,13 +318,13 @@ javaexpr :: { ReaderExpr }
     --   (since the gap between the two parentheses distinguishes the string from the unit literal `()`)
     -- when 1: method invocation or application (with a parenthesized argument)
     -- else:   method invocation or application (with a tuple)
-    | aexpr "." LOWER_IDENT "(" comma_exprs0 ")"  { Dot $1 (toLowerid $3) (Just ($5, UnitImpossible)) `withLoc` $1 }
+    | aexpr "." LOWER_IDENT "(" comma_exprs0 ")"  { Dot $1 (toString $3) (Just ($5, UnitImpossible)) `withLoc` $1 }
 
     -- method invocation or application
-    | aexpr "." LOWER_IDENT "()"                  { Dot $1 (toLowerid $3) (Just ([], UnitPossible)) `withLoc` $1 }
+    | aexpr "." LOWER_IDENT "()"                  { Dot $1 (toString $3) (Just ([], UnitPossible)) `withLoc` $1 }
 
     -- field access or record elimination
-    | aexpr "." LOWER_IDENT                       { Dot $1 (toLowerid $3) Nothing `withLoc` $1 }
+    | aexpr "." LOWER_IDENT                       { Dot $1 (toString $3) Nothing `withLoc` $1 }
 
     -- Is this possible?
     -- | aexpr "." UPPER_IDENT                    { Dot $1 $3 Nothing `withLoc` $1 }
@@ -353,7 +353,7 @@ record_construct_field :: { (Label, ReaderExpr) }
 
 bind :: { ReaderBind }
   : LOWER_IDENT ty_param_list_or_empty params maybe_ty_ascription "=" expr
-  { Bind { bindId       = toLowerid $1
+  { Bind { bindId       = toString $1
          , bindTyParams = map unLoc $2
          , bindParams   = map unLoc $3
          , bindRhsTyAscription = $4
@@ -385,7 +385,7 @@ constr_decl :: { Constructor }
     : constr_name types  { Constructor (unLoc $1) $2 }
 
 constr_name :: { LReaderId }
-    : UPPER_IDENT  { toUpperid $1 `withLoc` $1 }
+    : UPPER_IDENT  { toString $1 `withLoc` $1 }
 
 patterns :: { [Alt ReaderId Type] }
     : pattern               { [$1] }
@@ -397,7 +397,7 @@ pattern :: { Alt ReaderId Type}
     | pat_var ":" pat_var "->" expr   { ConstrAlt (Constructor "cons" []) [$1,$3] $5}
 
 pat_var :: { ReaderId }
-  : LOWER_IDENT  { toLowerid $1 }
+  : LOWER_IDENT  { toString $1 }
   | "_"          { "_" }
 
 pat_vars :: { [ReaderId] }
@@ -405,7 +405,7 @@ pat_vars :: { [ReaderId] }
   | pat_var pat_vars  { $1:$2 }
 
 param :: { Located (ReaderId, ReaderType) }
-  : LOWER_IDENT ":" type          { (toLowerid $1, $3) `withLoc` $1 }
+  : LOWER_IDENT ":" type          { (toString $1, $3) `withLoc` $1 }
 
 params :: { [Located (ReaderId, ReaderType)] }
   : {- empty -}                   { []    }
@@ -419,11 +419,11 @@ params1 :: { [Located (ReaderId, ReaderType)] }
 ------------------------------------------------------------------------
 
 ident :: { LReaderId }
-  : UPPER_IDENT  { toUpperid $1 `withLoc` $1 }
-  | LOWER_IDENT  { toLowerid $1 `withLoc` $1 }
+  : UPPER_IDENT  { toString $1 `withLoc` $1 }
+  | LOWER_IDENT  { toString $1 `withLoc` $1 }
 
 label :: { Label }
-  : LOWER_IDENT  { toLowerid $1 }
+  : LOWER_IDENT  { toString $1 }
 
 {
 -- The monadic parser
@@ -443,10 +443,13 @@ reader src = parseExpr $ lexer src
 
 -- Helper functions to extract located token value
 toInt (L _ (Tint x)) = x
-toString (L _ (Tstring x)) = x
 toBool (L _ (Tbool x)) = x
 toChar (L _ (Tchar x)) = x
-toJavaclass (L _ (Tjavaclass x)) = x
-toUpperid (L _ (Tupperid x)) = x
-toLowerid (L _ (Tlowerid x)) = x
+toString (L _ tok) =
+  case tok of
+    Tstring x -> x
+    Tjavaclass x -> x
+    Tupperid x -> x
+    Tlowerid x -> x
+    TinfixFunc x -> x
 }
