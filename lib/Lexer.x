@@ -25,7 +25,7 @@ module Lexer
 import qualified Language.Java.Syntax as J (Op(..))
 import Numeric (readOct)
 import Data.Char (isHexDigit, isOctDigit)
-import Src (Located(..))
+import SrcLoc
 
 }
 
@@ -158,7 +158,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
 locate
   :: (AlexPosn -> String -> Token)
   -> (AlexPosn -> String -> Located Token)
-locate f = \p@(AlexPn _ l c) s -> L (f p s) l c
+locate f = \p@(AlexPn _ l c) s -> L (Loc l c) (f p s)
 
 -- From Language.Java v0.2.7 (BSD3 License)
 lexicalError :: String -> a

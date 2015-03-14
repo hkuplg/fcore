@@ -2,6 +2,17 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
 
+{- |
+Module      :  SrcLoc
+Description :  This module contains types and utility functions for tagging things with locations
+Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
+License     :  BSD3
+
+Maintainer  :  Weixin Zhang <zhangweixinxd@gmail.com>
+Stability   :  experimental
+Portability :  portable
+-}
+
 module SrcLoc where
 
 import Data.Foldable ( Foldable )

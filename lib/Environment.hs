@@ -57,5 +57,5 @@ searchEnv var env = case lookup var env of
 showPrettyEnv :: Env -> String
 showPrettyEnv [] = ""
 showPrettyEnv ((var, (_, expr)) : xs) = "(" ++ show var ++ ", "
-                                              ++ show (pretty $ unL expr)
+                                              ++ show (pretty expr)
                                               ++ "); " ++ showPrettyEnv xs
