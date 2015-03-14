@@ -379,12 +379,6 @@ freeTVars (OpApp t1 t2) = Set.union (freeTVars t1) (freeTVars t2)
 freeTVars (Datatype _ ts _) = Set.unions (map freeTVars ts)
 
 -- Pretty printers
-instance (Show a, Pretty a) => Pretty (Located a) where
-    pretty (L _ e) = pretty e
-
--- instance (Show a, Pretty a) => Pretty (Located a) where
---     pretty (L _ e) = pretty e
-
 instance Pretty Kind where
   pretty Star           = char '*'
   pretty (KArrow k1 k2) = parens (pretty k1 <+> text "=>" <+> pretty k2)
@@ -412,6 +406,9 @@ instance Pretty Type where
 groupForall :: Type -> ([Name], Type)
 groupForall (Forall a t) = let (as, t') = groupForall t in (a:as, t')
 groupForall t            = ([], t)
+
+instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Located (Expr id ty)) where
+    pretty (L _ e) = pretty e
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Var x) = pretty x

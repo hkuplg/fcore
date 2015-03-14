@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wall #-}
 {- |
@@ -45,22 +47,22 @@ import System.Process
 
 import Control.Monad.Error
 
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
-import Data.List (intersperse)
+import Data.List (intersperse, find, findIndex)
 
 import Prelude hiding (pred)
 
 type Connection = (Handle, Handle)
 
-typeCheck :: ReaderExpr -> IO (Either TypeError (Type, CheckedExpr))
+typeCheck :: ReaderExpr -> IO (Either LTypeError (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnv type_server) . runErrorT . infer) e)
 
 -- Temporary hack for REPL
-typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either TypeError (Type, CheckedExpr))
+typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either LTypeError (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . infer) e)
@@ -109,10 +111,10 @@ data TypeError
   | DuplicateParam Name
   | ExpectJClass
   | IndexTooLarge
-  | TypeMismatch Type (Located Type)
+  | TypeMismatch Type Type
   | KindMismatch Kind Kind
   | MissingTyAscription Name
-  | NotInScope (Located Name)
+  | NotInScope Name
   | ProjectionOfNonProduct
   | NotWellKinded Type
   | NotMember Name Type
@@ -125,21 +127,24 @@ data TypeError
   | NoSuchField       (JCallee ClassName) FieldName
   deriving (Show)
 
--- type LTypeError = (Located TypeError)
+type LTypeError = Located TypeError
 
--- deriving instance Error LTypeError
+instance Error LTypeError where
+
+instance Pretty LTypeError where
+    pretty (L loc err) = pretty loc <> pretty err
 
 instance Pretty TypeError where
   pretty (General doc)      = prettyError <+> doc
-  pretty (NotInScope (L loc x))  = prettyError <+> prettyLoc loc <+> code (text x) <+> text "is not in scope"
+  pretty (NotInScope x)  = prettyError <+> code (text x) <+> text "is not in scope"
   pretty (DuplicateParam ident) = prettyError <+> text "duplicate parameter" <+> code (text ident)
   pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
   pretty (KindMismatch expected found) =
     prettyError <+> text "kind mismatch" <> colon <$>
     indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
               text "   found" <+> code (pretty found))
-  pretty (TypeMismatch expected (L loc found)) =
-    prettyError <+> prettyLoc loc <+> text "type mismatch" <> colon <$>
+  pretty (TypeMismatch expected found) =
+    prettyError <+> text "type mismatch" <> colon <$>
     indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
               text "   found" <+> code (pretty found))
 
@@ -170,14 +175,10 @@ instance Pretty TypeError where
 
   pretty e = prettyError <+> text (show e)
 
-prettyLoc :: Loc -> Doc
-prettyLoc (Loc l c) = int l <> colon <> int c <> colon
-prettyLoc NoLoc = empty
-
 instance Error TypeError where
   -- strMsg
 
-type Checker a = ErrorT TypeError (IOEnv TcEnv) a
+type Checker a = ErrorT LTypeError (IOEnv TcEnv) a
 
 getTcEnv :: Checker TcEnv
 getTcEnv = lift getEnv
@@ -289,7 +290,7 @@ infer (L loc (Var name))
   = do value_ctxt <- getValueContext
        case Map.lookup name value_ctxt of
          Just t  -> return (t, L loc $ Var (name,t))
-         Nothing -> throwError (NotInScope $ L loc name)
+         Nothing -> throwError (L loc $ NotInScope name)
 
 infer (L loc (Lit lit)) = return (srcLitType lit, L loc $ Lit lit)
 
@@ -309,9 +310,9 @@ infer (L _ (App e1 e2)) =
            case t1 of
              Fun t11 t12 ->
                  do d <- getTypeContext
-                    unless (subtype d t2 t11) $ throwError (TypeMismatch t11 $ t2 `withLoc` e2)
+                    unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2 `withLoc` e2)
                     return (t12, L loc $ Constr (Constructor n ts) (es ++ [e2']))
-             _ -> throwError (NotAFunction t1)
+             _ -> throwError (NotAFunction t1 `withLoc` e1)
        _ ->
         case t1 of
           -- Local type inference:
@@ -320,7 +321,7 @@ infer (L _ (App e1 e2)) =
 
           Fun t11 t12 ->
             do d <- getTypeContext
-               unless (subtype d t2 t11) $ throwError (TypeMismatch t11 $ t2 `withLoc` e2)
+               unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2 `withLoc` e2)
                case (t11, t2) of
                  (Thunk _, Thunk _) -> return (t12, App e1' e2' `withLoc` e1')
                  (Thunk _, _)       -> return (t12, App e1' (Lam ("_", Unit) e2' `withLoc` e2') `withLoc` e1')
@@ -329,14 +330,14 @@ infer (L _ (App e1 e2)) =
 
           Thunk (Fun t11 t12) ->
             do d <- getTypeContext
-               unless (subtype d t2 t11) $ throwError (TypeMismatch t11 $ t2 `withLoc` e2)
+               unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2 `withLoc` e2)
                case (t11, t2) of
                  (Thunk _, Thunk _) -> return (t12, App e1' e2' `withLoc` e1')
                  (Thunk _, _)       -> return (t12, App e1' (Lam ("_", Unit) e2' `withLoc` e2') `withLoc` e1')
                  (_, Thunk _)       -> return (t12, App e1' (App e2' (noLoc $ Lit UnitLit) `withLoc` e2') `withLoc` e1')
                  (_, _)             -> return (t12, App e1' e2' `withLoc` e1')
 
-          _ -> throwError (NotAFunction t1)
+          _ -> throwError (NotAFunction t1 `withLoc` e1)
 
 infer (L loc (BLam a e))
   = do (t, e') <- withLocalTVars [(a, (Star, TerminalType))] (infer e)
@@ -367,8 +368,8 @@ infer (L loc (Proj e i))
        case t of
          Product ts
            | 1 <= i && i <= length ts -> return (ts !! (i - 1), L loc $ Proj e' i)
-           | otherwise -> throwError IndexTooLarge
-         _ -> throwError ProjectionOfNonProduct
+           | otherwise -> throwError $ L loc IndexTooLarge
+         _ -> throwError $ L loc ProjectionOfNonProduct
 
 infer (L loc (PrimOp e1 op e2)) =
   case op of
@@ -425,14 +426,14 @@ infer (L loc (Dot e x Nothing)) =
        JType (JClass _) -> infer (L loc $ JField (NonStatic e) x undefined)
        RecordType _     -> infer (L loc $ RecordProj e x)
        And _ _          -> infer (L loc $ RecordProj e x)
-       _                -> throwError (NotMember x t)
+       _                -> throwError (L loc $ NotMember x t) -- TODO: should be x's loc
 
 -- e.x ( )
 infer (L loc (Dot e x (Just ([], UnitImpossible)))) =
   do (t, _) <- infer e
      case deThunkOnce t of
        JType (JClass _) -> infer (L loc $ JMethod (NonStatic e) x [] undefined)
-       _                -> throwError (NotMember x t)
+       _                -> throwError (L loc $ NotMember x t) -- TODO: should be x's loc
 
 -- e.x ()
 infer (L loc (Dot e x (Just ([], UnitPossible)))) =
@@ -441,7 +442,7 @@ infer (L loc (Dot e x (Just ([], UnitPossible)))) =
        JType (JClass _) -> infer (L loc $ JMethod (NonStatic e) x [] undefined)
        RecordType _     -> infer (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
        And _ _          -> infer (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
-       _                -> throwError (NotMember x t)
+       _                -> throwError (L loc $ NotMember x t) -- TODO: should be x's loc
 
 -- e.x (a)
 infer (L loc (Dot e x (Just ([arg], _)))) =
@@ -450,7 +451,7 @@ infer (L loc (Dot e x (Just ([arg], _)))) =
        JType (JClass _) -> infer (L loc $ JMethod (NonStatic e) x [arg] undefined)
        RecordType _     -> infer (L loc $ App (L loc $ RecordProj e x) arg)
        And _ _          -> infer (L loc $ App (L loc $ RecordProj e x) arg)
-       _                -> throwError (NotMember x t)
+       _                -> throwError (L loc $ NotMember x t) -- TODO: should be x's loc
 
 -- e.x (a,...)
 infer (L loc (Dot e x (Just (args, _)))) =
@@ -459,7 +460,7 @@ infer (L loc (Dot e x (Just (args, _)))) =
        JType (JClass _) -> infer (L loc $ JMethod (NonStatic e) x args undefined)
        RecordType _     -> infer (L loc $ App (L loc $ RecordProj e x) tuple)
        And _ _          -> infer (L loc $ App (L loc $ RecordProj e x) tuple)
-       _                -> throwError (NotMember x t)
+       _                -> throwError (L loc $ NotMember x t) -- TODO: should be x's loc
     where tuple = Tuple args `withLocs` args
 
 -- JNew, JMethod, and JField
@@ -505,7 +506,7 @@ infer (L loc (JField callee f _)) =
                 -- if ret_c == "char"
                 --   then return (JType (JPrim "char"), JField (NonStatic e') f ret_c)
                 --   else return (JType (JClass ret_c), JField (NonStatic e') f ret_c)
-           _ -> throwError (NotMember f t)
+           _ -> throwError (NotMember f t `withLoc` e) -- TODO: should be f's loc
 
 infer (L loc (Seq es)) =
   do (ts, es') <- mapAndUnzipM infer es
@@ -521,20 +522,20 @@ infer (L loc (PolyList l t)) =
      case ts of [] -> return (ListOf t, PolyList es t `withLocs` es)
                 _  ->
                      do d <- getTypeContext
-                        if all (compatible d t) ts
-                          then return (ListOf t, PolyList es t `withLocs` es)
-                          else throwError $ General (text "List Type mismatch" <+> pretty (PolyList l t))
+                        case find (not . compatible d t) ts of
+                          Nothing -> return (ListOf t, PolyList es t `withLocs` es)
+                          Just t' -> throwError $ TypeMismatch t t' `withLocs` es -- TODO: should be t' 's loc
 
 infer (L loc (JProxyCall (L _ (JNew c args)) t)) =
     if c /= (namespace ++ "FunctionalList")
     then
-        throwError $ General (text (show c ++ " from JProxyCall: not supported"))
+        throwError $ L loc $ General $ text $ show c ++ " from JProxyCall: not supported"
     else
         do ([t1, t2], es) <- mapAndUnzipM infer args
            d <- getTypeContext
            if compatible d (ListOf t1) t2
              then return (t2, L loc $ JProxyCall (L loc $ JNew c es) t2)
-             else throwError $ TypeMismatch t1 (L loc t2)
+             else throwError $ L loc $ TypeMismatch t1 t2
 
 infer (L loc (JProxyCall jmethod t)) =
     case jmethod of
@@ -544,7 +545,7 @@ infer (L loc (JProxyCall jmethod t)) =
                              return a
                 "tail" -> do (a, _) <- infer e
                              return a
-                _      -> throwError $ General (text (show methodname ++ " from JProxyCall: not supported"))
+                _      -> throwError $ L loc $ General (text (show methodname ++ " from JProxyCall: not supported"))
             d <- getTypeContext
             m <- infer jmethod
             return (ty, L loc $ JProxyCall (snd m) ty)
@@ -558,7 +559,7 @@ infer (L loc (RecordProj e l)) =
   do (t, e') <- infer e
      case Map.lookup l (recordFields t) of
        Just t1 -> return (t1, L loc $ RecordProj e' l)
-       Nothing -> throwError (NotMember l t)
+       Nothing -> throwError (L loc $ NotMember l t) -- TODO: should be l's loc
 
 infer (L loc (RecordUpdate e fs)) =
   do (_, es') <- mapAndUnzipM infer (map snd fs)
@@ -575,12 +576,12 @@ infer (L loc (ModuleAccess m f)) = infer (L loc $ RecordProj (L loc $ Var m) f)
 -- Type synonyms: type T A1 ... An = t in e
 -- First make sure that A1 ... An are distinct.
 -- Then rewrite to "type T = \A1. ... An. t in e" and kind-check \A1. ... \An. t.
-infer (L _ (Type t params rhs e))
+infer (L loc (Type t params rhs e))
   = do checkDupNames params
        typeContext <- getTypeContext
        maybe_kind <- liftIO $ kind typeContext pulledRight
        case maybe_kind of
-         Nothing -> throwError $ NotWellKinded pulledRight
+         Nothing -> throwError $ L loc $ NotWellKinded pulledRight
          Just k  -> withLocalTVars [(t, (k, NonTerminalType pulledRight))] $ infer e
   where
     pulledRight = pullRight params rhs
@@ -609,16 +610,15 @@ infer (L loc (ConstrTemp name)) =
          Just t  -> case t of
                       Forall _ _ -> return (t, L loc $ Constr (Constructor name []) [])
                       _ -> return (t, L loc $ Constr (Constructor name (unwrapFun t)) []) -- non-parameterized constructors
-         Nothing -> throwError (NotInScope $ L loc name)
+         Nothing -> throwError (L loc $ NotInScope  name)
 
-infer (L _ (Case e alts)) =
+infer (L loc (Case e alts)) =
  do
    (t, e') <- infer e
    if not (isDatatype t)
     then if isString t
            then inferString e'
-           else throwError $ General $
-              bquotes (pretty e) <+> text "is of type" <+> bquotes (pretty t) <> comma <+> text "which is not a datatype"
+           else throwError $ TypeMismatch t (Datatype "Datatype" [] []) `withLoc` e
     else do
      value_ctxt <- getValueContext
      d <- getTypeContext
@@ -629,8 +629,8 @@ infer (L _ (Case e alts)) =
                                   Just t_constr -> let ts = unwrapFun $ feedToForall t_constr ts_feed
                                                    in if compatible d (last ts) t
                                                       then return $ Constructor n ts
-                                                      else throwError $ TypeMismatch t_constr $ t `withLoc` e
-                                  Nothing -> throwError $ NotInScope $ n `withLoc` e)
+                                                      else throwError $ TypeMismatch t_constr t `withLoc` e
+                                  Nothing -> throwError $ NotInScope n `withLoc` e)
                  ces
      let alts' = zipWith substAltConstr alts constrs'
 
@@ -640,21 +640,22 @@ infer (L _ (Case e alts)) =
                           ts = init $ constrParams c
                       in if length ts == length vars
                          then withLocalVars (filter ((/= "_") . fst) $ zip vars ts) (infer e2)
-                         else throwError $ General $ text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
-                                                                   <+> text "arguments, bus has been given" <+> int (length vars))
+                         else throwError $ General (text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
+                                                                   <+> text "arguments, bus has been given" <+> int (length vars)) `withLoc` e2) -- TODO: should be c's loc
                  alts'
 
      let resType = head ts
-     unless (all (compatible d resType) ts) $
-            throwError $ General $ text "All the alternatives should be of the same type"
+     let i = findIndex (not . compatible d resType) ts
+     unless (isJust i) $
+            throwError $ TypeMismatch resType (ts !! fromJust i) `withLoc` (es !! fromJust i)
 
      let allConstrs = Set.fromList ns
      let matchedConstrs = Set.fromList $ map (constrName . fst) ces
      let unmatchedConstrs = allConstrs Set.\\ matchedConstrs
      unless (Set.null unmatchedConstrs) $
-            throwError $ General $ text "Pattern match(es) are non-exhaustive." <+> vcat (intersperse space (map (bquotes . text) $ Set.elems unmatchedConstrs))
+            throwError $ L loc $ General $ text "Pattern match(es) are non-exhaustive." <+> vcat (intersperse space (map (bquotes . text) $ Set.elems unmatchedConstrs))
 
-     return (resType, Case e' (zipWith substAltExpr alts' es) `withLoc` e')
+     return (resType, L loc $ Case e' (zipWith substAltExpr alts' es))
 
   where substAltExpr (ConstrAlt c ns _) = ConstrAlt c ns
         substAltConstr (ConstrAlt _ ns expr) c = ConstrAlt c ns expr
@@ -670,8 +671,8 @@ infer (L _ (Case e alts)) =
           do
             let alts' = [ n | ConstrAlt (Constructor n _) _ _ <-  alts]
             unless ((length alts == 2) && Set.fromList alts' == Set.fromList ["cons", "empty"]) $
-              throwError $ General $ bquotes (pretty e') <+> text "is of type String" <+>
-                                     text "which should have two patterns [] and head:tail"
+              throwError $ General (bquotes (pretty e') <+> text "is of type String" <+>
+                                     text "which should have two patterns [] and head:tail") `withLoc` e'
 
             let [b1]               = [ e | ConstrAlt (Constructor "empty" _) _ e <-  alts]
                 [(var1, var2, b2)] = [ (var1',var2',e) | ConstrAlt (Constructor "cons" _) [var1',var2'] e <-  alts]
@@ -701,7 +702,7 @@ inferAgainst expr expected_ty
        d <- getTypeContext
        if compatible d found_ty expected_ty
           then return (found_ty, expr')
-          else throwError (TypeMismatch expected_ty $ found_ty `withLoc` expr')
+          else throwError $ TypeMismatch expected_ty found_ty `withLoc` expr'
 
 inferAgainstAnyJClass :: ReaderExpr -> Checker (ClassName, CheckedExpr)
 inferAgainstAnyJClass expr
@@ -710,10 +711,7 @@ inferAgainstAnyJClass expr
         -- JType (JPrim "char") -> return ("java.lang.Character", expr')
         JType (JClass c) -> return (c, expr')
         ListOf _         -> return (namespace ++ "FunctionalList", expr')
-        _ -> throwError $
-             General
-             (code (pretty expr) <+> text "has type" <+> code (pretty ty) <> comma <+>
-              text "but is expected to be of some Java class")
+        _ -> throwError $ TypeMismatch ty (JType $ JPrim "Java class") `withLoc` expr
 
 -- | Check "f [A1,...,An] (x1:t1) ... (xn:tn): t = e"
 normalizeBind :: ReaderBind -> Checker (Name, Type, CheckedExpr)
@@ -735,7 +733,7 @@ normalizeBind bind
                    then return (bindId bind'
                                , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                                , wrap (\x acc -> BLam x acc `withLoc` acc) (bindTyParams bind') (wrap (\x acc -> Lam x acc `withLoc` acc) (bindParams bind') bindRhs'))
-                   else throwError (TypeMismatch (expandType d ty_ascription') $ bindRhsTy `withLoc` bindRhs')
+                   else throwError (TypeMismatch (expandType d ty_ascription') bindRhsTy `withLoc` bindRhs')
 
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.
@@ -756,7 +754,7 @@ collectBindIdSigs :: [ReaderBind] -> Checker [(Name, Type)]
 collectBindIdSigs
   = mapM (\ Bind{..} ->
             case bindRhsTyAscription of
-              Nothing    -> throwError (MissingTyAscription bindId)
+              Nothing    -> throwError (noLoc $ MissingTyAscription bindId)
               Just tyAscription ->
                 do d <- getTypeContext
                    let d' = foldr (\a acc -> Map.insert a (Star, TerminalType) acc) d bindTyParams
@@ -775,9 +773,9 @@ checkType t =
       delta <- getTypeContext
       maybe_kind <- liftIO $ kind delta t
       case maybe_kind of
-        Nothing   -> throwError (NotWellKinded t)
+        Nothing   -> throwError (noLoc $ NotWellKinded t)
         Just Star -> return ()
-        Just k    -> throwError (KindMismatch Star k)
+        Just k    -> throwError (noLoc $ KindMismatch Star k)
 
 unlessIO :: (Monad m, MonadIO m) => IO Bool -> m () -> m ()
 unlessIO test do_this
@@ -794,20 +792,20 @@ checkClassName c
             res <- liftIO (isJvmType h c)
             if res
                then memoizeJavaClass c
-               else throwError (NoSuchClass c)
+               else throwError (noLoc $ NoSuchClass c)
 
 checkConstruction :: ClassName -> [ClassName] -> Checker ()
 checkConstruction c args
   = do h <- getTypeServer
        unlessIO (hasConstructor h c args) $
-         throwError (NoSuchConstructor c args)
+         throwError (noLoc $ NoSuchConstructor c args)
 
 checkMethodCall :: JCallee ClassName -> MethodName -> [ClassName] -> Checker ClassName
 checkMethodCall callee m args
   = do typeserver <- getTypeServer
        res <- liftIO (methodTypeOf typeserver c (m, static_flag) args)
        case res of
-         Nothing           -> throwError (NoSuchMethod callee m args)
+         Nothing           -> throwError (noLoc $ NoSuchMethod callee m args)
          Just return_class -> return return_class
     where
        (static_flag, c) = unwrapJCallee callee
@@ -817,7 +815,7 @@ checkFieldAccess callee f
   = do typeserver <- getTypeServer
        res <- liftIO (fieldTypeOf typeserver c (f, static_flag))
        case res of
-         Nothing           -> throwError (NoSuchField callee f)
+         Nothing           -> throwError (noLoc $ NoSuchField callee f)
          Just return_class -> return return_class
     where
        (static_flag, c) = unwrapJCallee callee
@@ -837,7 +835,7 @@ checkDupNames :: [Name] -> Checker ()
 checkDupNames names
   = case findOneDup names of
       Nothing   -> return ()
-      Just name -> throwError (DuplicateParam name)
+      Just name -> throwError (noLoc $ DuplicateParam name)
 
 -- | Find one instance of duplicate in a list.
 findOneDup :: Ord a => [a] -> Maybe a

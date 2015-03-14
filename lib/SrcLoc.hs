@@ -15,6 +15,8 @@ Portability :  portable
 
 module SrcLoc where
 
+import Text.PrettyPrint.ANSI.Leijen
+
 import Data.Foldable ( Foldable )
 import Data.Traversable ( Traversable )
 
@@ -32,6 +34,10 @@ deriving instance Traversable (GenLocated l)
 data Loc = Loc { line :: !Int, column :: !Int }
          | NoLoc
            deriving (Eq, Ord, Show)
+
+instance Pretty Loc where
+    pretty (Loc l c) = int l <> colon <> int c <> colon
+    pretty NoLoc = empty
 
 unLoc :: Located a -> a
 unLoc (L _ x) = x
