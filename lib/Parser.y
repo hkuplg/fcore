@@ -66,7 +66,8 @@ import JavaUtils
 
   UPPER_IDENT  { L _ (Tupperid _) }
   LOWER_IDENT  { L _ (Tlowerid _) }
-  UNDERID      { L _ (Tunderid $$) }
+  UNDER_IDENT  { L _ (Tunderid $$) }
+  SYMBOL_IDENT { L _ (Tsymbolid _) }
 
   JAVACLASS { L _ (Tjavaclass _) }
   "new"     { L _ Tnew }
@@ -255,11 +256,18 @@ comma_exprs2 :: { [ReaderExpr] }
     | expr "," comma_exprs2   { $1:$3    }
 
 infixexpr0 :: { ReaderExpr }
-           : infixexpr                                          { $1 }
-           | infixexpr0 "`" LOWER_IDENT           "`" infixexpr { App (App (Var (toString $3) `withLoc` $3) $1 `withLoc` $3) $5 `withLoc` $1 }
-           | infixexpr0 "`" LOWER_IDENT type_list "`" infixexpr { App (App (foldl (\acc t -> TApp acc t `withLoc` acc) 
-                                                                                  (TApp (Var (toString $3) `withLoc` $3) (head $4) `withLoc` $3) 
-                                                                                  (tail $4)) $1 `withLoc` $3) $6 `withLoc` $1 }
+           : infixexpr                                  { $1 }
+           | infixexpr0 infix_func infixexpr            { App (App $2 $1 `withLoc` $2) $3 `withLoc` $1 }
+
+infix_func :: { ReaderExpr }
+           : SYMBOL_IDENT                   { Var (toString $1) `withLoc` $1 }
+           | SYMBOL_IDENT type_list         { foldl (\acc t -> TApp acc t `withLoc` acc) 
+                                                    (TApp (Var (toString $1) `withLoc` $1) (head $2) `withLoc` $1) 
+                                                    (tail $2) }
+           | "`" LOWER_IDENT "`"            { Var (toString $2) `withLoc` $2 }
+           | "`" LOWER_IDENT type_list "`"  { foldl (\acc t -> TApp acc t `withLoc` acc) 
+                                                    (TApp (Var (toString $2) `withLoc` $2) (head $3) `withLoc` $2) 
+                                                    (tail $3) }
 
 infixexpr :: { ReaderExpr }
     : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 `withLoc` $1 }
@@ -287,7 +295,7 @@ aexpr :: { ReaderExpr }
     : LOWER_IDENT               { Var (toString $1) `withLoc` $1 }
     | lit                       { $1 }
     | "(" comma_exprs2 ")"      { Tuple $2 `withLoc` $1 }
-    | aexpr "." UNDERID         { Proj $1 $3 `withLoc` $1 }
+    | aexpr "." UNDER_IDENT     { Proj $1 $3 `withLoc` $1 }
     | module_name "." ident     { ModuleAccess (unLoc $1) (unLoc $3) `withLoc` $1 }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 `withLoc` $1 }
@@ -357,7 +365,7 @@ record_construct_field :: { (Label, ReaderExpr) }
   : label "=" expr                                          { ($1, $3) }
 
 bind :: { ReaderBind }
-  : LOWER_IDENT ty_param_list_or_empty params maybe_ty_ascription "=" expr
+  : bind_lhs ty_param_list_or_empty params maybe_ty_ascription "=" expr
   { Bind { bindId       = toString $1
          , bindTyParams = map unLoc $2
          , bindParams   = map unLoc $3
@@ -365,6 +373,10 @@ bind :: { ReaderBind }
          , bindRhs      = $6
          }
   }
+
+bind_lhs
+    : LOWER_IDENT           { $1 }
+    | "(" SYMBOL_IDENT ")"  { $2 }
 
 and_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
@@ -456,4 +468,5 @@ toString (L _ tok) =
     Tjavaclass x -> x
     Tupperid x -> x
     Tlowerid x -> x
+    Tsymbolid x -> x
 }

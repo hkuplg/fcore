@@ -36,6 +36,8 @@ $digit = [0-9]
 
 $vchar = [$alpha $digit \_ \']
 
+$symbols = [\! \# \$ \% \& \* \+ \. \/ \< \= \> \? \@ \\ \^ \| \- \~]
+
 -- Use Java string specification
 -- From Language.Java v0.2.7 (BSD3 License)
 $octdig     = [0-7]
@@ -137,6 +139,8 @@ tokens :-
     \&\&        { locate (\_ _ -> Tprimop J.CAnd   ) }
     \|\|        { locate (\_ _ -> Tprimop J.COr    ) }
 
+    $symbols+   { locate (\_ s -> Tsymbolid s) }
+
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tbackquote
@@ -146,7 +150,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tnew
            | Tif | Tthen | Telse
            | Tcomma | Tsemi
-           | Tupperid String | Tlowerid String | Tunderid Int
+           | Tupperid String | Tlowerid String | Tunderid Int | Tsymbolid String
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
