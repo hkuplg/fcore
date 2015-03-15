@@ -17,7 +17,7 @@ module Main where
 import System.IO
 import System.Process
 import System.Directory                 (doesFileExist, getDirectoryContents)
-import System.FilePath                  (takeFileName)
+import System.FilePath                  (takeFileName, takeExtensions)
 import System.TimeIt        (timeIt)
 
 import Data.Time            (getCurrentTime, diffUTCTime)
@@ -65,7 +65,7 @@ loadAll _ _ _ _ [] = return ()
 loadAll inP outP method opt (x:xs) = do
     let compileOpt = (0, opt, method)
     let name = takeFileName x
-    when (head name /= '.') $
+    when ((head name /= '.') && (takeExtensions x == ".sf")) $
      do putStrLn ("Running " ++ name)
         output <- getStandardOutput x
         putStrLn $ "\x1b[32m" ++ "Standard output: " ++ output
