@@ -96,6 +96,7 @@ tokens :-
     case        { locate (\_ _ -> Tcase) }
     of          { locate (\_ _ -> Tof) }
     \_          { locate (\_ _ -> Tunderscore) }
+    \`          { locate (\_ _ -> Tbackquote) }
 
     -- Literals
     $digit+                { locate (\_ s -> Tint (read s)) }
@@ -119,7 +120,6 @@ tokens :-
     -- ID
     [A-Z] [$vchar]*                                      { locate (\_ s -> Tupperid s) }
     \_ [$alpha \_] [$vchar]* | [a-z] [$vchar]*           { locate (\_ s -> Tlowerid s) }
-    \` (\_ [$alpha \_] [$vchar]* | [a-z] [$vchar]*) \`   { locate (\_ s -> TinfixFunc (init (tail s))) }
     \_ $digit+                                           { locate (\_ s -> Tunderid (read (tail s))) }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
@@ -139,14 +139,14 @@ tokens :-
 
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tbackquote
            -- | Tthis | Tsuper
            | Ttype | Tlet | Trec | Teq | Tand
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
            | Tcomma | Tsemi
-           | Tupperid String | Tlowerid String | Tunderid Int | TinfixFunc String
+           | Tupperid String | Tlowerid String | Tunderid Int
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
