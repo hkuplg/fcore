@@ -166,6 +166,7 @@ transS this super =
                  do (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
                     translateLet (up this) (s1,j1,t1) body
                -- count other expressions as not in tail position
+               Case e alts -> undefined
                _ -> local (False &&) $ translateM super e
 
          ,genApply =

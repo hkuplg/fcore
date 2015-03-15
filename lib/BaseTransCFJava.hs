@@ -66,6 +66,8 @@ data Translate m =
     ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
     ,genTest :: m Bool
+    ,transAlts :: TransJavaExp -> [Alt Int (Var, Type Int)] -> m TransType
+    ,mapAlt :: J.Exp -> J.Name -> Alt Int (Var, Type Int) -> m (J.SwitchBlock, Type Int)
     ,withApply :: m Bool
     ,getPrefix :: m String
     ,getBox :: Type Int -> m String
@@ -459,43 +461,10 @@ trans self =
                               methoddecl = memberDecl $ methodDecl [] (Just $ classTy nam) ctrname (zipWith paramDecl javaty fields)
                                                         (returnExp (cast (classTy nam) (instCreat (classTyp ctrname) (map varExp fields))))
                           return [ctrclass, methoddecl]
-              Case e alts ->
-                do (s',e', _) <- translateM this e
-                   let tagaccess = fieldAccess (unwrap e') datatypetag
-                   newVarName <- getNewVarName this
-                   blocks <- mapM (mapAlt (unwrap e') (name [newVarName])) alts
-                   let (blocks', type') = unzip blocks
-                       defaultBlock = switchBlock Nothing [bStmt $ throwRuntimeException "pattern match fail"]
-                   jtype <- javaType this $ head type'
-                   let newvardecl = localVar jtype $ varDeclNoInit newVarName
-                       switchstmt = bStmt $ switchStmt tagaccess (blocks' ++ [defaultBlock])
-                   return (s' ++ [newvardecl, switchstmt], var newVarName, head type')
-                where mapAlt e' resultName (ConstrAlt (Constructor ctrname types) _ f) = do
-                        let (Datatype nam tvars ctrnames) = last types
-                            Just label = elemIndex ctrname ctrnames
-                            len = length types - 1
-                            objtype = case len of
-                                         0  -> classTy nam
-                                         _  -> classTy (nam ++ "." ++ nam ++ ctrname)
-                        (n :: Int) <- get
-                        put (n+len+1)
-                        let varname = localvarstr ++ show n
-                        jtypes <- mapM (javaType this) (init types)
-                        tvarjtypes <- mapM (javaType this) tvars
-                        let objdecl = case len of
-                                         0 -> localVar objtype $ varDecl varname e'
-                                         _ -> localVar objtype $ varDecl varname (cast objtype e')
-                            vardecls = zipWith (\i ty -> let fieldaccess = fieldAccess (varExp varname) (fieldtag ++ show i)
-                                                         in  if (ty == objClassTy || not (elem ty tvarjtypes))
-                                                              then localVar ty $ varDecl (localvarstr ++ show (n+i)) fieldaccess
-                                                              else localVar ty $ varDecl (localvarstr ++ show (n+i)) (cast ty fieldaccess) )
-                                                [1..len]
-                                                jtypes
-                        (altstmt, alte, altt) <- translateM this $ f (zip [(n+1) ..] (init types))
-                        let result = assign resultName (unwrap alte)
-                        return (switchBlock (Just (integerExp $ fromIntegral label + 1)) $
-                                  [objdecl] ++ vardecls ++ altstmt ++ [result],
-                                altt)
+              Case scrut alts ->
+                do (scrutStmts, scrutExpr, _) <- translateM this scrut
+                   (altsStmts, varName, typ) <- transAlts this scrutExpr alts
+                   return (scrutStmts ++ altsStmts, varName, typ)
         ,translateScopeM =
           \e m ->
             case e of
@@ -568,6 +537,44 @@ trans self =
                 jt1 <- javaType this t1
                 let xDecl = localVar jt1 (varDecl x $ unwrap j1)
                 return (s1 ++ [xDecl] ++ s2, j2, t2)
+       ,transAlts =
+           \scrut alts -> do
+             let tagaccess = fieldAccess (unwrap scrut) datatypetag
+             newVar <- getNewVarName this
+             blocks <- mapM (mapAlt this (unwrap scrut) (name [newVar])) alts
+             let (blocks', type') = unzip blocks
+                 defaultBlock = switchBlock Nothing [bStmt $ throwRuntimeException "pattern match fail"]
+             jtype <- javaType this $ head type'
+             let newvardecl = localVar jtype $ varDeclNoInit newVar
+                 switchstmt = bStmt $ switchStmt tagaccess (blocks' ++ [defaultBlock])
+             return ([newvardecl, switchstmt], var newVar, head type')
+       ,mapAlt =
+           \scrut resultName (ConstrAlt (Constructor ctrname types) _ f) -> do
+             let (Datatype nam tvars ctrnames) = last types
+                 Just label = elemIndex ctrname ctrnames
+                 len = length types - 1
+                 objtype = case len of
+                             0  -> classTy nam
+                             _  -> classTy (nam ++ "." ++ nam ++ ctrname)
+             (n :: Int) <- get
+             put (n+len+1)
+             let varname = localvarstr ++ show n
+             jtypes <- mapM (javaType this) (init types)
+             tvarjtypes <- mapM (javaType this) tvars
+             let objdecl = case len of
+                             0 -> localVar objtype $ varDecl varname scrut
+                             _ -> localVar objtype $ varDecl varname (cast objtype scrut)
+                 vardecls = zipWith (\i ty -> let fieldaccess = fieldAccess (varExp varname) (fieldtag ++ show i)
+                                              in  if (ty == objClassTy || not (elem ty tvarjtypes))
+                                                  then localVar ty $ varDecl (localvarstr ++ show (n+i)) fieldaccess
+                                                  else localVar ty $ varDecl (localvarstr ++ show (n+i)) (cast ty fieldaccess) )
+                                    [1..len]
+                                    jtypes
+             (altstmt, alte, altt) <- translateM this $ f (zip [(n+1) ..] (init types))
+             let result = assign resultName (unwrap alte)
+             return (switchBlock (Just (integerExp $ fromIntegral label + 1)) $
+                     [objdecl] ++ vardecls ++ altstmt ++ [result],
+                     altt)
        ,translateScopeTyp =
           \x1 f initVars _ otherStmts closureClass ->
             do b <- genClone this
