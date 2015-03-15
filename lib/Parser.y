@@ -62,11 +62,11 @@ import JavaUtils
   "|"      { L _ Tbar }
   "of"     { L _ Tof }
   "_"      { L _ Tunderscore }
+  "`"      { L _ Tbackquote }
 
   UPPER_IDENT  { L _ (Tupperid _) }
   LOWER_IDENT  { L _ (Tlowerid _) }
   UNDERID      { L _ (Tunderid $$) }
-  INFIX_FUNC   { L _ (TinfixFunc _) }
 
   JAVACLASS { L _ (Tjavaclass _) }
   "new"     { L _ Tnew }
@@ -119,7 +119,6 @@ import JavaUtils
 %left "+" "-"
 %left "*" "/" "%"
 %nonassoc NEG
-%left INFIX_FUNC
 
 %%
 
@@ -235,7 +234,7 @@ expr :: { ReaderExpr }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
     | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "case" expr "of" patterns           { Case $2 $4 `withLoc` $1 }
-    | infixexpr                           { $1 }
+    | infixexpr0                          { $1 }
     | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
 
@@ -255,6 +254,13 @@ comma_exprs2 :: { [ReaderExpr] }
     : expr "," expr           { [$1,$3]  }
     | expr "," comma_exprs2   { $1:$3    }
 
+infixexpr0 :: { ReaderExpr }
+           : infixexpr                                          { $1 }
+           | infixexpr0 "`" LOWER_IDENT           "`" infixexpr { App (App (Var (toString $3) `withLoc` $3) $1 `withLoc` $3) $5 `withLoc` $1 }
+           | infixexpr0 "`" LOWER_IDENT type_list "`" infixexpr { App (App (foldl (\acc t -> TApp acc t `withLoc` acc) 
+                                                                                  (TApp (Var (toString $3) `withLoc` $3) (head $4) `withLoc` $3) 
+                                                                                  (tail $4)) $1 `withLoc` $3) $6 `withLoc` $1 }
+
 infixexpr :: { ReaderExpr }
     : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 `withLoc` $1 }
     | infixexpr "/"  infixexpr  { PrimOp $1 (Arith J.Div)    $3 `withLoc` $1 }
@@ -270,7 +276,6 @@ infixexpr :: { ReaderExpr }
     | infixexpr "&&" infixexpr  { PrimOp $1 (Logic J.CAnd)   $3 `withLoc` $1 }
     | infixexpr "||" infixexpr  { PrimOp $1 (Logic J.COr)    $3 `withLoc` $1 }
     | infixexpr ",," infixexpr  { Merge $1 $3 `withLoc` $1 }
-    | infixexpr INFIX_FUNC infixexpr   { App (App (Var (toString $2) `withLoc` $2) $1 `withLoc` $2) $3  `withLoc` $1 }
     | fexpr                     { $1 }
 
 fexpr :: { ReaderExpr }
@@ -451,5 +456,4 @@ toString (L _ tok) =
     Tjavaclass x -> x
     Tupperid x -> x
     Tlowerid x -> x
-    TinfixFunc x -> x
 }
