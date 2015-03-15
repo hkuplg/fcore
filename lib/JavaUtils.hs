@@ -22,7 +22,7 @@ module JavaUtils
 import StringUtils (capitalize)
 
 import System.Directory (setCurrentDirectory, getCurrentDirectory, getTemporaryDirectory)
-import System.FilePath (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>))
+import System.FilePath (takeDirectory, takeFileName, takeBaseName, replaceExtension, (</>), (<.>), dropExtension)
 import System.Process (system)
 
 type ClassName  = String
@@ -42,8 +42,10 @@ getClassPath = do r <- getRuntimeJarPath
 -- infer the output path for the corresponding Java source.
 -- "tests/pinepine/even_odd.sf" => "tests/pinepine/Even_odd.java"
 inferOutputPath :: FilePath -> FilePath
-inferOutputPath source_path
-  = takeDirectory source_path </> capitalize (replaceExtension (takeFileName source_path) "java")
+inferOutputPath source_path =
+  let fileName = (dropExtension . takeFileName $ source_path) ++ "s" -- avoid name clash
+  in takeDirectory source_path </>
+     (capitalize fileName) <.> "java"
 
 inferClassName :: FilePath -> String
 inferClassName outputPath = capitalize $ takeBaseName outputPath
