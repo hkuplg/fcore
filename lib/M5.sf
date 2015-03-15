@@ -1,0 +1,4 @@
+data M5.PolyList [A] = Nil
+                | Cons A (M5.PolyList[A]);
+
+type M5.IntList = M5.PolyList[Int];
