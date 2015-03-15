@@ -141,7 +141,7 @@ transExpr i j (FI.PolyList es t)           = PolyList (map (transExpr i j) es) (
 transExpr i j (FI.JProxyCall e t)          = JProxyCall (transExpr i j e) (transType i t)
 transExpr i j (FI.Data recflag databinds e)= Data recflag (map transDatabind databinds) (transExpr i j e)
   where transCtr (FI.Constructor name cps) = Constructor name . map (transType i) $ cps
-        transDatabind (FI.DataBind n params ctrs) = DataBind n params (map transCtr ctrs)
+        transDatabind (FI.DataBind n params ctrs) = DataBind n params (map transCtr . ctrs)
 transExpr _ _ _                            = trace "Unsupported: Simplify.transExpr" (Var "" (-1))
 
 transType :: Index -> FI.Type Index -> Type Index
@@ -307,9 +307,12 @@ dedeBruE i as j xs (Case e alts)                  = Case (dedeBruE i as j xs e) 
           ConstrAlt
             (Constructor name (map (dedeBruT i as) ts)) names
             (\xs' -> dedeBruE i as (j + n) ((reverse xs') ++ xs) (fe [j..j + n - 1])) where n = length ts - 1
+
 dedeBruE i as j xs (Data recflag databinds e)     = Data recflag (map dedeBruijnDatabind databinds) (dedeBruE i as j xs e)
-  where dedeBruijnConstr (Constructor name types) = Constructor name (map (dedeBruT i as) types)
-        dedeBruijnDatabind (DataBind n ns ctrs)   = DataBind n ns (map dedeBruijnConstr ctrs)
+  where dedeBruijnConstr i' as' (Constructor name types) = Constructor name (map (dedeBruT i' as') types)
+        dedeBruijnDatabind (DataBind n ns ctrs)   = DataBind n ns (\a -> map (dedeBruijnConstr (length ns + i) (a++as)) $
+                                                                         (ctrs [i..length ns+i-1]) )
+
 dedeBruE i as j xs (PolyList es t)                = PolyList (map (dedeBruE i as j xs) es) (dedeBruT i as t)
 dedeBruE i as j xs (JProxyCall e t)               = JProxyCall (dedeBruE i as j xs e) (dedeBruT i as t)
 

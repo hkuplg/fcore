@@ -105,7 +105,7 @@ data Expr t e
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
 
-data DataBind t = DataBind Src.ReaderId [Src.ReaderId] [Constructor t]
+data DataBind t = DataBind Src.ReaderId [Src.ReaderId] ([t] -> [Constructor t])
 
 data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ([e] -> Expr t e)
             -- | Default (Expr t e)
@@ -146,7 +146,7 @@ mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) 
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
 mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (mapVar g h e)
-    where mapDatabind (DataBind name params ctrs) = DataBind name params (map mapCtr ctrs)
+    where mapDatabind (DataBind name params ctrs) = DataBind name params (map mapCtr. ctrs)
           mapCtr (Constructor n ts) = Constructor n (map h ts)
 mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
@@ -343,10 +343,10 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
     pretty_body  = prettyExpr' p (i, j + n) (body ids)
 
 prettyExpr' p (i,j) (Data recflag databinds e) =
-  text "data" <+> (pretty recflag) <+> (align. vsep) (map prettyDatabind databinds) <$> prettyExpr' p (i,j) e
-    where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
-          prettyDatabind (DataBind n tvars cons) =
-             hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi)
+  text "data" <+> (pretty recflag) <+> (align .vsep) (map prettyDatabind databinds) <$> prettyExpr' p (i,j) e
+    where prettyCtr i' (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i') $ ctrParams)
+          prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
+                   (equals <+> intersperseBar (map (prettyCtr (i+ (length tvars)))$ cons [i..(i-1+(length tvars))]) <$$> semi)
 
 prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 

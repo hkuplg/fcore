@@ -153,7 +153,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (Seq es) = F.Seq (map go es)
     go (Data recflag databinds e) = F.Data recflag (map desugarDatabind databinds) (go e)
 
-    go (Constr c es) = F.Constr (desugarConstructor c) (map go es)
+    go (Constr c es) = F.Constr (desugarConstructor d c) (map go es)
     go (Case e alts) = F.Case (go e) (map desugarAlts alts)
     go (CaseString e alts) =
             let emptytest = JMethod (NonStatic e) "isEmpty" [] "java.lang.Boolean"
@@ -165,10 +165,14 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
             in
             go (If emptytest emptyexpr nonemptyexpr)
 
-    desugarDatabind (DataBind n params ctrs) = F.DataBind n params (map desugarConstructor ctrs)
-    desugarConstructor (Constructor n ts) = F.Constructor n (map (transType d) ts)
+    desugarDatabind (DataBind n params ctrs) =
+         F.DataBind n params (\t ->
+            let d' = addToTVarMap (zip params t) d
+            in  map (desugarConstructor d') ctrs
+         )
+    desugarConstructor d' (Constructor n ts) = F.Constructor n (map (transType d') ts)
     desugarAlts (ConstrAlt c ns e) =
-        let c' = desugarConstructor c
+        let c' = desugarConstructor d c
             f ns' = desugarExpr (d, zipWith (\n e' -> (n, F.Var n e')) ns ns' `addToVarMap` g) e
         in F.ConstrAlt c' ns f
 
@@ -240,3 +244,6 @@ desugarLetRecToLetRec _ _ = panic "desugarLetRecToLetRec"
 
 addToVarMap :: [(ReaderId, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
+
+addToTVarMap :: [(ReaderId, t)] -> TVarMap t -> TVarMap t
+addToTVarMap xs tvar_map = foldr (\(x,x') acc -> Map.insert x x' acc) tvar_map xs
