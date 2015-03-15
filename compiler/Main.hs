@@ -142,7 +142,8 @@ main = do
            sort_and_rmdups  = map head . group . sort . (++) [Naive]
        opt <- getOpt (sort_and_rmdups translate_method)
        unless (null optModules) $
-         do content <- Link.linkModule modList
+         do cont <- Link.linkModule modList
+            let content = Link.namespace cont
             putStrLn "Linking..."
             Link.link source_path content
             putStrLn (source_path_new ++ " generated!")

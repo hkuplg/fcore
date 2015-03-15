@@ -165,6 +165,11 @@ transS this super =
                Let _ expr body ->
                  do (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
                     translateLet (up this) (s1,j1,t1) body
+               -- case scrutinee can't be in tail position, alts inherit flag
+               Case scrut alts -> do
+                      (scrutStmts, scrutExpr, _) <- local (False &&) $ translateM (up this) scrut
+                      (altsStmts, varName, typ) <- transAlts (up this) scrutExpr alts
+                      return (scrutStmts ++ altsStmts, varName, typ)
                -- count other expressions as not in tail position
                _ -> local (False &&) $ translateM super e
 

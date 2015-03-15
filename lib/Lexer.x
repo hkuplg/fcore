@@ -90,6 +90,7 @@ tokens :-
     \,          { locate (\_ _ -> Tcomma) }
     new         { locate (\_ _ -> Tnew) }
     module      { locate (\_ _ -> Tmodule) }
+    import      { locate (\_ _ -> Timport) }
     data        { locate (\_ _ -> Tdata) }
     \|          { locate (\_ _ -> Tbar) }
     case        { locate (\_ _ -> Tcase) }
@@ -149,7 +150,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule
+           | Tmodule | Timport
            | Temptytree | Tnonemptytree
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
