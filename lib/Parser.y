@@ -293,6 +293,7 @@ fexpr :: { ReaderExpr }
 
 aexpr :: { ReaderExpr }
     : LOWER_IDENT               { Var (toString $1) `withLoc` $1 }
+    | "(" SYMBOL_IDENT ")"      { Var (toString $2) `withLoc` $2 }
     | lit                       { $1 }
     | "(" comma_exprs2 ")"      { Tuple $2 `withLoc` $1 }
     | aexpr "." UNDER_IDENT     { Proj $1 $3 `withLoc` $1 }
