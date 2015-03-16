@@ -43,7 +43,7 @@ getClassPath = do r <- getRuntimeJarPath
 -- "tests/pinepine/even_odd.sf" => "tests/pinepine/Even_odd.java"
 inferOutputPath :: FilePath -> FilePath
 inferOutputPath source_path =
-  let fileName = (dropExtension . takeFileName $ source_path) ++ "s" -- avoid name clash
+  let fileName = (dropExtension . takeFileName $ source_path) ++ "$" -- avoid name clash
   in takeDirectory source_path </>
      (capitalize fileName) <.> "java"
 
