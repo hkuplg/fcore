@@ -21,9 +21,17 @@ import           ClosureF
 import           Inheritance
 import           MonadLib
 import           JavaEDSL(wrapperClass,bStmt,unwrap,mainBody,var,classTy,
-                          objClassTy,localFinalVar,varDecl)
+                          objClassTy,localFinalVar,varDecl,
+                          -- needed by lam/fixpoint?
+                          name, fieldAccess, left, cast, localVar, funInstCreate,
+                          localClassDecl, classBody, methodDecl, memberDecl, fieldDecl,
+                          assign)
 import qualified Src as S
 import           StringPrefixes(localvarstr)
+
+-- messy lam/fixpoint
+import           Debug.Trace
+import           Data.Char
 
 type Var = (J.Name, J.Name) -- Either normal variable or class name
 type TransJavaExp = Either Var J.Literal -- either variable or special case: Lit
@@ -33,6 +41,7 @@ type InitVars = [J.BlockStmt]
 
 data Translate m =
     T {
+    translateScopeM :: (EScope Var (Var, Type Var), S.ReaderId) -> Maybe (Var,Type Var) -> m ([J.BlockStmt],TransJavaExp,TScope Var),
     translateM :: Expr Var (Var,Type Var) -> m TransType,
     createWrap :: String -> Expr Var (Var,Type Var) -> m (J.CompilationUnit,Type Var)}
 
@@ -59,10 +68,18 @@ javaType = \typ -> case typ of
 assignVar :: Type Var -> String -> J.Exp -> J.BlockStmt
 assignVar t varId e = localFinalVar (javaType t) (varDecl varId e)
 
+closureBodyGen :: [J.Decl] -> [J.BlockStmt] -> J.Type -> J.ClassBody
+closureBodyGen initDecls body className = classBody $ initDecls ++ [applyMethod]
+  where
+    applyMethod = J.MemberDecl $ methodDecl [J.Public] Nothing "apply" [] (Just (J.Block body))
+
+blabla lname n = (name [lname ++ (show n)], name [lname ++ (show n)])
+
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self
   in T {
   translateM = \e -> case e of
+      Var lname (i,t) -> return ([],Left i,t)
       Lit lit ->
           case lit of
             (S.Int i)    -> return ([], Right $ J.Int i, CFInt)
@@ -83,7 +100,78 @@ trans self = let this = up self
                                    _ -> error "Ooops, this operator is not implemented."
                newVarName <- getNewVarName this
                let assignExpr = assignVar typ newVarName jexpr
-               return (s1 ++ s2 ++ [assignExpr],var newVarName,typ),
+               return (s1 ++ s2 ++ [assignExpr],var newVarName,typ)
+
+      Lam lname se ->
+            do (s,je,t) <- translateScopeM this (se, lname) Nothing
+               return (s,je,Forall t)
+
+      Fix lname1 lname2 t s ->
+            do (n :: Int) <- get
+               put (n + 1)
+               (expr,je,t') <- translateScopeM this (s (blabla lname1 n,t), lname1) (Just (blabla lname1 n,t)) -- weird!
+               return (expr,je,Forall t')
+               ,
+
+  translateScopeM =
+    \(e,lname) m ->
+      case e of
+{-
+Γ |- E : T ~> J in S
+--------------------------- :: cjd-empty
+Γ;empty |- E : T ~> J in S
+-}
+        Body t ->
+          do (s,je,t1) <- translateM this t
+             return (s,je,Body t1)
+
+{-
+Γα;∆ ⊢ E : T ~> J in S
+----------------------- :: cjd-bind2
+Γ;α∆ ⊢ E : T ~> J in S
+-}
+        Kind f ->
+          do (n :: Int) <- get
+             put (n + 1) -- needed to distingush type variable
+             (s,je,t1) <- translateScopeM this ((f (blabla lname n), lname)) m
+             return (s,je,Kind (\a -> substScope' (blabla lname n) (TVar a) t1))
+
+{-
+Γ(y : T1 -> x2);∆ |- E : T ~> J in S
+FC, x1, x2, f fresh
+------------------------------------- :: cjd-bind1
+Γ;(y : T1)∆ |- E : T ~> f in S'
+S' := (cvar)
+-}
+        Type t g ->
+          do (n :: Int) <- get
+             let (x1,x2) = maybe (blabla lname (n + 1),blabla lname (n + 2)) (\(i,_) -> (blabla lname i,blabla lname (n+1))) m -- decide whether we have found the fixpoint closure or not
+             let (unblaX1 :: String) = case (fst x1) of J.Name [J.Ident ln] -> ln
+             let (unblaX2 :: String) = case (fst x2) of J.Name [J.Ident ln] -> ln
+             let (x2num :: Int) = read (filter isNumber unblaX2)
+             put (x2num + 2)
+             let nextInClosure = g (blabla lname x2num,t)
+
+             let typT1 = javaType t
+             let flag = typT1 == objClassTy
+             let accessField = fieldAccess (left $ Left x1) "arg"
+             let xf = localFinalVar typT1 (varDecl unblaX2
+                                                   (if flag
+                                                       then accessField
+                                                       else cast typT1 accessField))
+             let closureClass = "f2j.unbox.Closure"
+             (ostmts,oexpr,t1) <- translateScopeM this (nextInClosure, lname) Nothing
+             let cvar = [localClassDecl ("Fun" ++ (show n))
+                                     closureClass
+                                     (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
+                                                                             (varDecl unblaX1 J.This)]
+                                                     ([xf] ++ ostmts ++ [assign (name ["out"]) (unwrap oexpr)])
+                                                     (classTy closureClass))]
+
+             let fstmt = [localVar (classTy "f2j.unbox.Closure") (varDecl (lname ++ show n) (funInstCreate n))]
+
+             return (cvar ++ fstmt,var (lname ++ show n),Type t (const t1))
+    ,
 
   createWrap = \className fExp ->
     do

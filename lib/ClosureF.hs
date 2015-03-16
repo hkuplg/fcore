@@ -18,6 +18,7 @@ import qualified Core as C
 
 import JavaUtils
 import Panic
+import qualified Language.Java.Syntax as J
 
 import PrettyUtils
 import Text.PrettyPrint.ANSI.Leijen
@@ -137,7 +138,7 @@ fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
 fexp2cexp (C.Let n bind body)        = Let n (fexp2cexp bind) (\e -> fexp2cexp $ body e)
 fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
 fexp2cexp (C.Fix n1 n2 f t1 t2) =
-  let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
+  let  g e = groupLambda (C.Lam (n1 ++ "_" ++ n2) t1 (f e)) -- is this right???? (BUG)
   in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
@@ -153,6 +154,7 @@ fexp2cexp (C.Data name params ctrs e) = Data name params (map fctr2cctr ctrs) (f
 fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr names f) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp.f)
+fexp2cexp e@(C.Lam n t e1)          = Lam n (groupLambda e)
 fexp2cexp e                         = Lam "Fun" (groupLambda e)
 
 fctr2cctr :: C.Constructor t -> Constructor t
@@ -217,22 +219,24 @@ substType n t (TVar x) = subst n t x
 substType n t (Forall s) = Forall (substScope n t s)
 substType n t x = x
 
+type JVar = (J.Name, J.Name)
+
 -- TODO: temp fix
-substScope' :: Subst t => (Int,Int) -> Type (Int,Int) -> Scope (Type t) t () -> Scope (Type t) t ()
+substScope' :: Subst t => JVar -> Type JVar -> Scope (Type t) t () -> Scope (Type t) t ()
 substScope' n t (Body t1) = Body (substType' n t t1)
 substScope' n t (Kind f)  = Kind (\a -> substScope' n t (f a))
 substScope' n t (Type t1 f) = Type (substType' n t t1) (\x -> substScope' n t (f x))
 
-substType' :: Subst t => (Int,Int) -> Type (Int,Int) -> Type t -> Type t
+substType' :: Subst t => JVar -> Type JVar -> Type t -> Type t
 substType' n t (TVar x) = subst' n t x
 substType' n t (Forall s) = Forall (substScope' n t s)
 substType' n t x = x
 
 class Subst t where
    subst :: Int -> Type Int -> t -> Type t
-   subst' :: (Int,Int) -> Type (Int,Int) -> t -> Type t
+   subst' :: JVar -> Type JVar -> t -> Type t
 
-instance Subst (Int,Int) where
+instance Subst JVar where
      subst' n t x | n == x = t
                   | otherwise = TVar x
 

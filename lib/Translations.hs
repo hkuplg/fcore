@@ -183,7 +183,7 @@ sf2java optInline optDump compilation className src =
                                     _ -> rewrittencore
                 when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittencore)
                 when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
-                let (cu, _) = compilation className inlinedCore
+                let (cu, _) = compilation className simpleCore--inlinedCore
                 return $ prettyPrint cu
        PError msg -> do print msg
                         exitFailure
