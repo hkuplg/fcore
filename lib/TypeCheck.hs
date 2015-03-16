@@ -592,20 +592,54 @@ infer expr@(L _ (Type t params rhs e))
 -- data List A = Nil | Cons A (expr@ List A); e
 -- gamma |- Nil: \/A. List A, Cons: \/A. A List A
 -- delta |- List: \A. List A
-infer (L loc (Data name params cs e)) =
-    do checkDupNames $ name:params
-       let names = map constrName cs
-       checkDupNames names
-       type_ctxt <- getTypeContext
+-- data List A = Nil | Cons A (List A) and ...; e
+-- gamma |- Nil: \/A. List A, Cons: \/A. A List A
+-- delta |- List: \A. List A
+infer (L loc (Data recflag databinds e)) =
+    do checkDupNames [ name | DataBind name _ _ <- databinds]
+       mapM_ (\(DataBind name params cs) ->
+                  do checkDupNames $ name:params
+                     let names = map constrName cs
+                     checkDupNames names
+             ) databinds
 
-       let dt = Datatype name (map TVar params) names
-           kind_dt = (foldr (\_ acc -> KArrow Star acc) Star params, NonTerminalType $ pullRight params dt)
-           type_ctxt' = Map.insert name kind_dt type_ctxt `Map.union` Map.fromList (zip params (repeat (Star, TerminalType)))
-           constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt' t | t <- ts] dt | Constructor _ ts <- cs]
-           cs' = [ Constructor ctrname (map (expandType type_ctxt') ts) | (Constructor ctrname ts) <- cs]
-           constr_binds = zip names constr_types
-       (t, e') <- withLocalTVars [(name, kind_dt)] (withLocalVars constr_binds (infer e))
-       return (t, L loc $ Data name params cs' e')
+       case recflag of
+         NonRec -> do
+           binds <- mapM (\bind@(DataBind name params _) ->
+                             do kind_dt <- getDatatype bind
+                                (cs', constr_binds)<- withLocalTVars (kind_dt : zip params (repeat (Star, TerminalType)))
+                                                                     $ getConstrbinds bind
+                                return ( kind_dt, constr_binds, DataBind name params cs')
+                         ) databinds
+           let (tvars, vars, databinds') = unzip3 binds
+           (t, e') <- withLocalTVars tvars $ withLocalVars (concat vars) $ infer e
+           return (t, L loc $ Data recflag databinds' e')
+         Rec -> do
+           kind_dts <- mapM getDatatype databinds
+           withLocalTVars kind_dts $ do
+             (vars, databinds') <- mapAndUnzipM (
+                     \bind@(DataBind name params _) ->
+                            do (cs', constr_binds)<- withLocalTVars (zip params (repeat (Star, TerminalType)))
+                                                                    $ getConstrbinds bind
+                               return ( constr_binds, DataBind name params cs')
+                    ) databinds
+             (t ,e') <- withLocalVars (concat vars) (infer e)
+             return (t, L loc $ Data recflag databinds' e')
+
+    where getDatatype (DataBind name params cs) =
+            do let names = map constrName cs
+                   dt = Datatype name (map TVar params) names
+                   kind_dt = (foldr (\_ acc -> KArrow Star acc) Star params, NonTerminalType $ pullRight params dt)
+               return (name, kind_dt)
+
+          getConstrbinds (DataBind name params cs) =
+            do type_ctxt <- getTypeContext
+               let names = map constrName cs
+                   dt = Datatype name (map TVar params) names
+                   constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt | Constructor _ ts <- cs]
+                   cs' = [ Constructor ctrname (map (expandType type_ctxt) ts) | (Constructor ctrname ts) <- cs]
+                   constr_binds = zip names constr_types
+               return (cs', constr_binds)
 
 infer e@(L loc (ConstrTemp name)) =
     do g <- getValueContext

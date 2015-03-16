@@ -1,0 +1,45 @@
+data rec
+  TreeT [A] = EmptyT | NodeT A (Forest [A])
+and
+  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]);
+
+let rec
+  map_tree [A,B] (f:A->B) (x:TreeT[A]):TreeT[B] =
+    case x of
+       EmptyT -> EmptyT [B]
+     | NodeT x xs -> NodeT [B] (f x) (map_forest [A] [B] f xs)
+and
+  map_forest [A,B] (f:A->B) (x:Forest[A]):Forest[B] =
+    case x of
+       NilF -> NilF [B]
+     | ConsF x y -> ConsF [B] (map_tree [A] [B] f x) (map_forest [A] [B] f y);
+
+let succ (x:Int) = x+1;
+
+type IntTreeT = TreeT [Int];
+type IntForest = Forest [Int];
+let rec
+  sum_tree (x:IntTreeT):Int =
+    case x of
+       EmptyT -> 0
+     | NodeT x xs -> x + sum_forest  xs
+and
+  sum_forest  (x:IntForest):Int =
+    case x of
+       NilF -> 0
+     | ConsF x y -> (sum_tree  x) + (sum_forest  y);
+
+let test = ConsF [Int]
+     (NodeT [Int] 1
+                 (ConsF [Int] (NodeT [Int] 2 (NilF [Int]))
+                              (NilF [Int])
+                 )
+     )
+     (ConsF [Int] (NodeT [Int] 3
+                               (NilF [Int])
+                  )
+                  (NilF [Int])
+     );
+
+sum_forest (map_forest [Int] [Int] succ test)
+

@@ -70,10 +70,11 @@ data Expr t e =
    | PolyList [Expr t e] (Type t)
    | JProxyCall (Expr t e) (Type t)
    | SeqExprs [Expr t e]
-   | Data S.ReaderId [S.ReaderId] [Constructor t] (Expr t e)
+   | Data S.RecFlag [DataBind t] (Expr t e)
    | Constr (Constructor t) [Expr t e]
    | Case (Expr t e) [Alt t e]
 
+data DataBind t = DataBind S.ReaderId [S.ReaderId] ([t] -> [Constructor t])
 data Constructor t = Constructor {constrName :: S.ReaderId, constrParams :: [Type t]}
 data Alt t e = ConstrAlt (Constructor t) [S.ReaderId] ([e] -> Expr t e)
 
@@ -148,7 +149,8 @@ fexp2cexp (C.JField c fName r) =
 fexp2cexp (C.PolyList es t)     = PolyList (map fexp2cexp es) (ftyp2ctyp t)
 fexp2cexp (C.JProxyCall jmethod t) = JProxyCall (fexp2cexp jmethod) (ftyp2ctyp t)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
-fexp2cexp (C.Data name params ctrs e) = Data name params (map fctr2cctr ctrs) (fexp2cexp e)
+fexp2cexp (C.Data recflag binds e) = Data recflag (map fdatabind2cdatabind binds) (fexp2cexp e)
+    where fdatabind2cdatabind (C.DataBind name params ctrs) = DataBind name params (map fctr2cctr . ctrs)
 fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr names f) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp.f)
@@ -375,8 +377,11 @@ prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text 
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
 
-prettyExpr p (i,j) (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr p (i,j) e
-  where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType p i) $ ctrParams)
+prettyExpr p (i,j) (Data recflag databinds e) =
+  text "data" <+> (pretty recflag) <+> (align .vsep) (map prettyDatabind databinds) <$> prettyExpr p (i,j) e
+    where prettyCtr i' (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType p i') $ ctrParams)
+          prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
+                   (equals <+> intersperseBar (map (prettyCtr (i+ (length tvars)))$ cons [i..(i-1+(length tvars))]) <$$> semi)
 
 prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
 prettyExpr p (i,j) (Case e alts) =

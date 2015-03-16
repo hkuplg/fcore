@@ -152,9 +152,9 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (L _ (JProxyCall jmethod t))    = F.JProxyCall (go jmethod) (transType d t)
 
     go (L _ (Seq es)) = F.Seq (map go es)
-    go (L _ (Data n params ctrs e)) = F.Data n params (map desugarConstructor ctrs) (go e)
+    go (L _ (Data recflag databinds e)) = F.Data recflag (map desugarDatabind databinds) (go e)
 
-    go (L _ (Constr c es)) = F.Constr (desugarConstructor c) (map go es)
+    go (L _ (Constr c es)) = F.Constr (desugarConstructor d c) (map go es)
     go (L _ (Case e alts)) = F.Case (go e) (map desugarAlts alts)
     go (L _ (CaseString e alts)) =
             let emptytest = noLoc $ JMethod (NonStatic e) "isEmpty" [] "java.lang.Boolean"
@@ -166,9 +166,14 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
             in
             go (noLoc $ If emptytest emptyexpr nonemptyexpr)
 
-    desugarConstructor (Constructor n ts) = F.Constructor n (map (transType d) ts)
+    desugarDatabind (DataBind n params ctrs) =
+         F.DataBind n params (\t ->
+            let d' = addToTVarMap (zip params t) d
+            in  map (desugarConstructor d') ctrs
+         )
+    desugarConstructor d' (Constructor n ts) = F.Constructor n (map (transType d') ts)
     desugarAlts (ConstrAlt c ns e) =
-        let c' = desugarConstructor c
+        let c' = desugarConstructor d c
             f ns' = desugarExpr (d, zipWith (\n e' -> (n, F.Var n e')) ns ns' `addToVarMap` g) e
         in F.ConstrAlt c' ns f
 
@@ -240,3 +245,6 @@ desugarLetRecToLetRec _ _ = panic "desugarLetRecToLetRec"
 
 addToVarMap :: [(ReaderId, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
+
+addToTVarMap :: [(ReaderId, t)] -> TVarMap t -> TVarMap t
+addToTVarMap xs tvar_map = foldr (\(x,x') acc -> Map.insert x x' acc) tvar_map xs

@@ -24,6 +24,7 @@ module Src
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId, LReaderId
   , TypeValue(..), TypeContext, ValueContext
+  , DataBind(..)
   , groupForall
   , expandType
 
@@ -143,7 +144,7 @@ data Expr id ty
       [Name]       -- A1 ... An -- Type parameters
       Type   -- t         -- RHS of the equal sign
       (LExpr id ty) -- e         -- The rest of the expression
-  | Data Name [Name] [Constructor] (LExpr id ty)
+  | Data RecFlag [DataBind] (LExpr id ty)
   | Case (LExpr id ty) [Alt id ty]
   | CaseString (LExpr id ty) [Alt id ty] --pattern match on string
   | ConstrTemp Name
@@ -151,6 +152,7 @@ data Expr id ty
   | JProxyCall (LExpr id ty) ty
   deriving (Eq, Show)
 
+data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
                    deriving (Eq, Show)
 
@@ -455,8 +457,10 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (JProxyCall jmethod _) = pretty jmethod
   pretty (Merge e1 e2)  = parens $ pretty e1 <+> text ",," <+> pretty e2
   pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
-  pretty (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi) <$>
-                           pretty e
+  pretty (Data recFlag datatypes e ) =
+    text "data" <+> pretty recFlag <+>
+    (vsep $ map pretty datatypes) <$>
+    pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
@@ -478,6 +482,9 @@ instance Pretty RecFlag where
 
 instance Pretty Constructor where
     pretty (Constructor n ts) = hsep $ text n : map pretty ts
+
+instance Pretty DataBind where
+  pretty (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
     pretty (ConstrAlt c ns e2) = hsep (text (constrName c) : map text ns) <+> arrow <+> pretty e2

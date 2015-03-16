@@ -433,15 +433,21 @@ trans self =
                                 [] -> localVar (classTy nam) (varDecl newVarName $ methodCallExp [map toLower nam,ctrName] [])
                                 _  -> localVar (classTy nam) (varDecl newVarName $ methodCallExp [map toLower nam,ctrName] (map unwrap oexpr))
                    return (stmts ++ [inst], var newVarName, last ctrParams)
-              Data nam params ctrs e ->
-                do  let tag = memberDecl $ finalFieldDecl intTy (varDeclNoInit datatypetag)
-                        classctr = memberDecl $ constructorDecl nam [paramDecl intTy datatypetag] Nothing [initField datatypetag]
-                    ctrs' <-  zipWithM translateCtr ctrs [1..]
-                    let classdef = localClass nam (classBody ([tag, classctr] ++ concat ctrs'))
-                        proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
-                    (s',e',t') <- translateM this e
-                    return([classdef,proxy] ++ s',e', t')
-                where translateCtr (Constructor ctrname' []) tagnum = do
+              Case scrut alts ->
+                do (scrutStmts, scrutExpr, _) <- translateM this scrut
+                   (altsStmts, varName, typ) <- transAlts this scrutExpr alts
+                   return (scrutStmts ++ altsStmts, varName, typ)
+              Data recflag databinds e -> do
+                let translateDatabind = \(DataBind nam params ctrs) ->
+                        do n <- get
+                           put (length params + n)
+                           let tag = memberDecl $ finalFieldDecl intTy (varDeclNoInit datatypetag)
+                               classctr = memberDecl $ constructorDecl nam [paramDecl intTy datatypetag] Nothing [initField datatypetag]
+                           ctrs' <-  zipWithM (translateCtr nam) (ctrs [n..length params +n-1]) [1..]
+                           let classdef = localClass nam (classBody ([tag, classctr] ++ concat ctrs'))
+                               proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
+                           return (classdef,proxy)
+                    translateCtr nam (Constructor ctrname' []) tagnum = do
                           let ctrname = nam ++ ctrname'
                               fielddecl = memberDecl $ fieldDecl (classTy nam) (varDeclNoInit ctrname )
                               singleton = bStmt $ ifthen (eq (varExp ctrname) nullExp)
@@ -449,22 +455,39 @@ trans self =
                               methoddecl = memberDecl $ methodDecl [] (Just $ classTy nam) ctrname []
                                                         (Just $ block [singleton, returnExpS $ varExp ctrname])
                           return [fielddecl, methoddecl]
-                      translateCtr (Constructor ctrname' types) tagnum = do
-                          javaty <- mapM (javaType this) types
-                          let ctrname = nam ++ ctrname'
-                              fields = map ((fieldtag ++ ) . show) [1..length types]
-                              fieldsdec = map memberDecl $ zipWith  fieldDecl javaty (map varDeclNoInit fields)
-                              ctrdecl = memberDecl $ constructorDecl ctrname (zipWith paramDecl javaty fields)
-                                                     (Just $ J.SuperInvoke [] [integerExp tagnum])
-                                                     (map initField fields)
-                              ctrclass = memberDecl $ memberClassDecl ctrname nam (classBody ( fieldsdec ++ [ctrdecl] ))
-                              methoddecl = memberDecl $ methodDecl [] (Just $ classTy nam) ctrname (zipWith paramDecl javaty fields)
-                                                        (returnExp (cast (classTy nam) (instCreat (classTyp ctrname) (map varExp fields))))
-                          return [ctrclass, methoddecl]
-              Case scrut alts ->
-                do (scrutStmts, scrutExpr, _) <- translateM this scrut
-                   (altsStmts, varName, typ) <- transAlts this scrutExpr alts
-                   return (scrutStmts ++ altsStmts, varName, typ)
+                    translateCtr nam (Constructor ctrname' types) tagnum = do
+                         javaty <- mapM (javaType this) types
+                         let ctrname = nam ++ ctrname'
+                             fields = map ((fieldtag ++ ) . show) [1..length types]
+                             fieldsdec = map memberDecl $ zipWith  fieldDecl javaty (map varDeclNoInit fields)
+                             ctrdecl = memberDecl $ constructorDecl ctrname (zipWith paramDecl javaty fields)
+                                                    (Just $ J.SuperInvoke [] [integerExp tagnum])
+                                                    (map initField fields)
+                             ctrclass = memberDecl $ memberClassDecl ctrname nam (classBody ( fieldsdec ++ [ctrdecl] ))
+                             methoddecl = memberDecl $ methodDecl [] (Just $ classTy nam) ctrname (zipWith paramDecl javaty fields)
+                                                       (returnExp (cast (classTy nam) (instCreat (classTyp ctrname) (map varExp fields))))
+                         return [ctrclass, methoddecl]
+                (databindclass, databindproxy) <- mapAndUnzipM translateDatabind databinds
+                (s', e', t') <- translateM this e
+                case recflag of
+                    S.NonRec -> do
+                        return (databindclass ++ databindproxy ++ s', e', t')
+                    S.Rec -> do
+                        (n::Int) <- get
+                        put (n+2)
+                        typ <- javaType this t'
+                        let datatypeclass =
+                             [localClass ("Datatype" ++ show n)
+                                         (classBody ( memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
+                                                      (map (memberDecl . localToMemberClass) databindclass) ++
+                                                      [J.InitDecl False (block $ databindproxy ++ s' ++ [assign (name [tempvarstr]) (unwrap e')])]
+                                                    ))
+                             ,localVar (classTy ("Datatype" ++ show n))
+                                       (varDecl (localvarstr ++ show n)
+                                                (instCreat (classTyp ("Datatype" ++ show n)) []))
+                             ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
+                                                        (cast typ (J.ExpName (name [localvarstr ++ show n, tempvarstr]))))]
+                        return (datatypeclass,var (localvarstr ++ show (n + 1)),t')
         ,translateScopeM =
           \e m ->
             case e of

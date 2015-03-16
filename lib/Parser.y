@@ -233,7 +233,7 @@ expr :: { ReaderExpr }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type ";"  expr  { Type (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type (toString $2) (map unLoc $3) $5 $6 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
-    | "data" UPPER_IDENT ty_param_list_or_empty "=" constrs_decl ";" expr { Data (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
+    | "data" recflag and_databinds ";" expr        { Data $2 $3 $5 `withLoc` $1 }
     | "case" expr "of" patterns           { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
     | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
@@ -261,12 +261,12 @@ infixexpr0 :: { ReaderExpr }
 
 infix_func :: { ReaderExpr }
            : SYMBOL_IDENT                   { Var (toString $1) `withLoc` $1 }
-           | SYMBOL_IDENT type_list         { foldl (\acc t -> TApp acc t `withLoc` acc) 
-                                                    (TApp (Var (toString $1) `withLoc` $1) (head $2) `withLoc` $1) 
+           | SYMBOL_IDENT type_list         { foldl (\acc t -> TApp acc t `withLoc` acc)
+                                                    (TApp (Var (toString $1) `withLoc` $1) (head $2) `withLoc` $1)
                                                     (tail $2) }
            | "`" LOWER_IDENT "`"            { Var (toString $2) `withLoc` $2 }
-           | "`" LOWER_IDENT type_list "`"  { foldl (\acc t -> TApp acc t `withLoc` acc) 
-                                                    (TApp (Var (toString $2) `withLoc` $2) (head $3) `withLoc` $2) 
+           | "`" LOWER_IDENT type_list "`"  { foldl (\acc t -> TApp acc t `withLoc` acc)
+                                                    (TApp (Var (toString $2) `withLoc` $2) (head $3) `withLoc` $2)
                                                     (tail $3) }
 
 infixexpr :: { ReaderExpr }
@@ -382,6 +382,13 @@ bind_lhs
 and_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
     | bind "and" and_binds      { $1:$3 }
+
+and_databinds :: { [DataBind]}
+    : databind                       { [$1] }
+    | databind "and" and_databinds   { $1:$3 }
+
+databind :: { DataBind }
+    : UPPER_IDENT ty_param_list_or_empty "=" constrs_decl { DataBind (toString $1) (map unLoc $2) $4 }
 
 semi_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
