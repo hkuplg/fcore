@@ -51,7 +51,7 @@ transType d (RecordType fs)  =
                   _        -> transType d (RecordType (take (length fs - 1) fs)) `F.And` F.RecordType (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = F.Unit
 transType i (Thunk t)    = F.Fun F.Unit (transType i t)
-transType i (Datatype n ts ns) = F.Datatype n (map (transType i) ts) ns
+transType i (Datatype n ts ns) = F.Datatype ('$':n) (map (transType i) ts) (map ('$':) ns)
 transType d (ListOf c)   = F.ListOf (transType d c)
 transType _ t            = prettySorry "transType" (pretty t)
 
@@ -167,11 +167,11 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
             go (noLoc $ If emptytest emptyexpr nonemptyexpr)
 
     desugarDatabind (DataBind n params ctrs) =
-         F.DataBind n params (\t ->
+         F.DataBind ('$':n) params (\t ->
             let d' = addToTVarMap (zip params t) d
             in  map (desugarConstructor d') ctrs
          )
-    desugarConstructor d' (Constructor n ts) = F.Constructor n (map (transType d') ts)
+    desugarConstructor d' (Constructor n ts) = F.Constructor ('$':n) (map (transType d') ts)
     desugarAlts (ConstrAlt c ns e) =
         let c' = desugarConstructor d c
             f ns' = desugarExpr (d, zipWith (\n e' -> (n, F.Var n e')) ns ns' `addToVarMap` g) e
