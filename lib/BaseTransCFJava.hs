@@ -256,7 +256,6 @@ trans self =
                    let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
                    let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
                    newvars <- liftM (pairUp bindings) vars
-                   -- closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
 
                    let finalFuns = mfuns newvars
                    let appliedBody = body newvars
@@ -267,7 +266,7 @@ trans self =
                    typ <- javaType this t'
 
                    -- initialize declarations
-                   let mDecls = map (\(x, typ) -> memberDecl (fieldDecl typ (varDeclNoInit (localvarstr ++ show x)))) (zip bindings bindtyps)
+                   let mDecls = map (\(x, btyp) -> memberDecl (fieldDecl btyp (varDeclNoInit (localvarstr ++ show x)))) (zip bindings bindtyps)
 
                    -- assign new created closures bindings to variables
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
@@ -433,13 +432,13 @@ trans self =
                                 [] -> localVar (classTy nam) (varDecl newVarName $ methodCallExp [map toLower nam,ctrName] [])
                                 _  -> localVar (classTy nam) (varDecl newVarName $ methodCallExp [map toLower nam,ctrName] (map unwrap oexpr))
                    return (stmts ++ [inst], var newVarName, last ctrParams)
-              Data nam params ctrs e ->
+              Data nam _ ctrs expr ->
                 do  let tag = memberDecl $ finalFieldDecl intTy (varDeclNoInit datatypetag)
                         classctr = memberDecl $ constructorDecl nam [paramDecl intTy datatypetag] Nothing [initField datatypetag]
                     ctrs' <-  zipWithM translateCtr ctrs [1..]
                     let classdef = localClass nam (classBody ([tag, classctr] ++ concat ctrs'))
                         proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
-                    (s',e',t') <- translateM this e
+                    (s',e',t') <- translateM this expr
                     return([classdef,proxy] ++ s',e', t')
                 where translateCtr (Constructor ctrname' []) tagnum = do
                           let ctrname = nam ++ ctrname'
