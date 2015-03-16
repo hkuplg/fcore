@@ -256,7 +256,6 @@ trans self =
                    let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
                    let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
                    newvars <- liftM (pairUp bindings) vars
-                   -- closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
 
                    let finalFuns = mfuns newvars
                    let appliedBody = body newvars
@@ -267,7 +266,7 @@ trans self =
                    typ <- javaType this t'
 
                    -- initialize declarations
-                   let mDecls = map (\(x, typ) -> memberDecl (fieldDecl typ (varDeclNoInit (localvarstr ++ show x)))) (zip bindings bindtyps)
+                   let mDecls = map (\(x, btyp) -> memberDecl (fieldDecl btyp (varDeclNoInit (localvarstr ++ show x)))) (zip bindings bindtyps)
 
                    -- assign new created closures bindings to variables
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
@@ -437,7 +436,7 @@ trans self =
                 do (scrutStmts, scrutExpr, _) <- translateM this scrut
                    (altsStmts, varName, typ) <- transAlts this scrutExpr alts
                    return (scrutStmts ++ altsStmts, varName, typ)
-              Data recflag databinds e -> do
+              Data recflag databinds expr -> do
                 let translateDatabind = \(DataBind nam params ctrs) ->
                         do n <- get
                            put (length params + n)
@@ -468,7 +467,7 @@ trans self =
                                                        (returnExp (cast (classTy nam) (instCreat (classTyp ctrname) (map varExp fields))))
                          return [ctrclass, methoddecl]
                 (databindclass, databindproxy) <- mapAndUnzipM translateDatabind databinds
-                (s', e', t') <- translateM this e
+                (s', e', t') <- translateM this expr
                 case recflag of
                     S.NonRec -> do
                         return (databindclass ++ databindproxy ++ s', e', t')
