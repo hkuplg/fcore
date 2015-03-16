@@ -83,7 +83,7 @@ eval (PrimOp e1 op e2) =
          _ -> panic "e1 and e2 should be either Int or Bool simutaneously"
 eval g@(Fix _ _ f _ _) = VFun $ eval . f (eval g)
 eval (LetRec _ _ binds body) = eval . body . fix $ map eval . binds
-eval (Data _ _ _ e) = eval e
+eval (Data _ _ e) = eval e
 eval (Constr c es) = VConstr (constrName c) (map eval es)
 eval (Case e alts) =
     case eval e of
@@ -178,7 +178,7 @@ seval (BLam _ f) =  seval $ f ()
 seval (TApp e _) = seval e
 seval g@(Fix _ n f t _) = Exp $ SFun n (seval . f (seval g)) (transType t)
 seval (LetRec _ _ binds body) = seval . body . fix $ map seval . binds
-seval (Data _ _ _ e) = seval e
+seval (Data _ _ e) = seval e
 seval (Constr c es) = mergeList (SConstr $ transConstructor c) (map seval es)
 seval (Case e alts) = propagate (seval e) (Right (map (\(ConstrAlt c ns f) -> (transConstructor c, ns, seval . f)) alts))
 seval e = panic $ "seval: " ++ show e
