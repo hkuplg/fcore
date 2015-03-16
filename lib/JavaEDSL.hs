@@ -78,6 +78,10 @@ unwrap x = case x of
             Left (Name xs) -> ExpName . Name $ xs
             Right e -> Lit e
 
+localToMemberClass :: BlockStmt -> MemberDecl
+localToMemberClass (LocalClass t) = MemberClassDecl t
+localToMemberClass _ = error "parameter should be a local class"
+
 -- method
 
 paramDecl :: Type -> String -> FormalParam
