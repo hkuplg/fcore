@@ -65,12 +65,12 @@ data Translate m =
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
-    ,genTest :: m Bool
+    -- ,genTest :: m Bool
     ,transAlts :: TransJavaExp -> [Alt Int (Var, Type Int)] -> m TransType
     ,mapAlt :: J.Exp -> J.Name -> Alt Int (Var, Type Int) -> m (J.SwitchBlock, Type Int)
     ,withApply :: m Bool
     ,getPrefix :: m String
-    ,getBox :: Type Int -> m String
+    -- ,getBox :: Type Int -> m String
     ,javaType :: Type Int -> m J.Type
     ,chooseCastBox :: Type Int -> m (String -> J.Exp -> J.BlockStmt, J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
@@ -649,9 +649,7 @@ trans self =
                                   _ -> return (initClass "Object", objClassTy)
        ,getPrefix = return namespace
        ,genClone = return False -- do not generate clone method
-       ,genTest = return False -- do not generate test method
        ,withApply = return True
-       ,getBox = \_ -> return ""
        ,stackMainBody = \_ -> return []
        ,applyRetType = \t -> (case t of
                                JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
@@ -664,6 +662,5 @@ trans self =
             do (bs,e,t) <- translateM this expr
                returnType <- applyRetType this t
                let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
-               isTest <- genTest this
-               let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody [] Nothing isTest
+               let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody
                return (createCUB this [mainDecl],t)}
