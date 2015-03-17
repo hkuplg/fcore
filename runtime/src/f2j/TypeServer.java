@@ -2,6 +2,8 @@ package f2j;
 
 import java.util.*;
 import java.lang.reflect.*;
+import java.util.stream.Collectors;
+
 import static java.lang.reflect.Modifier.isPublic;
 
 public class TypeServer {
@@ -18,20 +20,6 @@ public class TypeServer {
     map.put(double.class, Double.class);
     map.put(void.class, Void.class);
   }
-
-  // private final static Map<Class<?>, Class<?>> retMap = new HashMap<Class<?>, Class<?>>();
-  // static {
-  //    retMap.put(boolean.class, Boolean.class);
-  //    retMap.put(byte.class, Byte.class);
-  //    retMap.put(short.class, Short.class);
-  //    retMap.put(char.class, char.class);
-  //    retMap.put(int.class, Integer.class);
-  //    retMap.put(long.class, Long.class);
-  //    retMap.put(float.class, Float.class);
-  //    retMap.put(double.class, Double.class);
-  //    retMap.put(void.class, Void.class);
-  // }
-
 
   public static void main(String[] args) {
     Scanner inp = new Scanner(System.in);
@@ -91,15 +79,16 @@ public class TypeServer {
       Class<?> c = Class.forName(classFullName);
       Class<?>[] givenClasses = getClassArray(methodArgs);
       Method[] mList = c.getMethods();
-      for (int i = 0; i < mList.length; i++) {
-        Method m = mList[i];
-        if (Modifier.isStatic(m.getModifiers()) == stat && m.getName().equals(methodName)) {
+
+      List<Class<?>> ms = Arrays.stream(mList).filter(m -> {
           Class<?>[] actualClasses = m.getParameterTypes();
-          if (isArrayAssignableFrom(actualClasses, givenClasses) && isPublic(m.getReturnType().getModifiers()))
-            return classFix(m.getReturnType()).getCanonicalName();
-        }
-      }
-      return "$";
+          return Modifier.isStatic(m.getModifiers()) == stat
+          && m.getName().equals(methodName)
+          && isArrayAssignableFrom(actualClasses, givenClasses);
+        }).map(Method::getReturnType).sorted((m1, m2) -> m1.isAssignableFrom(m2) ? 1 : -1).collect(Collectors.toList());
+
+      if (ms.size() == 0) return "$";
+      else return classFix(ms.get(0)).getCanonicalName();
     } catch (Exception e) {
       return "$";
     }
