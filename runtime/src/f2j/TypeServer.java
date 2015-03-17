@@ -96,7 +96,7 @@ public class TypeServer {
                 if (Modifier.isStatic(m.getModifiers()) == stat && m.getName().equals(methodName)) {
                     Class<?>[] actualClasses = m.getParameterTypes();
                     if (isArrayAssignableFrom(actualClasses, givenClasses))
-                        return classFix(m.getReturnType()).getName();
+                        return classFix(m.getReturnType()).getCanonicalName();
                 }
             }
             return "$";
@@ -111,7 +111,7 @@ public class TypeServer {
             Class<?> c = Class.forName(classFullName);
             Field f = c.getField(fieldName);
             if (Modifier.isStatic(f.getModifiers()) == stat)
-                return classFix(f.getType()).getName();
+                return classFix(f.getType()).getCanonicalName();
             else
                 return "$";
         } catch (Exception e) {

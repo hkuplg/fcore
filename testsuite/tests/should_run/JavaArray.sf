@@ -1,0 +1,3 @@
+--> false
+
+java.lang.Character.toChars(20) == java.lang.Character.toChars(10)
