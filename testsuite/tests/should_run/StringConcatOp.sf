@@ -1,0 +1,4 @@
+--> 7 - 2
+
+let (++) (s: String) (t: String) = s.concat(t);
+"7" ++ " - " ++ "2"
