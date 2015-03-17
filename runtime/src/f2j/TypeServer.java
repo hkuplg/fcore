@@ -1,14 +1,17 @@
 package f2j;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.*;
-import java.lang.reflect.*;
 import java.util.stream.Collectors;
 
-import static java.lang.reflect.Modifier.isPublic;
 
 public class TypeServer {
 
   private final static Map<Class<?>, Class<?>> map = new HashMap<Class<?>, Class<?>>();
+
   static {
     map.put(boolean.class, Boolean.class);
     map.put(byte.class, Byte.class);
@@ -28,20 +31,28 @@ public class TypeServer {
       String line = inp.nextLine();
       String[] words = line.split(" ");
       Object result = false;
-      if (words[0].equals("qType")) {
+      switch (words[0]) {
+      case "qType":
         result = queryType(words[1]);
-      } else if (words[0].equals("qConstructor")) {
+        break;
+      case "qConstructor":
         result = queryNew(words[1], Arrays.copyOfRange(words, 2, words.length));
-      } else if (words[0].equals("qMethod")) {
+        break;
+      case "qMethod":
         result = queryMethod(words[1], words[2], Arrays.copyOfRange(words, 3, words.length), false);
-      } else if (words[0].equals("qStaticMethod")) {
+        break;
+      case "qStaticMethod":
         result = queryMethod(words[1], words[2], Arrays.copyOfRange(words, 3, words.length), true);
-      } else if (words[0].equals("qField")) {
+        break;
+      case "qField":
         result = queryField(words[1], words[2], false);
-      } else if (words[0].equals("qStaticField")) {
+        break;
+      case "qStaticField":
         result = queryField(words[1], words[2], true);
-      } else {
+        break;
+      default:
         System.err.println("######## BAD QUERY ########");
+        break;
       }
       System.out.println(result.toString());
     }
@@ -62,8 +73,9 @@ public class TypeServer {
       Class<?> c = Class.forName(classFullName);
       Constructor<?>[] cList = c.getConstructors();
       Class<?>[] givenClasses = getClassArray(constructorArgs);
-      for (int i = 0; i < cList.length; i++) {
-        Class<?>[] actualClasses = cList[i].getParameterTypes();
+
+      for (Constructor cs : cList) {
+        Class<?>[] actualClasses = cs.getParameterTypes();
         if (isArrayAssignableFrom(actualClasses, givenClasses))
           return true;
       }
@@ -110,6 +122,7 @@ public class TypeServer {
 
 
   private static Class<?>[] getClassArray(String[] names) throws ClassNotFoundException {
+
     Class<?>[] classes = new Class<?>[names.length];
     for (int i = 0; i < names.length; i++) {
       classes[i] = Class.forName(names[i]);
@@ -120,10 +133,9 @@ public class TypeServer {
   // a -> super; b -> sub
   private static boolean isArrayAssignableFrom(Class<?>[] a, Class<?>[] b) {
     if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
+    for (int i = 0; i < a.length; i++)
       if (!classFix(a[i]).isAssignableFrom(classFix(b[i])))
         return false;
-    }
     return true;
   }
 
@@ -132,8 +144,4 @@ public class TypeServer {
     return c.isPrimitive() ? map.get(c) : c;
   }
 
-  // private static Class<?> retClassFix(Class<?> c) {
-  //   return c.isPrimitive() ? retMap.get(c) : c;
-  // }
 }
-
