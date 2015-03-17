@@ -315,6 +315,7 @@ prettyExpr _ _ (Lit (S.Int n))    = integer n
 prettyExpr _ _ (Lit (S.String s)) = dquotes (string s)
 prettyExpr _ _ (Lit (S.Bool b))   = bool b
 prettyExpr _ _ (Lit (S.Char c))   = char c
+prettyExpr _ _ (Lit  S.UnitLit)   = unit
 
 prettyExpr p i (If e1 e2 e3)
   = ifPart <$> thenPart <$> elsePart

@@ -52,6 +52,7 @@ infer i j (FI.Lit (S.Int    _))   = FI.JClass "java.lang.Integer"
 infer i j (FI.Lit (S.String _))   = FI.JClass "java.lang.String"
 infer i j (FI.Lit (S.Bool   _))   = FI.JClass "java.lang.Boolean"
 infer i j (FI.Lit (S.Char   _))   = FI.JClass "java.lang.Character"
+infer i j (FI.Lit  S.UnitLit)     = FI.Unit
 infer i j (FI.Lam n t f)          = FI.Fun t . infer i (j + 1) $ f (j, t)
 infer i j (FI.Fix _ _ _ t1 t)     = FI.Fun t1 t
 infer i j (FI.Let _ b f)          = infer i (j + 1) $ f (j, infer i j b)
