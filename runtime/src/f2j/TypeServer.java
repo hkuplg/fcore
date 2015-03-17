@@ -2,7 +2,7 @@ package f2j;
 
 import java.util.*;
 import java.lang.reflect.*;
-
+import static java.lang.reflect.Modifier.isPublic;
 
 public class TypeServer {
 
