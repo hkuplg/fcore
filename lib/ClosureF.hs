@@ -41,10 +41,9 @@ data Type t =
     | Forall (TScope t)
     | JClass ClassName
     | Unit
-    | CFInt
-    | CFInteger
+    | CFLong
     | CFChar
-    | CFCharacter
+    | CFDouble
     | CFBool
     | TupleType [Type t]
     | ListType (Type t)
@@ -95,10 +94,15 @@ ftyp2ctyp2 = sorry "ClosureF.ftyp2ctyp2"
 
 ftyp2ctyp :: C.Type t -> Type t
 ftyp2ctyp (C.TVar _ x)                     = TVar x
--- ftyp2ctyp (C.JClass "java.lang.Integer") = CFInt
-ftyp2ctyp (C.JClass "java.lang.Integer") = JClass "java.lang.Integer"
--- ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
-ftyp2ctyp (C.JClass "java.lang.Character") = JClass "java.lang.Character"
+ftyp2ctyp (C.JClass "java.lang.Long") = CFLong
+ftyp2ctyp (C.JClass "java.lang.Short") = CFLong
+ftyp2ctyp (C.JClass "java.lang.Byte") = CFLong
+ftyp2ctyp (C.JClass "java.lang.Integer") = CFLong
+ftyp2ctyp (C.JClass "java.lang.Character") = CFChar
+ftyp2ctyp (C.JClass "java.lang.Boolean") = CFBool
+ftyp2ctyp (C.JClass "java.lang.Float") = CFDouble
+ftyp2ctyp (C.JClass "java.lang.Double") = CFDouble
+
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp (C.Unit)                       = Unit
@@ -192,10 +196,8 @@ getArity _ = 0
 joinType :: Type (Type t) -> Type t
 joinType (TVar t)   = t
 joinType Unit = Unit
-joinType CFInt = CFInt
-joinType CFInteger = CFInteger
+joinType CFLong = CFLong
 joinType CFChar = CFChar
-joinType CFCharacter = CFCharacter
 joinType (Forall s) = Forall (joinTScope s)
 joinType (JClass c) = JClass c
 joinType (TupleType ts) = TupleType (map joinType ts)
@@ -292,11 +294,9 @@ prettyType _ _ (JClass "java.lang.Character") = text "Char"
 prettyType _ _ (JClass c) = text c
 prettyType p i (ListType t) = brackets $ prettyType p i t
 
-prettyType _ _ CFInt = text "Int"
-prettyType _ _ CFInteger = text "Integer"
+prettyType _ _ CFLong = text "Int"
 
 prettyType _ _ CFChar = text "Char"
-prettyType _ _ CFCharacter = text "Character"
 
 prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
 prettyType p i (Datatype n tvars _) = hsep $ text n : map (prettyType p i) tvars

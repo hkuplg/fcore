@@ -30,8 +30,8 @@ objClassTy = classTy "Object"
 name :: [String] -> Name
 name xs = Name $ map Ident xs
 
-var :: String -> Either (Name, Name) Literal
-var x = Left $ (name [x], name [x])
+var :: String -> Either Name Literal
+var x = Left $ name [x]
 
 varExp :: String -> Exp
 varExp x = ExpName $ name [x]
@@ -65,8 +65,8 @@ bStmt = BlockStmt
 expToBlockStmt :: Exp -> BlockStmt
 expToBlockStmt = BlockStmt . ExpStmt
 
-left :: Either (Name, Name) Literal -> Exp
-left (Left (x,y)) = ExpName x
+left :: Either Name Literal -> Exp
+left (Left x) = ExpName x
 left (Right _) = error "this should be left (variable name)"
 
 right :: Either Name Literal -> Exp

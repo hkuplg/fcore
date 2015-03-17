@@ -41,7 +41,7 @@ type InitVars = [J.BlockStmt]
 
 data Translate m =
     T {
-    translateScopeM :: (EScope Var (Var, Type Var), S.ReaderId) -> Maybe (Var,Type Var) -> m ([J.BlockStmt],TransJavaExp,TScope Var),
+    translateScopeM :: EScope Var (Var, Type Var) -> S.ReaderId -> m ([J.BlockStmt],TransJavaExp,TScope Var),
     translateM :: Expr Var (Var,Type Var) -> m TransType,
     createWrap :: String -> Expr Var (Var,Type Var) -> m (J.CompilationUnit,Type Var)}
 
@@ -58,11 +58,12 @@ getNewVarName _ = do (n :: Int) <- get
                      return $ localvarstr ++ show n
 
 javaType :: Type Var -> J.Type
-javaType = \typ -> case typ of
+javaType typ = case typ of
     (JClass c) -> classTy c
-    CFInt -> J.PrimType J.LongT
+    CFLong -> J.PrimType J.LongT
     CFBool -> J.PrimType J.BooleanT
     CFChar -> J.PrimType J.CharT
+    CFDouble -> J.PrimType J.DoubleT
     _ -> objClassTy
 
 assignVar :: Type Var -> String -> J.Exp -> J.BlockStmt
@@ -73,8 +74,6 @@ closureBodyGen initDecls body className = classBody $ initDecls ++ [applyMethod]
   where
     applyMethod = J.MemberDecl $ methodDecl [J.Public] Nothing "apply" [] (Just (J.Block body))
 
-blabla lname n = (name [lname ++ (show n)], name [lname ++ (show n)])
-
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self = let this = up self
   in T {
@@ -82,7 +81,7 @@ trans self = let this = up self
       Var lname (i,t) -> return ([],Left i,t)
       Lit lit ->
           case lit of
-            (S.Int i)    -> return ([], Right $ J.Int i, CFInt)
+            (S.Int i)    -> return ([], Right $ J.Int i, CFLong)
             (S.UnitLit)  -> return ([], Right J.Null, Unit)
             (S.String s) -> return ([], Right $ J.String s,  JClass "java.lang.String")
             (S.Bool b)   -> return ([], Right $ J.Boolean b, CFBool)
@@ -94,27 +93,21 @@ trans self = let this = up self
                let j1' = unwrap j1
                let j2' = unwrap j2
                let (jexpr,typ) = case op of
-                                   (S.Arith realOp) -> (J.BinOp j1' realOp j2', CFInt)
+                                   (S.Arith realOp) -> (J.BinOp j1' realOp j2', CFLong)
                                    (S.Compare realOp) -> (J.BinOp j1' realOp j2', CFBool)
                                    (S.Logic realOp) -> (J.BinOp j1' realOp j2', CFBool)
                                    _ -> error "Ooops, this operator is not implemented."
                newVarName <- getNewVarName this
                let assignExpr = assignVar typ newVarName jexpr
-               return (s1 ++ s2 ++ [assignExpr],var newVarName,typ)
+               return (s1 ++ s2 ++ [assignExpr], Left (name [newVarName], error "Only had primitive variable.") ,typ)
 
       Lam lname se ->
-            do (s,je,t) <- translateScopeM this (se, lname) Nothing
+            do (s,je,t) <- translateScopeM this se lname
                return (s,je,Forall t)
-
-      Fix lname1 lname2 t s ->
-            do (n :: Int) <- get
-               put (n + 1)
-               (expr,je,t') <- translateScopeM this (s (blabla lname1 n,t), lname1) (Just (blabla lname1 n,t)) -- weird!
-               return (expr,je,Forall t')
                ,
 
   translateScopeM =
-    \(e,lname) m ->
+    \e lname ->
       case e of
 {-
 Γ |- E : T ~> J in S
@@ -133,8 +126,10 @@ trans self = let this = up self
         Kind f ->
           do (n :: Int) <- get
              put (n + 1) -- needed to distingush type variable
-             (s,je,t1) <- translateScopeM this ((f (blabla lname n), lname)) m
-             return (s,je,Kind (\a -> substScope' (blabla lname n) (TVar a) t1))
+             let xl = name ["l" ++ lname ++ show n]
+             let xo = name ["o" ++ lname ++ show n]
+             (s,je,t1) <- translateScopeM this (f (xl, xo)) lname
+             return (s,je,Kind (\a -> substScope' (xl, xo) (TVar a) t1))
 
 {-
 Γ(y : T1 -> x2);∆ |- E : T ~> J in S
@@ -145,38 +140,68 @@ S' := (cvar)
 -}
         Type t g ->
           do (n :: Int) <- get
-             let (x1,x2) = maybe (blabla lname (n + 1),blabla lname (n + 2)) (\(i,_) -> (blabla lname i,blabla lname (n+1))) m -- decide whether we have found the fixpoint closure or not
-             let (unblaX1 :: String) = case (fst x1) of J.Name [J.Ident ln] -> ln
-             let (unblaX2 :: String) = case (fst x2) of J.Name [J.Ident ln] -> ln
-             let (x2num :: Int) = read (filter isNumber unblaX2)
-             put (x2num + 2)
-             let nextInClosure = g (blabla lname x2num,t)
-
+             let x1 = lname ++ show n
+             let x2l = "l" ++ lname ++ show (n + 1)
+             let x2o = "o" ++ lname ++ show (n + 1)
+             put (n + 2)
+             let primitiveAccessField = fieldAccess (J.ExpName (name [x1])) "larg"
+             let objectAccessField = fieldAccess (J.ExpName (name [x1])) "oarg"
              let typT1 = javaType t
              let flag = typT1 == objClassTy
-             let accessField = fieldAccess (left $ Left x1) "arg"
-             let xf = localFinalVar typT1 (varDecl unblaX2
-                                                   (if flag
-                                                       then accessField
-                                                       else cast typT1 accessField))
+             let tempVars = case t of
+                  CFLong -> [localFinalVar typT1 (varDecl x2l primitiveAccessField)]
+                  CFBool -> [localFinalVar typT1 (varDecl x2l (J.BinOp primitiveAccessField J.Equal (J.Lit $ J.Int 1)))]
+                  CFChar -> error "Character conversion not implemented." -- Character.toChars(int value)
+                  CFDouble -> error "Floating point conversion not implemented." -- Double.longBitsToDouble(long value)
+                  TVar _ -> [localFinalVar (J.PrimType J.LongT) (varDecl x2l primitiveAccessField),
+                            localFinalVar typT1 (varDecl x2o objectAccessField)]
+
+                  _ -> [localFinalVar typT1 (varDecl x2o (if flag
+                     then objectAccessField
+                     else cast typT1 objectAccessField))]
+
+             let nextInClosure = g ((name [x2l], name [x2o]),t)
+
+
              let closureClass = "f2j.unbox.Closure"
-             (ostmts,oexpr,t1) <- translateScopeM this (nextInClosure, lname) Nothing
-             let cvar = [localClassDecl ("Fun" ++ (show n))
+             (ostmts,oexpr,t1) <- translateScopeM this nextInClosure lname
+             let t1' = case t1 of
+                           Kind _ -> error "Found Kind, where Type or Body expected."
+                           Type _ _ -> Forall t1
+                           Body b -> b
+
+             let outAssignment = case t1' of
+                  CFLong -> [assign (name ["lres"]) (unwrap oexpr)]
+                  CFBool -> error "Boolean assignment conversion not implemented."
+                  CFChar -> error "Character assignment conversion not implemented." -- Character.toChars(int value)
+                  CFDouble -> error "Floating point assignemnt conversion not implemented." -- Double.longBitsToDouble(long value)
+                  TVar _ -> let (longP, objP) = case oexpr of Left (y1,y2) -> (y1,y2) in [assign (name ["lres"]) (J.ExpName longP),
+                            assign (name ["ores"]) (J.ExpName objP)]
+
+                  _ -> case oexpr of Left (_,objP) -> [assign (name ["ores"]) (J.ExpName objP)]
+             let cvar = [localClassDecl ("Fun" ++ show n)
                                      closureClass
                                      (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
-                                                                             (varDecl unblaX1 J.This)]
-                                                     ([xf] ++ ostmts ++ [assign (name ["out"]) (unwrap oexpr)])
+                                                                             (varDecl x1 J.This)]
+                                                     (tempVars ++ ostmts ++ outAssignment)
                                                      (classTy closureClass))]
 
-             let fstmt = [localVar (classTy "f2j.unbox.Closure") (varDecl (lname ++ show n) (funInstCreate n))]
+             let fstmt = [localVar (classTy "f2j.unbox.Closure") (varDecl x1 (funInstCreate n))]
 
-             return (cvar ++ fstmt,var (lname ++ show n),Type t (const t1))
+             return (cvar ++ fstmt, Left (error "Only had object variable.", name [x1]) ,Type t (const t1))
     ,
 
   createWrap = \className fExp ->
     do
       (bs,e,t) <- translateM this fExp
-      let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
+      let returnStmt = case t of
+             CFLong -> [bStmt $ J.Return $ Just (unwrap e)]
+             CFBool -> error "Boolean conversion not implemented."
+             CFChar -> error "Character conversion not implemented." -- Character.toChars(int value)
+             CFDouble -> error "Floating point conversion not implemented."
+             _ -> [bStmt $ J.Return $ Just (case e of Left (_,x2) -> J.ExpName x2)]
+
+
       let mainDecl = wrapperClass className (bs ++ returnStmt) (Just (javaType t)) mainBody [] Nothing False
       return (createCUB self [mainDecl],Unit)
 }
