@@ -16,11 +16,11 @@ module Main where
 
 import System.IO
 import System.Process
-import System.Directory                 (doesFileExist, getDirectoryContents)
-import System.FilePath                  (takeFileName, takeExtensions)
+import System.Directory     (doesFileExist, getDirectoryContents)
+import System.FilePath      (takeFileName, takeExtensions)
 import System.TimeIt        (timeIt)
 
-import Data.Time            (getCurrentTime, diffUTCTime)
+import System.Clock
 import Control.Monad        (when)
 
 import Translations
@@ -92,7 +92,7 @@ addFilePath (x:xs) = (testCasesPath ++ x) : (addFilePath xs)
 main :: IO ()
 main = do
   writeRuntimeToTemp
-  start <- getCurrentTime
+  start <- getTime Monotonic
   xs <- getDirectoryContents testCasesPath
   let (x:y:ys) = xs
   let zs = addFilePath ys
@@ -105,5 +105,5 @@ main = do
   timeIt $ initReplEnv [Naive, Apply, Stack] compileS zs
   putStrLn "-------------------------------------"
   putStrLn "Finished!"
-  end <- getCurrentTime
-  putStrLn $ "Running Time " ++ show (diffUTCTime end start)
+  end <- getTime Monotonic
+  putStrLn $ "Running Time " ++ show (sec end - sec start) ++ "s"
