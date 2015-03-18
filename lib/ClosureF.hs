@@ -158,7 +158,7 @@ fexp2cexp (C.Data name params ctrs e) = Data name params (map fctr2cctr ctrs) (f
 fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr names f) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp.f)
-fexp2cexp e@(C.Lam n t e1)          = Lam n (groupLambda e)
+fexp2cexp e@(C.Lam n t e1)          = Lam (if n == "_" then "x" else n) (groupLambda e)
 fexp2cexp e                         = Lam "Fun" (groupLambda e)
 
 fctr2cctr :: C.Constructor t -> Constructor t
