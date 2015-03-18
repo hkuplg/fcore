@@ -102,7 +102,7 @@ ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp (C.Unit)                       = Unit
 ftyp2ctyp (C.ListOf t)                   = ListType (ftyp2ctyp t)
-ftyp2ctyp (C.Datatype name params ctrnames ) = Datatype name (map ftyp2ctyp params) ctrnames
+ftyp2ctyp (C.Datatype name params ctrnames ) = Datatype ('$':name) (map ftyp2ctyp params) (map ('$':)ctrnames)
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
 {-
@@ -150,14 +150,14 @@ fexp2cexp (C.PolyList es t)     = PolyList (map fexp2cexp es) (ftyp2ctyp t)
 fexp2cexp (C.JProxyCall jmethod t) = JProxyCall (fexp2cexp jmethod) (ftyp2ctyp t)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp (C.Data recflag binds e) = Data recflag (map fdatabind2cdatabind binds) (fexp2cexp e)
-    where fdatabind2cdatabind (C.DataBind name params ctrs) = DataBind name params (map fctr2cctr . ctrs)
+    where fdatabind2cdatabind (C.DataBind name params ctrs) = DataBind ('$':name) params (map fctr2cctr . ctrs)
 fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr names f) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp.f)
 fexp2cexp e                         = Lam "Fun" (groupLambda e)
 
 fctr2cctr :: C.Constructor t -> Constructor t
-fctr2cctr (C.Constructor ctrname ctrparams) = Constructor ctrname (map ftyp2ctyp ctrparams)
+fctr2cctr (C.Constructor ctrname ctrparams) = Constructor ('$':ctrname) (map ftyp2ctyp ctrparams)
 
 
 adjust :: C.Type t -> EScope t e -> TScope t
