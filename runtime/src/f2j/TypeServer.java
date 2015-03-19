@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 public class TypeServer {
 
   private final static Map<Class<?>, Class<?>> map = new HashMap<Class<?>, Class<?>>();
+  private final static Map<String, Class<?>> arrayMap = new HashMap<String, Class<?>>();
 
   static {
     map.put(boolean.class, Boolean.class);
@@ -22,6 +23,15 @@ public class TypeServer {
     map.put(float.class, Float.class);
     map.put(double.class, Double.class);
     map.put(void.class, Void.class);
+  }
+
+  static {
+    arrayMap.put("char[]", char[].class);
+    arrayMap.put("int[]", int[].class);
+    arrayMap.put("byte[]", byte[].class);
+    arrayMap.put("boolean[]", boolean[].class);
+    arrayMap.put("long[]", long[].class);
+    arrayMap.put("double[]", double[].class);
   }
 
   public static void main(String[] args) {
@@ -121,11 +131,12 @@ public class TypeServer {
   }
 
 
+
   private static Class<?>[] getClassArray(String[] names) throws ClassNotFoundException {
 
     Class<?>[] classes = new Class<?>[names.length];
     for (int i = 0; i < names.length; i++) {
-      classes[i] = Class.forName(names[i]);
+      classes[i] = arrayMap.containsKey(names[i]) ? arrayMap.get(names[i]) : Class.forName(names[i]);
     }
     return classes;
   }

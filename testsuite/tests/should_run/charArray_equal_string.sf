@@ -1,0 +1,3 @@
+--> false
+
+(new java.lang.String(java.lang.Character.toChars(20))) == "String"
