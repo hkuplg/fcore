@@ -3,7 +3,8 @@ module Link where
 import System.IO
 import System.FilePath	(dropExtension)
 import Data.Char
--- import Data.List.Split	(splitOn)
+import Data.List.Split	(splitOn)
+import Data.List
 
 link :: FilePath -> String -> IO ()
 link file mod = do
@@ -44,24 +45,19 @@ replaceDot [] = []
 replaceDot (x:xs) = 
   let func = unwords . map checkDot in func (words x) : replaceDot xs
 
-checkDot :: [Char] -> String
-checkDot [] = []
-checkDot [x] = [x]
-checkDot (x:y:xs) = if x == '.' && isUpper y 
-                       then ('_' : y : checkDot xs) 
-                       else (x : checkDot (y:xs)) 
+-- Allow datatype to be wrapped in ()
+checkDot :: String -> String 
+checkDot x = 
+  if length xs <= 1 
+    then x
+    else let (y1:y2:ys) = xs in 
+           if (isUpper $ (y1 !! 0)) && (isUpper $ (y2 !! 0)) ||
+               ((y1 !! 0) == '(' && (isUpper $ (y1 !! 1))) 
+           then y1 ++ "_" ++ y2 ++ (intercalate "." ys)
+           else x   
+  where xs = splitOn "." x
 
 test :: FilePath -> IO String
 test file = do
   content <- readFile file
-  return $ namespace content
-
-{-main = do
-  putStr "File: "
-  file <- getLine
-  putStr "Modules: "
-  mod <- getLine
-  let modList = splitOn " " mod
-  content <- linkModule modList
-  link file content-}  
-  
+  return $ namespace content  
