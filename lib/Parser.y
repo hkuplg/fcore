@@ -25,7 +25,8 @@ import JavaUtils
 
 %name parseExpr expr
 %tokentype { Located Token }
-%monad     { P }
+%monad     { Alex }
+%lexer     { lexer } { L _ Teof }
 %error     { parseError }
 
 %token
@@ -459,12 +460,13 @@ instance Monad P where
     PError msg >>= f = PError msg
     return x         = POk x
 
-parseError :: [Located Token] -> P a
-parseError []        = PError ("Parse error")
-parseError (L loc _:_) = PError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))
+parseError :: Located Token -> Alex a
+parseError (L loc _) = alexError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))
 
 reader :: String -> P ReaderExpr
-reader src = parseExpr $ lexer src
+reader src = case (runAlex src parseExpr) of
+               Left msg -> PError msg
+               Right x  -> return x
 
 -- Helper functions to extract located token value
 toInt (L _ (Tint x)) = x

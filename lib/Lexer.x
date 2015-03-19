@@ -20,16 +20,19 @@ References:
 module Lexer
     ( lexer
     , Token(..)
+    , Alex(..)
+    , alexError
+    , runAlex
     ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
 import Numeric (readOct)
-import Data.Char (isHexDigit, isOctDigit)
+import Data.Char (isHexDigit, isOctDigit, chr)
 import SrcLoc
 
 }
 
-%wrapper "posn"
+%wrapper "monad"
 
 $alpha = [A-Za-z]
 $digit = [0-9]
@@ -52,6 +55,7 @@ tokens :-
     "#".*       ;
     "--".*      ;
     "//".*      ;
+    "{-"        { nested_comment }
 
     \(          { locate (\_ _ -> Toparen) }
     \)          { locate (\_ _ -> Tcparen) }
@@ -158,17 +162,61 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Temptytree | Tnonemptytree
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
+           | Teof
            deriving (Eq, Show)
 
 -- Modify a normal rule inside { ... } so that it returns a *located* token.
 locate
   :: (AlexPosn -> String -> Token)
-  -> (AlexPosn -> String -> Located Token)
-locate f = \p@(AlexPn _ l c) s -> L (Loc l c) (f p s)
+  -> (AlexInput -> Int -> Alex (Located Token))
+locate f = \(p@(AlexPn _ l c),_,_,s) len -> return (L (Loc l c) (f p (take len s)))
+
+-- Monadic lexer
+-- https://github.com/simonmar/alex/blob/master/examples/haskell.x
+alexEOF :: Alex (Located Token)
+alexEOF = do
+  ((AlexPn _ l c),_,_,_) <- alexGetInput
+  return (L (Loc l c) Teof)
+
+showPosn :: AlexPosn -> String
+showPosn (AlexPn _ line col) = show line ++ ':': show col
+
+lexError :: String -> Alex a
+lexError s = do
+  (p,c,_,input) <- alexGetInput
+  alexError (showPosn p ++ ": " ++ s ++ 
+                   (if (not (null input))
+                     then " before " ++ show (head input)
+                     else " at end of file"))
+
+-- Nested comment block
+nested_comment :: AlexInput -> Int -> Alex (Located Token)
+nested_comment _ _ = do
+  input <- alexGetInput
+  go 1 input
+  where go 0 input = do alexSetInput input; alexMonadScan
+        go n input = do
+          case alexGetByte input of
+            Nothing  -> err input
+            Just (c,input) -> do
+              case chr (fromIntegral c) of
+                '-' -> do
+                  case alexGetByte input of
+                    Nothing  -> err input
+                    Just (125,input) -> go (n-1) input
+                    Just (c,input)   -> go n input
+                '\123' -> do
+                  case alexGetByte input of
+                    Nothing  -> err input
+                    Just (c,input) | c == fromIntegral (ord '-') -> go (n+1) input
+                    Just (c,input)   -> go n input
+                c -> go n input
+        err input = do alexSetInput input; lexError "error in nested comment"
 
 -- From Language.Java v0.2.7 (BSD3 License)
+-- TODO: migrate lexical exceptions to monad style
 lexicalError :: String -> a
-lexicalError = error . ("lexical error: " ++)
+lexicalError = undefined
 
 -- Converts a sequence of (unquoted) Java character literals, including
 -- escapes, into the sequence of corresponding Chars. The calls to
@@ -213,6 +261,6 @@ convChar ("\\") =
 convChar (x:s) = x:convChar s
 convChar "" = ""
 
-lexer :: String -> [Located Token]
-lexer = alexScanTokens
+lexer :: (Located Token -> Alex a) -> Alex a
+lexer = (alexMonadScan >>=)
 }
