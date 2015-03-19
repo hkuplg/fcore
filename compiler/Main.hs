@@ -135,8 +135,7 @@ main = do
   -- Write the bytes of runtime.jar to temp directory
   writeRuntimeToTemp
   forM_ optSourceFiles (\source_path ->
-    do source_path2 <- preProcess source_path 
-       let source_path_new = if null optModules then source_path2 else takeBaseName source_path2 ++ "c.sf"
+    do let source_path_new = if null optModules then source_path else takeBaseName source_path ++ "c.sf"
        let output_path      = inferOutputPath source_path_new
            translate_method = optTransMethod
            modList          = optModules
@@ -157,30 +156,6 @@ main = do
        when optCompileAndRun $
          do when optVerbose $ do { putStr "  Running Java\n  Output: "; hFlush stdout }
             runJava output_path)
-
-preProcess :: FilePath -> IO FilePath
-preProcess source = do
-  content <- readFile source
-  newLines <- (replaceByMod . lines) content
-  let newFile = takeBaseName source ++ "c.sf"
-  writeFile newFile $ (Link.namespace . unlines) newLines
-  return newFile
-
-replaceByMod :: [String] -> IO [String]
-replaceByMod [] = return []
-replaceByMod (x:xs) = do
-  let line = words x
-  if length line > 0 
-    then do
-      if (words x) !! 0 == "include" 
-        then do 
-          mod <- readFile $ ((words x) !! 1) ++ ".sf"
-          rest <- replaceByMod xs
-          return $ lines mod ++ rest
-        else return (x:xs) 
-    else do
-      rest <- replaceByMod xs
-      return (x : xs) 
 
 getOpt :: [TransMethod] -> IO Compilation
 getOpt translate_method = case translate_method of

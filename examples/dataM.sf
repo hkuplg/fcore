@@ -1,6 +1,3 @@
-include M5
-include M4
-
 let null [A] (xs: M5.PolyList[A]): Bool =
     case xs of
        Nil -> True
@@ -14,6 +11,5 @@ let headIs0 (xs : M5.IntList) : Bool =
      | Cons y ys -> if null [Int] xs
                     then True -- unreachable
                     else y == 0;
-
-headIs0 (Cons [Int] 0 (Nil [Int]))
---headIs0
+-- headIs0 (Cons [Int] 0 (Nil [Int]))
+headIs0
