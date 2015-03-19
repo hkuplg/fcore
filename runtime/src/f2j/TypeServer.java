@@ -5,6 +5,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 
@@ -96,21 +98,34 @@ public class TypeServer {
   }
 
 
-  public static String queryMethod(String classFullName, String methodName, String[] methodArgs, boolean stat) {
+  public static String queryMethod(String classFullName, final String methodName, String[] methodArgs, final boolean stat) {
     try {
       Class<?> c = Class.forName(classFullName);
-      Class<?>[] givenClasses = getClassArray(methodArgs);
+      final Class<?>[] givenClasses = getClassArray(methodArgs);
       Method[] mList = c.getMethods();
 
-      List<Class<?>> ms = Arrays.stream(mList).filter(m -> {
-          Class<?>[] actualClasses = m.getParameterTypes();
-          return Modifier.isStatic(m.getModifiers()) == stat
-          && m.getName().equals(methodName)
-          && isArrayAssignableFrom(actualClasses, givenClasses);
-        }).map(Method::getReturnType).sorted((m1, m2) -> m1.isAssignableFrom(m2) ? 1 : -1).collect(Collectors.toList());
+      List<Object> ms = Arrays.stream(mList).filter(new Predicate<Method>() {
+          @Override
+          public boolean test(Method m) {
+            Class<?>[] actualClasses = m.getParameterTypes();
+            return Modifier.isStatic(m.getModifiers()) == stat
+            && m.getName().equals(methodName)
+            && isArrayAssignableFrom(actualClasses, givenClasses);
+          }
+        }).map(new Function<Method, Class<?>>() {
+            @Override
+            public Class<?> apply(Method m) {
+              return m.getReturnType();
+            }
+          }).sorted(new Comparator<Class<?>>() {
+              @Override
+              public int compare(Class<?> m1, Class<?> m2) {
+                return m1.isAssignableFrom(m2) ? 1 : -1;
+              }
+            }).collect(Collectors.toList());
 
       if (ms.size() == 0) return "$";
-      else return classFix(ms.get(0)).getCanonicalName();
+      else return classFix((Class<?>) ms.get(0)).getCanonicalName();
     } catch (Exception e) {
       return "$";
     }
