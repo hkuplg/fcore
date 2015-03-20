@@ -1,0 +1,28 @@
+data rec
+  TreeT [A] = EmptyT | NodeT A (Forest [A])
+and
+  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]);
+
+let rec
+  size_tree [A] (x:TreeT[A]):Int =
+    case x of
+       EmptyT -> 0
+     | NodeT x xs -> 1 + size_forest [A] xs
+and
+  size_forest [A] (x:Forest[A]):Int =
+    case x of
+       NilF -> 0
+     | ConsF x y -> (size_tree [A] x) + (size_forest [A] y);
+
+let test = ConsF [Int]
+     (NodeT [Int] 1
+                 (ConsF [Int] (NodeT [Int] 2 (NilF [Int]))
+                              (NilF [Int])
+                 )
+     )
+     (ConsF [Int] (NodeT [Int] 3
+                               (NilF [Int])
+                  )
+                  (NilF [Int])
+     );
+size_forest [Int] test

@@ -13,7 +13,7 @@ Portability :  portable
 The simplifier translates System F with intersection types to vanilla System F.
 -}
 
-module Simplify 
+module Simplify
   ( simplify
   , simplify'
   , FExp(..)
@@ -52,6 +52,7 @@ infer i j (FI.Lit (S.Int    _))   = FI.JClass "java.lang.Integer"
 infer i j (FI.Lit (S.String _))   = FI.JClass "java.lang.String"
 infer i j (FI.Lit (S.Bool   _))   = FI.JClass "java.lang.Boolean"
 infer i j (FI.Lit (S.Char   _))   = FI.JClass "java.lang.Character"
+infer i j (FI.Lit  S.UnitLit)     = FI.Unit
 infer i j (FI.Lam n t f)          = FI.Fun t . infer i (j + 1) $ f (j, t)
 infer i j (FI.Fix _ _ _ t1 t)     = FI.Fun t1 t
 infer i j (FI.Let _ b f)          = infer i (j + 1) $ f (j, infer i j b)
@@ -64,7 +65,7 @@ infer i j (FI.TApp f x)           = FI.mapTVar (\n1 a1 -> if a1 == i + 10000 && 
 infer i j (FI.If _ e _)           = infer i j e
 infer i j (FI.PrimOp _ op _)      = case op of S.Arith   _ -> FI.JClass "java.lang.Integer"
                                                S.Compare _ -> FI.JClass "java.lang.Boolean"
-                                               S.Logic   _ -> FI.JClass "java.lang.Boolean" 
+                                               S.Logic   _ -> FI.JClass "java.lang.Boolean"
 infer i j (FI.Tuple es)           = FI.Product . map (infer i j) $ es
 infer i j (FI.Proj index e)       = ts !! (index - 1)                            where FI.Product ts = infer i j e
 infer i j (FI.JNew c _)           = FI.JClass c
@@ -81,14 +82,14 @@ infer i j (FI.Constr c _)         = last . FI.constrParams $ c
 infer i j (FI.Case _ alts)        = inferAlt . head $ alts
   where inferAlt (FI.ConstrAlt c _ e) = let (ts, n) = (FI.constrParams c, length ts - 1)
                                         in infer i (j + n) (e (zip [j..] (init ts)))
-infer i j (FI.Data _ _ _ e)       = infer i j e
+infer i j (FI.Data _ _ e)         = infer i j e
 infer _ _ _                       = trace "Unsupported: Simplify.infer" FI.Unit
 
 transExpr :: Index -> Index -> FI.Expr Index (Index, FI.Type Index) -> Expr Index Index
 transExpr i j (FI.Var n (x, _))          = Var n x
 transExpr i j (FI.Lit l)                 = Lit l
 transExpr i j (FI.Lam n t f)             = Lam n (transType i t) (\x -> transExpr i (j + 1) $ f (x, t))
-transExpr i j this@(FI.Fix fn pn e t1 t) = Fix fn pn e' t1' t' 
+transExpr i j this@(FI.Fix fn pn e t1 t) = Fix fn pn e' t1' t'
   where
     e'        = \x x1 -> transExpr i (j + 2) $ e (x, infer i j this) (x1, t1)
     (t1', t') = (transType i t1, transType i t)
@@ -97,7 +98,7 @@ transExpr i j (FI.LetRec ns ts bs e)     = LetRec ns ts' bs' e'
   where
     ts' = map (transType i) ts
     bs' args = map (transExpr i (j + n)) . bs $ zip args ts
-    e'  args = transExpr i (j + n) . e $ zip args ts  
+    e'  args = transExpr i (j + n) . e $ zip args ts
     n = length ts
 transExpr i j (FI.BLam n f)              = BLam n (\a -> transExpr (i + 1) j $ f a)
 transExpr i j (FI.App f x) =
@@ -139,22 +140,23 @@ transExpr i j (FI.Case e alts)             = Case e' . map transAlt $ alts
       in ConstrAlt (Constructor n ts') ns (\es -> transExpr i (j + m) . f $ zip es ts) -- Right?
 transExpr i j (FI.PolyList es t)           = PolyList (map (transExpr i j) es) (transType i t)
 transExpr i j (FI.JProxyCall e t)          = JProxyCall (transExpr i j e) (transType i t)
-transExpr i j (FI.Data n params ctrs e)    = Data n params (map transCtr ctrs) (transExpr i j e)
+transExpr i j (FI.Data recflag databinds e)= Data recflag (map transDatabind databinds) (transExpr i j e)
   where transCtr (FI.Constructor name cps) = Constructor name . map (transType i) $ cps
+        transDatabind (FI.DataBind n params ctrs) = DataBind n params (map transCtr . ctrs)
 transExpr _ _ _                            = trace "Unsupported: Simplify.transExpr" (Var "" (-1))
 
 transType :: Index -> FI.Type Index -> Type Index
 transType i (FI.TVar n a)          = TVar n a
-transType i (FI.JClass c)          = JClass c 
+transType i (FI.JClass c)          = JClass c
 transType i (FI.Fun a1 a2)         = Fun (transType i a1) (transType i a2)
 transType i (FI.Forall n f)        = Forall n (\a -> transType (i + 1) $ f a)
-transType i (FI.Product ts)        = Product . map (transType i) $ ts 
-transType i (FI.Unit)              = Unit 
+transType i (FI.Product ts)        = Product . map (transType i) $ ts
+transType i (FI.Unit)              = Unit
 transType i (FI.And a1 a2)         = Product . map (transType i) $ [a1, a2]
 transType i (FI.RecordType (_, t)) = transType i t
 transType i (FI.Datatype n ts ns)  = Datatype n (map (transType i) ts) ns
 transType i (FI.ListOf t)          = ListOf . transType i $ t
-transType _ _                      = trace "Unsupported: Simplify.transType" (TVar "" (-1)) 
+transType _ _                      = trace "Unsupported: Simplify.transType" (TVar "" (-1))
 
 coerce :: Index -> FI.Type Index -> FI.Type Index -> Maybe (Expr Index Index)
 coerce i this@(FI.TVar _ a) (FI.TVar _ b)
@@ -229,7 +231,7 @@ subst g ts@((FI.Fun _ _):_)       = FI.Fun (subst g ts1) (subst g ts2)
 subst g ts@((FI.Forall n _):_)    = FI.Forall n (\z -> subst g $ ts' z)
   where ts' z = concat . map (\x -> let FI.Forall _ f = x in [f z, f (z + 1)]) $ ts
 subst g ts@((FI.Product _):_)     = FI.Product ts'
-  where 
+  where
     ts' = map (subst g) . transpose . map (\x -> let FI.Product hs = x in hs) $ ts
     transpose :: [[a]] -> [[a]]
     transpose [] = []
@@ -240,7 +242,7 @@ subst g ts@((FI.And _ _):_)       = FI.And (subst g ts1) (subst g ts2)
 subst g ts@((FI.RecordType (l, _)):_) = FI.RecordType (l, t')
   where t' = subst g . map (\x -> let FI.RecordType (_, t) = x in t) $ ts
 subst g ts@((FI.Datatype n _ ns):_) = FI.Datatype n ts' ns
-  where 
+  where
     ts' = map (subst g) . transpose . map (\x -> let FI.Datatype _ hs _ = x in hs) $ ts
     transpose :: [[a]] -> [[a]]
     transpose [] = []
@@ -257,7 +259,7 @@ dedeBruT _ _  (JClass c)         = JClass c
 dedeBruT i as (Fun t1 t2)        = Fun (dedeBruT i as t1) (dedeBruT i as t2)
 dedeBruT i as (Forall n f)       = Forall n (\a -> dedeBruT (i + 1) (a:as) (f i))
 dedeBruT i as (Product ts)       = Product (map (dedeBruT i as) ts)
-dedeBruT i as (Datatype n ts ns) = Datatype n (map (dedeBruT i as) ts) ns 
+dedeBruT i as (Datatype n ts ns) = Datatype n (map (dedeBruT i as) ts) ns
 dedeBruT i as (ListOf t)         = ListOf (dedeBruT i as t)
 dedeBruT i as  Unit              = Unit
 
@@ -272,9 +274,9 @@ dedeBruE i as j xs (Fix fn pn f t1 t)             = Fix fn pn
                                                       (dedeBruT i as t1)
                                                       (dedeBruT i as t)
 dedeBruE i as j xs (Let n e f)                    = Let n
-                                                      (dedeBruE i as j xs e) 
+                                                      (dedeBruE i as j xs e)
                                                       (\x -> dedeBruE i as (j + 1) (x:xs) (f j))
-dedeBruE i as j xs (LetRec ns ts fs e)            = LetRec ns 
+dedeBruE i as j xs (LetRec ns ts fs e)            = LetRec ns
                                                       (map (dedeBruT i as) ts)
                                                       (\xs' -> map (dedeBruE i as (j + n) ((reverse xs') ++ xs)) (fs [j..j + n - 1]))
                                                       (\xs' -> dedeBruE i as (j + n) ((reverse xs') ++ xs) (e [j..j + n - 1]))
@@ -303,11 +305,15 @@ dedeBruE i as j xs (Constr (Constructor n ts) es) = Constr
                                                       (map (dedeBruE i as j xs) es)
 dedeBruE i as j xs (Case e alts)                  = Case (dedeBruE i as j xs e) (map dedeBruijnAlt alts)
   where dedeBruijnAlt (ConstrAlt (Constructor name ts) names fe) =
-          ConstrAlt 
+          ConstrAlt
             (Constructor name (map (dedeBruT i as) ts)) names
             (\xs' -> dedeBruE i as (j + n) ((reverse xs') ++ xs) (fe [j..j + n - 1])) where n = length ts - 1
-dedeBruE i as j xs (Data n ns ctrs e)             = Data n ns (map dedeBruijnConstr ctrs) (dedeBruE i as j xs e)
-  where dedeBruijnConstr (Constructor name types) = Constructor name (map (dedeBruT i as) types)
+
+dedeBruE i as j xs (Data recflag databinds e)     = Data recflag (map dedeBruijnDatabind databinds) (dedeBruE i as j xs e)
+  where dedeBruijnConstr i' as' (Constructor name types) = Constructor name (map (dedeBruT i' as') types)
+        dedeBruijnDatabind (DataBind n ns ctrs)   = DataBind n ns (\a -> map (dedeBruijnConstr (length ns + i) (a++as)) $
+                                                                         (ctrs [i..length ns+i-1]) )
+
 dedeBruE i as j xs (PolyList es t)                = PolyList (map (dedeBruE i as j xs) es) (dedeBruT i as t)
 dedeBruE i as j xs (JProxyCall e t)               = JProxyCall (dedeBruE i as j xs e) (dedeBruT i as t)
 

@@ -1,22 +1,19 @@
-notifications:
-  slack: hkuplgroup:7jiTM7QOayfuaA2tm7YgOhHa
-
 branches:
   only:
     - master
     - develop
     - testsuite
 
-language: haskell
+language: java
 
 env:
   #- GHCVER=7.4.2
   #- GHCVER=7.6.3
   - GHCVER=7.8.3
   - GHCVER=head
-  # - >
-  #   GHCVER=7.4.2
-  #   MODE="-fsafe"
+
+jdk:
+  - oraclejdk8
 
 matrix:
   allow_failures:
@@ -40,7 +37,6 @@ before_install:
       export CABAL=cabal-1.18
       export PATH=/opt/ghc/$GHCVER/bin:$PATH
     fi
-
   # Uncomment whenever hackage is down.
   # - mkdir -p ~/.cabal && cp travis/config ~/.cabal/config && $CABAL update
   - $CABAL update
