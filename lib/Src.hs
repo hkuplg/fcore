@@ -19,7 +19,7 @@ module Src
   , Kind(..)
   , Type(..), ReaderType
   , Expr(..), ReaderExpr, CheckedExpr
-  , Constructor(..), Alt(..)
+  , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId, LReaderId
@@ -156,9 +156,14 @@ data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
                    deriving (Eq, Show)
 
-data Alt id ty = ConstrAlt Constructor [Name] (LExpr id ty)
             -- | Default (Expr id)
+data Alt id ty = ConstrAlt Pattern (LExpr id ty)
               deriving (Eq, Show)
+
+data Pattern = PConstr Constructor [Pattern]
+             | PVar Name
+             | PWildcard
+             deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
 type ReaderExpr  = LExpr Name Type
@@ -487,8 +492,13 @@ instance Pretty DataBind where
   pretty (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
-    pretty (ConstrAlt c ns e2) = hsep (text (constrName c) : map text ns) <+> arrow <+> pretty e2
     -- pretty (Default e) = text "_" <+> arrow <+> pretty e
+    pretty (ConstrAlt p e2)    = (pretty p) <+> arrow <+> pretty e2
+
+instance Pretty Pattern where
+    pretty (PConstr ctr ps) = parens $ text (constrName ctr) <+> hsep (map pretty ps)
+    pretty (PVar nam)       = text nam
+    pretty (PWildcard)      = text "_"
 
 -- Utilities
 
