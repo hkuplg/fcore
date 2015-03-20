@@ -1,0 +1,19 @@
+{-_-}
+
+{- {- {- {- {- {-_-} -} -} -} -} -}
+
+-- Bad comment block: 
+-- {- {-_-}
+
+{- THE BIG BROTHER 
+        {-_-}
+   IS WATCHING YOU
+        !!!!!
+-}
+
+{- f is a function which takes an integer and
+produces integer.  {- this is an embedded
+comment -} the original comment extends to the
+matching end-comment token: -}
+
+"Nested comment blocks test done!"

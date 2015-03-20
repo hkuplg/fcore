@@ -18,6 +18,9 @@ env:
   #   GHCVER=7.4.2
   #   MODE="-fsafe"
 
+jdk:
+  - oraclejdk8
+
 matrix:
   allow_failures:
     - env: GHCVER=head

@@ -67,6 +67,7 @@ library
                         PrettyUtils
                         Simplify
                         Src
+                        SrcLoc
                         StackTransCFJava
                         StaticAssert
                         StringPrefixes

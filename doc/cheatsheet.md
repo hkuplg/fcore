@@ -86,6 +86,14 @@ data BTree [A,B] = Leaf A
 let tree = Node[Bool,Int] (Leaf[Bool,Int] True) 7 (Leaf[Bool,Int] False); ...
 ```
 
+ADT can be mutually recursive, by using `rec` and `and`
+```
+data rec
+  TreeT [A] = EmptyT | NodeT A (Forest [A])
+and
+  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]);
+```
+
 Pattern matching on ADTs (Case expressions):
 
 ```

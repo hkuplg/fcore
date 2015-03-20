@@ -29,6 +29,7 @@ import Data.Data
 import Data.Typeable
 
 import Translations
+import JavaUtils (inferClassName, inferOutputPath)
 
 data TransMethod = Apply
                  | Naive
@@ -66,8 +67,8 @@ getClassName (x : xs) = (toUpper x) : xs
 send :: Handle -> CompileOpt -> Bool -> Bool -> FilePath -> IO Bool 
 send h (n, opt, method) flagC flagS f = do 
   contents <- readFile f
-  let path = dropFileName f
-  let className = getClassName $ dropExtension (takeFileName f)
+  -- let path = dropFileName f
+  let className = inferClassName . inferOutputPath $ f
   result <- E.try (sf2java False NoDump opt className contents)
   case result of 
     Left  (_ :: E.SomeException) -> 

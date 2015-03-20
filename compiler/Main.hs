@@ -140,15 +140,16 @@ main = do
            translate_method = optTransMethod
            modList          = optModules
            sort_and_rmdups  = map head . group . sort . (++) [Naive]
-       opt <- getOpt (sort_and_rmdups translate_method)
+       opts <- getOpt (sort_and_rmdups translate_method)
        unless (null optModules) $
-         do content <- Link.linkModule modList
+         do cont <- Link.linkModule modList
+            let content = Link.namespace cont
             putStrLn "Linking..."
             Link.link source_path content
             putStrLn (source_path_new ++ " generated!")
        putStrLn (takeBaseName source_path_new ++ " using " ++ show (sort_and_rmdups translate_method))
        putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
-       compilesf2java optInline optDump opt source_path_new output_path
+       compilesf2java optInline optDump opts source_path_new output_path
        when (optCompile || optCompileAndRun) $
          do when optVerbose (putStrLn "  Compiling to Java bytecode")
             compileJava output_path
