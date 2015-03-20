@@ -1,0 +1,28 @@
+--> 13
+
+let max (x : Int) (y : Int) : Int =
+  if x > y then x else y
+;
+let rec
+  at[A] (n:Int) (x:List[A]): A =
+    if (n==0)
+    then head(x)
+    else at[A] (n-1) tail(x)
+;
+let maxValue (values : List[Int]) (weights : List[Int]) (totalWeight : Int) : Int = (
+  let rec maxValue' (k : Int -> Int) (i : Int) (w : Int) : Int =
+    if i == 0 || w == 0 then (k 0)
+    else
+      if ( at (i-1) weights ) > w then maxValue' k (i - 1) w
+      else
+        maxValue' (\(result : Int) ->
+                    (maxValue' (\(result' : Int) -> (k (max result ( ( at (i-1) values ) + result'))))
+                               (i - 1)
+                               (w - ( at (i-1) weights ))))
+        (i - 1)
+        w
+  ;
+  maxValue' (\(x : Int) -> x) length(values) totalWeight
+)
+;
+maxValue (new List[Int](9,3,4)) (new List[Int](2,5,8)) 10

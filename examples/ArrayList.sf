@@ -1,0 +1,3 @@
+type MyList = java.util.ArrayList
+let addValue (list: MyList) (value: Int) = list.add(value);
+addValue (new java.util.ArrayList()) 2

@@ -1,0 +1,9 @@
+--> 10
+
+let id[A] (x : A) = x
+;
+let g = (id[Int] ,id
+        ,id[forall A. A -> A]
+        )
+;
+g._3 g._2 10

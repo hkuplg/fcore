@@ -1,3 +1,0 @@
---> 1
-
-let id : forall A. A -> A = /\B. \(x:B). x in id 1
