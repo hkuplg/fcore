@@ -5,15 +5,15 @@ testdir=testsuite
 
 .PHONY : compiler
 compiler : dependencies runtime
-	cabal install
+	$${CABAL=cabal}  install
 
 .PHONY : smt
 smt : dependencies runtime
-	cabal install -f Z3
+	$${CABAL=cabal}  install -f Z3
 
 .PHONY : test
 test : dependencies runtime
-	cabal configure --enable-tests && cabal build && cabal test
+	$${CABAL=cabal} configure --enable-tests && $${CABAL=cabal} build && $${CABAL=cabal} test
 
 .PHONY : test2
 test2 : dependencies runtime
@@ -22,7 +22,7 @@ test2 : dependencies runtime
 
 .PHONY : dependencies
 dependencies : 
-	cabal install --only-dependencies --enable-tests
+	$${CABAL=cabal} install --only-dependencies --enable-tests
 
 .PHONY : runtime
 runtime :
