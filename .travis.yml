@@ -7,7 +7,7 @@ branches:
     - develop
     - testsuite
 
-language: haskell
+language: java
 
 env:
   #- GHCVER=7.4.2
