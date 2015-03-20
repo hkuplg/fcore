@@ -19,6 +19,7 @@ import System.Process
 import System.Directory     (doesFileExist, getDirectoryContents)
 import System.FilePath      (takeFileName, takeExtensions)
 import System.TimeIt        (timeIt)
+import System.Exit
 
 import System.Clock
 import Control.Monad        (when)
@@ -43,7 +44,7 @@ writeRuntimeToTemp =
 
 testCasesPath = "testsuite/tests/should_run/"
 
-initReplEnv :: [TransMethod] -> Compilation -> [String] -> IO ()
+initReplEnv :: [TransMethod] -> Compilation -> [String] -> IO Int
 initReplEnv method opt xs =  do
      cp <- getClassPath
      let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
@@ -54,6 +55,7 @@ initReplEnv method opt xs =  do
      error <- loadFile inP outP method opt xs
      putStrLn $ "Error count: " ++ (show error)
      terminateProcess proch
+     return error
 
 loadFile :: Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO Int
 loadFile inP outP method opt xs = do
@@ -101,11 +103,14 @@ main = do
   putStrLn ""
   putStrLn $ "Running test from " ++ testCasesPath
   putStrLn "-------------------------------------"
-  timeIt $ initReplEnv [Naive] compileN zs
-  timeIt $ initReplEnv [Naive, Apply] compileAO zs
-  timeIt $ initReplEnv [Naive, Stack] compileSN zs
-  timeIt $ initReplEnv [Naive, Apply, Stack] compileS zs
+  error1 <- initReplEnv [Naive] compileN zs
+  error2 <- initReplEnv [Naive, Apply] compileAO zs
+  error3 <- initReplEnv [Naive, Stack] compileSN zs
+  error4 <- initReplEnv [Naive, Apply, Stack] compileS zs
   putStrLn "-------------------------------------"
   putStrLn "Finished!"
   end <- getTime Monotonic
   putStrLn $ "Running Time " ++ show (sec end - sec start) ++ "s"
+  if (error1 /= 0) || (error2 /= 0) || (error3 /= 0) || (error4 /= 0) 
+    then exitFailure
+    else return ()
