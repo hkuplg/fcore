@@ -90,6 +90,7 @@ executable f2j
                       , array == 0.5.*
                       , base == 4.*
                       , bytestring == 0.10.*
+                      , clock == 0.4.1.*
                       , cmdargs == 0.10.*
                       , containers == 0.5.*
                       , directory == 1.2.*
