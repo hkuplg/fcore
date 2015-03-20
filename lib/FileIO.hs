@@ -48,18 +48,18 @@ data TransMethod = Apply
 type Connection = (Handle, Handle)
 type CompileOpt = (Int, Compilation, [TransMethod])
 
-wrap :: Connection -> (Handle -> IO ()) -> CompileOpt -> Bool -> Bool -> String -> IO ()
+wrap :: Connection -> (Int -> Handle -> IO Int) -> CompileOpt -> Bool -> Bool -> String -> IO Int 
 wrap (inP, outP) receiveMsg opt flagC flagS name = do
 	exist <- doesFileExist name
 	if not exist
 	  then do
 	    putStrLn $ name ++ " does not exist"
-	    return ()
+	    return 1
   	  else do
 	    correct <- send inP opt flagC flagS name
 	    case correct of 
-	      True  -> receiveMsg outP
-	      False -> return ()
+	      True  -> receiveMsg 0 outP
+	      False -> return 1
 
 getClassName :: String -> String
 getClassName (x : xs) = (toUpper x) : xs
@@ -84,26 +84,28 @@ send h (n, opt, method) flagC flagS f = do
               putStrLn file
          return True
 	
-receiveMsg :: Handle -> IO () 
-receiveMsg h = do
+receiveMsg :: Int -> Handle -> IO Int 
+receiveMsg error h = do
   msg <- hGetLine h
   if msg == "exit" 
-    then return ()
+    then return error
     else do putStrLn msg
-            receiveMsg h
+            receiveMsg error h
 
 -- make test2
-receiveMsg2 :: String -> Handle -> IO ()
-receiveMsg2 output h = do
+receiveMsg2 :: String -> Int -> Handle -> IO Int
+receiveMsg2 output error h = do
   msg <- hGetLine h
   if msg == "exit"
-    then return ()
+    then return error
     else do 
       if msg /= output 
-        then putStrLn $ "\x1b[31m" ++ "Incorrect: " ++ msg
-        else putStrLn $ "\x1b[32m" ++ "Correct: " ++ msg
-      putStrLn "\x1b[0m"
-      receiveMsg2 output h
+        then do putStrLn $ "\x1b[31m" ++ "Incorrect: " ++ msg
+                putStrLn "\x1b[0m"
+                receiveMsg2 output (error+1) h
+        else do putStrLn $ "\x1b[32m" ++ "Correct: " ++ msg
+                putStrLn "\x1b[0m"
+                receiveMsg2 output error h
 
 -- make test
 receiveMsg3 outP = do
