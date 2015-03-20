@@ -51,26 +51,28 @@ initReplEnv method opt xs =  do
      (Just inP, Just outP, _, proch) <- createProcess p
      hSetBuffering inP NoBuffering
      hSetBuffering outP NoBuffering
-     loadFile inP outP method opt xs
+     error <- loadFile inP outP method opt xs
+     putStrLn $ "Error count: " ++ (show error)
      terminateProcess proch
 
-loadFile :: Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO ()
+loadFile :: Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO Int
 loadFile inP outP method opt xs = do
     putStrLn "-------------------------------------"
     putStrLn ("Compileation Option: " ++ show (method))
-    loadAll inP outP method opt xs
+    loadAll inP outP 0 method opt xs
 
-loadAll ::  Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO ()
-loadAll _ _ _ _ [] = return ()
-loadAll inP outP method opt (x:xs) = do
+loadAll ::  Handle -> Handle -> Int -> [TransMethod] -> Compilation -> [String] -> IO Int
+loadAll _ _ error _ _ [] = return error
+loadAll inP outP error method opt (x:xs) = do
     let compileOpt = (0, opt, method)
     let name = takeFileName x
-    when ((head name /= '.') && (takeExtensions x == ".sf")) $
-     do putStrLn ("Running " ++ name)
-        output <- getStandardOutput x
-        putStrLn $ "\x1b[32m" ++ "Standard output: " ++ output
-        wrap (inP, outP) (receiveMsg2 output) compileOpt True False x
-    loadAll inP outP method opt xs
+    if ((head name /= '.') && (takeExtensions x == ".sf")) 
+      then do putStrLn ("Running " ++ name)
+              output <- getStandardOutput x
+              putStrLn $ "\x1b[32m" ++ "Standard output: " ++ output
+              error2 <- wrap (inP, outP) (receiveMsg2 output) compileOpt True False x
+              loadAll inP outP (error+error2) method opt xs
+      else loadAll inP outP error method opt xs
 
 getStandardOutput :: FilePath -> IO String
 getStandardOutput file = do
