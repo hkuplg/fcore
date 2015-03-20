@@ -10,7 +10,7 @@
 
   <target name="compile" depends="init"
         description="compile the source " >
-    <javac target="1.8" srcdir="${src}" destdir="${build}" includeAntRuntime="false"/>
+    <javac target="1.8" source="1.8" srcdir="${src}" destdir="${build}" includeAntRuntime="false"/>
   </target>
 
   <target name="dist" depends="compile"
