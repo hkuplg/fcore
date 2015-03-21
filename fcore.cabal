@@ -35,7 +35,7 @@ library
                       , transformers == 0.3.*
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
-  hs-source-dirs:       lib
+  hs-source-dirs:       lib,lib/simplify
   exposed-modules:      ApplyTransCFJava
                         BaseTransCFJava
                         BenchGenCF2J
@@ -76,6 +76,7 @@ library
                         TestInh
                         Translations
                         TypeCheck
+  other-modules:        SimplifyImpl
   if flag(Z3)
                         exposed-modules: SymbolicEvaluator, Z3Backend
                         build-depends: z3 >= 0.3.2
