@@ -357,17 +357,11 @@ interp :: { ReaderExpr }
 
 interps :: { ReaderExpr }
     : strlit                    { $1 }
-    | strlit interp interps     { if null (unpackstr $1)
-                                    then if null (unpackstr $3)
-                                           then $2
-                                           else jconcat $2 $3
-                                    else if null (unpackstr $3)
-                                           then jconcat $1 $2
-                                           else jconcat $1 (jconcat $2 $3)}
+    | strlit interp interps     { jconcat $1 (jconcat $2 $3) }
 
 lit :: { ReaderExpr }
     : INT                       { Lit (Int $ toInt $1)       `withLoc` $1 }
-    | STRL interps STRR         { let L _ r = $2 in r        `withLoc` $1 }
+    | STRL interps STRR         { unLoc $2                   `withLoc` $1 }
     | BOOL                      { Lit (Bool $ toBool $1)     `withLoc` $1 }
     | CHAR                      { Lit (Char $ toChar $1)     `withLoc` $1 }
     | "()"                      { Lit UnitLit                `withLoc` $1 }
@@ -502,7 +496,12 @@ toString (L _ tok) =
     Tsymbolid x -> x
 
 -- Help functions of string interpolation
-jconcat x y = JMethod (NonStatic x) "concat" [y] undefined `withLoc` x
+-- Returns a dummy list if not a string literal
 unpackstr (L _ (Lit (String x))) = x
-unpackstr (L _ (JMethod _ _ _ _)) = ['\0']
+unpackstr _ = ['\0']
+
+-- Concatenates two strings by Java method `concat()'
+jconcat x y | null (unpackstr y) = x
+            | null (unpackstr x) = y
+            | otherwise = JMethod (NonStatic x) "concat" [y] undefined `withLoc` x
 }
