@@ -637,7 +637,7 @@ infer (L loc (Data recflag databinds e)) =
                let names = map constrName cs
                    dt = Datatype name (map TVar params) names
                    constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt | Constructor _ ts <- cs]
-                   cs' = [ Constructor ctrname (map (expandType type_ctxt) ts) | (Constructor ctrname ts) <- cs]
+                   cs' = [ Constructor ctrname ((map (expandType type_ctxt) ts) ++ [dt]) | (Constructor ctrname ts) <- cs]
                    constr_binds = zip names constr_types
                return (cs', constr_binds)
 
