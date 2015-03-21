@@ -112,7 +112,7 @@ data TypeError
   | ExpectJClass
   | IndexTooLarge
   | TypeMismatch Type Type
-  | KindMismatch Kind Kind
+  | KindMismatch Kind Kind Type
   | MissingTyAscription Name
   | NotInScope Name
   | ProjectionOfNonProduct
@@ -142,15 +142,16 @@ instance Pretty TypeError where
   pretty (NotInScope x)  = prettyError <+> code (text x) <+> text "is not in scope"
   pretty (DuplicateParam ident) = prettyError <+> text "duplicate parameter" <+> code (text ident)
   pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
-  pretty (KindMismatch expected found) =
+  pretty (KindMismatch expected found t) =
     prettyError <+> text "kind mismatch" <> colon <$>
     indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
-              text "   found" <+> code (pretty found))
+              text "   found" <+> code (pretty found)) <$>
+    text "in the type" <> colon <+> pretty t
+
   pretty (TypeMismatch expected found) =
     prettyError <+> text "type mismatch" <> colon <$>
     indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
               text "   found" <+> code (pretty found))
-
   pretty (NoSuchClass c)  = prettyError <+> text "no such class:" <+> code (text c)
   pretty (NotMember x t)  = prettyError <+> code (text x) <+> text "is not a member of the type" <+> code (pretty t)
   pretty (NotAFunction t) = prettyError <+> code (pretty t) <+> text "is not a function; it cannot be applied"
@@ -813,7 +814,7 @@ checkType t =
       case maybe_kind of
         Nothing   -> throwError (noExpr $ NotWellKinded t)
         Just Star -> return ()
-        Just k    -> throwError (noExpr $ KindMismatch Star k)
+        Just k    -> throwError (noExpr $ KindMismatch Star k t)
 
 unlessIO :: (Monad m, MonadIO m) => IO Bool -> m () -> m ()
 unlessIO test do_this
