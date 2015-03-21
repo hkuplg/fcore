@@ -34,6 +34,8 @@ Variable names start with lower case letters.
 
 Boolean literals: `True`, `False`
 
+String interpolation: `let t = 3; "\{t} times 2 is \{(\(x: Int) -> x * 2) t}"`
+
 Lambdas: `\(x: Int) (y: Int) -> x + y`
 
 Type lambdas: `/\A -> \(x: A) -> x`
