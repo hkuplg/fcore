@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeOperators, FlexibleInstances, MultiParamTypeClasses, RankNTypes #-}
+{-# LANGUAGE TypeOperators, FlexibleInstances, MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wall #-}
 {- |
 Module      :  Simplify
@@ -13,10 +13,9 @@ Portability :  portable
 The simplifier translates System F with intersection types to vanilla System F.
 -}
 
-module Simplify
+module SimplifyImpl
   ( simplify
   , simplify'
-  , FExp(..)
   , infer
   , transExpr
   , transType
@@ -38,13 +37,11 @@ import Data.Maybe    (fromMaybe)
 import Control.Monad (zipWithM)
 import Unsafe.Coerce (unsafeCoerce)
 
-simplify :: FExp -> Expr t e
-simplify = dedeBruE 0 [] 0 [] . transExpr 0 0 . revealF
+simplify :: FI.FExp -> Expr t e
+simplify = dedeBruE 0 [] 0 [] . transExpr 0 0 . FI.revealF
 
 simplify' :: FI.Expr t e -> Expr t e
 simplify' = dedeBruE 0 [] 0 [] . transExpr 0 0 . unsafeCoerce
-
-newtype FExp = HideF { revealF :: forall t e. FI.Expr t e }
 
 infer :: Index -> Index -> FI.Expr Index (Index, FI.Type Index) -> FI.Type Index
 infer i j (FI.Var _ (_, t))       = t

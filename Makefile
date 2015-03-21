@@ -18,7 +18,7 @@ test : dependencies runtime
 .PHONY : test2
 test2 : dependencies runtime
 	make parsers
-	runhaskell -i$(srcdir) $(srcdir)/FileLoad.hs
+	runhaskell -i$(srcdir):lib/simplify $(srcdir)/FileLoad.hs
 
 .PHONY : dependencies
 dependencies : 
