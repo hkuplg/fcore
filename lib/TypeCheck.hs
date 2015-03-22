@@ -589,9 +589,6 @@ infer expr@(L _ (Type t params rhs e))
   where
     pulledRight = pullRight params rhs
 
--- data List A = Nil | Cons A (expr@ List A); e
--- gamma |- Nil: \/A. List A, Cons: \/A. A List A
--- delta |- List: \A. List A
 -- data List A = Nil | Cons A (List A) and ...; e
 -- gamma |- Nil: \/A. List A, Cons: \/A. A List A
 -- delta |- List: \A. List A
@@ -654,49 +651,34 @@ infer expr@(L loc (Case e alts)) =
    (t, e') <- infer e
    if not (isDatatype t)
     then if isString t
-           then inferString e
+           then inferString
            else throwError $ TypeMismatch t (Datatype "Datatype" [] []) `withExpr` e
     else do
      value_ctxt <- getValueContext
-     d <- getTypeContext
-     let Datatype _ ts_feed ns = t
-         ces = [(c,e) | ConstrAlt c _ e <- alts]
-     constrs' <- mapM (\(c,e) -> let n = constrName c
-                             in case Map.lookup n value_ctxt of
-                                  Just t_constr -> let ts = unwrapFun $ feedToForall t_constr ts_feed
-                                                   in if compatible d (last ts) t
-                                                      then return $ Constructor n ts
-                                                      else throwError $ TypeMismatch t_constr t `withExpr` e
-                                  Nothing -> throwError $ NotInScope n `withExpr` e)
-                 ces
+     type_ctxt <- getTypeContext
+     let pats = [pat' | ConstrAlt pat' _ <- alts]
+         exps = [exp' | ConstrAlt _ exp' <- alts]
+     -- check patterns
+     constrs' <- zipWithM (typecheckPattern type_ctxt value_ctxt t) exps pats
      let alts' = zipWith substAltConstr alts constrs'
 
+     -- infer e
      (ts, es) <- mapAndUnzipM
-                 (\(ConstrAlt c vars e2) ->
-                      let n = constrName c
-                          ts = init $ constrParams c
-                      in if length ts == length vars
-                         then withLocalVars (filter ((/= "_") . fst) $ zip vars ts) (infer e2)
-                         else throwError $ General (text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
-                                                                   <+> text "arguments, bus has been given" <+> int (length vars)) `withExpr` e2) -- TODO: should be c's loc
+                 (\(ConstrAlt pat e2) ->
+                      let newvars = getLocalVars pat
+                      in  withLocalVars newvars (infer e2))
                  alts'
 
+     -- result type check
      let resType = head ts
-     let i = findIndex (not . compatible d resType) ts
+     let i = findIndex (not . compatible type_ctxt resType) ts
      when (isJust i) $
-            throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (snd $ ces !! fromJust i)
-
-     let allConstrs = Set.fromList ns
-     let matchedConstrs = Set.fromList $ map (constrName . fst) ces
-     let unmatchedConstrs = allConstrs Set.\\ matchedConstrs
-     unless (Set.null unmatchedConstrs) $
-            throwError $ (General $ text "Pattern match(es) are non-exhaustive." <+>
-                                vcat (intersperse space (map (bquotes . text) $ Set.elems unmatchedConstrs))) `withExpr` expr
+            throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
 
      return (resType, L loc $ Case e' (zipWith substAltExpr alts' es))
 
-  where substAltExpr (ConstrAlt c ns _) = ConstrAlt c ns
-        substAltConstr (ConstrAlt _ ns expr) c = ConstrAlt c ns expr
+  where substAltExpr (ConstrAlt c _) = ConstrAlt c
+        substAltConstr (ConstrAlt _ exp') p = ConstrAlt p exp'
 
         isDatatype (Datatype{}) = True
         isDatatype _ = False
@@ -704,22 +686,50 @@ infer expr@(L loc (Case e alts)) =
         isString (JType (JClass "java.lang.String")) = True
         isString _ = False
 
+        -- exp' is only for error message output.
+        -- ty is the expected type
+        typecheckPattern type_ctxt value_ctxt ty exp' (PConstr ctr pats) = do
+            unless (isDatatype ty) $
+              throwError $ TypeMismatch ty (Datatype "Datatype" [] []) `withExpr` exp'
+            let Datatype _ ts_feed _ = ty
+                n = constrName ctr
+            case Map.lookup n value_ctxt of
+                Just t_constr -> let ts = unwrapFun $ feedToForall t_constr ts_feed
+                                 in if compatible type_ctxt (last ts) ty
+                                    then do unless ((length ts -1) == (length pats)) $
+                                              throwError $ General (text "Constructor" <+> bquotes (text n)
+                                                       <+> text "should have" <+> int (length ts -1)
+                                                       <+> text "arguments, but has been given" <+> int (length pats)) `withExpr` exp'
+                                            pat' <- zipWithM (\ty' pat' -> typecheckPattern type_ctxt value_ctxt ty' exp' pat') ts pats
+                                            return $ PConstr (Constructor n ts) pat'
+                                    else do throwError $ TypeMismatch t_constr ty `withExpr` exp'
+                Nothing -> throwError $ NotInScope n `withExpr` exp'
+        typecheckPattern _ _ ty _ (PVar nam _) = return (PVar nam ty)
+        typecheckPattern _ _ _  _ PWildcard    = return PWildcard
+
+        getLocalVars PWildcard  = []
+        getLocalVars (PVar nam ty) = [(nam, ty)]
+        getLocalVars (PConstr _ pats) = concat $ map getLocalVars pats
+
         -- inferString :: ReaderExpr -> Checker (Type, CheckedExpr)
-        inferString e =
+        inferString =
           do
-            (t, e') <- infer e
-            let alts' = [ n | ConstrAlt (Constructor n _) _ _ <-  alts]
+            (_, e') <- infer e
+            let alts' = [ n | ConstrAlt (PConstr (Constructor n _) _) _ <-  alts]
             unless ((length alts == 2) && Set.fromList alts' == Set.fromList ["cons", "empty"]) $
               throwError $ (General $ text "String should have two patterns [] and head:tail") `withExpr` e
 
-            let [b1]               = [ e | ConstrAlt (Constructor "empty" _) _ e <-  alts]
-                [(var1, var2, b2)] = [ (var1',var2',e) | ConstrAlt (Constructor "cons" _) [var1',var2'] e <-  alts]
+            let [b1]               = [ b1' | ConstrAlt (PConstr (Constructor "empty" _) _) b1' <-  alts]
+                [(var1, var2, b2)] = [ (var1',var2',b2') | ConstrAlt (PConstr (Constructor "cons" _) [PVar var1' _ ,PVar var2' _]) b2' <-  alts]
             (t1, emptyexpr) <- infer b1
             (_,  nonemptyexpr) <- withLocalVars
                                     (filter ((/= "_") . fst)[(var1, JType (JClass "java.lang.Character")), (var2, JType(JClass "java.lang.String"))])
                                   $ inferAgainst b2 t1
-            let emptyalt = ConstrAlt (Constructor "empty" []) [] emptyexpr
-                nonemptyalt = ConstrAlt (Constructor "cons" []) [var1, var2] nonemptyexpr
+            let emptyalt = ConstrAlt (PConstr (Constructor "empty" []) []) emptyexpr
+                nonemptyalt = ConstrAlt (PConstr (Constructor "cons" [])
+                                     [PVar var1 $ JType (JClass "java.lang.Character"),
+                                      PVar var2 $ JType (JClass "java.lang.String")])
+                                     nonemptyexpr
             return (t1, CaseString e' [emptyalt, nonemptyalt] `withLoc` e)
 
 -- | "Pull" the type params at the LHS of the equal sign to the right.

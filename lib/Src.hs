@@ -161,7 +161,7 @@ data Alt id ty = ConstrAlt Pattern (LExpr id ty)
               deriving (Eq, Show)
 
 data Pattern = PConstr Constructor [Pattern]
-             | PVar Name
+             | PVar Name Type
              | PWildcard
              deriving (Eq, Show)
 
@@ -497,7 +497,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
 
 instance Pretty Pattern where
     pretty (PConstr ctr ps) = parens $ text (constrName ctr) <+> hsep (map pretty ps)
-    pretty (PVar nam)       = text nam
+    pretty (PVar nam _)       = text nam
     pretty (PWildcard)      = text "_"
 
 -- Utilities
