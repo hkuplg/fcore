@@ -446,7 +446,7 @@ trans self =
                            let classdef = localClass nam (classBody ([tag, classctr] ++ concat ctrs'))
                                proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
                            return (classdef,proxy)
-                    translateCtr nam (Constructor ctrname' []) tagnum = do
+                    translateCtr nam (Constructor ctrname' [_]) tagnum = do
                           let ctrname = nam ++ ctrname'
                               fielddecl = memberDecl $ fieldDecl (classTy nam) (varDeclNoInit ctrname )
                               singleton = bStmt $ ifthen (eq (varExp ctrname) nullExp)
@@ -454,7 +454,8 @@ trans self =
                               methoddecl = memberDecl $ methodDecl [] (Just $ classTy nam) ctrname []
                                                         (Just $ block [singleton, returnExpS $ varExp ctrname])
                           return [fielddecl, methoddecl]
-                    translateCtr nam (Constructor ctrname' types) tagnum = do
+                    translateCtr nam (Constructor ctrname' types') tagnum = do
+                         let types = init types'
                          javaty <- mapM (javaType this) types
                          let ctrname = nam ++ ctrname'
                              fields = map ((fieldtag ++ ) . show) [1..length types]

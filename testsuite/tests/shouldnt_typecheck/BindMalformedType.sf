@@ -1,1 +1,1 @@
-let f (x:A) = x in f
+let f (x:A) = x; f

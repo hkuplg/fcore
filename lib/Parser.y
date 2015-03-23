@@ -64,6 +64,10 @@ import JavaUtils
   "of"     { L _ Tof }
   "_"      { L _ Tunderscore }
   "`"      { L _ Tbackquote }
+  STRL     { L _ Tstrl }
+  STRR     { L _ Tstrr }
+  STREXPL  { L _ Tstrexpl }
+  STREXPR  { L _ Tstrexpr }
 
   UPPER_IDENT  { L _ (Tupperid _) }
   LOWER_IDENT  { L _ (Tlowerid _) }
@@ -76,7 +80,7 @@ import JavaUtils
   "module"  { L _ Tmodule }
 
   INT      { L _ (Tint _) }
-  STRING   { L _ (Tstring _) }
+  SCHAR    { L _ (Tschar _) }
   BOOL     { L _ (Tbool _) }
   CHAR     { L _ (Tchar _) }
   "Empty"    { L _ Temptytree }
@@ -344,9 +348,20 @@ javaexpr :: { ReaderExpr }
     -- Is this possible?
     -- | aexpr "." UPPER_IDENT                    { Dot $1 $3 Nothing `withLoc` $1 }
 
+strlit :: { ReaderExpr }
+    : {- empty -}               { Lit (String []) `withLoc` (L (Loc 0 0) undefined) }
+    | SCHAR strlit              { Lit (String (toSChar $1:unpackstr $2)) `withLoc` $1 }
+
+interp :: { ReaderExpr }
+    : STREXPL expr STREXPR      { JMethod (Static "java.lang.String") "valueOf" [$2] undefined `withLoc` $1 }
+
+interps :: { ReaderExpr }
+    : strlit                    { $1 }
+    | strlit interp interps     { jconcat $1 (jconcat $2 $3) }
+
 lit :: { ReaderExpr }
     : INT                       { Lit (Int $ toInt $1)       `withLoc` $1 }
-    | STRING                    { Lit (String $ toString $1) `withLoc` $1 }
+    | STRL interps STRR         { unLoc $2                   `withLoc` $1 }
     | BOOL                      { Lit (Bool $ toBool $1)     `withLoc` $1 }
     | CHAR                      { Lit (Char $ toChar $1)     `withLoc` $1 }
     | "()"                      { Lit UnitLit                `withLoc` $1 }
@@ -482,11 +497,21 @@ reader src = case (runAlex src parseExpr) of
 toInt (L _ (Tint x)) = x
 toBool (L _ (Tbool x)) = x
 toChar (L _ (Tchar x)) = x
+toSChar (L _ (Tschar x)) = x
 toString (L _ tok) =
   case tok of
-    Tstring x -> x
     Tjavaclass x -> x
     Tupperid x -> x
     Tlowerid x -> x
     Tsymbolid x -> x
+
+-- Help functions of string interpolation
+-- Returns a dummy list if not a string literal
+unpackstr (L _ (Lit (String x))) = x
+unpackstr _ = ['\0']
+
+-- Concatenates two strings by Java method `concat()'
+jconcat x y | null (unpackstr y) = x
+            | null (unpackstr x) = y
+            | otherwise = JMethod (NonStatic x) "concat" [y] undefined `withLoc` x
 }

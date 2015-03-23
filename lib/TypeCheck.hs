@@ -112,7 +112,7 @@ data TypeError
   | ExpectJClass
   | IndexTooLarge
   | TypeMismatch Type Type
-  | KindMismatch Kind Kind
+  | KindMismatch Kind Kind Type
   | MissingTyAscription Name
   | NotInScope Name
   | ProjectionOfNonProduct
@@ -142,15 +142,16 @@ instance Pretty TypeError where
   pretty (NotInScope x)  = prettyError <+> code (text x) <+> text "is not in scope"
   pretty (DuplicateParam ident) = prettyError <+> text "duplicate parameter" <+> code (text ident)
   pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
-  pretty (KindMismatch expected found) =
+  pretty (KindMismatch expected found t) =
     prettyError <+> text "kind mismatch" <> colon <$>
     indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
-              text "   found" <+> code (pretty found))
+              text "   found" <+> code (pretty found)) <$>
+    text "in the type" <> colon <+> pretty t
+
   pretty (TypeMismatch expected found) =
     prettyError <+> text "type mismatch" <> colon <$>
     indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
               text "   found" <+> code (pretty found))
-
   pretty (NoSuchClass c)  = prettyError <+> text "no such class:" <+> code (text c)
   pretty (NotMember x t)  = prettyError <+> code (text x) <+> text "is not a member of the type" <+> code (pretty t)
   pretty (NotAFunction t) = prettyError <+> code (pretty t) <+> text "is not a function; it cannot be applied"
@@ -634,7 +635,7 @@ infer (L loc (Data recflag databinds e)) =
                let names = map constrName cs
                    dt = Datatype name (map TVar params) names
                    constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt | Constructor _ ts <- cs]
-                   cs' = [ Constructor ctrname (map (expandType type_ctxt) ts) | (Constructor ctrname ts) <- cs]
+                   cs' = [ Constructor ctrname ((map (expandType type_ctxt) ts) ++ [dt]) | (Constructor ctrname ts) <- cs]
                    constr_binds = zip names constr_types
                return (cs', constr_binds)
 
@@ -781,7 +782,7 @@ normalizeBind bind
                    then return (bindId bind'
                                , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                                , wrap (\x acc -> BLam x acc `withLoc` acc) (bindTyParams bind') (wrap (\x acc -> Lam x acc `withLoc` acc) (bindParams bind') bindRhs'))
-                   else throwError $ noExpr (TypeMismatch (expandType d ty_ascription') bindRhsTy) -- TODO
+                   else throwError $ TypeMismatch (expandType d ty_ascription') bindRhsTy `withExpr` bindRhs bind 
 
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.
@@ -823,7 +824,7 @@ checkType t =
       case maybe_kind of
         Nothing   -> throwError (noExpr $ NotWellKinded t)
         Just Star -> return ()
-        Just k    -> throwError (noExpr $ KindMismatch Star k)
+        Just k    -> throwError (noExpr $ KindMismatch Star k t)
 
 unlessIO :: (Monad m, MonadIO m) => IO Bool -> m () -> m ()
 unlessIO test do_this
