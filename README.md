@@ -1,12 +1,18 @@
 # F2J: A Compiler for FCore
+[![License BSD 3][badge-license]](LICENSE)
 [![Build Status](https://travis-ci.org/hkuplg/fcore.svg?branch=develop)](https://travis-ci.org/hkuplg/fcore)
+[![Stories in Ready](https://badge.waffle.io/hkuplg/fcore.png?label=ready&title=Ready)](https://waffle.io/hkuplg/fcore)
 
 ## Building from Source
 
 The following instructions should work on any platform, from OS X to
 Ubuntu. It builds the compiler from source, thus may take some time.
 
-1. Install the [Haskell Platform](https://www.haskell.org/platform/).
+1. Make sure you have installed the dependencies:
+
+    + Install the [Haskell Platform](https://www.haskell.org/platform/)
+    + Java SDK (8 or newer)
+    + Apache Ant (version 1.8 or above)
 
 2. Clone the [source] with [git]:
 
@@ -17,7 +23,7 @@ Ubuntu. It builds the compiler from source, thus may take some time.
 [source]: https://github.com/hkuplg/fcore
 [git]: http://git-scm.com/
 
-3. Build an install:
+3. Build and install:
 
    ```bash
    cabal update
@@ -28,11 +34,19 @@ Ubuntu. It builds the compiler from source, thus may take some time.
    its usage. If not, you probably want to add `.cabal/bin` to your
    `$PATH`.
 
+## Building on Windows ##
+
+TODO
+
+## Documentation ##
+
+See `doc` directory for more details.
+
 
 ## Compilation Methods
 
-F2j has a few built-in compilation methods (by default, it doesn't use
-any optimization), namely `apply`, `stack` and `unbox`.
+`F2j` has a few built-in compilation methods (by default, it doesn't
+use any optimization), namely `apply`, `stack` and `unbox`.
 
 + Apply: multi-argument optimization
 + Stack: tail call elimination
@@ -84,6 +98,8 @@ If the problem persists, create an issue!
 
 ## License
 
-BSD3
+BSD 3
 
 See `LICENSE` at the top-level directory for details.
+
+[badge-license]: https://img.shields.io/badge/license-BSD_3-green.svg

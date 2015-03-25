@@ -1,4 +1,4 @@
-data PolyList A = Nil
+data PolyList [A] = Nil
      	        | Cons A (PolyList [A])
 	        ;
 
@@ -6,7 +6,7 @@ let rec eq [A] (xs: PolyList[A]) (ys: PolyList[A]) : Bool =
   case xs of
      Nil -> (case ys of
               Nil -> True
-	    | Cons z zs -> False)
+	    | Cons _ _ -> False)
    | Cons a as -> (case ys of
      	       	     Nil -> False
 		   | Cons b bs -> (a == b) && eq [A] as bs);
@@ -25,7 +25,7 @@ let rec qsort [A] (xs : PolyList[A]) : PolyList[A] =
       Nil       -> Nil [A]
     | Cons y ys -> case ys of
                        Nil       -> Cons [A] y (Nil [A])
-                     | Cons z zs -> append [A] (qsort [A] (filter [A] (\(a : A) -> a <= y) ys)) (Cons [A] y (qsort [A] (filter [A] (\(a : A) -> a > y) ys)));
+                     | Cons _ _  -> append [A] (qsort [A] (filter [A] (\(a : A) -> a <= y) ys)) (Cons [A] y (qsort [A] (filter [A] (\(a : A) -> a > y) ys)));
 let rec insert [A] (x : A) (xs : PolyList[A]) : PolyList[A] =
     case xs of
         Nil -> Cons [A] x (Nil [A])
@@ -36,6 +36,5 @@ let rec isort [A] (xs : PolyList[A]) : PolyList[A] =
     case xs of
     	Nil -> Nil [A]
       | Cons x ys -> insert [A] x (isort [A] ys);
-isort
--- let prop_sort [A] (xs : PolyList[A]) = eq [A] (qsort [A] xs) (isort [A] xs);
--- prop_sort
+let prop_sort [A] (xs : PolyList[A]) = eq [A] (qsort [A] xs) (isort [A] xs);
+prop_sort

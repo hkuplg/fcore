@@ -1,22 +1,35 @@
+notifications:
+  slack: hkuplgroup:7jiTM7QOayfuaA2tm7YgOhHa
+
+branches:
+  only:
+    - master
+    - develop
+    - testsuite
+
+language: java
+
 env:
   #- GHCVER=7.4.2
   #- GHCVER=7.6.3
   - GHCVER=7.8.3
-  - GHCVER=head
+  #- GHCVER=head
   # - >
   #   GHCVER=7.4.2
   #   MODE="-fsafe"
 
-matrix:
-  allow_failures:
-    - env: GHCVER=head
+jdk:
+  - oraclejdk8
+
+# matrix:
+#   allow_failures:
+#     - env: GHCVER=head
 
 before_install:
   # If $GHCVER is the one travis has, don't bother reinstalling it.
   # We can also have faster builds by installing some libraries with
   # `apt`. If it isn't, install the GHC we want from hvr's PPA along
   # with cabal-1.18.
-  - cp systemfcompiler.cabal.ghc-7.8.3 systemfcompiler.cabal
   - |
     if [ $GHCVER = `ghc --numeric-version` ]; then
       # Try installing some of the build-deps with apt-get for speed.
@@ -30,6 +43,7 @@ before_install:
       export CABAL=cabal-1.18
       export PATH=/opt/ghc/$GHCVER/bin:$PATH
     fi
+
   # Uncomment whenever hackage is down.
   # - mkdir -p ~/.cabal && cp travis/config ~/.cabal/config && $CABAL update
   - $CABAL update
@@ -40,9 +54,10 @@ before_install:
       $CABAL install happy alex hspec-discover hspec
       export PATH=$HOME/.cabal/bin:$PATH
     fi
+
 install:
   - $CABAL install --dependencies-only --enable-tests
   - $CABAL configure -flib-Werror --enable-tests $MODE
 
 script:
-  - cd runtime; ant; cd ..; make test2
+  - make test2

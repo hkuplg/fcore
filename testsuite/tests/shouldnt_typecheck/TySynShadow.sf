@@ -1,0 +1,8 @@
+let idString (x: String): String = x;
+
+type T = Int
+\(x: T) -> {
+  type T = String
+  idString x  -- Shouldn't typecheck
+}             -- x has type T, which should expand to `Int`, not `String`,
+              -- although inside this env, T is an alias for `String`.

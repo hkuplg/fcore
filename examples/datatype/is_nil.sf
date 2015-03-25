@@ -1,4 +1,4 @@
-data PolyList A = Nil
+data PolyList [A] = Nil
                 | Cons A (PolyList[A]);
 let null [A] (xs: PolyList[A]): Bool =
     case xs of

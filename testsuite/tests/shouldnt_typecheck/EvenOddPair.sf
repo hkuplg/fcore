@@ -1,0 +1,13 @@
+--> True
+
+let rec
+evenOdd : (Int -> Bool, Int -> Bool)
+  = ( \(n : Int) -> if n == 0
+                     then True
+                     else evenOdd._2 (n - 1)
+    , \(n : Int) -> if n == 0
+                     then False
+                     else evenOdd._1 (n - 1)
+    )
+;
+evenOdd._2 7

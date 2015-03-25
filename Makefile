@@ -1,29 +1,32 @@
 # General project-wide tasks
 
-srcdir=compiler
+srcdir=lib
 testdir=testsuite
 
 .PHONY : compiler
-compiler :
-	cd runtime; ant
-	./select-cabal.sh
-	cabal install
+compiler : dependencies runtime
+	$${CABAL=cabal}  install
 
 .PHONY : smt
-smt :
-	cd runtime; ant
-	./select-cabal.sh
-	cabal install -f Z3
+smt : dependencies runtime
+	$${CABAL=cabal}  install -f Z3
 
 .PHONY : test
-test :
-	make parsers
-	runhaskell -i$(srcdir):$(testdir) $(testdir)/Spec.hs
+test : dependencies runtime
+	$${CABAL=cabal} configure --enable-tests && $${CABAL=cabal} build && $${CABAL=cabal} test
 
 .PHONY : test2
-test2 :
+test2 : dependencies runtime
 	make parsers
-	runhaskell -i$(srcdir) $(srcdir)/FileLoad.hs
+	runhaskell -i$(srcdir):lib/simplify $(srcdir)/FileLoad.hs
+
+.PHONY : dependencies
+dependencies : 
+	$${CABAL=cabal} install --only-dependencies --enable-tests
+
+.PHONY : runtime
+runtime :
+	cd runtime && ant && cd ..
 
 .PHONY : parsers
 parsers :
@@ -39,5 +42,5 @@ clean :
 	rm -rf dist
 	rm -f *.class *.jar Main.java
 	rm -f $(testdir)/tests/run-pass/*.java
-	cd compiler; make clean
+	cd lib; make clean
 	cd runtime; ant clean

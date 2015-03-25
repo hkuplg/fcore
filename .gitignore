@@ -1,13 +1,10 @@
-# Run ./select-cabal.sh to get the Cabal file that matches your GHC version.
-*.cabal
-
 systemf/.cache
 systemf/.classpath
 systemf/.project
 
-*Lexer.hs
-*Parser.hs
-*Parser.info
+Lexer.hs
+Parser.hs
+Parser.info
 
 runtime/
 runtime.jar

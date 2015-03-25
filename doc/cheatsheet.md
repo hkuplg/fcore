@@ -1,4 +1,4 @@
-# F2J Language Cheatsheat
+# F2J Language Cheatsheet
 
 Quick reference of language syntax
 
@@ -16,6 +16,8 @@ Function types: `Int -> String`
 
 Product types: `(String, Int)`
 
+List types: `List[Int]`
+
 Universal quantification: `forall A B. A -> B -> A`
 
 Note that one `forall` can lead multiple type parameters as long as they are distinct.
@@ -31,6 +33,8 @@ Record types: `{name:String, age:Int}`
 Variable names start with lower case letters.
 
 Boolean literals: `True`, `False`
+
+String interpolation: `let t = 3; "\{t} times 2 is \{(\(x: Int) -> x * 2) t}"`
 
 Lambdas: `\(x: Int) (y: Int) -> x + y`
 
@@ -60,6 +64,12 @@ Tuple projection: `(1,2,3)._1` (index starts with 1, just like in Scala)
 
 Tuple projection is type-safe: `(1,2)._3` won't compile.
 
+List construction: `new List[Int](1,2,3)`, `cons(1, new List[Int](2,3))`
+
+List can have no element: `new List[Int]()`
+
+List support functions: `head(a)`, `tail(a)`, `isNil(a)`, `length(a)`
+
 Merge of two values: `1 ,, "hi"`
 
 Record construction: `{name = "George", age = 21}`
@@ -69,6 +79,34 @@ Record projection: `let r = {name="George", age = 17}; r.age`
 Record update: `let r = {name="George", age = 17}; r with {name="Nicole", age = 18}`
 
 Local type synonyms: `type Arrow[A,B] = A -> B; ...`
+
+Algebraic data types (ADTs):
+```
+data BTree [A,B] = Leaf A
+                 | Node BTree[A,B] B BTree[A,B]
+                 ;
+let tree = Node[Bool,Int] (Leaf[Bool,Int] True) 7 (Leaf[Bool,Int] False); ...
+```
+
+ADT can be mutually recursive, by using `rec` and `and`
+```
+data rec
+  TreeT [A] = EmptyT | NodeT A (Forest [A])
+and
+  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]);
+```
+
+Pattern matching on ADTs (Case expressions):
+
+```
+let rec countLeaves[A,B] (tree: BTree[A,B]): Int =
+    case tree of
+        Leaf a -> 1
+      | Node l b r -> countLeaves[A,B] l + countLeaves[A,B] r;
+countLeaves tree -- 2
+```
+
+You may leave out the final semicolon.
 
 Expression sequences: `{1; 2; 3}`
 
@@ -86,3 +124,10 @@ module M {
 };
 ...
 ```
+Link modules with source file:
+- f2ji: ```-l --module=MODULE```
+- f2j: ```:link <sourceFile> -m <module1> <module2> ...```
+
+F2ji:
+- ```:load M``` Load module M into REPL environment, allow user to use functions defined in M, say M.add
+- ```:import M``` Allow user to directly use add instead of M.add
