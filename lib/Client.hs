@@ -20,7 +20,7 @@ import Control.Monad.Error
 
 import qualified Data.Map as Map
 
-import Translations
+import BackEnd
 import JavaUtils
 import StringPrefixes                   (namespace)
 

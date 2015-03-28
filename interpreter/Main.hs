@@ -12,7 +12,7 @@ import Control.Monad.Error
 import Data.FileEmbed                   (embedFile)
 import qualified Data.Map as Map
 
-import Translations
+import BackEnd
 import JavaUtils
 import StringPrefixes                   (namespace)
 

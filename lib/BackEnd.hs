@@ -10,7 +10,7 @@
 
 {-# OPTIONS_GHC -fno-warn-unused-binds -fwarn-incomplete-patterns #-}
 
-module Translations
+module BackEnd
     ( Compilation
     , compileN
     , compileAO
@@ -20,9 +20,8 @@ module Translations
     -- , compileUnbox
     -- , compileAoptUnbox
     -- , compileSU
-    , sf2java
+    , core2java
     -- , sf2java2
-    , compilesf2java
     , DumpOption(..)
     ) where
 
@@ -37,6 +36,7 @@ import           Desugar (desugar)
 import           Inheritance
 import           Inliner
 import           JavaUtils (ClassName, inferClassName)
+import           OptiUtils
 import           MonadLib
 import           Parser
 import           PartialEvaluator
@@ -154,43 +154,20 @@ instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
 -- prettyJ :: Language.Java.Pretty.Pretty a => a -> IO ()
 -- prettyJ = putStrLn . prettyPrint
 
--- SystemF to Java
-sf2java :: Bool -> DumpOption -> Compilation -> ClassName -> String -> IO String
-sf2java optInline optDump compilation className src =
-  do case Parser.reader src of
-       POk readSrc -> do
-         when (optDump == DumpParsed) $ print readSrc
-         result <- readSrc `seq` typeCheck readSrc
-         case result of
-           Left typeError ->
-             do print (Text.PrettyPrint.ANSI.Leijen.pretty typeError)
-                exitFailure -- TODO: Ugly
-           Right (_, tcheckedSrc)   ->
-             do when (optDump == DumpTChecked) $ print tcheckedSrc
-                let core = desugar tcheckedSrc
-                when (optDump == DumpCore) $ print (FI.prettyExpr core)
-                let simpleCore = simplify (FI.HideF core)
-                let rewrittencore = rewriteAndEval (Hide simpleCore)
-                let recurNumOfCore = if optInline then recurNum rewrittencore else 0 -- inline
-                let inlineNum = if recurNumOfCore > 2 then 0 else recurNumOfCore
-                let inlinedCore = case inlineNum of
-                                    1 -> inliner rewrittencore
-                                    2 -> inliner . inliner $ rewrittencore
-                                    _ -> rewrittencore
-                when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittencore)
-                when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
-                let (cu, _) = compilation className inlinedCore
-                return $ prettyPrint cu
-       PError msg -> do putStrLn msg
-                        exitFailure
-
-compilesf2java :: Bool -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
-compilesf2java optInline optDump compilation srcPath outputPath = do
-    src <- readFile srcPath
-    output <- sf2java optInline optDump compilation (inferClassName outputPath) src
-    writeFile outputPath output
-    --let closureClassDef = closureClass compilation
-    --writeFile "Closure.java" (prettyPrint closureClassDef)
+-- | Core expression to Java.
+core2java :: Bool -> DumpOption -> Compilation -> ClassName -> OptiUtils.Exp -> IO String
+core2java optInline optDump compilation className closedCoreExpr = do
+  let rewrittenCore = rewriteAndEval closedCoreExpr
+  let recurNumOfCore = if optInline then recurNum rewrittenCore else 0 -- inline
+  let inlineNum = if recurNumOfCore > 2 then 0 else recurNumOfCore
+  let inlinedCore = case inlineNum of
+                      1 -> inliner rewrittenCore
+                      2 -> inliner . inliner $ rewrittenCore
+                      _ -> rewrittenCore
+  when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittenCore)
+  when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
+  let (cu, _) = compilation className inlinedCore
+  return $ prettyPrint cu
 
 
 type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)--PFExp Int (Var, Type Int) -> (J.Block, J.Exp, Type Int)
