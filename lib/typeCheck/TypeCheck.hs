@@ -36,6 +36,7 @@ import SrcLoc
 import IOEnv
 import JavaUtils
 import PrettyUtils
+import RuntimeProcessManager (withRuntimeProcess)
 import JvmTypeQuery
 import Panic
 import StringPrefixes
@@ -68,16 +69,7 @@ typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . checkExpr) e)
 
 withTypeServer :: (Connection -> IO a) -> IO a
-withTypeServer do_this =
-  do cp <- getClassPath
-     let p = (proc "java" ["-cp", cp, namespace ++ "TypeServer"])
-               { std_in = CreatePipe, std_out = CreatePipe }
-     (Just inp, Just out, _, proch) <- createProcess p
-     hSetBuffering inp NoBuffering
-     hSetBuffering out NoBuffering
-     res <- do_this (inp, out)
-     terminateProcess proch
-     return res
+withTypeServer = withRuntimeProcess "TypeServer" NoBuffering
 
 data TcEnv
   = TcEnv

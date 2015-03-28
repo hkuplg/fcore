@@ -35,7 +35,7 @@ library
                       , transformers == 0.4.*
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
-  hs-source-dirs:       lib,lib/typeCheck,lib/simplify
+  hs-source-dirs:       lib,lib/services,lib/typeCheck,lib/simplify
   exposed-modules:      ApplyTransCFJava
                         BackEnd
                         BaseTransCFJava
@@ -66,6 +66,7 @@ library
                         Parser
                         PartialEvaluator
                         PrettyUtils
+                        RuntimeProcessManager
                         Simplify
                         Src
                         SrcLoc
