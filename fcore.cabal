@@ -41,7 +41,6 @@ library
                         BaseTransCFJava
                         BenchGenCF2J
                         BenchGenStack
-                        Client
                         ClosureF
                         Config
                         Core
