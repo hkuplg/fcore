@@ -42,7 +42,7 @@ writeRuntimeToTemp =
      let tempFile = tempdir </> "runtime.jar"
      B.writeFile tempFile runtimeBytes
 
-testCasesPath = "testsuite/tests/should_run/"
+testCasesPath = "testsuite/tests/shouldRun/"
 
 initReplEnv :: [TransMethod] -> Compilation -> [String] -> IO Int
 initReplEnv method opt xs =  do
