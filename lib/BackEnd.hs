@@ -31,19 +31,14 @@ import           BenchGenCF2J
 import           BenchGenStack
 import           ClosureF
 import qualified Core
-import qualified SystemFI as FI
-import           Desugar (desugar)
 import           Inheritance
 import           Inliner
 import           JavaUtils (ClassName, inferClassName)
 import           OptiUtils
 import           MonadLib
-import           Parser
 import           PartialEvaluator
 import           PrettyUtils
-import           Simplify (simplify)
 import           StackTransCFJava
-import           TypeCheck (typeCheck)
 -- import           UnboxTransCFJava
 
 import           Data.Data
