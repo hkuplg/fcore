@@ -19,6 +19,7 @@ module Core
   , ValueContext
   , Index
   , Constructor(..)
+  , DataBind(..)
   , alphaEq
   , mapTVar
   , mapVar
@@ -100,9 +101,11 @@ data Expr t e
 
   | Seq [Expr t e]
 
-  | Data Src.ReaderId [Src.ReaderId] [Constructor t] (Expr t e)
+  | Data Src.RecFlag [DataBind t] (Expr t e)
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
+
+data DataBind t = DataBind Src.ReaderId [Src.ReaderId] ([t] -> [Constructor t])
 
 data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ([e] -> Expr t e)
             -- | Default (Expr t e)
@@ -142,7 +145,9 @@ mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
 mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
-mapVar g h (Data name params ctrs e) = Data name params [ Constructor ctrName (map h ctrParams)|Constructor ctrName ctrParams <- ctrs] (mapVar g h e)
+mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (mapVar g h e)
+    where mapDatabind (DataBind name params ctrs) = DataBind name params (map mapCtr. ctrs)
+          mapCtr (Constructor n ts) = Constructor n (map h ts)
 mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
@@ -248,7 +253,7 @@ prettyExpr' _ _ (Var n _) = text n
 
 prettyExpr' p (i,j) (Lam n t f)
   = parensIf p 2 $ group $ hang 2 $
-      lambda <+> parens (text n <+> colon <+> prettyType' basePrec i t) <> dot <$>
+      lambda <+> parens (text n <+> colon <+> prettyType' basePrec i t) <+> text "->" <$>
       prettyExpr' (2,PrecMinus) (i, j + 1) (f j)
 
 prettyExpr' p (i,j) (App e1 e2)
@@ -257,12 +262,12 @@ prettyExpr' p (i,j) (App e1 e2)
 
 prettyExpr' p (i,j) (BLam n f) =
   parensIf p 2
-    (biglambda <+> text n <> dot <+>
+    (biglambda <+> text n <+> text "->" <+>
      prettyExpr' (2,PrecMinus) (succ i, j) (f i))
 
 prettyExpr' p (i,j) (TApp e t) =
   parensIf p 4
-    (group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e <$> prettyType' (4,PrecPlus) i t)
+    (group $ hang 2 $ prettyExpr' (4,PrecMinus) (i,j) e <$> brackets (prettyType' basePrec i t))
 
 prettyExpr' _ _ (Lit (Src.Int n))    = integer n
 prettyExpr' _ _ (Lit (Src.String s)) = dquotes (string s)
@@ -337,8 +342,11 @@ prettyExpr' p (i,j) (LetRec names sigs binds body)
                   pretty_ids pretty_sigs pretty_defs
     pretty_body  = prettyExpr' p (i, j + n) (body ids)
 
-prettyExpr' p (i,j) (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr' p (i,j) e
-  where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
+prettyExpr' p (i,j) (Data recflag databinds e) =
+  text "data" <+> (pretty recflag) <+> (align .vsep) (map prettyDatabind databinds) <$> prettyExpr' p (i,j) e
+    where prettyCtr i' (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i') $ ctrParams)
+          prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
+                   (equals <+> intersperseBar (map (prettyCtr (i+ (length tvars)))$ cons [i..(i-1+(length tvars))]) <$$> semi)
 
 prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 

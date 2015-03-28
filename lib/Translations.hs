@@ -32,16 +32,16 @@ import           BenchGenCF2J
 import           BenchGenStack
 import           ClosureF
 import qualified Core
-import qualified SystemFI
+import qualified SystemFI as FI
 import           Desugar (desugar)
 import           Inheritance
 import           Inliner
 import           JavaUtils (ClassName, inferClassName)
 import           MonadLib
-import           Parser 
+import           Parser
 import           PartialEvaluator
 import           PrettyUtils
-import           Simplify (simplify, FExp(..))
+import           Simplify (simplify)
 import           StackTransCFJava
 import           TypeCheck (typeCheck)
 -- import           UnboxTransCFJava
@@ -158,7 +158,7 @@ instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
 sf2java :: Bool -> DumpOption -> Compilation -> ClassName -> String -> IO String
 sf2java optInline optDump compilation className src =
   do case Parser.reader src of
-       Left readSrc -> do
+       POk readSrc -> do
          when (optDump == DumpParsed) $ print readSrc
          result <- readSrc `seq` typeCheck readSrc
          case result of
@@ -168,8 +168,8 @@ sf2java optInline optDump compilation className src =
            Right (_, tcheckedSrc)   ->
              do when (optDump == DumpTChecked) $ print tcheckedSrc
                 let core = desugar tcheckedSrc
-                when (optDump == DumpCore) $ print (SystemFI.prettyExpr core)
-                let simpleCore = simplify (HideF core)
+                when (optDump == DumpCore) $ print (FI.prettyExpr core)
+                let simpleCore = simplify (FI.HideF core)
                 let rewrittencore = rewriteAndEval (Hide simpleCore)
                 let recurNumOfCore = if optInline then recurNum rewrittencore else 0 -- inline
                 let inlineNum = if recurNumOfCore > 2 then 0 else recurNumOfCore
@@ -181,9 +181,9 @@ sf2java optInline optDump compilation className src =
                 when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
                 let (cu, _) = compilation className inlinedCore
                 return $ prettyPrint cu
-       Right (PError msg) -> do print msg 
-                                exitFailure 
-     
+       PError msg -> do print msg
+                        exitFailure
+
 compilesf2java :: Bool -> DumpOption -> Compilation -> FilePath -> FilePath -> IO ()
 compilesf2java optInline optDump compilation srcPath outputPath = do
     src <- readFile srcPath

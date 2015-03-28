@@ -1,6 +1,6 @@
 name:                   fcore
 version:                0.1.0
-cabal-version:          >= 1.8
+cabal-version:          >= 1.10
 build-type:             Simple
 license:                BSD3
 license-file:           LICENSE
@@ -35,7 +35,7 @@ library
                       , transformers == 0.3.*
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
-  hs-source-dirs:       lib
+  hs-source-dirs:       lib,lib/simplify
   exposed-modules:      ApplyTransCFJava
                         BaseTransCFJava
                         BenchGenCF2J
@@ -67,6 +67,7 @@ library
                         PrettyUtils
                         Simplify
                         Src
+                        SrcLoc
                         StackTransCFJava
                         StaticAssert
                         StringPrefixes
@@ -75,7 +76,9 @@ library
                         TestInh
                         Translations
                         TypeCheck
+  other-modules:        SimplifyImpl
   if flag(Z3)
+                        exposed-modules: SymbolicEvaluator, Z3Backend
                         build-depends: z3 >= 0.3.2
                         cpp-options: -DZ3
 
@@ -88,6 +91,7 @@ executable f2j
                       , array == 0.5.*
                       , base == 4.*
                       , bytestring == 0.10.*
+                      , clock == 0.4.1.*
                       , cmdargs == 0.10.*
                       , containers == 0.5.*
                       , directory == 1.2.*

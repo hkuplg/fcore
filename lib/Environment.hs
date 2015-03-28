@@ -24,10 +24,10 @@ empty :: Env
 empty = []
 
 insert :: (String, String) -> Env -> Env
-insert (var, exp) env = 
+insert (var, exp) env =
   case Parser.reader exp of
-    Left  expr           -> (var, (exp, expr)) : env
-    Right (PError error) -> env
+    POk expr     -> (var, (exp, expr)) : env
+    PError error -> env
 
 createExp :: [String] -> String
 createExp [] = ""
@@ -56,6 +56,6 @@ searchEnv var env = case lookup var env of
 
 showPrettyEnv :: Env -> String
 showPrettyEnv [] = ""
-showPrettyEnv ((var, (str, expr)) : xs) = "(" ++ show var ++ ", "
+showPrettyEnv ((var, (_, expr)) : xs) = "(" ++ show var ++ ", "
                                               ++ show (pretty expr)
                                               ++ "); " ++ showPrettyEnv xs

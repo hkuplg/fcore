@@ -5,12 +5,11 @@ module Main where
 import System.Console.Haskeline		(runInputT, defaultSettings)
 import System.IO
 import System.Process hiding (runCommand)
-import System.Directory			(removeFile, doesFileExist)
+import System.Directory			(doesFileExist)
 
 import Control.Monad.Error
 
 import Data.FileEmbed			(embedFile)
-import qualified Data.ByteString 	(ByteString, writeFile)
 import qualified Data.Map as Map
 
 import Translations
@@ -56,6 +55,7 @@ fileExist name = do
 	  then return ()
 	  else fileExist name	
 
+printFile :: IO ()
 printFile = do 
 	f <- getLine
 	contents <- readFile f

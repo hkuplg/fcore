@@ -18,6 +18,7 @@ stage.
 module Desugar (desugar) where
 
 import Src
+import SrcLoc
 
 import qualified SystemFI as F
 
@@ -57,33 +58,33 @@ transType _ t            = prettySorry "transType" (pretty t)
 desugarExpr :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
 desugarExpr (d, g) = go
   where
-    go (Var (x,_t))      = fromMaybe (panic "desugarExpr: Var") (Map.lookup x g)
-    go (Lit lit)         = F.Lit lit
-    go (App f x)         = F.App (go f) (go x)
-    go (TApp e t)        = F.TApp (go e) (transType d t)
-    go (Tuple es)        = F.Tuple (map go es)
-    go (Proj e i)        = F.Proj i (go e)
-    go (PrimOp e1 op e2) = F.PrimOp (go e1) op (go e2)
-    go (If e1 e2 e3)     = F.If (go e1) (go e2) (go e3)
-    go (Lam (x, t) e)    = F.Lam x
-                               (transType d t)
-                               (\x' -> desugarExpr (d, Map.insert x (F.Var x x') g) e)
-    go (BLam a e)        = F.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
-    go Let{..}           = panic "desugarExpr: Let"
-    go (LetOut _ [] e)   = go e
-    go (Merge e1 e2)     = F.Merge (go e1) (go e2)
-    go (RecordCon fs)       =
+    go (L _ (Var (x,t)))       = fromMaybe (panic "desugarExpr: Var") (Map.lookup x g)
+    go (L _ (Lit lit))         = F.Lit lit
+    go (L _ (App f x))         = F.App (go f) (go x)
+    go (L _ (TApp e t))        = F.TApp (go e) (transType d t)
+    go (L _ (Tuple es))        = F.Tuple (map go es)
+    go (L _ (Proj e i))        = F.Proj i (go e)
+    go (L _ (PrimOp e1 op e2)) = F.PrimOp (go e1) op (go e2)
+    go (L _ (If e1 e2 e3))     = F.If (go e1) (go e2) (go e3)
+    go (L _ (Lam (x, t) e))    = F.Lam x
+                                 (transType d t)
+                                 (\x' -> desugarExpr (d, Map.insert x (F.Var x x') g) e)
+    go (L _ (BLam a e))        = F.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
+    go (L _ Let{..})           = panic "desugarExpr: Let"
+    go (L _ (LetOut _ [] e))   = go e
+    go (L _ (Merge e1 e2))     = F.Merge (go e1) (go e2)
+    go (L _ (RecordCon fs))    =
       case fs of
         []       -> panic "desugarExpr: Record"
         [(l,e)]  -> F.RecordCon (l, go e)
-        _        -> go (RecordCon (take (length fs - 1) fs)) `F.Merge` F.RecordCon (let (l,e) = last fs in (l,go e))
-    go (RecordProj e l) = F.RecordProj (go e) l
-    go (RecordUpdate e fs) =
+        _        -> go (noLoc $ RecordCon (take (length fs - 1) fs)) `F.Merge` F.RecordCon (let (l,e) = last fs in (l,go e))
+    go (L _ (RecordProj e l)) = F.RecordProj (go e) l
+    go (L _ (RecordUpdate e fs)) =
       case fs of
         [] -> go e
-        _  -> F.RecordUpdate (go (RecordUpdate e (take (length fs - 1) fs))) (let (l1,e1) = last fs in (l1, go e1))
+        _  -> F.RecordUpdate (go (noLoc $ RecordUpdate e (take (length fs - 1) fs))) (let (l1,e1) = last fs in (l1, go e1))
 
-    go (LetOut NonRec [(f1, _, e1)] e) =
+    go (L _ (LetOut NonRec [(f1, _, e1)] e)) =
       -- F.App
       --   (F.Lam (transType d t1) (\f1' -> desugarExpr (d, Map.insert f1 (F.Var f1') g) e))
       --   (go e1)
@@ -102,14 +103,14 @@ variable renaming. An example:
    let f1 = e1, ..., fn = en in e
 ~> let y = (t1, ..., tn). (e1, ..., en) in e[*]
 -}
-    go (LetOut NonRec bs@(_:_) e) =
+    go (L _ (LetOut NonRec bs@(_:_) e)) =
       F.Let (intercalate "_" fs)
         (go tupled_es)
         (\y -> desugarExpr (d, g' y `Map.union` g) e)
         where
           (fs, _, es)  = unzip3 bs
 
-          tupled_es = Tuple es
+          tupled_es = noLoc $ Tuple es
 
           -- Substitution: fi -> y._(i-1)
           g' y = Map.fromList $ -- `Map.fromList` is right-biased.
@@ -133,38 +134,52 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 ~> (\(f : forall A1...An. t1 -> t2). body)
      (/\A1...An. fix y (x1 : t1) : t2. peeled_e)
 -}
-    go (LetOut Rec [(f,t@(Fun _ _),e)] body) = desugarLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
-    go (LetOut Rec [(f,t,e)] body)           = desugarLetRecToLetRec (d,g) (LetOut Rec [(f,t,e)] body)
-    go (LetOut Rec bs body)                  = desugarLetRecToLetRec (d,g) (LetOut Rec bs body)
-    go (JNew c args)          = F.JNew c (map go args)
-    go (JMethod callee m args r) = F.JMethod (fmap go callee) m (map go args) r
-    go (JField  callee f r)      = F.JField  (fmap go callee) f r
+    go (L _ (LetOut Rec [(f,t@(Fun _ _),e)] body)) = desugarLetRecToLetRec (d,g) (noLoc $ LetOut Rec [(f,t,e)] body)
+    go (L _ (LetOut Rec [(f,t,e)] body))          = desugarLetRecToLetRec (d,g) (noLoc $ LetOut Rec [(f,t,e)] body)
+    go (L _ (LetOut Rec bs body))                 = desugarLetRecToLetRec (d,g) (noLoc $ LetOut Rec bs body)
+    go (L _ (JNew c args))             = F.JNew c (map go args)
+    go (L _ (JMethod callee m args r)) = F.JMethod (fmap go callee) m (map go args) r
+    go (L _ (JField  callee f r))      = F.JField  (fmap go callee) f r
 
     -- Non Java Class translation
     -- go (PrimList l)              = FPrimList (map go l)
 
     -- Primitive List to java class
 
-    go (PolyList l t)             = case l of
-                                     []   -> F.PolyList [] (transType d t)
-                                     x:xs -> F.PolyList [go x, go (PolyList xs t )]  (transType d t)
-    go (JProxyCall jmethod t)     = F.JProxyCall (go jmethod) (transType d t)
+    go (L _ (PolyList l t))            = case l of
+                                           []   -> F.PolyList [] (transType d t)
+                                           x:xs -> F.PolyList [go x, go (noLoc $ PolyList xs t )]  (transType d t)
+    go (L _ (JProxyCall jmethod t))    = F.JProxyCall (go jmethod) (transType d t)
 
-    go (Seq es) = F.Seq (map go es)
-    go (Data n params ctrs e) = F.Data n params (map desugarConstructor ctrs) (go e)
+    go (L _ (Seq es)) = F.Seq (map go es)
+    go (L _ (Data recflag databinds e)) = F.Data recflag (map desugarDatabind databinds) (go e)
 
-    go (Constr c es) = F.Constr (desugarConstructor c) (map go es)
-    go (Case e alts) = F.Case (go e) (map desugarAlts alts)
+    go (L _ (Constr c es)) = F.Constr (desugarConstructor d c) (map go es)
+    go (L _ (Case e alts)) = F.Case (go e) (map desugarAlts alts)
+    go (L _ (CaseString e alts)) =
+            let emptytest = noLoc $ JMethod (NonStatic e) "isEmpty" [] "java.lang.Boolean"
+                [emptyexpr]        = [ expr | ConstrAlt (Constructor "empty" _) _ expr <-  alts]
+                [(var1, var2, b2)] = [ (var1',var2',expr) | ConstrAlt (Constructor "cons" _) [var1',var2'] expr <-  alts]
+                headfetch = (var1, JType(JClass "java.lang.Character"), noLoc $ JMethod (NonStatic e) "charAt" [noLoc $ Lit (Int 0)] "java.lang.Character")
+                tailfetch = (var2, JType(JClass "java.lang.String"), noLoc $ JMethod (NonStatic e) "substring" [noLoc $ Lit (Int 1)] "java.lang.String")
+                nonemptyexpr = foldr (\x@(name,_,_) b -> if (name =="_") then b else noLoc $ LetOut NonRec [x] b) b2 [headfetch, tailfetch]
+            in
+            go (noLoc $ If emptytest emptyexpr nonemptyexpr)
 
-    desugarConstructor (Constructor n ts) = F.Constructor n (map (transType d) ts)
+    desugarDatabind (DataBind n params ctrs) =
+         F.DataBind n params (\t ->
+            let d' = addToTVarMap (zip params t) d
+            in  map (desugarConstructor d') ctrs
+         )
+    desugarConstructor d' (Constructor n ts) = F.Constructor n (map (transType d') ts)
     desugarAlts (ConstrAlt c ns e) =
-        let c' = desugarConstructor c
+        let c' = desugarConstructor d c
             f ns' = desugarExpr (d, zipWith (\n e' -> (n, F.Var n e')) ns ns' `addToVarMap` g) e
         in F.ConstrAlt c' ns f
 
 
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
-desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
+desugarLetRecToFix (d,g) (L _ (LetOut Rec [(f,t,e)] body)) =
   F.App
       (F.Lam f
           (transType d t)
@@ -175,7 +190,7 @@ desugarLetRecToFix (d,g) (LetOut Rec [(f,t,e)] body) =
           (transType d t2))
           where
             addToEnv binds g0 = foldr (\(x,x') acc -> Map.insert x x' acc) g0 binds -- TODO: subsumed
-            (Just (x1, t1), t2, peeled_e) = peel Nothing (e,t)
+            (Just (x1, t1), t2, peeled_e) = peel Nothing (unLoc e,t)
               where
                 peel Nothing (Lam param b, Fun _ ret_ty) = (Just param, ret_ty, b)
                 peel _ (e,t) = prettyPanic "desugarLetRecToFix: not a function" (text (show e))
@@ -190,7 +205,7 @@ desugarLetRecToFix _ _ = panic "desugarLetRecToFix"
 desugarLetRecToFixEncoded :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
 desugarLetRecToFixEncoded (d,g) = go
   where
-    go (LetOut Rec bs@(_:_) e) =
+    go (L _ (LetOut Rec bs@(_:_) e)) =
       F.App
           (F.Lam "_"
               (F.Fun (F.JClass "java.lang.Integer") (transType d tupled_ts))
@@ -203,7 +218,7 @@ desugarLetRecToFixEncoded (d,g) = go
               where
                 (fs, ts, es) = unzip3 bs
 
-                tupled_es = Tuple es
+                tupled_es = noLoc $ Tuple es
                 tupled_ts = Product ts
 
                 -- Substitution: fi -> (y 0)._(i-1)
@@ -218,7 +233,7 @@ desugarLetRecToFixEncoded (d,g) = go
 -- Convert from: LetOut RecFlag [(Name, Type, CheckedExpr)] (CheckedExpr)
 -- To:           LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
 desugarLetRecToLetRec :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
-desugarLetRecToLetRec (d,g) (LetOut Rec binds@(_:_) body) = F.LetRec names' sigs' binds' body'
+desugarLetRecToLetRec (d,g) (L _ (LetOut Rec binds@(_:_) body)) = F.LetRec names' sigs' binds' body'
   where
     (ids, sigs, defs) = unzip3 binds
     names'            = ids
@@ -230,3 +245,6 @@ desugarLetRecToLetRec _ _ = panic "desugarLetRecToLetRec"
 
 addToVarMap :: [(ReaderId, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
+
+addToTVarMap :: [(ReaderId, t)] -> TVarMap t -> TVarMap t
+addToTVarMap xs tvar_map = foldr (\(x,x') acc -> Map.insert x x' acc) tvar_map xs

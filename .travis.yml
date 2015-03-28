@@ -7,20 +7,23 @@ branches:
     - develop
     - testsuite
 
-language: haskell
+language: java
 
 env:
   #- GHCVER=7.4.2
   #- GHCVER=7.6.3
   - GHCVER=7.8.3
-  - GHCVER=head
+  #- GHCVER=head
   # - >
   #   GHCVER=7.4.2
   #   MODE="-fsafe"
 
-matrix:
-  allow_failures:
-    - env: GHCVER=head
+jdk:
+  - oraclejdk8
+
+# matrix:
+#   allow_failures:
+#     - env: GHCVER=head
 
 before_install:
   # If $GHCVER is the one travis has, don't bother reinstalling it.
@@ -57,4 +60,4 @@ install:
   - $CABAL configure -flib-Werror --enable-tests $MODE
 
 script:
-  - make test
+  - make test2

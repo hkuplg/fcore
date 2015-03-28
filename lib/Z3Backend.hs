@@ -4,7 +4,7 @@ Description :  The Z3 backend for symbolic
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
-Maintainer  :  Weixin <zhangweixinxd@gmail.com>
+Maintainer  :  Weixin Zhang <zhangweixinxd@gmail.com>
 Stability   :  unstable
 Portability :  portable
 
@@ -35,7 +35,7 @@ data Z3Env = Z3Env { index                      :: Int
                    }
 
 solve :: Expr () ExecutionTree -> IO ()
-solve = solve' 20
+solve = solve' 10
 
 solve' :: Int -> Expr () ExecutionTree -> IO ()
 solve' stop e =
@@ -57,6 +57,10 @@ solve' stop e =
       pathsZ3 env tree [] stop
 
 defaultTarget :: Doc -> SymValue -> Z3 ()
+defaultTarget s (SBool False) =
+    do liftIO $ putDoc $ text "Counter example:" <$> s <+> evalTo <+> text "False" <> linebreak
+       withModel ((>>= (liftIO . putStrLn)) . showModel)
+       return ()
 defaultTarget s e = liftIO $ putDoc $ s <+> evalTo <+> pretty e <> linebreak
 
 pathsZ3 :: Z3Env -> ExecutionTree -> [Doc] -> Int -> Z3 ()

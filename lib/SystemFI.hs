@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, RankNTypes #-}
 {-# OPTIONS_GHC -Wall #-}
 {- |
 Module      :  SystemFI
@@ -14,8 +14,10 @@ Portability :  portable
 module SystemFI
   ( Type(..)
   , Expr(..)
+  , FExp(..)
   , Constructor(..)
   , Alt(..)
+  , DataBind(..)
 --, TypeContext
 --, ValueContext
 --, Index
@@ -105,13 +107,16 @@ data Expr t e
   | RecordProj   (Expr t e) Src.Label
   | RecordUpdate (Expr t e) (Src.Label, Expr t e)
 
-  | Data Src.ReaderId [Src.ReaderId] [Constructor t] (Expr t e)
+  | Data Src.RecFlag [DataBind t] (Expr t e)
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
+   
+newtype FExp = HideF { revealF :: forall t e. Expr t e }
 
 data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ([e] -> Expr t e)
             -- | Default (Expr t e)
 
+data DataBind t = DataBind Src.ReaderId [Src.ReaderId] ([t] -> [Constructor t])
 data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
 -- newtype Typ = HideTyp { revealTyp :: forall t. Type t } -- type of closed types
 
@@ -153,8 +158,9 @@ mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
 mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
-mapVar g h (Data name params ctrs e) = Data name params (map mapCtr ctrs) (mapVar g h e)
-    where mapCtr (Constructor n ts) = Constructor n (map h ts)
+mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (mapVar g h e)
+    where mapDatabind (DataBind name params ctrs) = DataBind name params (map mapCtr . ctrs)
+          mapCtr (Constructor n ts) = Constructor n (map h ts)
 mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
@@ -316,8 +322,11 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 prettyExpr' p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr' p i ) $ es
 
-prettyExpr' p (i,j) (Data n tvars cons e) = text "data" <+> hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map prettyCtr cons) <$$> semi) <$> prettyExpr' p (i,j) e
-  where prettyCtr (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i) $ ctrParams)
+prettyExpr' p (i,j) (Data recflag databinds e) =
+  text "data" <+> (pretty recflag) <+> (align .vsep) (map prettyDatabind databinds) <$> prettyExpr' p (i,j) e
+    where prettyCtr i' (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType' p i') $ ctrParams)
+          prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
+                 (equals <+> intersperseBar (map (prettyCtr (length tvars + i)) $ cons [i..length tvars +i-1]) <$$> semi)
 
 prettyExpr' p i (JProxyCall jmethod t) = prettyExpr' p i jmethod
 

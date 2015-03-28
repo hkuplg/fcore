@@ -5,7 +5,7 @@ module OptiUtils where
 
 import Core
 import System.Directory
-import Parser (reader)
+import Parser (reader, P(..))
 import TypeCheck (typeCheck)
 import Desugar (desugar)
 import Simplify (simplify')
@@ -73,7 +73,7 @@ joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (PolyList es t) = PolyList (map joinExpr es) t
 joinExpr (JProxyCall jmethod t) = JProxyCall (joinExpr jmethod) t
-joinExpr (Data name params ctrs e) = Data name params ctrs (joinExpr e)
+joinExpr (Data recflag databinds e) = Data recflag databinds (joinExpr e)
 joinExpr (Constr ctr es) = Constr ctr (map joinExpr es)
 joinExpr (Case e alts) = Case (joinExpr e) (map joinAlt alts)
   where joinAlt (ConstrAlt ctr vars f) = ConstrAlt ctr vars (joinExpr . f . zipWith Var vars)
@@ -115,7 +115,7 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       PolyList es t -> PolyList (map f es) t
       JProxyCall jmethod t -> JProxyCall (f jmethod) t
-      Data name params ctrs e -> Data name params ctrs (f e)
+      Data recflag databinds e -> Data recflag databinds (f e)
       Constr ctr es -> Constr ctr (map f es)
       Case e alts -> Case (f e) (map mapAlt alts)
          where mapAlt (ConstrAlt ctr vars g) = ConstrAlt ctr vars (f.g)
@@ -151,7 +151,7 @@ rewriteExpr f num env expr =
    PolyList es t -> PolyList (map (f num env) es) t
    JProxyCall j t -> JProxyCall (f num env j) t
    Seq es -> Seq (map (f num env) es)
-   Data name params ctrs e -> Data name params ctrs (f num env e)
+   Data recflag databinds e -> Data recflag databinds (f num env e)
    Constr c es -> Constr c (map (f num env) es)
    Case e alts -> Case (f num env e) (map rewriteAlt alts)
  where
@@ -221,13 +221,13 @@ src2fi fname = do
      path <- getCurrentDirectory
      string <- readFile (path ++ "/" ++ fname)
      case reader string of
-       Left expr -> do 
+       POk expr -> do
          result <- typeCheck expr
          case result of
            Left typeError -> error $ show typeError
            Right (_, tcheckedSrc) ->
                  return . desugar $ tcheckedSrc
-       Right msg -> error "Parse error!"
+       PError msg -> error msg
 
 applyFi :: (FI.Expr t e -> r) -> String -> IO r
 applyFi f fname = liftM f $ src2fi fname
