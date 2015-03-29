@@ -35,8 +35,9 @@ library
                       , transformers == 0.3.*
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
-  hs-source-dirs:       lib,lib/simplify
+  hs-source-dirs:       lib,lib/typeCheck,lib/simplify
   exposed-modules:      ApplyTransCFJava
+                        BackEnd
                         BaseTransCFJava
                         BenchGenCF2J
                         BenchGenStack
@@ -47,6 +48,7 @@ library
                         Desugar
                         Environment
                         FileIO
+                        FrontEnd
                         History
                         IOEnv
                         Inheritance
@@ -74,7 +76,6 @@ library
                         StringUtils
                         SystemFI
                         TestInh
-                        Translations
                         TypeCheck
   other-modules:        SimplifyImpl
   if flag(Z3)

@@ -28,7 +28,8 @@ import Data.List
 import Data.Data
 import Data.Typeable
 
-import Translations
+import FrontEnd
+import BackEnd
 import JavaUtils (inferClassName, inferOutputPath)
 
 data TransMethod = Apply
@@ -50,32 +51,36 @@ type CompileOpt = (Int, Compilation, [TransMethod])
 
 wrap :: Connection -> (Int -> Handle -> IO Int) -> CompileOpt -> Bool -> Bool -> String -> IO Int 
 wrap (inP, outP) receiveMsg opt flagC flagS name = do
-	exist <- doesFileExist name
-	if not exist
-	  then do
-	    putStrLn $ name ++ " does not exist"
-	    return 1
-  	  else do
-	    correct <- send inP opt flagC flagS name
-	    case correct of 
-	      True  -> receiveMsg 0 outP
-	      False -> return 1
+        exist <- doesFileExist name
+        if not exist
+          then do
+            putStrLn $ name ++ " does not exist"
+            return 1
+          else do
+            correct <- send inP opt flagC flagS name
+            case correct of 
+              True  -> receiveMsg 0 outP
+              False -> return 1
 
 getClassName :: String -> String
 getClassName (x : xs) = (toUpper x) : xs
+
+source2java optInline optDump compilation className source =
+  do coreExpr <- source2core optDump source
+     core2java optInline optDump compilation className coreExpr
 
 send :: Handle -> CompileOpt -> Bool -> Bool -> FilePath -> IO Bool 
 send h (n, opt, method) flagC flagS f = do 
   contents <- readFile f
   -- let path = dropFileName f
   let className = inferClassName . inferOutputPath $ f
-  result <- E.try (sf2java False NoDump opt className contents)
+  result <- E.try (source2java False NoDump opt className contents)
   case result of 
     Left  (_ :: E.SomeException) -> 
       do putStrLn ("\x1b[31m" ++ "invalid expression sf2Java")
          putStrLn "\x1b[0m"
          return False
-    Right javaFile	             ->
+    Right javaFile                   ->
       do sendMsg h (className ++ ".java")
          let file = javaFile ++ "\n" ++  "//end of file"
          sendFile h file
@@ -83,7 +88,7 @@ send h (n, opt, method) flagC flagS f = do
            do putStrLn contents
               putStrLn file
          return True
-	
+        
 receiveMsg :: Int -> Handle -> IO Int 
 receiveMsg error h = do
   msg <- hGetLine h
