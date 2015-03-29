@@ -24,7 +24,7 @@ import System.Exit
 import System.Clock
 import Control.Monad        (when)
 
-import Translations
+import BackEnd
 import FileIO
 import JavaUtils
 import StringPrefixes       (namespace)

@@ -1,3 +1,0 @@
-let readFileToString (name : String) : String =
-    (new java.util.Scanner(new java.io.File(name))).useDelimiter("\\Z").next();
-readFileToString
