@@ -52,7 +52,7 @@ import qualified Data.Map  as Map
 import qualified Data.Set  as Set
 import Data.List (intersperse, findIndex)
 
-import Prelude hiding (pred)
+import Prelude hiding (pred, (<$>))
 
 type Connection = (Handle, Handle)
 
@@ -408,7 +408,7 @@ checkExpr (L loc (Let rec_flag binds e)) =
      (t, e') <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (checkExpr e)
      return (t, L loc $ LetOut rec_flag binds' e')
 
-checkExpr (L loc LetOut{..}) = panic "TypeCheck.infer: LetOut"
+checkExpr (L loc LetOut{}) = panic "TypeCheck.infer: LetOut"
 
 --  Case           Possible interpretations
 --  ---------------------------------------

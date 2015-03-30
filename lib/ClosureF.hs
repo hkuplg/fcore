@@ -23,6 +23,7 @@ import PrettyUtils
 import Text.PrettyPrint.ANSI.Leijen
 import qualified Language.Java.Pretty (prettyPrint)
 import Data.List (intersperse)
+import Prelude hiding ((<$>))
 
 -- Closure F syntax
 

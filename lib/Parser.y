@@ -21,6 +21,7 @@ import Lexer
 import SrcLoc
 
 import JavaUtils
+import Control.Monad.State
 }
 
 %name parseExpr expr
@@ -474,6 +475,13 @@ instance Monad P where
     POk x      >>= f = f x
     PError msg >>= f = PError msg
     return x         = POk x
+
+instance Functor P where
+  fmap  = liftM
+
+instance Applicative P where
+  pure  = return
+  (<*>) = ap
 
 parseError :: Located Token -> Alex a
 parseError (L loc _) = alexError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))

@@ -22,7 +22,7 @@ import qualified Language.Java.Syntax as J
 import           ClosureF
 import           Inheritance
 import           JavaEDSL
-import           MonadLib
+import           MonadLib hiding (Alt)
 import           Panic
 import qualified Src as S
 import           StringPrefixes

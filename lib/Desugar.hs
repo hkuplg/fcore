@@ -70,7 +70,7 @@ desugarExpr (d, g) = go
                                  (transType d t)
                                  (\x' -> desugarExpr (d, Map.insert x (F.Var x x') g) e)
     go (L _ (BLam a e))        = F.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
-    go (L _ Let{..})           = panic "desugarExpr: Let"
+    go (L _ Let{})             = panic "desugarExpr: Let"
     go (L _ (LetOut _ [] e))   = go e
     go (L _ (Merge e1 e2))     = F.Merge (go e1) (go e2)
     go (L _ (RecordCon fs))    =

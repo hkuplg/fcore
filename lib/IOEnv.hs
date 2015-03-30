@@ -26,6 +26,13 @@ instance Monad (IOEnv m) where
   return = returnM
   (>>=)  = thenM
 
+instance Functor (IOEnv m) where
+  fmap  = liftM
+
+instance Applicative (IOEnv m) where
+  pure  = return
+  (<*>) = ap
+
 returnM :: a -> IOEnv env a
 returnM a = IOEnv (StateT (\ env -> return (a, env)))
 

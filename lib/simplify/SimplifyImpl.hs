@@ -37,6 +37,8 @@ import Data.Maybe    (fromMaybe)
 import Control.Monad (zipWithM)
 import Unsafe.Coerce (unsafeCoerce)
 
+import Prelude hiding ((<$>))
+
 simplify :: FI.FExp -> Expr t e
 simplify = dedeBruE 0 [] 0 [] . transExpr 0 0 . FI.revealF
 

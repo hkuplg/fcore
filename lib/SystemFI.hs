@@ -44,6 +44,8 @@ import           Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import Prelude hiding ((<$>))
+
 data Type t
   = TVar Src.ReaderId t                 -- a
   | JClass ClassName                    -- C

@@ -59,6 +59,8 @@ import Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+import Prelude hiding ((<$>))
+
 -- Names and identifiers.
 type Name      = String
 type ReaderId  = Name
