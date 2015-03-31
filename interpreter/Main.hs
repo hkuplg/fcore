@@ -2,6 +2,8 @@
 
 module Main where
 
+import RuntimeProcessManager            (withRuntimeProcess)
+
 import System.Console.Haskeline         (runInputT, defaultSettings)
 import System.IO
 import System.Process hiding (runCommand)
@@ -35,18 +37,13 @@ writeRuntimeToTemp =
 
 main :: IO ()
 main = do
-     writeRuntimeToTemp
-     cp <- getClassPath
-     let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
-                  {std_in = CreatePipe, std_out = CreatePipe}
-     (Just inP, Just outP, _, proch) <- createProcess p
-     hSetBuffering inP LineBuffering
-     hSetBuffering outP LineBuffering
-     liftIO printHelp
-     runInputT defaultSettings 
-               (Loop.loop (inP, outP) (0, compileN, [Naive])  
-                          Map.empty Env.empty Hist.empty Hist.empty 0 False False False False 0)
-     terminateProcess proch
+  writeRuntimeToTemp
+  withRuntimeProcess "FileServer" LineBuffering
+       (\(inP,outP) ->
+        do liftIO printHelp
+           runInputT defaultSettings 
+                         (Loop.loop (inP, outP) (0, compileN, [Naive])  
+                          Map.empty Env.empty Hist.empty Hist.empty 0 False False False False 0))
      
 fileExist :: String -> IO ()
 fileExist name = do

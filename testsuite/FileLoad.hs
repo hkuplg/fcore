@@ -14,6 +14,8 @@ Portability :  portable
 
 module Main where
 
+import RuntimeProcessManager
+
 import System.IO
 import System.Process
 import System.Directory     (doesFileExist, getDirectoryContents)
@@ -45,22 +47,12 @@ writeRuntimeToTemp =
 testCasesPath = "testsuite/tests/shouldRun/"
 
 initReplEnv :: [TransMethod] -> Compilation -> [String] -> IO Int
-initReplEnv method opt xs =  do
-     cp <- getClassPath
-     let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
-                  {std_in = CreatePipe, std_out = CreatePipe}
-     (Just inP, Just outP, _, proch) <- createProcess p
-     hSetBuffering inP NoBuffering
-     hSetBuffering outP NoBuffering
-     error <- loadFile inP outP method opt xs
-     putStrLn $ "Error count: " ++ (show error)
-     terminateProcess proch
-     return error
+initReplEnv method opt xs = withRuntimeProcess "FileServer" NoBuffering ((\(inP,outP) -> loadFile inP outP method opt xs))
 
 loadFile :: Handle -> Handle -> [TransMethod] -> Compilation -> [String] -> IO Int
 loadFile inP outP method opt xs = do
     putStrLn "-------------------------------------"
-    putStrLn ("Compileation Option: " ++ show (method))
+    putStrLn ("Compilation Option: " ++ show (method))
     loadAll inP outP 0 method opt xs
 
 loadAll ::  Handle -> Handle -> Int -> [TransMethod] -> Compilation -> [String] -> IO Int
