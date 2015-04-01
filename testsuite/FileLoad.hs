@@ -17,19 +17,14 @@ module Main where
 import RuntimeProcessManager
 
 import System.IO
-import System.Process
 import System.Directory     (doesFileExist, getDirectoryContents)
 import System.FilePath      (takeFileName, takeExtensions)
-import System.TimeIt        (timeIt)
 import System.Exit
 
 import System.Clock
-import Control.Monad        (when)
 
 import BackEnd
 import FileIO
-import JavaUtils
-import StringPrefixes       (namespace)
 import qualified Data.ByteString as B
 import Data.FileEmbed       (embedFile)
 import System.Directory     (getTemporaryDirectory)
@@ -44,6 +39,7 @@ writeRuntimeToTemp =
      let tempFile = tempdir </> "runtime.jar"
      B.writeFile tempFile runtimeBytes
 
+testCasesPath :: String
 testCasesPath = "testsuite/tests/shouldRun/"
 
 initReplEnv :: [TransMethod] -> Compilation -> [String] -> IO Int
@@ -56,8 +52,8 @@ loadFile inP outP method opt xs = do
     loadAll inP outP 0 method opt xs
 
 loadAll ::  Handle -> Handle -> Int -> [TransMethod] -> Compilation -> [String] -> IO Int
-loadAll _ _ error _ _ [] = return error
-loadAll inP outP error method opt (x:xs) = do
+loadAll _ _ err _ _ [] = return err
+loadAll inP outP err method opt (x:xs) = do
     let compileOpt = (0, opt, method)
     let name = takeFileName x
     if ((head name /= '.') && (takeExtensions x == ".sf"))
@@ -65,8 +61,8 @@ loadAll inP outP error method opt (x:xs) = do
               output <- getStandardOutput x
               putStrLn $ "\x1b[32m" ++ "Standard output: " ++ output
               error2 <- wrap (inP, outP) (receiveMsg2 output) compileOpt True False x
-              loadAll inP outP (error+error2) method opt xs
-      else loadAll inP outP error method opt xs
+              loadAll inP outP (err+error2) method opt xs
+      else loadAll inP outP err method opt xs
 
 getStandardOutput :: FilePath -> IO String
 getStandardOutput file = do
@@ -90,7 +86,7 @@ main = do
   writeRuntimeToTemp
   start <- getTime Monotonic
   xs <- getDirectoryContents testCasesPath
-  let (x:y:ys) = xs
+  let (_:_:ys) = xs
   let zs = addFilePath ys
   putStrLn ""
   putStrLn $ "Running test from " ++ testCasesPath
