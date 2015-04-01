@@ -33,7 +33,7 @@ import           ClosureF
 import qualified Core
 import           Inheritance
 import           Inliner
-import           JavaUtils (ClassName, inferClassName)
+import           JavaUtils (ClassName)
 import           OptiUtils
 import           MonadLib
 import           PartialEvaluator
@@ -45,8 +45,6 @@ import           Data.Data
 import           Language.Java.Pretty
 import qualified Language.Java.Syntax as J
 import           Prelude hiding (exp)
-import           System.Exit (exitFailure)
-import           Text.PrettyPrint.ANSI.Leijen
 
 -- import Control.Monad.Trans.Error (runErrorT)
 
@@ -150,19 +148,34 @@ instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
 -- prettyJ = putStrLn . prettyPrint
 
 -- | Core expression to Java.
-core2java :: Bool -> DumpOption -> Compilation -> ClassName -> OptiUtils.Exp -> IO String
-core2java optInline optDump compilation className closedCoreExpr = do
-  let rewrittenCore = rewriteAndEval closedCoreExpr
-  let recurNumOfCore = if optInline then recurNum rewrittenCore else 0 -- inline
-  let inlineNum = if recurNumOfCore > 2 then 0 else recurNumOfCore
-  let inlinedCore = case inlineNum of
-                      1 -> inliner rewrittenCore
-                      2 -> inliner . inliner $ rewrittenCore
-                      _ -> rewrittenCore
-  when (optDump == DumpSimpleCore) $ print (Core.prettyExpr rewrittenCore)
-  when (optDump == DumpClosureF ) $ print (ClosureF.prettyExpr basePrec (0,0) (fexp2cexp inlinedCore))
-  let (cu, _) = compilation className inlinedCore
-  return $ prettyPrint cu
+core2java :: Bool -> Bool -> DumpOption -> Compilation -> ClassName -> Exp -> IO String
+core2java supernaive optInline optDump compilation className closedCoreExpr =
+  do let rewrittenCore = rewriteAndEval closedCoreExpr
+     let recurNumOfCore =
+           if optInline  -- inline
+              then recurNum rewrittenCore
+              else 0
+     let inlineNum =
+           if recurNumOfCore > 2
+              then 0
+              else recurNumOfCore
+     let inlinedCore =
+           case inlineNum of
+             1 -> inliner rewrittenCore
+             2 -> inliner . inliner $ rewrittenCore
+             _ -> rewrittenCore
+     when (optDump == DumpSimpleCore) $
+       print (Core.prettyExpr rewrittenCore)
+     when (optDump == DumpClosureF) $
+       print (ClosureF.prettyExpr basePrec
+                                  (0,0)
+                                  (fexp2cexp inlinedCore))
+     let (cu,_) =
+           if supernaive
+              then compilation className
+                               (reveal closedCoreExpr)
+              else compilation className inlinedCore
+     return $ prettyPrint cu
 
 
 type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)--PFExp Int (Var, Type Int) -> (J.Block, J.Exp, Type Int)

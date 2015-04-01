@@ -91,6 +91,7 @@ main = do
   putStrLn ""
   putStrLn $ "Running test from " ++ testCasesPath
   putStrLn "-------------------------------------"
+  error5 <- initReplEnv [SNaive] compileN zs
   error1 <- initReplEnv [Naive] compileN zs
   error2 <- initReplEnv [Naive, Apply] compileAO zs
   error3 <- initReplEnv [Naive, Stack] compileSN zs
@@ -99,6 +100,6 @@ main = do
   putStrLn "Finished!"
   end <- getTime Monotonic
   putStrLn $ "Running Time " ++ show (sec end - sec start) ++ "s"
-  if (error1 /= 0) || (error2 /= 0) || (error3 /= 0) || (error4 /= 0)
+  if (error1 /= 0) || (error2 /= 0) || (error3 /= 0) || (error4 /= 0) || (error5 /= 0)
     then exitFailure
     else return ()
