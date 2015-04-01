@@ -50,5 +50,5 @@ recurNum (Let _ e f) = recurNum e + recurNum (f 0)
 recurNum (LetRec _ _ f1 f2) = sum (map recurNum (f1 (repeat 0))) + recurNum (f2 (repeat 0))
 recurNum (App e1 e2) = recurNum e1 + recurNum e2
 recurNum (If e1 e2 e3) = recurNum e1 + recurNum e2 + recurNum e3
-recurNum (PrimOp e1 _ e2) = recurNum e1 + recurNum e2 
+recurNum (PrimOp e1 _ e2) = recurNum e1 + recurNum e2
 recurNum _ = 0
