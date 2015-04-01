@@ -4,8 +4,8 @@ module TestInh where
 
 -- class (:<) r1 r2  where
 --   to :: r1 -> r2
---   override :: r1 -> (r2 -> r2) -> r1 
-   
+--   override :: r1 -> (r2 -> r2) -> r1
+
 newtype R1 = R1 {fun1 :: Int -> Int}
 
 data R2 = R2 {toR1 :: R1, fun2 :: Int -> Int}

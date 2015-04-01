@@ -41,19 +41,19 @@ main = do
   withRuntimeProcess "FileServer" LineBuffering
        (\(inP,outP) ->
         do liftIO printHelp
-           runInputT defaultSettings 
-                         (Loop.loop (inP, outP) (0, compileN, [Naive])  
+           runInputT defaultSettings
+                         (Loop.loop (inP, outP) (0, compileN, [Naive])
                           Map.empty Env.empty Hist.empty Hist.empty 0 False False False False 0))
-     
+
 fileExist :: String -> IO ()
 fileExist name = do
         exist <- doesFileExist name
-        if (exist) 
+        if (exist)
           then return ()
-          else fileExist name   
+          else fileExist name
 
 printFile :: IO ()
-printFile = do 
+printFile = do
         f <- getLine
         contents <- readFile f
         putStr contents

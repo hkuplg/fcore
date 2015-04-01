@@ -5,10 +5,10 @@ let rec eq [A] (xs: PolyList [A]) (ys: PolyList [A]) : Bool =
   case xs of
      Nil -> (case ys of
                 Nil -> True
-	      | Cons _ _ -> False)
+        | Cons _ _ -> False)
    | Cons a as -> (case ys of
-     	       	     Nil -> False
-		   | Cons b bs -> (a == b) && (eq [A] as bs)) ;
+                   Nil -> False
+       | Cons b bs -> (a == b) && (eq [A] as bs)) ;
 let rec append [A] (xs : PolyList [A]) (ys : PolyList [A]) : PolyList [A] =
   case xs of
       Nil       -> ys
@@ -16,7 +16,7 @@ let rec append [A] (xs : PolyList [A]) (ys : PolyList [A]) : PolyList [A] =
 
 let rec reverse [A] (xs: PolyList [A]) : PolyList [A] =
     case xs of
-    	Nil -> Nil [A]
+      Nil -> Nil [A]
       | Cons y ys -> append [A] (reverse [A] ys) (Cons [A] y (Nil [A]));
 
 let prop_reverse [A] (xs: PolyList [A]) : Bool = eq [A] (reverse [A] (reverse [A] xs)) xs;

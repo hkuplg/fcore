@@ -1,5 +1,5 @@
 {- |
-Module      :  FileLoad 
+Module      :  FileLoad
 Description :  Perform IO for the REPL
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
@@ -49,7 +49,7 @@ data TransMethod = Apply
 type Connection = (Handle, Handle)
 type CompileOpt = (Int, Compilation, [TransMethod])
 
-wrap :: Connection -> (Int -> Handle -> IO Int) -> CompileOpt -> Bool -> Bool -> String -> IO Int 
+wrap :: Connection -> (Int -> Handle -> IO Int) -> CompileOpt -> Bool -> Bool -> String -> IO Int
 wrap (inP, outP) receiveMsg opt flagC flagS name = do
         exist <- doesFileExist name
         if not exist
@@ -58,7 +58,7 @@ wrap (inP, outP) receiveMsg opt flagC flagS name = do
             return 1
           else do
             correct <- send inP opt flagC flagS name
-            case correct of 
+            case correct of
               True  -> receiveMsg 0 outP
               False -> return 1
 
@@ -69,14 +69,14 @@ source2java optInline optDump compilation className source =
   do coreExpr <- source2core optDump source
      core2java optInline optDump compilation className coreExpr
 
-send :: Handle -> CompileOpt -> Bool -> Bool -> FilePath -> IO Bool 
-send h (n, opt, method) flagC flagS f = do 
+send :: Handle -> CompileOpt -> Bool -> Bool -> FilePath -> IO Bool
+send h (n, opt, method) flagC flagS f = do
   contents <- readFile f
   -- let path = dropFileName f
   let className = inferClassName . inferOutputPath $ f
   result <- E.try (source2java False NoDump opt className contents)
-  case result of 
-    Left  (_ :: E.SomeException) -> 
+  case result of
+    Left  (_ :: E.SomeException) ->
       do putStrLn ("\x1b[31m" ++ "invalid expression sf2Java")
          putStrLn "\x1b[0m"
          return False
@@ -84,15 +84,15 @@ send h (n, opt, method) flagC flagS f = do
       do sendMsg h (className ++ ".java")
          let file = javaFile ++ "\n" ++  "//end of file"
          sendFile h file
-         when flagS $  
+         when flagS $
            do putStrLn contents
               putStrLn file
          return True
-        
-receiveMsg :: Int -> Handle -> IO Int 
+
+receiveMsg :: Int -> Handle -> IO Int
 receiveMsg error h = do
   msg <- hGetLine h
-  if msg == "exit" 
+  if msg == "exit"
     then return error
     else do putStrLn msg
             receiveMsg error h
@@ -103,8 +103,8 @@ receiveMsg2 output error h = do
   msg <- hGetLine h
   if msg == "exit"
     then return error
-    else do 
-      if msg /= output 
+    else do
+      if msg /= output
         then do putStrLn $ "\x1b[31m" ++ "Incorrect: " ++ msg
                 putStrLn "\x1b[0m"
                 receiveMsg2 output (error+1) h
@@ -118,7 +118,7 @@ receiveMsg3 outP = do
   if msg == "exit" then receiveMsg3 outP else return msg
 
 sendMsg :: Handle -> String -> IO ()
-sendMsg h msg = do 
+sendMsg h msg = do
   hPutStrLn h msg
 
 sendFile :: Handle -> String -> IO ()

@@ -12,13 +12,17 @@ smt : dependencies runtime
 	$${CABAL=cabal}  install -f Z3
 
 .PHONY : test
-test : dependencies runtime
+test : whitespace_test dependencies runtime
 	$${CABAL=cabal} configure --enable-tests && $${CABAL=cabal} build && $${CABAL=cabal} test
 
 .PHONY : test2
-test2 : dependencies runtime
+test2 : whitespace_test dependencies runtime
 	make parsers
 	runhaskell -i$(srcdir):lib/services:lib/typeCheck:lib/simplify $(testdir)/FileLoad.hs
+
+.PHONY : whitespace_test
+whitespace_test :
+	ruby $(testdir)/whitespace_check.rb
 
 .PHONY : dependencies
 dependencies : 

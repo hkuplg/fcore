@@ -60,7 +60,7 @@ loadAll _ _ error _ _ [] = return error
 loadAll inP outP error method opt (x:xs) = do
     let compileOpt = (0, opt, method)
     let name = takeFileName x
-    if ((head name /= '.') && (takeExtensions x == ".sf")) 
+    if ((head name /= '.') && (takeExtensions x == ".sf"))
       then do putStrLn ("Running " ++ name)
               output <- getStandardOutput x
               putStrLn $ "\x1b[32m" ++ "Standard output: " ++ output
@@ -103,6 +103,6 @@ main = do
   putStrLn "Finished!"
   end <- getTime Monotonic
   putStrLn $ "Running Time " ++ show (sec end - sec start) ++ "s"
-  if (error1 /= 0) || (error2 /= 0) || (error3 /= 0) || (error4 /= 0) 
+  if (error1 /= 0) || (error2 /= 0) || (error3 /= 0) || (error4 /= 0)
     then exitFailure
     else return ()
