@@ -65,6 +65,7 @@ library
                         ParseCMD
                         Parser
                         PartialEvaluator
+                        Predef
                         PrettyUtils
                         RuntimeProcessManager
                         Simplify

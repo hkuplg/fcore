@@ -1,5 +1,5 @@
 let rec
-  foldLeft (f : (Int -> (f2j.FunctionalList, Int)) -> Int -> (Int -> (f2j.FunctionalList, Int))) (v : Int -> (f2j.FunctionalList, Int)) (xs : f2j.FunctionalList) (n : Int) : (f2j.FunctionalList, Int) = 
+  foldLeft (f : (Int -> (f2j.FunctionalList, Int)) -> Int -> (Int -> (f2j.FunctionalList, Int))) (v : Int -> (f2j.FunctionalList, Int)) (xs : f2j.FunctionalList) (n : Int) : (f2j.FunctionalList, Int) =
     if xs.isEmpty() then v n
     else foldLeft f (\(x : Int) . f v xs.head() x) xs.tail() n
 in
@@ -28,13 +28,13 @@ let
                  (bind Unit f2j.FunctionalList Int
                     (put Int (n + 1))
                     (\(s : Unit) . (inject f2j.FunctionalList Int (cons n xs))))))) n
-    in 
-    let 
+    in
+    let
       gao2 (acc : Int -> (f2j.FunctionalList, Int)) (a : Int) (n : Int) : (f2j.FunctionalList, Int) =
         (as,0)
     in
     let
-      foldLeft' (as : f2j.FunctionalList) (n : Int) : (f2j.FunctionalList, Int) = 
+      foldLeft' (as : f2j.FunctionalList) (n : Int) : (f2j.FunctionalList, Int) =
         foldLeft gao (inject f2j.FunctionalList Int []) as n
     in
     (foldLeft' as 0)._1
@@ -42,10 +42,10 @@ in
 let rec
   printList (as : f2j.FunctionalList) : Bool = {
     if as.isEmpty() then {
-      java.lang.System.out.println(""); True
+      println(""); True
     }
     else {
-      java.lang.System.out.print(as.head()); printList(as.tail()); False
+      print(as.head()); printList(as.tail()); False
     }
   }
 in
