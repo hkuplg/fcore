@@ -15,18 +15,13 @@ Portability :  portable
 module FileIO where
 
 import System.IO
-import System.Process hiding  (runCommand)
-import System.Directory       (removeFile, doesFileExist)
-import System.FilePath        (dropExtension, dropFileName, takeFileName)
+import System.Directory       (doesFileExist)
 
 import qualified Control.Exception as E
-import Control.Monad          (when)
+import Control.Monad (when)
 
 import Data.Char
-import Data.List.Split
-import Data.List
 import Data.Data
-import Data.Typeable
 
 import FrontEnd
 import BackEnd
@@ -50,7 +45,7 @@ type Connection = (Handle, Handle)
 type CompileOpt = (Int, Compilation, [TransMethod])
 
 wrap :: Connection -> (Int -> Handle -> IO Int) -> CompileOpt -> Bool -> Bool -> String -> IO Int
-wrap (inP, outP) receiveMsg opt flagC flagS name = do
+wrap (inP, outP) receMsg opt flagC flagS name = do
         exist <- doesFileExist name
         if not exist
           then do
@@ -59,12 +54,13 @@ wrap (inP, outP) receiveMsg opt flagC flagS name = do
           else do
             correct <- send inP opt flagC flagS name
             case correct of
-              True  -> receiveMsg 0 outP
+              True  -> receMsg 0 outP
               False -> return 1
 
 getClassName :: String -> String
 getClassName (x : xs) = (toUpper x) : xs
 
+source2java :: Bool -> DumpOption -> Compilation -> String -> String -> IO String
 source2java optInline optDump compilation className source =
   do coreExpr <- source2core optDump source
      core2java optInline optDump compilation className coreExpr
@@ -90,29 +86,30 @@ send h (n, opt, method) flagC flagS f = do
          return True
 
 receiveMsg :: Int -> Handle -> IO Int
-receiveMsg error h = do
+receiveMsg err h = do
   msg <- hGetLine h
   if msg == "exit"
-    then return error
+    then return err
     else do putStrLn msg
-            receiveMsg error h
+            receiveMsg err h
 
 -- make test2
 receiveMsg2 :: String -> Int -> Handle -> IO Int
-receiveMsg2 output error h = do
+receiveMsg2 output err h = do
   msg <- hGetLine h
   if msg == "exit"
-    then return error
+    then return err
     else do
       if msg /= output
         then do putStrLn $ "\x1b[31m" ++ "Incorrect: " ++ msg
                 putStrLn "\x1b[0m"
-                receiveMsg2 output (error+1) h
+                receiveMsg2 output (err+1) h
         else do putStrLn $ "\x1b[32m" ++ "Correct: " ++ msg
                 putStrLn "\x1b[0m"
-                receiveMsg2 output error h
+                receiveMsg2 output err h
 
 -- make test
+receiveMsg3 :: Handle -> IO String
 receiveMsg3 outP = do
   msg <- hGetLine outP
   if msg == "exit" then receiveMsg3 outP else return msg
