@@ -69,7 +69,7 @@ data Expr t e
   | Fix Src.ReaderId Src.ReaderId
         (e -> e -> Expr t e)
         (Type t)  -- t1
-        (Type t)  -- t (return type)
+        (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
