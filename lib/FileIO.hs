@@ -29,6 +29,7 @@ import JavaUtils (inferClassName, inferOutputPath)
 
 data TransMethod = Apply
                  | Naive
+                 | SNaive
                  | Stack
                  | Unbox
                  | StackAU1
@@ -60,17 +61,19 @@ wrap (inP, outP) receMsg opt flagC flagS name = do
 getClassName :: String -> String
 getClassName (x : xs) = (toUpper x) : xs
 
-source2java :: Bool -> DumpOption -> Compilation -> String -> String -> IO String
-source2java optInline optDump compilation className source =
+source2java :: Bool -> Bool -> DumpOption -> Compilation -> String -> String -> IO String
+source2java supernaive optInline optDump compilation className source =
   do coreExpr <- source2core optDump source
-     core2java optInline optDump compilation className coreExpr
+     core2java supernaive optInline optDump compilation className coreExpr
 
 send :: Handle -> CompileOpt -> Bool -> Bool -> FilePath -> IO Bool
 send h (n, opt, method) flagC flagS f = do
   contents <- readFile f
   -- let path = dropFileName f
   let className = inferClassName . inferOutputPath $ f
-  result <- E.try (source2java False NoDump opt className contents)
+  result <- E.try (if method == [SNaive]
+                   then source2java True False NoDump opt className contents
+                   else source2java False False NoDump opt className contents)
   case result of
     Left  (_ :: E.SomeException) ->
       do putStrLn ("\x1b[31m" ++ "invalid expression sf2Java")
