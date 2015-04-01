@@ -28,6 +28,18 @@ app2let (App e1 e2) = case e1' of
   where
     e1' = app2let e1
     e2' = app2let e2
+app2let (LetRec names [Fun t1 t2] binds expr) =
+  -- transform single self recursion to fix (TODO: workaround)
+  Let
+    (names !! 0)
+    (fix (\f arg ->
+            let Lam _ _ body =
+                  (binds [f]) !!
+                  0
+            in app2let (body arg))
+         t1
+         t2)
+    (\e -> app2let (expr [e]))
 app2let e = mapExpr app2let e
 
 -- Rule 1: let x = y in e                 => [x -> y] e   (where y is a variable)

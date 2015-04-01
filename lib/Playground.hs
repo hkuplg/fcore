@@ -31,6 +31,7 @@ tailFact
            (var tail_fact `App` (var acc `mult` var n) `App` (var n `sub` one))))
     javaInt (javaInt `Fun` javaInt)
 
+
 testTail :: Expr t e
 testTail = App (fix (\f n -> If (var n `eq` zero)
                            one
@@ -44,6 +45,20 @@ fact = fix (\f n -> If (var n `eq` zero)
                        (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
            (javaInt `Fun` javaInt)
+
+fact2 :: Expr t e
+fact2 =
+  LetRec ["fact"]
+         [javaInt `Fun` javaInt]
+         (\es ->
+            [lam javaInt
+                 (\n ->
+                    If (var n `eq` zero)
+                       one
+                       (var n `mult`
+                        ((var (es !! 0))) `App`
+                        (var n `sub` one)))])
+         (\es -> App (var (es !! 0)) one)
 
 
 test1 :: Expr t e
@@ -95,17 +110,17 @@ x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y
 
-sf2c :: String -> IO (Expr t e)
-sf2c fname = do
-  path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
-  string <- readFile (path ++ "/" ++ fname)
-  let readSrc = Parser.reader string
-  result <- readSrc `seq` (typeCheck readSrc)
-  case result of
-   Left typeError -> error $ show typeError
-   Right (typ, tcheckedSrc) -> do
-     print tcheckedSrc
-     return (simplify . desugar $ tcheckedSrc)
+-- sf2c :: String -> IO (Expr t e)
+-- sf2c fname = do
+--   path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
+--   string <- readFile (path ++ "/" ++ fname)
+--   let readSrc = Parser.reader string
+--   result <- readSrc `seq` (typeCheck readSrc)
+--   case result of
+--    Left typeError -> error $ show typeError
+--    Right (typ, tcheckedSrc) -> do
+--      print tcheckedSrc
+--      return (simplify . desugar $ tcheckedSrc)
      -- case n of
      --  1 -> return (peval . simplify . desugar $ tcheckedSrc)
      --  2 -> return (simplify . desugar $ tcheckedSrc)
