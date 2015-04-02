@@ -13,7 +13,7 @@ test_failed = false
 Dir[*where].each do |path|
   next if path.match(excluding)
 
-  File.open(path, "r") do |f|
+  File.open(path, "r", :encoding =>'utf-8') do |f|
     f.each_line.with_index do |line, i|
       line.chomp!
       line_number = i + 1

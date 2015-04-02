@@ -36,7 +36,31 @@ Ubuntu. It builds the compiler from source, thus may take some time.
 
 ## Building on Windows ##
 
-TODO
+1. Software preparation
+    - [Java SDK (8 or newer)](http://www.oracle.com/technetwork/java/index.html)
+    - [Apache Ant (version 1.8 or above)](http://ant.apache.org/)
+    - [git](http://git-scm.com/)
+    - [minGHC](https://github.com/fpco/minghc), which includes GHC, Cabal, MSYS
+    - Have a make. There is a make in minghc\msys\bin. Or one can use [GNU Make](http://www.gnu.org/software/make/)
+
+2. Then the same as above.
+
+    If when you run program, meet a problem like this
+    ```java
+    java.lang.NullPointerException
+        at f2j.FileServer.compile(Unknown Source)
+        at f2j.FileServer.compileLoad(Unknown Source)
+        at f2j.FileServer.main(Unknown Source)
+    FileLoad.hs: fd:4: hGetLine: end of file
+    ```
+    This may be related to [ToolProvider.getSystemJavaCompiler returns null](http://bugs.java.com/bugdatabase/view_bug.do?bug_id=6477844).
+    As a workaround, modify the file `fcore\runtime\f2j\FileServer.java`
+    ```java
+    //replace 2nd argument by the real path, add this line
+    System.setProperty("java.home", "the path to your jdk directory, same as JAVA_HOME")
+    //before this line
+    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+    ```
 
 ## Documentation ##
 
