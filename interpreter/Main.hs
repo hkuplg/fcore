@@ -2,28 +2,21 @@
 
 module Main where
 
+import BackEnd
+import FileIO                           (TransMethod (Naive))
+import Loop
 import RuntimeProcessManager            (withRuntimeProcess)
 
 import System.Console.Haskeline         (runInputT, defaultSettings)
 import System.IO
-import System.Process hiding (runCommand)
-import System.Directory                 (doesFileExist)
-
-import Control.Monad.Error
 
 import Data.FileEmbed                   (embedFile)
 import qualified Data.Map as Map
 
-import BackEnd
-import JavaUtils
-import StringPrefixes                   (namespace)
-
-import Loop
 import qualified Environment as Env
 import qualified History as Hist
-import FileIO                           (TransMethod (Naive))
 import qualified Data.ByteString as B
-import System.Directory (getTemporaryDirectory)
+import System.Directory (doesFileExist, getTemporaryDirectory)
 import System.FilePath ((</>))
 
 runtimeBytes :: B.ByteString
@@ -48,9 +41,7 @@ main = do
 fileExist :: String -> IO ()
 fileExist name = do
         exist <- doesFileExist name
-        if (exist)
-          then return ()
-          else fileExist name
+        unless exist $ fileExist name
 
 printFile :: IO ()
 printFile = do
