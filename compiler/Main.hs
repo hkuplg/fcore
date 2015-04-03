@@ -3,7 +3,6 @@
            , TemplateHaskell
            , FlexibleInstances
            , MultiParamTypeClasses
-           , OverlappingInstances
            , RankNTypes
            , TypeOperators
            , RecordWildCards

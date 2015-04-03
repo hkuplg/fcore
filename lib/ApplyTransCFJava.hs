@@ -112,8 +112,8 @@ transAS this super = NT {toT = (up (transApply this super)) {
                                                   _ -> False
                             translateApply (up this)
                                            flag
-                                           (local (False &&) $ (local (\(_ :: Int) -> n + 1) $ translateM (up this) e1))
-                                           (local (False &&) $ (local (\(_ :: Int) -> 0) $ translateM (up this) e2))
+                                           (local (False &&) $ local (\ (_ :: Int) -> n + 1) (translateM (up this) e1))
+                                           (local (False &&) $ local (\(_ :: Int) -> 0) (translateM (up this) e2))
             _ -> translateM super e,
 
   genApply = \f t tempOut outType z ->

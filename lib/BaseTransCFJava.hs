@@ -437,7 +437,7 @@ trans self =
                    (altsStmts, varName, typ) <- transAlts this scrutExpr alts
                    return (scrutStmts ++ altsStmts, varName, typ)
               Data recflag databinds expr -> do
-                let translateDatabind = \(DataBind nam params ctrs) ->
+                let translateDatabind (DataBind nam params ctrs) =
                         do n <- get
                            put (length params + n)
                            let tag = memberDecl $ finalFieldDecl intTy (varDeclNoInit datatypetag)
@@ -470,8 +470,7 @@ trans self =
                 (databindclass, databindproxy) <- mapAndUnzipM translateDatabind databinds
                 (s', e', t') <- translateM this expr
                 case recflag of
-                    S.NonRec -> do
-                        return (databindclass ++ databindproxy ++ s', e', t')
+                    S.NonRec -> return (databindclass ++ databindproxy ++ s', e', t')
                     S.Rec -> do
                         (n::Int) <- get
                         put (n+2)
@@ -479,7 +478,7 @@ trans self =
                         let datatypeclass =
                              [localClass ("Datatype" ++ show n)
                                          (classBody ( memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
-                                                      (map (memberDecl . localToMemberClass) databindclass) ++
+                                                      map (memberDecl . localToMemberClass) databindclass ++
                                                       [J.InitDecl False (block $ databindproxy ++ s' ++ [assign (name [tempvarstr]) (unwrap e')])]
                                                     ))
                              ,localVar (classTy ("Datatype" ++ show n))
@@ -588,7 +587,7 @@ trans self =
                              0 -> localVar objtype $ varDecl varname scrut
                              _ -> localVar objtype $ varDecl varname (cast objtype scrut)
                  vardecls = zipWith (\i ty -> let fieldaccess = fieldAccess (varExp varname) (fieldtag ++ show i)
-                                              in  if (ty == objClassTy || not (elem ty tvarjtypes))
+                                              in  if ty == objClassTy || notElem ty tvarjtypes
                                                   then localVar ty $ varDecl (localvarstr ++ show (n+i)) fieldaccess
                                                   else localVar ty $ varDecl (localvarstr ++ show (n+i)) (cast ty fieldaccess) )
                                     [1..len]

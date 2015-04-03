@@ -82,7 +82,7 @@ data Alt t e = ConstrAlt (Constructor t) [S.ReaderId] ([e] -> Expr t e)
 -- System F to Closure F
 
 ftyp2scope :: C.Type t -> TScope t
-ftyp2scope (C.Forall _ f)   = Kind (\a -> ftyp2scope (f a))
+ftyp2scope (C.Forall _ f)   = Kind (ftyp2scope . f)
 ftyp2scope (C.Fun t1 t2)  = Type (ftyp2ctyp t1) (\_ -> ftyp2scope t2)
 ftyp2scope t             = Body (ftyp2ctyp t)
 -- ftyp2scope PFInt         = Body CInt
@@ -130,13 +130,13 @@ fexp2cexp (C.Var rid x)                = Var rid x
 fexp2cexp (C.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (C.TApp e t)               = TApp (fexp2cexp e) (ftyp2ctyp t)
 fexp2cexp (C.PrimOp e1 op e2)        = PrimOp (fexp2cexp e1) op (fexp2cexp e2)
-fexp2cexp (C.Lit S.UnitLit) = Lit (S.UnitLit)
+fexp2cexp (C.Lit S.UnitLit) = Lit S.UnitLit
 fexp2cexp (C.Lit e)         = Lit e
 fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2cexp e3)
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
-fexp2cexp (C.Let n bind body)        = Let n (fexp2cexp bind) (\e -> fexp2cexp $ body e)
-fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
+fexp2cexp (C.Let n bind body)        = Let n (fexp2cexp bind) (fexp2cexp . body)
+fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (map fexp2cexp . f ) (fexp2cexp . g)
 fexp2cexp (C.Fix n1 n2 f t1 t2) =
   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
   in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
@@ -175,8 +175,8 @@ groupLambda2 (FLam t f) tenv env =
 -}
 
 groupLambda :: C.Expr t e -> EScope t e
-groupLambda (C.BLam _ f)  = Kind (\a -> groupLambda (f a))
-groupLambda (C.Lam _ t f) = Type (ftyp2ctyp t) (\x -> groupLambda (f x))
+groupLambda (C.BLam _ f)  = Kind (groupLambda . f)
+groupLambda (C.Lam _ t f) = Type (ftyp2ctyp t) (groupLambda . f)
 groupLambda e          = Body (fexp2cexp e)
 
 -- join
@@ -205,14 +205,14 @@ joinType (ListType t) = ListType (joinType t)
 joinTScope :: TScope (Type t) -> TScope t
 joinTScope (Body b)   = Body (joinType b)
 joinTScope (Kind f)   = Kind (joinTScope . f . TVar)
-joinTScope (Type t f) = let t' = joinType t in Type t' (\x -> joinTScope (f x))
+joinTScope (Type t f) = let t' = joinType t in Type t' (joinTScope . f)
 
 -- Free variable substitution
 
 substScope :: Subst t => Int -> Type Int -> TScope t  -> TScope t
 substScope n t (Body t1) = Body (substType n t t1)
-substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
-substScope n t (Type t1 f) = Type (substType n t t1) (\x -> substScope n t (f x))
+substScope n t (Kind f)  = Kind (substScope n t . f)
+substScope n t (Type t1 f) = Type (substType n t t1) (substScope n t . f)
 
 substType :: Subst t => Int -> Type Int -> Type t -> Type t
 substType n t (TVar x) = subst n t x
@@ -236,7 +236,7 @@ type Index = Int
 
 isSimpleExpr :: Expr Index Index -> Bool
 isSimpleExpr (Var _ _)         = True
-isSimpleExpr (PrimOp _ _ _)  = True
+isSimpleExpr (PrimOp{})  = True
 isSimpleExpr (App (Var _ _) _) = True
 isSimpleExpr (Lit _)         = True
 isSimpleExpr _               = False
@@ -322,12 +322,12 @@ prettyExpr p i (If e1 e2 e3)
   = ifPart <$> thenPart <$> elsePart
   where
     ifPart   = text "if" <+> prettyExpr (3, PrecMinus) i e1
-    thenPart = if   (isSimpleExpr e2)
-               then (text "then" <+> prettyExpr (3, PrecMinus) i e2)
-               else (nest 2 (text "then" <$> prettyExpr (3, PrecMinus) i e2))
-    elsePart = if   (isSimpleExpr e3)
-               then (text "else" <+> prettyExpr (3, PrecMinus) i e3)
-               else (nest 2 (text "else" <$> prettyExpr (3, PrecMinus) i e3))
+    thenPart = if   isSimpleExpr e2
+               then text "then" <+> prettyExpr (3, PrecMinus) i e2
+               else nest 2 (text "then" <$> prettyExpr (3, PrecMinus) i e2)
+    elsePart = if   isSimpleExpr e3
+               then text "else" <+> prettyExpr (3, PrecMinus) i e3
+               else nest 2 (text "else" <$> prettyExpr (3, PrecMinus) i e3)
 
 prettyExpr p i (Tuple l) = tupled (map (prettyExpr p i) l)
 
@@ -380,15 +380,15 @@ prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
 
 prettyExpr p (i,j) (Data recflag databinds e) =
-  text "data" <+> (pretty recflag) <+> (align .vsep) (map prettyDatabind databinds) <$> prettyExpr p (i,j) e
-    where prettyCtr i' (Constructor ctrName ctrParams) = (text ctrName) <+> (hsep. map (prettyType p i') $ ctrParams)
+  text "data" <+> pretty recflag <+> (align .vsep) (map prettyDatabind databinds) <$> prettyExpr p (i,j) e
+    where prettyCtr i' (Constructor ctrName ctrParams) = text ctrName <+> (hsep. map (prettyType p i') $ ctrParams)
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
-                   (equals <+> intersperseBar (map (prettyCtr (i+ (length tvars)))$ cons [i..(i-1+(length tvars))]) <$$> semi)
+                   (equals <+> intersperseBar (map (prettyCtr (i+ length tvars))$ cons [i..(i-1+length tvars)]) <$$> semi)
 
-prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
+prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> hsep (map (prettyExpr p i) es))
 prettyExpr p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> text " " <+> S.intersperseBar (map pretty_alt alts)
     where pretty_alt (ConstrAlt c ns es) =
               let n = length ns
                   ids = [j..j+n-1]
-              in hsep (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr p (i, j+n) (es ids)
+              in hsep (text (constrName c) : map prettyVar ids) <+> arrow <+> prettyExpr p (i, j+n) (es ids)

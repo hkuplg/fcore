@@ -3,7 +3,6 @@
            , FlexibleInstances
            , KindSignatures
            , MultiParamTypeClasses
-           , OverlappingInstances
            , RankNTypes
            , TypeOperators
            #-}

@@ -41,9 +41,9 @@ rewrite0 = swap1_3 rewrite0' 0 Map.empty
 
 rewrite0' :: Map.Map Int e -> Expr t Int -> Int -> Expr t e
 rewrite0' env e@(LetRec names [Fun t1 t2] binds expr) num =
-  case (binds [num] !! 0) of
+  case head (binds [num]) of
     Lam _ _ body ->
-      Let (names !! 0)
+      Let (head names)
           (fix (\f arg ->
                   rewrite0' (Map.insert (num + 1)
                                         arg
