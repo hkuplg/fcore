@@ -4,22 +4,24 @@ module Main where
 
 import BackEnd
 import FileIO                           (TransMethod (Naive))
-import Loop
 import RuntimeProcessManager            (withRuntimeProcess)
 
-import System.Console.Haskeline         (runInputT, defaultSettings)
-import System.IO
-
-import Data.FileEmbed                   (embedFile)
-import qualified Data.Map as Map
-
+-- REPL-specific modules
+import Loop
 import qualified Environment as Env
 import qualified History as Hist
-import qualified Data.ByteString as B
-import System.Directory (doesFileExist, getTemporaryDirectory)
-import System.FilePath ((</>))
+
+import Data.FileEmbed                   (embedFile)
+
+import System.Console.Haskeline         (runInputT, defaultSettings)
+import System.Directory                 (doesFileExist, getTemporaryDirectory)
+import System.FilePath                  ((</>))
+import System.IO
 
 import Control.Monad.Error
+
+import qualified Data.ByteString as B
+import qualified Data.Map as Map
 
 runtimeBytes :: B.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
