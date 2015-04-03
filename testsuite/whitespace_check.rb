@@ -26,7 +26,7 @@ Dir[*where].each do |path|
         end
       end
 
-      puts "#{path}:#{line_number} #{line}" if bad_line
+      puts "#{path}:#{line_number}: #{line}" if bad_line
     end
   end
 end
@@ -35,5 +35,6 @@ if test_failed
   $stderr.puts "\n\tFailed the whitespace test\n\tDo not include #{checklist_description}\n\n"
   exit 1
 else
+  puts "\n\tAll is well\n\n"
   exit 0
 end
