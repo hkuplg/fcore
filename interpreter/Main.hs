@@ -18,6 +18,8 @@ import qualified History as Hist
 import qualified Data.ByteString as B
 import System.Directory (doesFileExist, getTemporaryDirectory)
 import System.FilePath ((</>))
+import Control.Monad.Except (liftIO, unless)
+
 
 runtimeBytes :: B.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")

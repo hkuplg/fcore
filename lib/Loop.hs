@@ -22,7 +22,7 @@ import System.CPUTime
 import System.Directory                 (removeFile, doesFileExist)
 import System.FilePath                  (dropExtension)
 
-import Control.Monad.Error              (liftIO)
+import Control.Monad.Except             (liftIO)
 import Control.Concurrent               (threadDelay)
 import qualified Control.Exception as E
 
