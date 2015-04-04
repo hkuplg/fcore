@@ -252,11 +252,10 @@ trans self =
                 do (n :: Int) <- get
                    let needed = length t
                    put (n + 2 + needed)
-                   mfuns <- return (\defs -> forM (xs defs) (translateM this))
+                   let mfuns defs = forM (xs defs) (translateM this)
                    let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
                    let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
                    newvars <- liftM (pairUp bindings) vars
-
                    let finalFuns = mfuns newvars
                    let appliedBody = body newvars
                    let varnums = map fst newvars
