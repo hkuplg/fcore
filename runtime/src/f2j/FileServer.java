@@ -18,6 +18,19 @@ public class FileServer {
 
         // Compile source file.
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        if(compiler == null){
+            boolean isWin = System.getProperty("os.name").toLowerCase().indexOf("windows") >= 0;
+            String javaHome = System.getenv("JAVA_HOME");
+            if(isWin && !javaHome.isEmpty()){
+                System.setProperty("java.home",javaHome);
+                compiler = ToolProvider.getSystemJavaCompiler();
+            }
+        }
+
+        if(compiler == null){
+            System.err.println("Error: Can not get system java compiler");
+            System.exit(1);
+        }
 
         DiagnosticCollector <JavaFileObject> diagnostics =
             new DiagnosticCollector<JavaFileObject>();

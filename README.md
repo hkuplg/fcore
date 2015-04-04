@@ -45,23 +45,6 @@ Ubuntu. It builds the compiler from source, thus may take some time.
 
 2. Then the same as above.
 
-    If when you run program, meet a problem like this
-    ```java
-    java.lang.NullPointerException
-        at f2j.FileServer.compile(Unknown Source)
-        at f2j.FileServer.compileLoad(Unknown Source)
-        at f2j.FileServer.main(Unknown Source)
-    FileLoad.hs: fd:4: hGetLine: end of file
-    ```
-    This may be related to [ToolProvider.getSystemJavaCompiler returns null](http://bugs.java.com/bugdatabase/view_bug.do?bug_id=6477844).
-    As a workaround, modify the file `fcore\runtime\f2j\FileServer.java`
-    ```java
-    //replace 2nd argument by the real path, add this line
-    System.setProperty("java.home", "the path to your jdk directory, same as JAVA_HOME")
-    //before this line
-    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-    ```
-
 ## Documentation ##
 
 See `doc` directory for more details.
