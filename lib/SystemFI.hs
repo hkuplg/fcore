@@ -110,7 +110,7 @@ data Expr t e
   | Data Src.RecFlag [DataBind t] (Expr t e)
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
-   
+
 newtype FExp = HideF { revealF :: forall t e. Expr t e }
 
 data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ([e] -> Expr t e)

@@ -36,6 +36,7 @@ import SrcLoc
 import IOEnv
 import JavaUtils
 import PrettyUtils
+import RuntimeProcessManager (withRuntimeProcess)
 import JvmTypeQuery
 import Panic
 import StringPrefixes
@@ -59,25 +60,16 @@ type Connection = (Handle, Handle)
 typeCheck :: ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnv type_server) . runErrorT . infer) e)
+  (evalIOEnv (mkInitTcEnv type_server) . runErrorT . checkExpr) e)
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . infer) e)
+  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . checkExpr) e)
 
 withTypeServer :: (Connection -> IO a) -> IO a
-withTypeServer do_this =
-  do cp <- getClassPath
-     let p = (proc "java" ["-cp", cp, namespace ++ "TypeServer"])
-               { std_in = CreatePipe, std_out = CreatePipe }
-     (Just inp, Just out, _, proch) <- createProcess p
-     hSetBuffering inp NoBuffering
-     hSetBuffering out NoBuffering
-     res <- do_this (inp, out)
-     terminateProcess proch
-     return res
+withTypeServer = withRuntimeProcess "TypeServer" NoBuffering
 
 data TcEnv
   = TcEnv
@@ -289,25 +281,25 @@ hasKindStar d t
        return (k == Just Star)
 
 -- | Typing.
-infer :: ReaderExpr -> Checker (Type, CheckedExpr)
-infer e@(L loc (Var name))
+checkExpr :: ReaderExpr -> Checker (Type, CheckedExpr)
+checkExpr e@(L loc (Var name))
   = do value_ctxt <- getValueContext
        case Map.lookup name value_ctxt of
          Just t  -> return (t, L loc $ Var (name,t))
          Nothing -> throwError (NotInScope name `withExpr` e)
 
-infer (L loc (Lit lit)) = return (srcLitType lit, L loc $ Lit lit)
+checkExpr (L loc (Lit lit)) = return (srcLitType lit, L loc $ Lit lit)
 
-infer (L loc (Lam (x1,t1) e))
+checkExpr (L loc (Lam (x1,t1) e))
   = do checkType t1
        d <- getTypeContext
        let t1' = expandType d t1
-       (t', e') <- withLocalVars [(x1,t1')] (infer e)
+       (t', e') <- withLocalVars [(x1,t1')] (checkExpr e)
        return (Fun t1' t', L loc $ Lam (x1,t1') e')
 
-infer (L _ (App e1 e2)) =
-  do (t1, e1') <- infer e1
-     (t2, e2') <- infer e2
+checkExpr (L _ (App e1 e2)) =
+  do (t1, e1') <- checkExpr e1
+     (t2, e2') <- checkExpr e2
 
      case e1' of
        L loc (Constr (Constructor n ts) es) ->
@@ -321,7 +313,7 @@ infer (L _ (App e1 e2)) =
         case t1 of
           -- Local type inference:
           -- `f [T] e` can be written as `f e` if the type of e is just T.
-          Forall _ _ -> infer (App (TApp e1 t2 `withLoc` e1) e2 `withLoc` e1)
+          Forall _ _ -> checkExpr (App (TApp e1 t2 `withLoc` e1) e2 `withLoc` e1)
 
           Fun t11 t12 ->
             do d <- getTypeContext
@@ -343,12 +335,12 @@ infer (L _ (App e1 e2)) =
 
           _ -> throwError (NotAFunction t1 `withExpr` e1)
 
-infer (L loc (BLam a e))
-  = do (t, e') <- withLocalTVars [(a, (Star, TerminalType))] (infer e)
+checkExpr (L loc (BLam a e))
+  = do (t, e') <- withLocalTVars [(a, (Star, TerminalType))] (checkExpr e)
        return (Forall a t, L loc $ BLam a e')
 
-infer (L loc (TApp e arg))
-  = do (t, e') <- infer e
+checkExpr (L loc (TApp e arg))
+  = do (t, e') <- checkExpr e
        checkType arg
        d <- getTypeContext
        let arg' = expandType d arg
@@ -362,27 +354,27 @@ infer (L loc (TApp e arg))
                              _ -> return (t', L loc $ TApp e' arg')
          _           -> sorry "TypeCheck.infer: TApp"
 
-infer (L loc (Tuple es))
+checkExpr (L loc (Tuple es))
   | length es < 2 = panic "Src.TypeCheck.infer: Tuple: fewer than two items"
-  | otherwise     = do (ts, es') <- mapAndUnzipM infer es
+  | otherwise     = do (ts, es') <- mapAndUnzipM checkExpr es
                        return (Product ts, L loc $ Tuple es')
 
-infer expr@(L loc (Proj e i))
-  = do (t, e') <- infer e
+checkExpr expr@(L loc (Proj e i))
+  = do (t, e') <- checkExpr e
        case t of
          Product ts
            | 1 <= i && i <= length ts -> return (ts !! (i - 1), L loc $ Proj e' i)
            | otherwise -> throwError $ IndexTooLarge `withExpr` expr
          _ -> throwError $ ProjectionOfNonProduct `withExpr` e
 
-infer (L loc (PrimOp e1 op e2)) =
+checkExpr (L loc (PrimOp e1 op e2)) =
   case op of
     Arith _ ->
       do (_, e1') <- inferAgainst e1 (JType (JClass "java.lang.Integer"))
          (_, e2') <- inferAgainst e2 (JType (JClass "java.lang.Integer"))
          return (JType (JClass "java.lang.Integer"), L loc $ PrimOp e1' op e2')
     Compare _ ->
-      do (t1, e1') <- infer e1
+      do (t1, e1') <- checkExpr e1
          (_ , e2') <- inferAgainst e2 t1
          return (JType (JClass "java.lang.Boolean"), L loc $ PrimOp e1' op e2')
     Logic _ ->
@@ -390,25 +382,25 @@ infer (L loc (PrimOp e1 op e2)) =
          (_, e2') <- inferAgainst e2 (JType (JClass "java.lang.Boolean"))
          return (JType (JClass "java.lang.Boolean"), L loc $ PrimOp e1' op e2')
 
-infer (L loc (If e1 e2 e3))
+checkExpr (L loc (If e1 e2 e3))
   = do (_, e1')  <- inferAgainst e1 (JType (JClass "java.lang.Boolean"))
-       (t2, e2') <- infer e2
-       (t3, e3') <- infer e3
+       (t2, e2') <- checkExpr e2
+       (t3, e3') <- checkExpr e3
        d <- getTypeContext
        return (fromMaybe (panic message) (leastUpperBound d t2 t3), L loc $ If e1' e2' e3')
   where
     message = "infer: least upper bound of types of two branches does not exist"
 
-infer (L loc (Let rec_flag binds e)) =
+checkExpr (L loc (Let rec_flag binds e)) =
   do checkDupNames (map bindId binds)
      binds' <- case rec_flag of
                  NonRec -> mapM normalizeBind binds
                  Rec    -> do sigs <- collectBindIdSigs binds
                               withLocalVars sigs (mapM normalizeBind binds)
-     (t, e') <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (infer e)
+     (t, e') <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (checkExpr e)
      return (t, L loc $ LetOut rec_flag binds' e')
 
-infer (L loc LetOut{..}) = panic "TypeCheck.infer: LetOut"
+checkExpr (L loc LetOut{..}) = panic "TypeCheck.infer: LetOut"
 
 --  Case           Possible interpretations
 --  ---------------------------------------
@@ -424,58 +416,58 @@ infer (L loc LetOut{..}) = panic "TypeCheck.infer: LetOut"
 -- can only be a method invocation.
 
 -- e.x
-infer (L loc (Dot e x Nothing)) =
-  do (t, _) <- infer e
+checkExpr (L loc (Dot e x Nothing)) =
+  do (t, _) <- checkExpr e
      case deThunkOnce t of
-       JType (JClass _) -> infer (L loc $ JField (NonStatic e) x undefined)
-       RecordType _     -> infer (L loc $ RecordProj e x)
-       And _ _          -> infer (L loc $ RecordProj e x)
+       JType (JClass _) -> checkExpr (L loc $ JField (NonStatic e) x undefined)
+       RecordType _     -> checkExpr (L loc $ RecordProj e x)
+       And _ _          -> checkExpr (L loc $ RecordProj e x)
        _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
 
 -- e.x ( )
-infer (L loc (Dot e x (Just ([], UnitImpossible)))) =
-  do (t, _) <- infer e
+checkExpr (L loc (Dot e x (Just ([], UnitImpossible)))) =
+  do (t, _) <- checkExpr e
      case deThunkOnce t of
-       JType (JClass _) -> infer (L loc $ JMethod (NonStatic e) x [] undefined)
+       JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x [] undefined)
        _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
 
 -- e.x ()
-infer (L loc (Dot e x (Just ([], UnitPossible)))) =
-  do (t, _) <- infer e
+checkExpr (L loc (Dot e x (Just ([], UnitPossible)))) =
+  do (t, _) <- checkExpr e
      case deThunkOnce t of
-       JType (JClass _) -> infer (L loc $ JMethod (NonStatic e) x [] undefined)
-       RecordType _     -> infer (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
-       And _ _          -> infer (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
+       JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x [] undefined)
+       RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
+       And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
        _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
 
 -- e.x (a)
-infer (L loc (Dot e x (Just ([arg], _)))) =
-  do (t, _) <- infer e
+checkExpr (L loc (Dot e x (Just ([arg], _)))) =
+  do (t, _) <- checkExpr e
      case deThunkOnce t of
-       JType (JClass _) -> infer (L loc $ JMethod (NonStatic e) x [arg] undefined)
-       RecordType _     -> infer (L loc $ App (L loc $ RecordProj e x) arg)
-       And _ _          -> infer (L loc $ App (L loc $ RecordProj e x) arg)
+       JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x [arg] undefined)
+       RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) arg)
+       And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) arg)
        _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
 
 -- e.x (a,...)
-infer (L loc (Dot e x (Just (args, _)))) =
-  do (t, _) <- infer e
+checkExpr (L loc (Dot e x (Just (args, _)))) =
+  do (t, _) <- checkExpr e
      case deThunkOnce t of
-       JType (JClass _) -> infer (L loc $ JMethod (NonStatic e) x args undefined)
-       RecordType _     -> infer (L loc $ App (L loc $ RecordProj e x) tuple)
-       And _ _          -> infer (L loc $ App (L loc $ RecordProj e x) tuple)
+       JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x args undefined)
+       RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
+       And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
        _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
     where tuple = Tuple args `withLocs` args
 
 -- JNew, JMethod, and JField
 
-infer (L loc (JNew c args))
+checkExpr (L loc (JNew c args))
   = do checkClassName c
        (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
        checkConstruction c arg_cs
        return (JType (JClass c), L loc $ JNew c args')
 
-infer (L loc (JMethod callee m args _)) =
+checkExpr (L loc (JMethod callee m args _)) =
   case callee of
     Static c ->
       do (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
@@ -493,7 +485,7 @@ infer (L loc (JMethod callee m args _)) =
                                       _ -> JType (JClass ret_c)
          return (ret_type, L loc $ JMethod (NonStatic e') m args' ret_c)
 
-infer (L loc (JField callee f _)) =
+checkExpr (L loc (JField callee f _)) =
   case callee of
     Static c ->
       do ret_c <- checkFieldAccess (Static c) f
@@ -502,7 +494,7 @@ infer (L loc (JField callee f _)) =
          --    then return (JType (JPrim ret_c), JField (Static c) f ret_c)
          --    else return (JType (JClass ret_c), JField (Static c) f ret_c)
     NonStatic e ->
-      do (t, e') <- infer e
+      do (t, e') <- checkExpr e
          case t of
            JType (JClass c) ->
              do ret_c   <- checkFieldAccess (NonStatic c) f
@@ -512,17 +504,17 @@ infer (L loc (JField callee f _)) =
                 --   else return (JType (JClass ret_c), JField (NonStatic e') f ret_c)
            _ -> throwError (NotMember f t `withExpr` e) -- TODO: should be f's loc
 
-infer (L loc (Seq es)) =
-  do (ts, es') <- mapAndUnzipM infer es
+checkExpr (L loc (Seq es)) =
+  do (ts, es') <- mapAndUnzipM checkExpr es
      return (last ts, Seq es' `withLocs` es')
 
-infer (L loc (Merge e1 e2)) =
-  do (t1, e1') <- infer e1
-     (t2, e2') <- infer e2
+checkExpr (L loc (Merge e1 e2)) =
+  do (t1, e1') <- checkExpr e1
+     (t2, e2') <- checkExpr e2
      return (And t1 t2, Merge e1' e2' `withLoc` e1')
 
-infer (L loc (PolyList l t)) =
-  do (ts, es) <- mapAndUnzipM infer l
+checkExpr (L loc (PolyList l t)) =
+  do (ts, es) <- mapAndUnzipM checkExpr l
      case ts of [] -> return (ListOf t, PolyList es t `withLocs` es)
                 _  ->
                      do d <- getTypeContext
@@ -530,63 +522,63 @@ infer (L loc (PolyList l t)) =
                           Nothing -> return (ListOf t, PolyList es t `withLocs` es)
                           Just i -> throwError $ TypeMismatch t (ts !! i) `withExpr` (l !! i)
 
-infer e@(L loc (JProxyCall (L _ (JNew c args)) t)) =
+checkExpr e@(L loc (JProxyCall (L _ (JNew c args)) t)) =
     if c /= (namespace ++ "FunctionalList")
     then
         throwError $ (General $ text $ show c ++ " from JProxyCall: not supported") `withExpr` e
     else
-        do ([t1, t2], es) <- mapAndUnzipM infer args
+        do ([t1, t2], es) <- mapAndUnzipM checkExpr args
            d <- getTypeContext
            if compatible d (ListOf t1) t2
              then return (t2, L loc $ JProxyCall (L loc $ JNew c es) t2)
              else throwError $ TypeMismatch t1 t2 `withExpr` e
 
-infer e@(L loc (JProxyCall jmethod t)) =
+checkExpr e@(L loc (JProxyCall jmethod t)) =
     case jmethod of
         L _ (JMethod (NonStatic e) methodname _ _) -> do
             ty <- case methodname of
-                "head" -> do (ListOf a, _) <- infer e
+                "head" -> do (ListOf a, _) <- checkExpr e
                              return a
-                "tail" -> do (a, _) <- infer e
+                "tail" -> do (a, _) <- checkExpr e
                              return a
                 _      -> throwError $ (General $ text $ show methodname ++ " from JProxyCall: not supported") `withExpr` e
             d <- getTypeContext
-            m <- infer jmethod
+            m <- checkExpr jmethod
             return (ty, L loc $ JProxyCall (snd m) ty)
 
-infer (L loc (RecordCon fs)) =
-  do (ts, es') <- mapAndUnzipM infer (map snd fs)
+checkExpr (L loc (RecordCon fs)) =
+  do (ts, es') <- mapAndUnzipM checkExpr (map snd fs)
      let fs' = zip (map fst fs) ts
      return (foldl (\acc (l,t) -> And acc (RecordType [(l,t)])) (RecordType [head fs']) (tail fs'), L loc $ RecordCon (zip (map fst fs) es'))
 
-infer expr@(L loc (RecordProj e l)) =
-  do (t, e') <- infer e
+checkExpr expr@(L loc (RecordProj e l)) =
+  do (t, e') <- checkExpr e
      case Map.lookup l (recordFields t) of
        Just t1 -> return (t1, L loc $ RecordProj e' l)
        Nothing -> throwError (NotMember l t `withExpr` expr) -- TODO: should be l's loc
 
-infer (L loc (RecordUpdate e fs)) =
-  do (_, es') <- mapAndUnzipM infer (map snd fs)
-     (t, e')  <- infer e
+checkExpr (L loc (RecordUpdate e fs)) =
+  do (_, es') <- mapAndUnzipM checkExpr (map snd fs)
+     (t, e')  <- checkExpr e
      return (t, L loc $ RecordUpdate e' (zip (map fst fs) es'))
 
 -- Well, I know the desugaring is too early to happen here...
-infer (L loc (LetModule (Module m binds) e)) =
+checkExpr (L loc (LetModule (Module m binds) e)) =
   do let fs = map bindId binds
      let letrec = L loc $ Let Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
-     infer (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
-infer (L loc (ModuleAccess m f)) = infer (L loc $ RecordProj (L loc $ Var m) f)
+     checkExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
+checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
 
 -- Type synonyms: type T A1 ... An = t in e
 -- First make sure that A1 ... An are distinct.
 -- Then rewrite to "type T = \A1. ... An. t in e" and kind-check \A1. ... \An. t.
-infer expr@(L _ (Type t params rhs e))
+checkExpr expr@(L _ (Type t params rhs e))
   = do checkDupNames params
        typeContext <- getTypeContext
        maybe_kind <- liftIO $ kind typeContext pulledRight
        case maybe_kind of
          Nothing -> throwError $ NotWellKinded pulledRight `withExpr` expr
-         Just k  -> withLocalTVars [(t, (k, NonTerminalType pulledRight))] $ infer e
+         Just k  -> withLocalTVars [(t, (k, NonTerminalType pulledRight))] $ checkExpr e
   where
     pulledRight = pullRight params rhs
 
@@ -596,7 +588,7 @@ infer expr@(L _ (Type t params rhs e))
 -- data List A = Nil | Cons A (List A) and ...; e
 -- gamma |- Nil: \/A. List A, Cons: \/A. A List A
 -- delta |- List: \A. List A
-infer (L loc (Data recflag databinds e)) =
+checkExpr (L loc (Data recflag databinds e)) =
     do checkDupNames [ name | DataBind name _ _ <- databinds]
        mapM_ (\(DataBind name params cs) ->
                   do checkDupNames $ name:params
@@ -613,7 +605,7 @@ infer (L loc (Data recflag databinds e)) =
                                 return ( kind_dt, constr_binds, DataBind name params cs')
                          ) databinds
            let (tvars, vars, databinds') = unzip3 binds
-           (t, e') <- withLocalTVars tvars $ withLocalVars (concat vars) $ infer e
+           (t, e') <- withLocalTVars tvars $ withLocalVars (concat vars) $ checkExpr e
            return (t, L loc $ Data recflag databinds' e')
          Rec -> do
            kind_dts <- mapM getDatatype databinds
@@ -624,7 +616,7 @@ infer (L loc (Data recflag databinds e)) =
                                                                     $ getConstrbinds bind
                                return ( constr_binds, DataBind name params cs')
                     ) databinds
-             (t ,e') <- withLocalVars (concat vars) (infer e)
+             (t ,e') <- withLocalVars (concat vars) (checkExpr e)
              return (t, L loc $ Data recflag databinds' e')
 
     where getDatatype (DataBind name params cs) =
@@ -642,7 +634,7 @@ infer (L loc (Data recflag databinds e)) =
                    constr_binds = zip names constr_types
                return (cs', constr_binds)
 
-infer e@(L loc (ConstrTemp name)) =
+checkExpr e@(L loc (ConstrTemp name)) =
     do g <- getValueContext
        case Map.lookup name g of
          Just t  -> case t of
@@ -650,9 +642,9 @@ infer e@(L loc (ConstrTemp name)) =
                       _ -> return (t, L loc $ Constr (Constructor name (unwrapFun t)) []) -- non-parameterized constructors
          Nothing -> throwError (NotInScope name `withExpr` e)
 
-infer expr@(L loc (Case e alts)) =
+checkExpr expr@(L loc (Case e alts)) =
  do
-   (t, e') <- infer e
+   (t, e') <- checkExpr e
    if not (isDatatype t)
     then if isString t
            then inferString e
@@ -677,7 +669,7 @@ infer expr@(L loc (Case e alts)) =
                       let n = constrName c
                           ts = init $ constrParams c
                       in if length ts == length vars
-                         then withLocalVars (filter ((/= "_") . fst) $ zip vars ts) (infer e2)
+                         then withLocalVars (filter ((/= "_") . fst) $ zip vars ts) (checkExpr e2)
                          else throwError $ General (text "Constructor" <+> bquotes (text n) <+> text "should have" <+> int (length ts)
                                                                    <+> text "arguments, bus has been given" <+> int (length vars)) `withExpr` e2) -- TODO: should be c's loc
                  alts'
@@ -708,14 +700,14 @@ infer expr@(L loc (Case e alts)) =
         -- inferString :: ReaderExpr -> Checker (Type, CheckedExpr)
         inferString e =
           do
-            (t, e') <- infer e
+            (t, e') <- checkExpr e
             let alts' = [ n | ConstrAlt (Constructor n _) _ _ <-  alts]
             unless ((length alts == 2) && Set.fromList alts' == Set.fromList ["cons", "empty"]) $
               throwError $ (General $ text "String should have two patterns [] and head:tail") `withExpr` e
 
             let [b1]               = [ e | ConstrAlt (Constructor "empty" _) _ e <-  alts]
                 [(var1, var2, b2)] = [ (var1',var2',e) | ConstrAlt (Constructor "cons" _) [var1',var2'] e <-  alts]
-            (t1, emptyexpr) <- infer b1
+            (t1, emptyexpr) <- checkExpr b1
             (_,  nonemptyexpr) <- withLocalVars
                                     (filter ((/= "_") . fst)[(var1, JType (JClass "java.lang.Character")), (var2, JType(JClass "java.lang.String"))])
                                   $ inferAgainst b2 t1
@@ -737,7 +729,7 @@ pullRightForall params t = foldr Forall t params
 
 inferAgainst :: ReaderExpr -> Type -> Checker (Type, CheckedExpr)
 inferAgainst expr expected_ty
-  = do (found_ty, expr') <- infer expr
+  = do (found_ty, expr') <- checkExpr expr
        d <- getTypeContext
        if compatible d found_ty expected_ty
           then return (found_ty, expr')
@@ -745,7 +737,7 @@ inferAgainst expr expected_ty
 
 inferAgainstAnyJClass :: ReaderExpr -> Checker (ClassName, CheckedExpr)
 inferAgainstAnyJClass expr
-  = do (ty, expr') <- infer expr
+  = do (ty, expr') <- checkExpr expr
        case deThunkOnce ty of
         -- JType (JPrim "char") -> return ("java.lang.Character", expr')
         JType (JClass c) -> return (c, expr')
@@ -758,7 +750,7 @@ normalizeBind bind
   = do bind' <- checkBindLHS bind
        (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
                                   do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindParams bind')
-                                     withLocalVars expandedBindArgs (infer (bindRhs bind'))
+                                     withLocalVars expandedBindArgs (checkExpr (bindRhs bind'))
        case bindRhsTyAscription bind' of
          Nothing -> return ( bindId bind'
                            , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
@@ -772,7 +764,7 @@ normalizeBind bind
                    then return (bindId bind'
                                , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                                , wrap (\x acc -> BLam x acc `withLoc` acc) (bindTyParams bind') (wrap (\x acc -> Lam x acc `withLoc` acc) (bindParams bind') bindRhs'))
-                   else throwError $ TypeMismatch (expandType d ty_ascription') bindRhsTy `withExpr` bindRhs bind 
+                   else throwError $ TypeMismatch (expandType d ty_ascription') bindRhsTy `withExpr` bindRhs bind
 
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.

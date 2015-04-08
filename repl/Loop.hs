@@ -34,7 +34,7 @@ import qualified Data.Map as Map
 import TypeCheck
 import Src hiding (wrap)
 import Text.PrettyPrint.ANSI.Leijen
-import Translations
+import BackEnd
 import JavaUtils
 import qualified OptiUtils              (src2core, src2fi)
 import qualified Core                   (prettyExpr)
