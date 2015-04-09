@@ -66,3 +66,7 @@ Main.java
 
 ### OS X ###
 .DS_Store
+
+
+# IntelliJ IDEA
+.idea/

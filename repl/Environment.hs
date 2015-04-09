@@ -43,7 +43,7 @@ createPair xs = (var, exp) where
         exp = createExp ((splitOn ["="] xs) !! 1)
 
 reverseEnv :: Env -> Env
-reverseEnv env = reverse env
+reverseEnv = reverse
 
 createBindEnv :: Env -> String
 createBindEnv [] = ""

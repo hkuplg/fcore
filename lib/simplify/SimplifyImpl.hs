@@ -28,7 +28,6 @@ import Core
 import Panic
 import qualified SystemFI             as FI
 import qualified Src                  as S
-import qualified Language.Java.Syntax as J
 
 import Text.PrettyPrint.ANSI.Leijen
 
@@ -195,7 +194,7 @@ coerce i (FI.RecordType (l1, t1)) (FI.RecordType (l2, t2))
 coerce i this@(FI.Datatype n1 _ _) (FI.Datatype n2 _ _)
   | n1 == n2  = return $ lam (transType i this) var
   | otherwise = Nothing
-coerce i (FI.ListOf t1) (FI.ListOf t2) = coerce i t1 t2
+coerce i this@(FI.ListOf t1) (FI.ListOf t2) = return $ lam (transType i this) var
 coerce _ _ _ = Nothing
 
 getter :: Index -> Index -> FI.Type Index -> S.Label -> Maybe (FI.Type Index, Expr Index Index)

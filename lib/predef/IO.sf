@@ -1,0 +1,2 @@
+let print(s: String)   = java.lang.System.out.print(s);
+let println(s: String) = java.lang.System.out.println(s);
