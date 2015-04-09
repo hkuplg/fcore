@@ -77,8 +77,11 @@ infer i j (FI.PolyList _ t)       = FI.ListOf t
 infer i j (FI.JProxyCall _ t)     = t
 infer i j (FI.Constr c _)         = last . FI.constrParams $ c
 infer i j (FI.Case _ alts)        = inferAlt . head $ alts
-  where inferAlt (FI.ConstrAlt c _ e) = let (ts, n) = (FI.constrParams c, length ts - 1)
-                                        in infer i (j + n) (e (zip [j..] (init ts)))
+  where inferAlt (FI.ConstrAlt _ e) = infer i j e
+        inferAlt (FI.Default e)       = infer i j e
+infer i j (FI.CaseCast _ (FI.Constructor nam ty)) =
+    let (FI.Datatype nam' _ _) = last ty
+    in if length ty == 1 then FI.JClass ('$':nam') else FI.JClass ('$':nam' ++ ('$': nam)) --related to name clash
 infer i j (FI.Data _ _ e)         = infer i j e
 infer _ _ _                       = trace "Unsupported: Simplify.infer" FI.Unit
 
@@ -128,13 +131,13 @@ transExpr i j (FI.RecordProj e l1)         = App c $ transExpr i j e
 transExpr i j (FI.RecordUpdate e (l1, e1)) = App c $ transExpr i j e
   where Just (_, c) = putter i j (infer i j e) l1 (transExpr i j e1)
 transExpr i j (FI.Constr (FI.Constructor n ts) es) = Constr (Constructor n . map (transType i) $ ts) . map (transExpr i j) $ es
+transExpr i j (FI.CaseCast e (FI.Constructor n ts))= CaseCast (transExpr i j e) (Constructor n . map (transType i) $ ts)
 transExpr i j (FI.Case e alts)             = Case e' . map transAlt $ alts
   where
     e' = transExpr i j e
-    transAlt (FI.ConstrAlt (FI.Constructor n ts) ns f) =
-      let m   = length ts - 1
-          ts' = map (transType i) ts
-      in ConstrAlt (Constructor n ts') ns (\es -> transExpr i (j + m) . f $ zip es ts) -- Right?
+    transAlt (FI.ConstrAlt (FI.Constructor n ts) e1) =
+      ConstrAlt (Constructor n (map (transType i) ts)) (transExpr i i e1)
+    transAlt (FI.Default e1) = Default (transExpr i j e1)
 transExpr i j (FI.PolyList es t)           = PolyList (map (transExpr i j) es) (transType i t)
 transExpr i j (FI.JProxyCall e t)          = JProxyCall (transExpr i j e) (transType i t)
 transExpr i j (FI.Data recflag databinds e)= Data recflag (map transDatabind databinds) (transExpr i j e)
@@ -301,10 +304,10 @@ dedeBruE i as j xs (Constr (Constructor n ts) es) = Constr
                                                       (Constructor n (map (dedeBruT i as) ts))
                                                       (map (dedeBruE i as j xs) es)
 dedeBruE i as j xs (Case e alts)                  = Case (dedeBruE i as j xs e) (map dedeBruijnAlt alts)
-  where dedeBruijnAlt (ConstrAlt (Constructor name ts) names fe) =
-          ConstrAlt
-            (Constructor name (map (dedeBruT i as) ts)) names
-            (\xs' -> dedeBruE i as (j + n) ((reverse xs') ++ xs) (fe [j..j + n - 1])) where n = length ts - 1
+  where dedeBruijnAlt (ConstrAlt (Constructor name ts) e1) =
+          ConstrAlt (Constructor name (map (dedeBruT i as) ts)) (dedeBruE i as j xs e1)
+        dedeBruijnAlt (Default e1) = Default (dedeBruE i as j xs e1)
+dedeBruE i as j xs (CaseCast e (Constructor name types)) = CaseCast (dedeBruE i as j xs e) (Constructor name (map (dedeBruT i as) types))
 
 dedeBruE i as j xs (Data recflag databinds e)     = Data recflag (map dedeBruijnDatabind databinds) (dedeBruE i as j xs e)
   where dedeBruijnConstr i' as' (Constructor name types) = Constructor name (map (dedeBruT i' as') types)

@@ -660,14 +660,15 @@ infer expr@(L loc (Case e alts)) =
      let pats = [pat' | ConstrAlt pat' _ <- alts]
          exps = [exp' | ConstrAlt _ exp' <- alts]
      -- check patterns
-     constrs' <- zipWithM (typecheckPattern type_ctxt value_ctxt t) exps pats
-     let alts' = zipWith substAltConstr alts constrs'
+     pats' <- mapM (typecheckPattern t) pats
+     let alts' = zipWith substAltPattern alts pats'
 
      -- infer e
      (ts, es) <- mapAndUnzipM
                  (\(ConstrAlt pat e2) ->
                       let newvars = getLocalVars pat
-                      in  withLocalVars newvars (infer e2))
+                      in  do checkDupNames . fst . unzip $ newvars
+                             withLocalVars newvars (infer e2))
                  alts'
 
      -- result type check
@@ -676,10 +677,26 @@ infer expr@(L loc (Case e alts)) =
      when (isJust i) $
             throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
 
+     -- exhaustive test
+     let exhaustivity = exhaustiveTest value_ctxt (map (\x -> [x]) pats') 1
+     unless (null exhaustivity) $
+         throwError $ General (text "patterns are not exhausive, missing patterns:" <$>
+                               vcat (map (hcat . map pretty) exhaustivity)) `withExpr` expr
+
+     -- overlap test
+     let patmatrix = map (\x -> [x]) pats'
+         overlapcases = foldr (\num acc ->
+                             if usefulClause (take num patmatrix) (patmatrix !! num)
+                             then acc
+                             else (pats'!! num):acc
+                         ) [] [1.. length patmatrix -1]
+     when (overlapcases /= []) $
+         throwError $ General (text "patterns are overlapped:"<$> vcat (map pretty overlapcases )) `withExpr` expr
+
      return (resType, L loc $ Case e' (zipWith substAltExpr alts' es))
 
   where substAltExpr (ConstrAlt c _) = ConstrAlt c
-        substAltConstr (ConstrAlt _ exp') p = ConstrAlt p exp'
+        substAltPattern (ConstrAlt _ exp') p = ConstrAlt p exp'
 
         isDatatype (Datatype{}) = True
         isDatatype _ = False
@@ -687,50 +704,52 @@ infer expr@(L loc (Case e alts)) =
         isString (JType (JClass "java.lang.String")) = True
         isString _ = False
 
-        -- exp' is only for error message output.
-        -- ty is the expected type
-        typecheckPattern type_ctxt value_ctxt ty exp' (PConstr ctr pats) = do
-            unless (isDatatype ty) $
-              throwError $ TypeMismatch ty (Datatype "Datatype" [] []) `withExpr` exp'
-            let Datatype _ ts_feed _ = ty
-                n = constrName ctr
-            case Map.lookup n value_ctxt of
-                Just t_constr -> let ts = unwrapFun $ feedToForall t_constr ts_feed
-                                 in if compatible type_ctxt (last ts) ty
-                                    then do unless ((length ts -1) == (length pats)) $
-                                              throwError $ General (text "Constructor" <+> bquotes (text n)
-                                                       <+> text "should have" <+> int (length ts -1)
-                                                       <+> text "arguments, but has been given" <+> int (length pats)) `withExpr` exp'
-                                            pat' <- zipWithM (\ty' pat' -> typecheckPattern type_ctxt value_ctxt ty' exp' pat') ts pats
-                                            return $ PConstr (Constructor n ts) pat'
-                                    else do throwError $ TypeMismatch t_constr ty `withExpr` exp'
-                Nothing -> throwError $ NotInScope n `withExpr` exp'
-        typecheckPattern _ _ ty _ (PVar nam _) = return (PVar nam ty)
-        typecheckPattern _ _ _  _ PWildcard    = return PWildcard
-
         getLocalVars PWildcard  = []
         getLocalVars (PVar nam ty) = [(nam, ty)]
         getLocalVars (PConstr _ pats) = concat $ map getLocalVars pats
+
+        -- ty is the expected type
+        typecheckPattern ty (PVar nam _) = return (PVar nam ty)
+        typecheckPattern _  PWildcard    = return PWildcard
+        typecheckPattern ty pctr@(PConstr ctr pats) = do
+            unless (isDatatype ty) $ throwError $ TypeMismatch ty (Datatype "Datatype" [] []) `withExpr` expr
+            let Datatype _ ts_feed _ = ty
+                nam = constrName ctr
+            type_ctxt <- getTypeContext
+            value_ctxt <- getValueContext
+            case Map.lookup nam value_ctxt of
+                Nothing -> throwError $ NotInScope nam `withExpr` expr
+                Just t_constr ->
+                    let ts = unwrapFun $ feedToForall t_constr ts_feed
+                    in do unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch t_constr ty `withExpr` expr
+                          unless ((length ts -1) == (length pats)) $ throwError $ General (text "Constructor" <+> bquotes (text nam)
+                                          <+> text "should have" <+> int (length ts -1) <+> text "arguments, but has been given"
+                                          <+> int (length pats) <+> text "in pattern" <+> pretty pctr ) `withExpr` expr
+                          pat' <- zipWithM typecheckPattern ts pats
+                          return $ PConstr (Constructor nam ts) pat'
 
         -- inferString :: ReaderExpr -> Checker (Type, CheckedExpr)
         inferString =
           do
             (_, e') <- infer e
-            let alts' = [ n | ConstrAlt (PConstr (Constructor n _) _) _ <-  alts]
-            unless ((length alts == 2) && Set.fromList alts' == Set.fromList ["cons", "empty"]) $
+            let empt = [ b1' | ConstrAlt (PConstr (Constructor "empty" _) []) b1' <-  alts]
+            let cons = [ (sub1,sub2,b2') | ConstrAlt (PConstr (Constructor "cons" _) [sub1, sub2]) b2' <- alts]
+            unless (length alts == 2 && length empt == 1 && length cons == 1) $
               throwError $ (General $ text "String should have two patterns [] and head:tail") `withExpr` e
 
-            let [b1]               = [ b1' | ConstrAlt (PConstr (Constructor "empty" _) _) b1' <-  alts]
-                [(var1, var2, b2)] = [ (var1',var2',b2') | ConstrAlt (PConstr (Constructor "cons" _) [PVar var1' _ ,PVar var2' _]) b2' <-  alts]
+            let [b1]               = empt
+                [(sub1, sub2, b2)] = cons
+            unless (isWildcardOrVar sub1 && isWildcardOrVar sub2) $
+              throwError $ (General $ text "String should have two patterns [] and head:tail") `withExpr` e
+
+            let localvar  = case sub1 of PVar nam _ -> [(nam, JType(JClass "java.lang.Character"))]
+                                         _          -> []
+                localvar' = case sub2 of PVar nam _ -> (nam, JType(JClass "java.lang.String")):localvar
+                                         _          -> []
             (t1, emptyexpr) <- infer b1
-            (_,  nonemptyexpr) <- withLocalVars
-                                    (filter ((/= "_") . fst)[(var1, JType (JClass "java.lang.Character")), (var2, JType(JClass "java.lang.String"))])
-                                  $ inferAgainst b2 t1
+            (_,  nonemptyexpr) <- withLocalVars localvar' $ inferAgainst b2 t1
             let emptyalt = ConstrAlt (PConstr (Constructor "empty" []) []) emptyexpr
-                nonemptyalt = ConstrAlt (PConstr (Constructor "cons" [])
-                                     [PVar var1 $ JType (JClass "java.lang.Character"),
-                                      PVar var2 $ JType (JClass "java.lang.String")])
-                                     nonemptyexpr
+                nonemptyalt = ConstrAlt (PConstr (Constructor "cons" []) [sub1, sub2]) nonemptyexpr
             return (t1, CaseString e' [emptyalt, nonemptyalt] `withLoc` e)
 
 -- | "Pull" the type params at the LHS of the equal sign to the right.
@@ -782,7 +801,7 @@ normalizeBind bind
                    then return (bindId bind'
                                , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                                , wrap (\x acc -> BLam x acc `withLoc` acc) (bindTyParams bind') (wrap (\x acc -> Lam x acc `withLoc` acc) (bindParams bind') bindRhs'))
-                   else throwError $ TypeMismatch (expandType d ty_ascription') bindRhsTy `withExpr` bindRhs bind 
+                   else throwError $ TypeMismatch (expandType d ty_ascription') bindRhsTy `withExpr` bindRhs bind
 
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.
@@ -910,3 +929,73 @@ noExpr err = noLoc (err, Nothing)
 
 withExpr :: TypeError -> ReaderExpr -> LTypeErrorExpr
 withExpr err expr = (err, Just expr) `withLoc` expr
+
+---- find the arity of a constructor
+ctrArity :: Map.Map Name Type -> ReaderId -> Int
+ctrArity value_ctxt name =
+    length (removeForall t) - 1
+    where Just t =  Map.lookup name value_ctxt
+          removeForall (Forall _ b) = removeForall b
+          removeForall x            = unwrapFun x
+
+-- Useful clause detect
+-- whether clause q is useful with respect to matrix P
+usefulClause :: [[Pattern]] -> [Pattern] -> Bool
+
+---- base case
+usefulClause [] _ = True
+usefulClause _ [] = False
+
+---- q begins with a constructor c
+---- U (P, q) = U (S(c,P), S(c,q))
+usefulClause pats clause@(PConstr ctr _:_) =
+    usefulClause (specializedMatrix ctr pats)
+                 (specializedMatrix ctr [clause] !! 0)
+
+---- q begins with a wildcard(or a variable)
+usefulClause pats clause =
+    -- P has some missing constructor
+    -- U (P, _:rest) = U (D(p), rest))
+    if all isWildcardOrVar patshead || missingconstrs /= []
+    then usefulClause (defaultMatrix pats) (tail clause)
+    -- P has all constructors appeared
+    -- U (P, q) = whether exists a constructor c that U (S(c,P), S(c,q)) is true
+    else any (\ctr -> usefulClause (specializedMatrix ctr pats)
+                                   (specializedMatrix ctr [clause] !!0))
+             appearconstrs
+    where patshead = map head pats
+          (appearconstrs, missingconstrs) = constrInfo patshead
+
+-- Test a Pattern matrix is exhaustive
+exhaustiveTest :: Map.Map Name Type -> [[Pattern]] -> Int -> [[Pattern]]
+
+---- basic cases
+exhaustiveTest _ [] 0 = [[]]
+exhaustiveTest _ _  0 = []
+
+exhaustiveTest value_ctxt pats n
+    -- Simga is the set of appearing constructors
+    -- Sigma is empty
+    -- if I(D(p), n-1) returns (p2,...,pn)
+    -- I(P, n) = (_, p2,...,pn)
+    | all isWildcardOrVar patshead = map (PWildcard :) $ exhaustiveTest value_ctxt (map tail pats) (n-1)
+    | missingconstrs == []         = exhaustivityForCtr
+    | otherwise                    = exhaustivityForCtr ++ exhaustivityForWildcard
+    -- if I(S(c, P), a+n-1) returns (r1,...,ra, p2,...,pn)
+    -- I(P, n) = (c(r1,...ra), p2,...,pn)
+    where patshead = map head pats
+          (appearconstrs, missingconstrs) = constrInfo patshead
+          exhaustivityForCtr =
+                 [ PConstr ctr component: eachres' |
+                         ctr <- appearconstrs,
+                         let arity = length (constrParams ctr) - 1,
+                         eachres <- exhaustiveTest value_ctxt (specializedMatrix ctr pats) (arity + n - 1),
+                         let (component, eachres') = splitAt arity eachres ]
+    -- Sigma is incomplete
+    -- if I(D(P), n-1) returns (p2,...,pn)
+    -- I(P, n) = (c(_,...,_), p2,...,pn) for each missing constructor c
+          exhaustivityForWildcard =
+                 [ cur: eachres | eachres <- exhaustiveTest value_ctxt (defaultMatrix pats) (n-1),
+                                  name <- missingconstrs,
+                                  let arity = ctrArity value_ctxt name,
+                                  let cur = PConstr (Constructor name []) $ replicate arity PWildcard ]

@@ -438,22 +438,21 @@ alt :: { Alt ReaderId Type}
     | pat_var ":" pat_var "->" expr   { ConstrAlt ( PConstr (Constructor "cons" []) [$1,$3]) $5}
 
 pattern1s :: { [Pattern] }
-    : pattern1                  { [$1] }
-    | pattern1 pattern1s        { $1:$2 }
+    : pattern1                 { [$1] }
+    | pattern1 pattern1s       { $1:$2 }
 
 pattern1 :: { Pattern }
-    : constr_name                   { PConstr (Constructor (unLoc $1) []) [] }
-    | "(" constr_name pattern1s ")" { PConstr (Constructor (unLoc $2) []) $3 }
-    | pat_var                       { $1 }
+    : constr_name              { PConstr (Constructor (unLoc $1) []) [] }
+    | "(" pattern ")"          { $2 }
+    | pat_var                  { $1 }
 
 pattern :: { Pattern }
-    : constr_name              { PConstr (Constructor (unLoc $1) []) [] }
+    : pattern1                 { $1 }
     | constr_name pattern1s    { PConstr (Constructor (unLoc $1) []) $2 }
-    | pat_var                  { $1  }
 
 pat_var :: { Pattern }
-  : LOWER_IDENT  { PVar (toString $1) }
-  | "_"          { PWildcard }
+    : LOWER_IDENT              { PVar (toString $1) undefined }
+    | "_"                      { PWildcard }
 
 param :: { Located (ReaderId, ReaderType) }
   : LOWER_IDENT ":" type          { (toString $1, $3) `withLoc` $1 }

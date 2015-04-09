@@ -19,6 +19,7 @@ module Desugar (desugar) where
 
 import Src
 import SrcLoc
+import StringPrefixes
 
 import qualified SystemFI as F
 
@@ -152,31 +153,24 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (L _ (JProxyCall jmethod t))    = F.JProxyCall (go jmethod) (transType d t)
 
     go (L _ (Seq es)) = F.Seq (map go es)
-    go (L _ (Data recflag databinds e)) = F.Data recflag (map desugarDatabind databinds) (go e)
+    go (L _ (Data recflag databinds e)) = F.Data recflag (map (desugarDatabind d) databinds) (go e)
 
     go (L _ (Constr c es)) = F.Constr (desugarConstructor d c) (map go es)
-    go (L _ (Case e alts)) = F.Case (go e) (map desugarAlts alts)
+    go (L _ (CaseCast e ctr)) = F.CaseCast (go e) (desugarConstructor d ctr)
+    go (L _ (Case e alts)) = decisionTree (d,g) [e] pats exprs
+                     where pats = [ [pat] | ConstrAlt pat _ <- alts]
+                           exprs = [ expr | ConstrAlt _ expr <- alts]
     go (L _ (CaseString e alts)) =
             let emptytest = noLoc $ JMethod (NonStatic e) "isEmpty" [] "java.lang.Boolean"
-                [emptyexpr]        = [ expr | ConstrAlt (Constructor "empty" _) _ expr <-  alts]
-                [(var1, var2, b2)] = [ (var1',var2',expr) | ConstrAlt (Constructor "cons" _) [var1',var2'] expr <-  alts]
-                headfetch = (var1, JType(JClass "java.lang.Character"), noLoc $ JMethod (NonStatic e) "charAt" [noLoc $ Lit (Int 0)] "java.lang.Character")
-                tailfetch = (var2, JType(JClass "java.lang.String"), noLoc $ JMethod (NonStatic e) "substring" [noLoc $ Lit (Int 1)] "java.lang.String")
-                nonemptyexpr = foldr (\x@(name,_,_) b -> if (name =="_") then b else noLoc $ LetOut NonRec [x] b) b2 [headfetch, tailfetch]
+                [ConstrAlt _ b1, ConstrAlt (PConstr _ [sub1, sub2]) b2] = alts
+                headfetch = noLoc $ JMethod (NonStatic e) "charAt" [noLoc $ Lit (Int 0)] "java.lang.Character"
+                tailfetch = noLoc $ JMethod (NonStatic e) "substring" [noLoc $ Lit (Int 1)] "java.lang.String"
+                b2'  = case sub1 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, JType(JClass "java.lang.Character"), headfetch)] b2
+                                    _ -> b2
+                b2'' = case sub2 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, JType(JClass "java.lang.String"), tailfetch)] b2'
+                                    _ -> b2'
             in
-            go (noLoc $ If emptytest emptyexpr nonemptyexpr)
-
-    desugarDatabind (DataBind n params ctrs) =
-         F.DataBind n params (\t ->
-            let d' = addToTVarMap (zip params t) d
-            in  map (desugarConstructor d') ctrs
-         )
-    desugarConstructor d' (Constructor n ts) = F.Constructor n (map (transType d') ts)
-    desugarAlts (ConstrAlt c ns e) =
-        let c' = desugarConstructor d c
-            f ns' = desugarExpr (d, zipWith (\n e' -> (n, F.Var n e')) ns ns' `addToVarMap` g) e
-        in F.ConstrAlt c' ns f
-
+            go (noLoc $ If emptytest b1 b2'')
 
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
 desugarLetRecToFix (d,g) (L _ (LetOut Rec [(f,t,e)] body)) =
@@ -242,6 +236,82 @@ desugarLetRecToLetRec (d,g) (L _ (LetOut Rec binds@(_:_) body)) = F.LetRec names
     body'  ids'       = desugarExpr (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g) body
 
 desugarLetRecToLetRec _ _ = panic "desugarLetRecToLetRec"
+
+-- DataBind -> F.DataBind
+desugarDatabind ::  TVarMap t -> DataBind -> F.DataBind t
+desugarDatabind d = go
+  where go (DataBind n params ctrs) =
+               F.DataBind n params (\t ->
+                  let d' = addToTVarMap (zip params t) d
+                  in  map (desugarConstructor d') ctrs
+               )
+
+-- Constructor -> F.Constructor
+desugarConstructor :: TVarMap t -> Constructor -> F.Constructor t
+desugarConstructor d' = go
+  where go (Constructor n ts) = F.Constructor n (map (transType d') ts)
+
+{-
+ - given: case var of Cons x (Cons y z) -> expr
+ - result: case var of
+ -           Cons -> case (Cons)var.field2 of
+ -                      Cons -> let x = (Cons)var.field1
+ -                              let y = (Cons)((Cons)var.field2).field1
+ -                              let z = (Cons)((Cons)var.field2).field2
+ -                              expr
+ -}
+decisionTree ::  (TVarMap t, VarMap t e) -> [CheckedExpr] -> [[Pattern]] -> [CheckedExpr] -> F.Expr t e
+decisionTree (d,g) = go
+  where -- no pattern left. Then the first expr will be the result
+        go [] _ exprs = desugarExpr (d,g) $ head exprs
+        go exprs pats branches
+          | all isWildcardOrVar patshead =
+               go (tail exprs)
+                  (map tail pats)
+                  (zipWith (\pat branch -> case (head pat) of
+                               PVar nam ty -> noLoc $ LetOut NonRec [(nam, ty, curExp')] branch
+                               _ -> branch )
+                           pats
+                           branches)
+          | missingconstrs == [] = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs)
+          | otherwise            = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs ++ makeDefault)
+          where patshead = map head pats
+                curExp' = head exprs
+                (appearconstrs, missingconstrs) = constrInfo patshead
+                javaType ty = case ty of
+                       JType (JClass nam) -> nam
+                       JType (JPrim nam) -> nam
+                       Datatype nam _ _  -> '$':nam -- related to name clash
+                       _                 -> "java.lang.Object"
+                makeNewAltFromCtr ctr@(Constructor name params) =
+                       let len = length params - 1
+                           curExp = noLoc $ CaseCast curExp' ctr
+                           javafieldexprs = zipWith (\num pam -> noLoc $ JField (NonStatic curExp) (fieldtag ++ show num) (javaType pam))
+                                                    [1..len]
+                                                    params
+                           exprs' = javafieldexprs ++ (tail exprs)
+                           (pats', branches') =
+                               unzip $ foldr (\(curPattern:rest, branch) acc ->
+                                                  let nextPats = (extractorsubpattern name len curPattern)++rest
+                                                  in  case curPattern of
+                                                       PWildcard -> ( nextPats, branch) :acc
+                                                       PVar nam ty -> (nextPats, noLoc $ LetOut NonRec [(nam, ty, curExp)] branch) :acc
+                                                       PConstr (Constructor nam _) _
+                                                           | nam /= name -> acc
+                                                           | otherwise -> (nextPats, branch):acc)
+                                             []
+                                             (zip pats branches)
+                       in F.ConstrAlt (desugarConstructor d ctr) (go exprs' pats' branches')
+                makeDefault =
+                       let (pats', branches') =
+                               unzip $ foldr (\(curPattern:rest, branch) acc ->
+                                                  case curPattern of
+                                                     PWildcard -> (rest , branch) :acc
+                                                     PVar nam ty -> (rest, noLoc $ LetOut NonRec [(nam, ty, curExp')] branch) :acc
+                                                     _ -> acc)
+                                             []
+                                             (zip pats branches)
+                       in [F.Default $ go (tail exprs) pats' branches']
 
 addToVarMap :: [(ReaderId, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
