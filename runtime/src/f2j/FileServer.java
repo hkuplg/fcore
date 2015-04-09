@@ -1,4 +1,4 @@
-package f2j; 
+package f2j;
 
 import java.util.*;
 import java.lang.*;
@@ -13,7 +13,7 @@ public class FileServer {
 
     public static void compile(String fileName, String cp)
     {
-	      // Save source in .java file.
+        // Save source in .java file.
         File sourceFile = new File(fileName);
 
         // Compile source file.
@@ -21,8 +21,8 @@ public class FileServer {
 
         DiagnosticCollector <JavaFileObject> diagnostics =
             new DiagnosticCollector<JavaFileObject>();
-        StandardJavaFileManager fileManager = 
-            compiler.getStandardFileManager(diagnostics, null, null);  
+        StandardJavaFileManager fileManager =
+            compiler.getStandardFileManager(diagnostics, null, null);
         File [] files = new File [] {sourceFile};
         Iterable<? extends JavaFileObject> compilationUnits =
             fileManager.getJavaFileObjectsFromFiles(Arrays.asList(files));
@@ -31,16 +31,16 @@ public class FileServer {
         Iterable<String> compilationOptions = Arrays.asList(compileOptions);
 
         JavaCompiler.CompilationTask task =
-        compiler.getTask(null, fileManager, diagnostics, compilationOptions, 
+        compiler.getTask(null, fileManager, diagnostics, compilationOptions,
                          null, compilationUnits);
         task.call();
     }
 
-    public static String compileLoad (String fileName, String cp) 
-      throws InvocationTargetException, 
-             ClassNotFoundException, 
-             NoSuchMethodException, 
-             IllegalAccessException 
+    public static String compileLoad (String fileName, String cp)
+      throws InvocationTargetException,
+             ClassNotFoundException,
+             NoSuchMethodException,
+             IllegalAccessException
     {
         compile(fileName,cp);
 
@@ -51,20 +51,20 @@ public class FileServer {
             i++;
         }
 
-      	ClassLoader classLoader = FileServer.class.getClassLoader();
+        ClassLoader classLoader = FileServer.class.getClassLoader();
         // Dynamically load class and invoke its main method.
         try {
             //Class<?> cls = Class.forName(className);
-	          Class<?> cls = classLoader.loadClass(className);
+            Class<?> cls = classLoader.loadClass(className);
             Method meth = cls.getMethod("main", String[].class);
             String[] params = null;
 
-	        try {
-	          meth.setAccessible(true);
+          try {
+            meth.setAccessible(true);
             meth.invoke(null, (Object) params);
-	        } catch (InvocationTargetException e) {
+          } catch (InvocationTargetException e) {
             System.out.println(e + ": " + e.getCause());
-	        }
+          }
         } catch (ClassNotFoundException e1) {
           System.out.println(e1 + ": " + e1.getCause());
         } catch (NoSuchMethodException e2) {
@@ -74,7 +74,7 @@ public class FileServer {
         }
         System.out.println("exit");
 
-  	    return className;
+        return className;
     }
 
     public static void DeleteDummy()
@@ -83,11 +83,11 @@ public class FileServer {
       File fList[] = dir.listFiles();
 
       for(File f : fList) {
-      	if(f.getName().endsWith(".class") 
+        if(f.getName().endsWith(".class")
            && !f.getName().startsWith("FileServer")
            && !f.getName().startsWith("TypeServer"))
-	        f.delete();
-      }      
+          f.delete();
+      }
     }
 
     public static void main (String [] args)
@@ -95,8 +95,8 @@ public class FileServer {
         Scanner scanner = new Scanner(System.in);
         String cp = args[0];
 
-	      while(true){
-	        if(!scanner.hasNextLine()) break;
+        while(true){
+          if(!scanner.hasNextLine()) break;
 
           String fileName = scanner.nextLine();
 
@@ -104,22 +104,22 @@ public class FileServer {
           try {
             File myFile = new File(fileName);
             BufferedWriter output = new BufferedWriter(new FileWriter(myFile));
-            
-	          while (scanner.hasNextLine()) {
-	            String line = scanner.nextLine();
-		          if(line.equals("//end of file")) break;
+
+            while (scanner.hasNextLine()) {
+              String line = scanner.nextLine();
+              if(line.equals("//end of file")) break;
               output.write(line);
               }
               output.close();
-	            String className = compileLoad(fileName,cp);
-	            myFile.delete();
+              String className = compileLoad(fileName,cp);
+              myFile.delete();
           } catch (Exception e) {
             e.printStackTrace();
           }
 
-	        // Delete dummy .class files in current directory
-	        DeleteDummy();
-	      } 
+          // Delete dummy .class files in current directory
+          DeleteDummy();
+        }
     }
 
 }

@@ -3,6 +3,6 @@
 let
   fact (n : Int) : Int = if n == 0 then 1 else n * this () (n - 1)
 and
-  foolish (n : Int) : Int = { java.lang.System.out.println("Hola"); super () n }
+  foolish (n : Int) : Int = { println("Hola"); super () n }
 in
 (foolish (+) fact) 5

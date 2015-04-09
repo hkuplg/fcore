@@ -19,13 +19,15 @@ import qualified Language.Java.Syntax as J (Op (..))
 import Src
 import Lexer
 import SrcLoc
+import Predef (injectPredef)
 
 import JavaUtils
 }
 
 %name parseExpr expr
 %tokentype { Located Token }
-%monad     { P }
+%monad     { Alex }
+%lexer     { lexer } { L _ Teof }
 %error     { parseError }
 
 %token
@@ -63,6 +65,10 @@ import JavaUtils
   "of"     { L _ Tof }
   "_"      { L _ Tunderscore }
   "`"      { L _ Tbackquote }
+  STRL     { L _ Tstrl }
+  STRR     { L _ Tstrr }
+  STREXPL  { L _ Tstrexpl }
+  STREXPR  { L _ Tstrexpr }
 
   UPPER_IDENT  { L _ (Tupperid _) }
   LOWER_IDENT  { L _ (Tlowerid _) }
@@ -75,7 +81,7 @@ import JavaUtils
   "module"  { L _ Tmodule }
 
   INT      { L _ (Tint _) }
-  STRING   { L _ (Tstring _) }
+  SCHAR    { L _ (Tschar _) }
   BOOL     { L _ (Tbool _) }
   CHAR     { L _ (Tchar _) }
   "Empty"    { L _ Temptytree }
@@ -234,7 +240,7 @@ expr :: { ReaderExpr }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type (toString $2) (map unLoc $3) $5 $6 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
     | "data" recflag and_databinds ";" expr        { Data $2 $3 $5 `withLoc` $1 }
-    | "case" expr "of" patterns           { Case $2 $4 `withLoc` $1 }
+    | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
     | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
@@ -343,9 +349,20 @@ javaexpr :: { ReaderExpr }
     -- Is this possible?
     -- | aexpr "." UPPER_IDENT                    { Dot $1 $3 Nothing `withLoc` $1 }
 
+strlit :: { ReaderExpr }
+    : {- empty -}               { Lit (String []) `withLoc` (L (Loc 0 0) undefined) }
+    | SCHAR strlit              { Lit (String (toSChar $1:unpackstr $2)) `withLoc` $1 }
+
+interp :: { ReaderExpr }
+    : STREXPL expr STREXPR      { JMethod (Static "java.lang.String") "valueOf" [$2] undefined `withLoc` $1 }
+
+interps :: { ReaderExpr }
+    : strlit                    { $1 }
+    | strlit interp interps     { jconcat $1 (jconcat $2 $3) }
+
 lit :: { ReaderExpr }
     : INT                       { Lit (Int $ toInt $1)       `withLoc` $1 }
-    | STRING                    { Lit (String $ toString $1) `withLoc` $1 }
+    | STRL interps STRR         { unLoc $2                   `withLoc` $1 }
     | BOOL                      { Lit (Bool $ toBool $1)     `withLoc` $1 }
     | CHAR                      { Lit (Char $ toChar $1)     `withLoc` $1 }
     | "()"                      { Lit UnitLit                `withLoc` $1 }
@@ -412,22 +429,31 @@ constr_decl :: { Constructor }
 constr_name :: { LReaderId }
     : UPPER_IDENT  { toString $1 `withLoc` $1 }
 
-patterns :: { [Alt ReaderId Type] }
-    : pattern               { [$1] }
-    | pattern "|" patterns  { $1:$3 }
+alts :: { [Alt ReaderId Type] }
+    : alt               { [$1] }
+    | alt "|" alts      { $1:$3 }
 
-pattern :: { Alt ReaderId Type}
-    : constr_name pat_vars "->" expr  { ConstrAlt (Constructor (unLoc $1) []) $2 $4 }
-    | "[" "]" "->" expr               { ConstrAlt (Constructor "empty" []) [] $4}
-    | pat_var ":" pat_var "->" expr   { ConstrAlt (Constructor "cons" []) [$1,$3] $5}
+alt :: { Alt ReaderId Type}
+    : pattern "->" expr               { ConstrAlt $1 $3 }
+    | "[" "]" "->" expr               { ConstrAlt ( PConstr (Constructor "empty" []) [] ) $4}
+    | pat_var ":" pat_var "->" expr   { ConstrAlt ( PConstr (Constructor "cons" []) [$1,$3]) $5}
 
-pat_var :: { ReaderId }
-  : LOWER_IDENT  { toString $1 }
-  | "_"          { "_" }
+pattern1s :: { [Pattern] }
+    : pattern1                 { [$1] }
+    | pattern1 pattern1s       { $1:$2 }
 
-pat_vars :: { [ReaderId] }
-  : {- empty -}       { [] }
-  | pat_var pat_vars  { $1:$2 }
+pattern1 :: { Pattern }
+    : constr_name              { PConstr (Constructor (unLoc $1) []) [] }
+    | "(" pattern ")"          { $2 }
+    | pat_var                  { $1 }
+
+pattern :: { Pattern }
+    : pattern1                 { $1 }
+    | constr_name pattern1s    { PConstr (Constructor (unLoc $1) []) $2 }
+
+pat_var :: { Pattern }
+    : LOWER_IDENT              { PVar (toString $1) undefined }
+    | "_"                      { PWildcard }
 
 param :: { Located (ReaderId, ReaderType) }
   : LOWER_IDENT ":" type          { (toString $1, $3) `withLoc` $1 }
@@ -459,22 +485,33 @@ instance Monad P where
     PError msg >>= f = PError msg
     return x         = POk x
 
-parseError :: [Located Token] -> P a
-parseError []        = PError ("Parse error")
-parseError (L loc _:_) = PError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))
+parseError :: Located Token -> Alex a
+parseError (L loc _) = alexError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))
 
 reader :: String -> P ReaderExpr
-reader src = parseExpr $ lexer src
+reader src = case (runAlex (injectPredef src) parseExpr) of
+               Left msg -> PError msg
+               Right x  -> return x
 
 -- Helper functions to extract located token value
 toInt (L _ (Tint x)) = x
 toBool (L _ (Tbool x)) = x
 toChar (L _ (Tchar x)) = x
+toSChar (L _ (Tschar x)) = x
 toString (L _ tok) =
   case tok of
-    Tstring x -> x
     Tjavaclass x -> x
     Tupperid x -> x
     Tlowerid x -> x
     Tsymbolid x -> x
+
+-- Help functions of string interpolation
+-- Returns a dummy list if not a string literal
+unpackstr (L _ (Lit (String x))) = x
+unpackstr _ = ['\0']
+
+-- Concatenates two strings by Java method `concat()'
+jconcat x y | null (unpackstr y) = x
+            | null (unpackstr x) = y
+            | otherwise = JMethod (NonStatic x) "concat" [y] undefined `withLoc` x
 }

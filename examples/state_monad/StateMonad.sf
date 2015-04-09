@@ -41,10 +41,10 @@ let
 let rec
   printList (as : f2j.FunctionalList) : Bool = {
     if as.isEmpty() then {
-      java.lang.System.out.println(""); True
+      println(""); True
     }
     else {
-      java.lang.System.out.print(as.head()); printList(as.tail()); False
+      print(as.head()); printList(as.tail()); False
     }
   }
 ;

@@ -237,15 +237,15 @@ mainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
                                                 "println"
                                                 [left $ var "apply()"]])
 
-wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> [FormalParam] -> Maybe Block -> Bool -> TypeDecl
-wrapperClass className stmts returnType mainbodyDef testArgType testBodyDef genTest =
+wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
+wrapperClass className stmts returnType mainbodyDef  =
   ClassTypeDecl
     (classDecl [Public]
                className
-               (classBody (applyMethod : mainMethod : [testMethod | genTest])))
+               (classBody (applyMethod : [mainMethod])))
   where body = Just (block stmts)
         applyMethod = memberDecl $ methodDecl [Static] returnType "apply" [] body
-        testMethod = memberDecl $ methodDecl [Public,Static] returnType "test" testArgType testBodyDef
+        -- testMethod = memberDecl $ methodDecl [Public,Static] returnType "test" testArgType testBodyDef
         mainMethod  = memberDecl $ methodDecl [Public,Static] Nothing "main" mainArgType mainbodyDef
 
 annotation :: String -> Modifier
