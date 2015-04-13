@@ -172,8 +172,8 @@ boolfun = lam (Fun javaBool javaBool) (\n -> If ((App (var n) true) `neq` (App (
 app_bool_fun = App boolfun inverse
 
 -- interface to symbolic evaluator
-se str = src2fi str >>= solve
-seN n str = src2fi str >>= solve' n
+se str = src2fi str >>= explore 20
+seN n str = src2fi str >>= explore n
 
 javaBool     = JClass "java.lang.Boolean"
 zero         = Lit (S.Int 0)
