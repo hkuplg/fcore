@@ -411,11 +411,10 @@ trans self =
                                                      Left cn ->
                                                        return ([],Left $ J.Name [J.Ident cn] ,undefined)
                    newVarName <- getNewVarName this
-                   let typ = JClass r
-                   aType <- javaType this typ
+                   aType <- javaType this r
                    let rhs = J.Cast aType $ J.FieldAccess $ J.PrimaryFieldAccess (unwrap classExpr) (J.Ident fName)
-                   assignExpr <- assignVar this typ newVarName rhs
-                   return (classStatement ++ [assignExpr],var newVarName,typ)
+                       assignExpr = localFinalVar aType $ varDecl newVarName rhs
+                   return (classStatement ++ [assignExpr],var newVarName,r)
               SeqExprs es ->
                 do es' <- mapM (translateM this) es
                    let (_,lastExp,lastType) = last es'

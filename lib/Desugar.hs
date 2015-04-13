@@ -140,7 +140,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (L _ (LetOut Rec bs body))                 = desugarLetRecToLetRec (d,g) (noLoc $ LetOut Rec bs body)
     go (L _ (JNew c args))             = F.JNew c (map go args)
     go (L _ (JMethod callee m args r)) = F.JMethod (fmap go callee) m (map go args) r
-    go (L _ (JField  callee f r))      = F.JField  (fmap go callee) f r
+    go (L _ (JField  callee f r))      = F.JField  (fmap go callee) f (transType d r)
 
     -- Non Java Class translation
     -- go (PrimList l)              = FPrimList (map go l)
@@ -278,15 +278,10 @@ decisionTree (d,g) = go
           where patshead = map head pats
                 curExp' = head exprs
                 (appearconstrs, missingconstrs) = constrInfo patshead
-                javaType ty = case ty of
-                       JType (JClass nam) -> nam
-                       JType (JPrim nam) -> nam
-                       Datatype nam _ _  -> '$':nam -- related to name clash
-                       _                 -> "java.lang.Object"
                 makeNewAltFromCtr ctr@(Constructor name params) =
                        let len = length params - 1
                            curExp = noLoc $ CaseCast curExp' ctr
-                           javafieldexprs = zipWith (\num pam -> noLoc $ JField (NonStatic curExp) (fieldtag ++ show num) (javaType pam))
+                           javafieldexprs = zipWith (\num pam -> noLoc $ JField (NonStatic curExp) (fieldtag ++ show num) pam)
                                                     [1..len]
                                                     params
                            exprs' = javafieldexprs ++ (tail exprs)

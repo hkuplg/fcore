@@ -137,7 +137,7 @@ data Expr id ty
 
   | JNew ClassName [LExpr id ty]
   | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName
-  | JField  (JCallee (LExpr id ty)) FieldName            ClassName
+  | JField  (JCallee (LExpr id ty)) FieldName            Type
   | Seq [LExpr id ty]
   | PolyList [LExpr id ty] ty
   | Merge (LExpr id ty) (LExpr id ty)

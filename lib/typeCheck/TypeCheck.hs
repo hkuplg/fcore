@@ -489,7 +489,7 @@ checkExpr (L loc (JField callee f _)) =
   case callee of
     Static c ->
       do ret_c <- checkFieldAccess (Static c) f
-         return (JType (JClass ret_c), L loc $ JField (Static c) f ret_c)
+         return (JType (JClass ret_c), L loc $ JField (Static c) f (JType $ JClass ret_c))
          -- if ret_c == "char"
          --    then return (JType (JPrim ret_c), JField (Static c) f ret_c)
          --    else return (JType (JClass ret_c), JField (Static c) f ret_c)
@@ -498,7 +498,7 @@ checkExpr (L loc (JField callee f _)) =
          case t of
            JType (JClass c) ->
              do ret_c   <- checkFieldAccess (NonStatic c) f
-                return (JType (JClass ret_c), JField (NonStatic e') f ret_c `withLoc` e')
+                return (JType (JClass ret_c), JField (NonStatic e') f (JType $ JClass ret_c) `withLoc` e')
                 -- if ret_c == "char"
                 --   then return (JType (JPrim "char"), JField (NonStatic e') f ret_c)
                 --   else return (JType (JClass ret_c), JField (NonStatic e') f ret_c)

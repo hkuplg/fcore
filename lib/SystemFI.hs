@@ -96,7 +96,7 @@ data Expr t e
   -- Java
   | JNew ClassName [Expr t e]
   | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
-  | JField  (Src.JCallee (Expr t e)) FieldName ClassName
+  | JField  (Src.JCallee (Expr t e)) FieldName (Type t)
   | PolyList [Expr t e] (Type t)
   | JProxyCall (Expr t e) (Type t)
 
@@ -176,7 +176,7 @@ mapVar g h (Tuple es)                = Tuple (map (mapVar g h) es)
 mapVar g h (Proj i e)                = Proj i (mapVar g h e)
 mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
 mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
-mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
+mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f (h c)
 mapVar g h (PolyList es t)           = PolyList (map (mapVar g h) es) (h t)
 mapVar g h (JProxyCall jmethod t)    = JProxyCall (mapVar g h jmethod) (h t)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
