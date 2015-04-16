@@ -4,6 +4,7 @@ module MonadLib (module MonadLib, module Control.Monad, module Data.Monoid) wher
 
 import Control.Monad
 import Data.Monoid
+import Control.Applicative (Applicative(..), Alternative(..))
 
 -- Interfaces for various types of effects:
 
@@ -56,6 +57,10 @@ instance Monad (Reader r) where
     return a = Reader $ \_ -> a
     m >>= k  = Reader $ \r -> runReader (k (runReader m r)) r
 
+instance Applicative (Reader r) where
+    pure  = return
+    (<*>) = ap
+
 instance MonadReader r (Reader r) where
     ask       = Reader id
     local f m = Reader $ runReader m . f
@@ -73,6 +78,10 @@ instance (Monad m) => Functor (ReaderT r m) where
         a <- runReaderT m r
         return (f a)
 
+instance (Monad m) => Applicative (ReaderT r m) where
+    pure  = return
+    (<*>) = ap
+
 instance (Monad m) => Monad (ReaderT r m) where
     return a = ReaderT $ \_ -> return a
     m >>= k  = ReaderT $ \r -> do
@@ -84,12 +93,16 @@ instance (MonadPlus m) => MonadPlus (ReaderT r m) where
     mzero       = ReaderT $ \_ -> mzero
     m `mplus` n = ReaderT $ \r -> runReaderT m r `mplus` runReaderT n r
 
+instance (Monad m, MonadPlus m) => Alternative (ReaderT r m) where
+    (<|>) = mplus
+    empty = mzero
+
 instance (Monad m) => MonadReader r (ReaderT r m) where
     ask       = ReaderT return
     local f m = ReaderT $ \r -> runReaderT m (f r)
 
 instance MonadReader r m => MonadReader r (ReaderT t m) where
-    ask       = ReaderT (\r -> ask)
+    ask       = ReaderT (\_ -> ask)
     local f m = ReaderT (\r -> local f (runReaderT m r))
 
 -- State monad/monad transformers
@@ -106,10 +119,10 @@ gets f = do
 
 newtype State s a = State { runState :: s -> (a, s) }
 
-evalState :: State s a -> s  -> a       
+evalState :: State s a -> s  -> a
 evalState m s = fst (runState m s)
 
-execState :: State s a -> s -> s    
+execState :: State s a -> s -> s
 execState m s = snd (runState m s)
 
 mapState :: ((a, s) -> (b, s)) -> State s a -> State s b
@@ -126,6 +139,10 @@ instance Monad (State s) where
     return a = State $ \s -> (a, s)
     m >>= k  = State $ \s -> case runState m s of
                                  (a, s') -> runState (k a) s'
+
+instance Applicative (State s) where
+    pure  = return
+    (<*>) = ap
 
 instance MonadState s (State s) where
     get   = State $ \s -> (s, s)
@@ -161,9 +178,17 @@ instance (Monad m) => Monad (StateT s m) where
         runStateT (k a) s'
     fail str = StateT $ \_ -> fail str
 
+instance (Monad m) => Applicative (StateT s m) where
+    pure  = return
+    (<*>) = ap
+
 instance (MonadPlus m) => MonadPlus (StateT s m) where
     mzero       = StateT $ \_ -> mzero
     m `mplus` n = StateT $ \s -> runStateT m s `mplus` runStateT n s
+
+instance (Monad m, MonadPlus m) => Alternative (StateT s m) where
+    (<|>) = mplus
+    empty = mzero
 
 instance (Monad m) => MonadState s (StateT s m) where
     get   = StateT $ \s -> return (s, s)
@@ -171,7 +196,7 @@ instance (Monad m) => MonadState s (StateT s m) where
 
 instance MonadState s m => MonadState s (StateT t m) where
     get   = StateT $ \s -> liftM (\x -> (x,s)) get
-    put s = StateT $ \s1 -> liftM (\x -> (x,s1)) (put s) 
+    put s = StateT $ \s1 -> liftM (\x -> (x,s1)) (put s)
 
 -- Writer monad/monad transformer
 
@@ -203,6 +228,10 @@ instance (Monoid w) => Monad (Writer w) where
                             (a, w) -> case runWriter (k a) of
                                 (b, w') -> (b, w `mappend` w')
 
+instance (Monoid w) => Applicative (Writer w) where
+    pure  = return
+    (<*>) = ap
+
 instance (Monoid w) => MonadWriter w (Writer w) where
     tell   w = Writer ((), w)
     listen m = Writer $ case runWriter m of
@@ -233,9 +262,17 @@ instance (Monoid w, Monad m) => Monad (WriterT w m) where
         return (b, w `mappend` w')
     fail msg = WriterT $ fail msg
 
+instance (Monoid w, Monad m) => Applicative (WriterT w m) where
+    pure  = return
+    (<*>) = ap
+
 instance (Monoid w, MonadPlus m) => MonadPlus (WriterT w m) where
     mzero       = WriterT mzero
     m `mplus` n = WriterT $ runWriterT m `mplus` runWriterT n
+
+instance (Monoid w, Monad m, MonadPlus m) => Alternative (WriterT w m) where
+    (<|>) = mplus
+    empty = mzero
 
 instance (Monoid w, Monad m) => MonadWriter w (WriterT w m) where
     tell   w = WriterT $ return ((), w)
@@ -247,7 +284,7 @@ instance (Monoid w, Monad m) => MonadWriter w (WriterT w m) where
         return (a, f w)
 
 instance (MonadWriter w m, Monoid t) => MonadWriter w (WriterT t m) where
-    tell   w = WriterT $ liftM (\x -> (x,mempty)) $ tell w 
+    tell   w = WriterT $ liftM (\x -> (x,mempty)) $ tell w
     listen m = WriterT $ liftM (\((x,y),z) -> ((x,z),y)) $ listen (runWriterT m)
     pass   m = WriterT $ pass $ liftM (\(((x,f),t)) -> (((x,t),f))) $ runWriterT m
 
@@ -304,7 +341,7 @@ data n :-> m = View {
   fromV :: forall a . n a -> m a,
   toV :: forall a . m a -> n a
   }
-               
+
 -- auxiliary definitions with views
 
 getV :: MonadState s n => (n :-> m) -> m s

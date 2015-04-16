@@ -193,6 +193,11 @@ transS this super =
                Let _ expr body ->
                  do (s1,j1,t1) <- local (False &&) $ translateM (up this) expr
                     translateLet (up this) (s1,j1,t1) body
+               -- case scrutinee can't be in tail position, alts inherit flag
+               Case scrut alts -> do
+                      (scrutStmts, scrutExpr, _) <- local (False &&) $ translateM (up this) scrut
+                      (altsStmts, varName, typ) <- transAlts (up this) scrutExpr alts
+                      return (scrutStmts ++ altsStmts, varName, typ)
                -- count other expressions as not in tail position
                _ -> local (False &&) $ translateM super e
 
@@ -227,14 +232,13 @@ transS this super =
                       -- box <- getBox (up this) t
                       -- empyClosure' <- empyClosure (up this) (unwrap e) box
                       mainbody <- stackMainBody (up this) t
-                      isTest <- genTest (up this)
                       let stackDecl =
                             wrapperClass
                               nam
                               (bs ++
                                -- (if containsNext bs then [] else [empyClosure']) ++
                                returnStmt)
-                              returnType (Just $ J.Block mainbody) [] Nothing isTest
+                              returnType (Just $ J.Block mainbody)
                       return (createCUB (up this :: Translate m) [stackDecl]
                              ,t)}}
 

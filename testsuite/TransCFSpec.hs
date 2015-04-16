@@ -36,10 +36,10 @@ runtimeBytes :: B.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
 
 writeRuntimeToTemp :: IO ()
-writeRuntimeToTemp = 
+writeRuntimeToTemp =
   do tempdir <- getTemporaryDirectory
      let tempFile = tempdir </> "runtime.jar"
-     B.writeFile tempFile runtimeBytes 
+     B.writeFile tempFile runtimeBytes
 
 testCasesPath = "testsuite/tests/run-pass"
 
@@ -49,7 +49,7 @@ compileAndRun inP outP name compileF exp =
      let jname = name ++ ".java"
      sendMsg inP jname
      sendFile inP (source ++ "\n" ++ "//end of file")
-     result <- receiveMsg3 outP 
+     result <- receiveMsg3 outP
      return result
 
 esf2sf expr =

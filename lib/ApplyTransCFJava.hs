@@ -65,7 +65,7 @@ instance (:<) (ApplyOptTranslate m) (ApplyOptTranslate m) where
 
 isMultiBinder :: EScope Int (Var, Type Int) -> Bool
 isMultiBinder (Type _ _) = False
-isMultiBinder (Kind f)   = True
+isMultiBinder (Kind _)   = True
 isMultiBinder (Body _)   = True
 
 -- main translation function

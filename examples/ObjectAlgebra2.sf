@@ -11,8 +11,8 @@ type SubExpAlg[E] = (ExpAlg[E]) & { sub : E -> E -> E };
 let subEvalAlg = evalAlg ,, { sub = \(x : IEval) (y : IEval) -> { eval = x.eval - y.eval } };
 let printAlg = {
   lit = \(x : Int) -> { print = x.toString() },
-  add = \(x : IPrint) (y : IPrint) -> { print = x.print.concat(" + ").concat(y.print) },
-  sub = \(x : IPrint) (y : IPrint) -> { print = x.print.concat(" - ").concat(y.print) }
+  add = \(x : IPrint) (y : IPrint) -> { print = "\{x.print} + \{y.print}" },
+  sub = \(x : IPrint) (y : IPrint) -> { print = "\{x.print} - \{y.print}" }
 };
 let merge[A, B] (f : ExpAlg[A]) (g : ExpAlg[B]) = {
   lit = \(x : Int) -> f.lit x ,, g.lit x,
