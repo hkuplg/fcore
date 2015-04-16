@@ -1,15 +1,15 @@
 data PolyList [A] = Nil
-     	        | Cons A (PolyList [A])
-	        ;
+              | Cons A (PolyList [A])
+          ;
 
 let rec eq [A] (xs: PolyList[A]) (ys: PolyList[A]) : Bool =
   case xs of
      Nil -> (case ys of
               Nil -> True
-	    | Cons _ _ -> False)
+      | Cons _ _ -> False)
    | Cons a as -> (case ys of
-     	       	     Nil -> False
-		   | Cons b bs -> (a == b) && eq [A] as bs);
+                   Nil -> False
+       | Cons b bs -> (a == b) && eq [A] as bs);
 let rec filter [A] (p : A -> Bool) (xs : PolyList [A]) : PolyList[A] =
   case xs of
       Nil       -> Nil [A]
@@ -30,11 +30,11 @@ let rec insert [A] (x : A) (xs : PolyList[A]) : PolyList[A] =
     case xs of
         Nil -> Cons [A] x (Nil [A])
       | Cons y ys -> if x <= y
-      	       	     then Cons [A] x (Cons [A] y ys)
-		     else Cons [A] y (insert [A] x ys);
+                     then Cons [A] x (Cons [A] y ys)
+         else Cons [A] y (insert [A] x ys);
 let rec isort [A] (xs : PolyList[A]) : PolyList[A] =
     case xs of
-    	Nil -> Nil [A]
+      Nil -> Nil [A]
       | Cons x ys -> insert [A] x (isort [A] ys);
 let prop_sort [A] (xs : PolyList[A]) = eq [A] (qsort [A] xs) (isort [A] xs);
 prop_sort

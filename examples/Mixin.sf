@@ -7,6 +7,6 @@ let fact (super: Unit -> Int -> Int) (this: Unit -> Int -> Int): Int -> Int
   = \(n: Int) -> if n == 0 then 1 else n * this () (n - 1)
 and
   foolish (super: Unit -> Int -> Int) (this: Unit -> Int -> Int): Int -> Int
-  = \(n: Int) -> { java.lang.System.out.println("Hola"); super () n }
+  = \(n: Int) -> { println("Hola"); super () n }
 ;
 mixin[Int -> Int] (extends[Int -> Int] foolish fact) 5

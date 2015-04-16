@@ -1,0 +1,4 @@
+--> origin is at (0,0,0)
+
+let point = { name = "origin", x = 0, y = 0, z = 0 };
+"\{point.name} is at (\{point.x},\{point.y},\{point.z})"

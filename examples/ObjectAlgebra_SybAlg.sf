@@ -55,4 +55,4 @@ let incSalary[C, D, SU, E, P, SA] (alg : SybAlg[C, D, SU, E, P, SA]) : SybAlg[C,
 let before = genCom [Int, Int, Int, Int, Int, Int] salaryBill;
 let after  = genCom [Int, Int, Int, Int, Int, Int]
              (incSalary [Int, Int, Int, Int, Int, Int] salaryBill);
-"before = ".concat(before.toString()).concat(", after = ").concat(after.toString())
+"before = \{before}, after = \{after}"

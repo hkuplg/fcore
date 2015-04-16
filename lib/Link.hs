@@ -1,9 +1,9 @@
-module Link where 
+module Link where
 
 import System.IO
-import System.FilePath	(dropExtension)
+import System.FilePath (dropExtension)
 import Data.Char
-import Data.List.Split	(splitOn)
+import Data.List.Split (splitOn)
 import Data.List
 
 link :: FilePath -> String -> IO ()
@@ -31,7 +31,7 @@ breakLine content name = let list = lines content in addByLine list name
 
 addByLine :: [String] -> String -> String
 addByLine [] _ = ""
-addByLine (x:xs) name = name ++ "_" ++ x ++ "\nand\n" ++ (addByLine xs name) 
+addByLine (x:xs) name = name ++ "_" ++ x ++ "\nand\n" ++ (addByLine xs name)
 
 concatenate :: [String] -> String
 concatenate [] = ""
@@ -42,22 +42,22 @@ namespace x = let ys = lines x in (unlines . replaceDot) ys
 
 replaceDot :: [String] -> [String]
 replaceDot [] = []
-replaceDot (x:xs) = 
+replaceDot (x:xs) =
   let func = unwords . map checkDot in func (words x) : replaceDot xs
 
 -- Allow datatype to be wrapped in ()
-checkDot :: String -> String 
-checkDot x = 
-  if length xs <= 1 
+checkDot :: String -> String
+checkDot x =
+  if length xs <= 1
     then x
-    else let (y1:y2:ys) = xs in 
+    else let (y1:y2:ys) = xs in
            if (isUpper $ (y1 !! 0)) && (isUpper $ (y2 !! 0)) ||
-               ((y1 !! 0) == '(' && (isUpper $ (y1 !! 1))) 
+               ((y1 !! 0) == '(' && (isUpper $ (y1 !! 1)))
            then y1 ++ "_" ++ y2 ++ (intercalate "." ys)
-           else x   
+           else x
   where xs = splitOn "." x
 
 test :: FilePath -> IO String
 test file = do
   content <- readFile file
-  return $ namespace content  
+  return $ namespace content
