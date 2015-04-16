@@ -162,6 +162,9 @@ trans self = let this = up self
             do (s,je,t) <- translateScopeM this se lname
                return (s,je,Forall t)
 
+
+      -- TODO: finish (workaround the current nonsense lets)
+      Let lname expr b -> translateM this (b (undefined,undefined))
                 -- TODO: rest; just default to be able to run tests
       _ -> return ([], Right J.Null, Unit)
                ,
@@ -247,7 +250,7 @@ trans self = let this = up self
                                                       Right z -> J.Lit z)]
 
 
-      let mainDecl = wrapperClass className (bs ++ returnStmt) (Just (javaType t)) mainBody [] Nothing False
+      let mainDecl = wrapperClass className (bs ++ returnStmt) (Just (javaType t)) mainBody
       return (createCUB self [mainDecl],Unit)
 }
 

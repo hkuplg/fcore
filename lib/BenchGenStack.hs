@@ -2,6 +2,7 @@
 
 module BenchGenStack where
 
+{-
 import Prelude hiding (init, last)
 
 import qualified Language.Java.Syntax as J
@@ -149,3 +150,4 @@ wrapperClassB className stmts returnType mainbodyDef testArgType testBodyDef gen
 --   ,genTest = return True
 --    }
 -- }
+-}

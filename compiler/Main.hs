@@ -153,7 +153,7 @@ main = do
 
        source     <- readFile source_path_new
        coreExpr   <- source2core optDump source
-       javaSource <- core2java False optInline optDump opts (inferClassName output_path) coreExpr
+       javaSource <- core2java True optInline optDump opts (inferClassName output_path) coreExpr
        writeFile output_path javaSource
        --let closureClassDef = closureClass opts
        --writeFile "Closure.java" (prettyPrint closureClassDef)
