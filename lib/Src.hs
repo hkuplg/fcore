@@ -156,6 +156,7 @@ data Expr id ty
   | CaseString (LExpr id ty) [Alt id ty] --pattern match on string
   | ConstrTemp Name
   | Constr Constructor [LExpr id ty] -- post typecheck only
+                                     -- the last type in Constructor will always be the real type
   | CaseCast (LExpr id ty) Constructor
   | JProxyCall (LExpr id ty) ty
   deriving (Eq, Show)
