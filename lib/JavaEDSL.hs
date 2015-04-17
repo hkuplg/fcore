@@ -73,11 +73,6 @@ right :: Either Name Literal -> Exp
 right (Right x) = Lit x
 right (Left _) = error "this should be right (literal or method inv)"
 
-unwrap :: Either (Name, Name) Literal -> Exp
-unwrap x = case x of
-            Left ((Name xs), _) -> ExpName . Name $ xs
-            Right e -> Lit e
-
 localToMemberClass :: BlockStmt -> MemberDecl
 localToMemberClass (LocalClass t) = MemberClassDecl t
 localToMemberClass _ = error "parameter should be a local class"

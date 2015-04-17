@@ -20,7 +20,7 @@ import qualified Language.Java.Syntax as J
 import           ClosureF
 import           Inheritance
 import           MonadLib
-import           JavaEDSL(wrapperClass,bStmt,unwrap,mainBody,var,classTy,
+import           JavaEDSL(wrapperClass,bStmt,mainBody,var,classTy,
                           objClassTy,localFinalVar,varDecl,
                           -- needed by lam/fixpoint?
                           name, fieldAccess, left, cast, localVar, funInstCreate,
@@ -35,8 +35,18 @@ import           StringPrefixes(localvarstr)
 import           Debug.Trace
 import           Data.Char
 
-type Var = (J.Name, J.Name) -- Either normal variable or class name
-type TransJavaExp = Either Var J.Literal -- either variable or special case: Lit
+type Var = (J.Name, J.Name) -- (primitive, reference)
+
+data TransJavaExp = SingleVar J.Name
+                  | DualVar (J.Name, J.Name) -- (primitive, reference)
+                  | PrimLit J.Literal
+
+unwrap :: TransJavaExp -> J.Exp
+unwrap x = case x of
+  SingleVar (J.Name xs) -> J.ExpName . J.Name $ xs
+  DualVar ((J.Name xs), _) -> J.ExpName . J.Name $ xs
+  PrimLit e -> J.Lit e
+
 type TransType = ([J.BlockStmt], TransJavaExp, Type Var)
 type InitVars = [J.BlockStmt]
 
@@ -81,15 +91,15 @@ trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate
 trans self = let this = up self
   in T {
   translateM = \e -> case e of
-      Var lname (i,t) -> return ([],Left i,t)
+      Var lname (i,t) -> return ([],DualVar i,t)
 
       Lit lit ->
           case lit of
-            (S.Int i)    -> return ([], Right $ J.Int i, CFLong)
-            (S.UnitLit)  -> return ([], Right J.Null, Unit)
-            (S.String s) -> return ([], Right $ J.String s,  JClass "java.lang.String")
-            (S.Bool b)   -> return ([], Right $ J.Boolean b, CFBool)
-            (S.Char c)   -> return ([], Right $ J.Char c, CFChar)
+            (S.Int i)    -> return ([], PrimLit $ J.Int i, CFLong)
+            (S.UnitLit)  -> return ([], PrimLit J.Null, Unit)
+            (S.String s) -> return ([], PrimLit $ J.String s,  JClass "java.lang.String")
+            (S.Bool b)   -> return ([], PrimLit $ J.Boolean b, CFBool)
+            (S.Char c)   -> return ([], PrimLit $ J.Char c, CFChar)
             _ -> error "Ooops, this literal is not implemented."
 
       PrimOp e1 op e2 ->
@@ -104,7 +114,7 @@ trans self = let this = up self
                                    _ -> error "Ooops, this operator is not implemented."
                newVarName <- getNewVarName this
                let assignExpr = assignVar typ newVarName jexpr
-               return (s1 ++ s2 ++ [assignExpr], Left (name [newVarName], error "Only had primitive variable.") ,typ)
+               return (s1 ++ s2 ++ [assignExpr], SingleVar $ name [newVarName] ,typ)
 
       TApp expr t ->
        do (n :: Int) <- get
@@ -115,7 +125,7 @@ trans self = let this = up self
           return (s,je,scope2ctyp (substScope' (name [fn], name [fn]) t (f (name [fn], name [fn]))))
 
       App e1 e2 ->
-        do (s1,Left (_,j1),Forall (Type fname _ g)) <- translateM this e1
+        do (s1,SingleVar j1,Forall (Type fname _ g)) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            let retTyp = g ()
            (n :: Int) <- get
@@ -127,11 +137,11 @@ trans self = let this = up self
                 CFBool -> error "Boolean assignment conversion not implemented."
                 CFChar -> error "Character assignment conversion not implemented." -- Character.toChars(int value)
                 CFDouble -> error "Floating point assignemnt conversion not implemented." -- Double.longBitsToDouble(long value)
-                TVar _ -> let (longP, objP) = case j2 of Left (y1,y2) -> (y1,y2) in [assignField (fieldAccExp fexp "larg") (J.ExpName longP),
+                TVar _ -> let (longP, objP) = case j2 of DualVar (y1,y2) -> (y1,y2) in [assignField (fieldAccExp fexp "larg") (J.ExpName longP),
                   assignField (fieldAccExp fexp "oarg") (J.ExpName objP)]
 
-                _ -> case j2 of Left (_,objP) -> [assignField (fieldAccExp fexp "oarg") (J.ExpName objP)]
-                                Right l -> [assignField (fieldAccExp fexp "larg") (J.Lit l)] -- Unit?
+                _ -> case j2 of DualVar (_,objP) -> [assignField (fieldAccExp fexp "oarg") (J.ExpName objP)]
+                                PrimLit l -> [assignField (fieldAccExp fexp "larg") (J.Lit l)] -- Unit?
            let fd = localVar (classTy "f2j.unbox.Closure") (varDecl f (J.ExpName j1))
            let primitiveResultField = fieldAccess (J.ExpName (name [f])) "lres"
            let objectResultField = fieldAccess (J.ExpName (name [f])) "ores"
@@ -143,20 +153,20 @@ trans self = let this = up self
            let rt = scope2ctyp retTyp
            let typRT = javaType rt
            let flag = typRT == objClassTy
-           let tempVars = case rt of
-                CFLong -> [localFinalVar typRT (varDecl xfl primitiveResultField)]
-                CFBool -> [localFinalVar typRT (varDecl xfl (J.BinOp primitiveResultField J.Equal (J.Lit $ J.Int 1)))]
+           let (tempVars, finalExpr) = case rt of
+                CFLong -> ([localFinalVar typRT (varDecl xfl primitiveResultField)], SingleVar $ name [xfl])
+                CFBool -> ([localFinalVar typRT (varDecl xfl (J.BinOp primitiveResultField J.Equal (J.Lit $ J.Int 1)))], SingleVar $ name [xfl])
                 CFChar -> error "Character conversion not implemented." -- Character.toChars(int value)
                 CFDouble -> error "Floating point conversion not implemented." -- Double.longBitsToDouble(long value)
-                TVar _ -> [localFinalVar (J.PrimType J.LongT) (varDecl xfl primitiveResultField),
-                          localFinalVar typRT (varDecl xfo objectResultField)]
+                TVar _ -> ([localFinalVar (J.PrimType J.LongT) (varDecl xfl primitiveResultField),
+                          localFinalVar typRT (varDecl xfo objectResultField)], DualVar (name [xfl], name [xfo]))
 
-                _ -> [localFinalVar typRT (varDecl xfo (if flag
+                _ -> ([localFinalVar typRT (varDecl xfo (if flag
                    then objectResultField
-                   else cast typRT objectResultField))]
+                   else cast typRT objectResultField))], SingleVar $ name [xfo])
 
            let s3 = fd : fargAssign ++ apply ++ tempVars
-           return (s1 ++ s2 ++ s3,Left (name [xfl], name [xfo]), rt)
+           return (s1 ++ s2 ++ s3, finalExpr, rt)
 
       Lam se ->
             do (s,je,t) <- translateScopeM this se
@@ -166,7 +176,7 @@ trans self = let this = up self
       -- TODO: finish (workaround the current nonsense lets)
       Let lname expr b -> translateM this (b (undefined,undefined))
                 -- TODO: rest; just default to be able to run tests
-      _ -> return ([], Right J.Null, Unit)
+      _ -> return ([], PrimLit J.Null, Unit)
                ,
 
   translateScopeM =
@@ -222,10 +232,10 @@ trans self = let this = up self
                   CFBool -> error "Boolean assignment conversion not implemented."
                   CFChar -> error "Character assignment conversion not implemented." -- Character.toChars(int value)
                   CFDouble -> error "Floating point assignemnt conversion not implemented." -- Double.longBitsToDouble(long value)
-                  TVar _ -> let (longP, objP) = case oexpr of Left (y1,y2) -> (y1,y2) in [assign (name ["lres"]) (J.ExpName longP),
+                  TVar _ -> let (longP, objP) = case oexpr of DualVar (y1,y2) -> (y1,y2) in [assign (name ["lres"]) (J.ExpName longP),
                             assign (name ["ores"]) (J.ExpName objP)]
 
-                  _ -> case oexpr of Left (_,objP) -> [assign (name ["ores"]) (J.ExpName objP)]
+                  _ -> case oexpr of SingleVar objP -> [assign (name ["ores"]) (J.ExpName objP)]
              let cvar = [localClassDecl ("Fun" ++ show n)
                                      closureClass
                                      (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
@@ -235,7 +245,7 @@ trans self = let this = up self
 
              let fstmt = [localVar (classTy "f2j.unbox.Closure") (varDecl x1 (funInstCreate n))]
 
-             return (cvar ++ fstmt, Left (error "Only had object variable.", name [x1]) ,Type lname t (const t1))
+             return (cvar ++ fstmt, SingleVar $ name [x1] ,Type lname t (const t1))
     ,
 
   createWrap = \className fExp ->
@@ -246,8 +256,9 @@ trans self = let this = up self
              CFBool -> error "Boolean conversion not implemented."
              CFChar -> error "Character conversion not implemented." -- Character.toChars(int value)
              CFDouble -> error "Floating point conversion not implemented."
-             _ -> [bStmt $ J.Return $ Just (case e of Left (_,x2) -> J.ExpName x2
-                                                      Right z -> J.Lit z)]
+             _ -> [bStmt $ J.Return $ Just (case e of SingleVar x -> J.ExpName x
+                                                      DualVar (_,x2) -> J.ExpName x2 -- or x1?
+                                                      PrimLit z -> J.Lit z)]
 
 
       let mainDecl = wrapperClass className (bs ++ returnStmt) (Just (javaType t)) mainBody
