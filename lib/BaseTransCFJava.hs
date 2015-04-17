@@ -43,7 +43,7 @@ type InitVars = [J.BlockStmt]
 
 data Translate m =
     T {
-    translateScopeM :: EScope Var (Var, Type Var) -> S.ReaderId -> m ([J.BlockStmt],TransJavaExp,TScope Var),
+    translateScopeM :: EScope Var (Var, Type Var) -> m ([J.BlockStmt],TransJavaExp,TScope Var),
     translateM :: Expr Var (Var,Type Var) -> m TransType,
     createWrap :: String -> Expr Var (Var,Type Var) -> m (J.CompilationUnit,Type Var)}
 
@@ -109,18 +109,18 @@ trans self = let this = up self
       TApp expr t ->
        do (n :: Int) <- get
           put (n + 1) -- needed to distinguish different type variables
-          (s,je,Forall (Kind f)) <- translateM this expr
-          let fn = localvarstr ++ show n
+          (s,je,Forall (Kind lname f)) <- translateM this expr
+          let fn = lname ++ show n
           -- ??? hack
           return (s,je,scope2ctyp (substScope' (name [fn], name [fn]) t (f (name [fn], name [fn]))))
 
       App e1 e2 ->
-        do (s1,Left (_,j1),Forall (Type _ g)) <- translateM this e1
+        do (s1,Left (_,j1),Forall (Type fname _ g)) <- translateM this e1
            (s2,j2,t2) <- translateM this e2
            let retTyp = g ()
            (n :: Int) <- get
            put (n+2)
-           let f = localvarstr ++ show n
+           let f = fname ++ show n
            let fexp = J.ExpName $ name [f]
            let fargAssign = case t2 of
                 CFLong -> [assignField (fieldAccExp fexp "larg") (unwrap j2)]
@@ -158,8 +158,8 @@ trans self = let this = up self
            let s3 = fd : fargAssign ++ apply ++ tempVars
            return (s1 ++ s2 ++ s3,Left (name [xfl], name [xfo]), rt)
 
-      Lam lname se ->
-            do (s,je,t) <- translateScopeM this se lname
+      Lam se ->
+            do (s,je,t) <- translateScopeM this se
                return (s,je,Forall t)
 
 
@@ -170,22 +170,22 @@ trans self = let this = up self
                ,
 
   translateScopeM =
-    \e lname ->
+    \e ->
       case e of
 
         Body t ->
           do (s,je,t1) <- translateM this t
              return (s,je,Body t1)
 
-        Kind f ->
+        Kind lname f ->
           do (n :: Int) <- get
              put (n + 1) -- needed to distingush type variable
              let xl = name ["l" ++ lname ++ show n]
              let xo = name ["o" ++ lname ++ show n]
-             (s,je,t1) <- translateScopeM this (f (xl, xo)) lname
-             return (s,je,Kind (\a -> substScope' (xl, xo) (TVar a) t1))
+             (s,je,t1) <- translateScopeM this (f (xl, xo))
+             return (s,je,Kind lname (\a -> substScope' (xl, xo) (TVar a) t1))
 
-        Type t g ->
+        Type lname t g ->
           do (n :: Int) <- get
              let x1 = lname ++ show n
              let x2l = "l" ++ lname ++ show (n + 1)
@@ -211,10 +211,10 @@ trans self = let this = up self
 
 
              let closureClass = "f2j.unbox.Closure"
-             (ostmts,oexpr,t1) <- translateScopeM this nextInClosure lname
+             (ostmts,oexpr,t1) <- translateScopeM this nextInClosure
              let t1' = case t1 of
-                           Kind _ -> error "Found Kind, where Type or Body expected."
-                           Type _ _ -> Forall t1
+                           Kind _ _ -> error "Found Kind, where Type or Body expected."
+                           Type _ _ _ -> Forall t1
                            Body b -> b
 
              let outAssignment = case t1' of
@@ -235,7 +235,7 @@ trans self = let this = up self
 
              let fstmt = [localVar (classTy "f2j.unbox.Closure") (varDecl x1 (funInstCreate n))]
 
-             return (cvar ++ fstmt, Left (error "Only had object variable.", name [x1]) ,Type t (const t1))
+             return (cvar ++ fstmt, Left (error "Only had object variable.", name [x1]) ,Type lname t (const t1))
     ,
 
   createWrap = \className fExp ->

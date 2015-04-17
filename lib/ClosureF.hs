@@ -29,8 +29,8 @@ import Data.List (intersperse)
 
 data Scope b t e =
       Body b
-    | Kind (t -> Scope b t e)
-    | Type (Type t) (e -> Scope b t e)
+    | Kind (S.ReaderId) (t -> Scope b t e)
+    | Type (S.ReaderId) (Type t) (e -> Scope b t e)
 
 type TScope t = Scope (Type t) t ()
 
@@ -52,7 +52,7 @@ data Type t =
 data Expr t e =
      Var S.ReaderId e
    | FVar Int
-   | Lam S.ReaderId (EScope t e)
+   | Lam (EScope t e)
    | App (Expr t e) (Expr t e)
    | TApp (Expr t e) (Type t)
    | PrimOp (Expr t e) S.Operator (Expr t e)
@@ -82,8 +82,8 @@ data Alt t e = ConstrAlt (Constructor t) [S.ReaderId] ([e] -> Expr t e)
 -- System F to Closure F
 
 ftyp2scope :: C.Type t -> TScope t
-ftyp2scope (C.Forall _ f)   = Kind (\a -> ftyp2scope (f a))
-ftyp2scope (C.Fun t1 t2)  = Type (ftyp2ctyp t1) (\_ -> ftyp2scope t2)
+ftyp2scope (C.Forall x f)   = Kind x (\a -> ftyp2scope (f a))
+ftyp2scope (C.Fun t1 t2)  = Type ("fx") (ftyp2ctyp t1) (\_ -> ftyp2scope t2) --TODO: correct name?
 ftyp2scope t             = Body (ftyp2ctyp t)
 -- ftyp2scope PFInt         = Body CInt
 -- ftyp2scope (FTVar x)     = Body (CTVar x)
@@ -160,16 +160,16 @@ fexp2cexp (C.Data recflag binds e) = Data recflag (map fdatabind2cdatabind binds
 fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr names f) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp.f)
-fexp2cexp e@(C.Lam n t e1)          = Lam (if n == "_" then "x" else n) (groupLambda e)
-fexp2cexp e                         = Lam "Fun" (groupLambda e)
+fexp2cexp e@(C.Lam n t e1)          = Lam (groupLambda e) --(if n == "_" then "x" else n)
+fexp2cexp e                         = Lam (groupLambda e) --"Fun"
 
 fctr2cctr :: C.Constructor t -> Constructor t
 fctr2cctr (C.Constructor ctrname ctrparams) = Constructor ('$':ctrname) (map ftyp2ctyp ctrparams)
 
 
 adjust :: C.Type t -> EScope t e -> TScope t
-adjust (C.Fun t1 t2) (Type t1' g) = Type t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
-adjust (C.Forall _ f) (Kind g)     = Kind (\t -> adjust (f t) (g t))
+adjust (C.Fun t1 t2) (Type n t1' g) = Type n t1' (\_ -> adjust t2 (g undefined)) -- not very nice!
+adjust (C.Forall n1 f) (Kind n2 g)     = Kind (n1++n2) (\t -> adjust (f t) (g t)) -- n1 == n2??
 adjust t (Body b)               = Body (ftyp2ctyp t)
 adjust _ _ = sorry "ClosureF.adjust: no idea how to do"
 
@@ -181,8 +181,8 @@ groupLambda2 (FLam t f) tenv env =
 -}
 
 groupLambda :: C.Expr t e -> EScope t e
-groupLambda (C.BLam _ f)  = Kind (\a -> groupLambda (f a))
-groupLambda (C.Lam _ t f) = Type (ftyp2ctyp t) (\x -> groupLambda (f x))
+groupLambda (C.BLam n f)  = Kind (if n == "_" then "x" else n) (\a -> groupLambda (f a))
+groupLambda (C.Lam n t f) = Type (if n == "_" then "x" else n) (ftyp2ctyp t) (\x -> groupLambda (f x))
 groupLambda e          = Body (fexp2cexp e)
 
 -- join
@@ -192,7 +192,7 @@ scope2ctyp (Body t)  = t
 scope2ctyp s         = Forall s
 
 getArity :: TScope t -> Int
-getArity (Type _ g) = 1 + getArity (g ())
+getArity (Type _ _ g) = 1 + getArity (g ())
 getArity _ = 0
 
 joinType :: Type (Type t) -> Type t
@@ -208,15 +208,15 @@ joinType (ListType t) = ListType (joinType t)
 
 joinTScope :: TScope (Type t) -> TScope t
 joinTScope (Body b)   = Body (joinType b)
-joinTScope (Kind f)   = Kind (joinTScope . f . TVar)
-joinTScope (Type t f) = let t' = joinType t in Type t' (\x -> joinTScope (f x))
+joinTScope (Kind n f)   = Kind n (joinTScope . f . TVar)
+joinTScope (Type n t f) = let t' = joinType t in Type n t' (\x -> joinTScope (f x))
 
 -- Free variable substitution
 
 substScope :: Subst t => Int -> Type Int -> TScope t  -> TScope t
 substScope n t (Body t1) = Body (substType n t t1)
-substScope n t (Kind f)  = Kind (\a -> substScope n t (f a))
-substScope n t (Type t1 f) = Type (substType n t t1) (\x -> substScope n t (f x))
+substScope n t (Kind name f)  = Kind name (\a -> substScope n t (f a))
+substScope n t (Type name t1 f) = Type name (substType n t t1) (\x -> substScope n t (f x))
 
 substType :: Subst t => Int -> Type Int -> Type t -> Type t
 substType n t (TVar x) = subst n t x
@@ -228,8 +228,8 @@ type JVar = (J.Name, J.Name)
 -- TODO: temp fix
 substScope' :: Subst t => JVar -> Type JVar -> Scope (Type t) t () -> Scope (Type t) t ()
 substScope' n t (Body t1) = Body (substType' n t t1)
-substScope' n t (Kind f)  = Kind (\a -> substScope' n t (f a))
-substScope' n t (Type t1 f) = Type (substType' n t t1) (\x -> substScope' n t (f x))
+substScope' n t (Kind name f)  = Kind name (\a -> substScope' n t (f a))
+substScope' n t (Type name t1 f) = Type name (substType' n t t1) (\x -> substScope' n t (f x))
 
 substType' :: Subst t => JVar -> Type JVar -> Type t -> Type t
 substType' n t (TVar x) = subst' n t x
@@ -268,18 +268,18 @@ prettyTScope :: Prec -> Index -> TScope Index -> Doc
 prettyTScope p i (Body t) = prettyType p i t
 
 --To be modified.
-prettyTScope p i (Kind f) = nest 2 (text "TScope_Kind(" <$> text "\\_ -> " <> prettyTScope p i (f 0)) <$> text ")"
+prettyTScope p i (Kind name f) = nest 2 (text "TScope_Kind(" <$> text "\\_ -> " <> prettyTScope p i (f 0)) <$> text ")"
 
-prettyTScope p i (Type t f) = prettyType p i t <+> text "->" <+> prettyTScope p i (f ())
+prettyTScope p i (Type name t f) = prettyType p i t <+> text "->" <+> prettyTScope p i (f ())
 
 prettyEScope :: Prec -> (Index, Index) -> EScope Index Index -> Doc
 
 prettyEScope p i (Body t) = prettyExpr p i t
 
 --To be modified. Lack of necessary parens. (Int -> Int) -> Int -> Int.
-prettyEScope p (i, j) (Kind f) = text "/\\" <+> prettyTVar i <> dot <$> prettyEScope p (succ i, j) (f i)
+prettyEScope p (i, j) (Kind name f) = text "/\\" <+> prettyTVar i <> dot <$> prettyEScope p (succ i, j) (f i)
 
-prettyEScope p (i, j) (Type t f) = backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$> prettyEScope p (i, succ j) (f j)
+prettyEScope p (i, j) (Type name t f) = backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$> prettyEScope p (i, succ j) (f j)
 
 prettyType :: Prec -> Index -> Type Index -> Doc
 
@@ -309,11 +309,11 @@ prettyExpr _ _ (Var _ x) = prettyVar x
 
 prettyExpr _ _ (FVar x) = text "FVar()"
 
-prettyExpr p i (Lam _ e) = nest 2 (text "Lam(" <$> prettyEScope p i e) <$> text ")"
+prettyExpr p i (Lam e) = nest 2 (text "Lam(" <$> prettyEScope p i e) <$> text ")"
 
-prettyExpr p i (App (Lam _ e1) e2) =
+prettyExpr p i (App (Lam e1) e2) =
   nest 2 (text "App(" <$>
-  prettyExpr p i (Lam "" e1) <> comma <$>
+  prettyExpr p i (Lam e1) <> comma <$>
   prettyExpr p i e2) <$>
   text ")"
 
