@@ -137,7 +137,7 @@ data Expr id ty
 
   | JNew ClassName [LExpr id ty]
   | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName
-  | JField  (JCallee (LExpr id ty)) FieldName            ClassName
+  | JField  (JCallee (LExpr id ty)) FieldName            Type
   | Seq [LExpr id ty]
   | PolyList [LExpr id ty] ty
   | Merge (LExpr id ty) (LExpr id ty)
@@ -156,6 +156,7 @@ data Expr id ty
   | CaseString (LExpr id ty) [Alt id ty] --pattern match on string
   | ConstrTemp Name
   | Constr Constructor [LExpr id ty] -- post typecheck only
+                                     -- the last type in Constructor will always be the real type
   | CaseCast (LExpr id ty) Constructor
   | JProxyCall (LExpr id ty) ty
   deriving (Eq, Show)

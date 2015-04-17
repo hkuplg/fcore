@@ -307,7 +307,7 @@ checkExpr (L _ (App e1 e2)) =
              Fun t11 t12 ->
                  do d <- getTypeContext
                     unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2 `withExpr` e2)
-                    return (t12, L loc $ Constr (Constructor n ts) (es ++ [e2']))
+                    return (t12, L loc $ Constr (Constructor n (init ts ++ [t11,t12])) (es ++ [e2']))
              _ -> throwError (NotAFunction t1 `withExpr` e1)
        _ ->
         case t1 of
@@ -347,10 +347,7 @@ checkExpr (L loc (TApp e arg))
        case t of
          Forall a t1 -> let t' = fsubstTT (a, arg') t1
                         in case e' of
-                             L loc' (Constr (Constructor n _) es) ->
-                               case t' of
-                                 Forall _ _ -> return (t', e')
-                                 _ -> return (t', L loc' $ Constr (Constructor n (unwrapFun t')) es) -- all type parameters instantiated
+                             L loc' (Constr (Constructor n _) es) -> return (t', L loc' $ Constr (Constructor n [t']) es)
                              _ -> return (t', L loc $ TApp e' arg')
          _           -> sorry "TypeCheck.infer: TApp"
 
@@ -489,7 +486,7 @@ checkExpr (L loc (JField callee f _)) =
   case callee of
     Static c ->
       do ret_c <- checkFieldAccess (Static c) f
-         return (JType (JClass ret_c), L loc $ JField (Static c) f ret_c)
+         return (JType (JClass ret_c), L loc $ JField (Static c) f (JType $ JClass ret_c))
          -- if ret_c == "char"
          --    then return (JType (JPrim ret_c), JField (Static c) f ret_c)
          --    else return (JType (JClass ret_c), JField (Static c) f ret_c)
@@ -498,7 +495,7 @@ checkExpr (L loc (JField callee f _)) =
          case t of
            JType (JClass c) ->
              do ret_c   <- checkFieldAccess (NonStatic c) f
-                return (JType (JClass ret_c), JField (NonStatic e') f ret_c `withLoc` e')
+                return (JType (JClass ret_c), JField (NonStatic e') f (JType $ JClass ret_c) `withLoc` e')
                 -- if ret_c == "char"
                 --   then return (JType (JPrim "char"), JField (NonStatic e') f ret_c)
                 --   else return (JType (JClass ret_c), JField (NonStatic e') f ret_c)
@@ -634,9 +631,7 @@ checkExpr (L loc (Data recflag databinds e)) =
 checkExpr e@(L loc (ConstrTemp name)) =
     do g <- getValueContext
        case Map.lookup name g of
-         Just t  -> case t of
-                      Forall _ _ -> return (t, L loc $ Constr (Constructor name []) [])
-                      _ -> return (t, L loc $ Constr (Constructor name (unwrapFun t)) []) -- non-parameterized constructors
+         Just t  -> return (t, L loc $ Constr (Constructor name [t]) []) -- the last type will always be the real type
          Nothing -> throwError (NotInScope name `withExpr` e)
 
 checkExpr expr@(L loc (Case e alts)) =

@@ -66,7 +66,7 @@ infer i j (FI.Tuple es)           = FI.Product . map (infer i j) $ es
 infer i j (FI.Proj index e)       = ts !! (index - 1)                            where FI.Product ts = infer i j e
 infer i j (FI.JNew c _)           = FI.JClass c
 infer i j (FI.JMethod _ _ _ c)    = FI.JClass c
-infer i j (FI.JField _ _ c)       = FI.JClass c
+infer i j (FI.JField _ _ c)       = c
 infer i j (FI.Seq es)             = infer i j (last es)
 infer i j (FI.Merge e1 e2)        = FI.And (infer i j e1) (infer i j e2)
 infer i j (FI.RecordCon (l, e))   = FI.RecordType (l, infer i j e)
@@ -78,9 +78,7 @@ infer i j (FI.Constr c _)         = last . FI.constrParams $ c
 infer i j (FI.Case _ alts)        = inferAlt . head $ alts
   where inferAlt (FI.ConstrAlt _ e) = infer i j e
         inferAlt (FI.Default e)       = infer i j e
-infer i j (FI.CaseCast _ (FI.Constructor nam ty)) =
-    let (FI.Datatype nam' _ _) = last ty
-    in if length ty == 1 then FI.JClass ('$':nam') else FI.JClass ('$':nam' ++ ('$': nam)) --related to name clash
+infer i j (FI.CaseCast _ (FI.Constructor _ ty)) = last ty
 infer i j (FI.Data _ _ e)         = infer i j e
 infer _ _ _                       = trace "Unsupported: Simplify.infer" FI.Unit
 
@@ -121,7 +119,7 @@ transExpr i j (FI.Tuple es)                = Tuple . map (transExpr i j) $ es
 transExpr i j (FI.Proj index e)            = Proj index $ transExpr i j e
 transExpr i j (FI.JNew c es)               = JNew c . map (transExpr i j) $ es
 transExpr i j (FI.JMethod c m arg ret)     = JMethod (fmap (transExpr i j) c) m (map (transExpr i j) arg) ret
-transExpr i j (FI.JField c m ret)          = JField (fmap (transExpr i j) c) m ret
+transExpr i j (FI.JField c m ret)          = JField (fmap (transExpr i j) c) m (transType i ret)
 transExpr i j (FI.Seq es)                  = Seq . map (transExpr i j) $ es
 transExpr i j (FI.Merge e1 e2)             = Tuple . map (transExpr i j) $ [e1, e2]
 transExpr i j (FI.RecordCon (l, e))        = transExpr i j e
@@ -297,7 +295,7 @@ dedeBruE i as j xs (JNew c args)                  = JNew c (map (dedeBruE i as j
 dedeBruE i as j xs (JMethod callee m args r)      = JMethod
                                                       (fmap (dedeBruE i as j xs) callee) m
                                                       (map (dedeBruE i as j xs) args) r
-dedeBruE i as j xs (JField callee f r)            = JField (fmap (dedeBruE i as j xs) callee) f r
+dedeBruE i as j xs (JField callee f r)            = JField (fmap (dedeBruE i as j xs) callee) f (dedeBruT i as r)
 dedeBruE i as j xs (Seq es)                       = Seq (map (dedeBruE i as j xs) es)
 dedeBruE i as j xs (Constr (Constructor n ts) es) = Constr
                                                       (Constructor n (map (dedeBruT i as) ts))

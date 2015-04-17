@@ -66,7 +66,7 @@ data Expr t e =
    -- Java
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
-   | JField  (Either ClassName (Expr t e)) FieldName ClassName
+   | JField  (Either ClassName (Expr t e)) FieldName (Type t)
    | PolyList [Expr t e] (Type t)
    | JProxyCall (Expr t e) (Type t)
    | SeqExprs [Expr t e]
@@ -146,8 +146,8 @@ fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
             (S.Static cn)    -> JMethod (Left cn) mName (map fexp2cexp args) r
 fexp2cexp (C.JField c fName r) =
-  case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName r
-            (S.Static cn)    -> JField (Left cn) fName r
+  case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName (ftyp2ctyp r)
+            (S.Static cn)    -> JField (Left cn) fName (ftyp2ctyp r)
 fexp2cexp (C.PolyList es t)     = PolyList (map fexp2cexp es) (ftyp2ctyp t)
 fexp2cexp (C.JProxyCall jmethod t) = JProxyCall (fexp2cexp jmethod) (ftyp2ctyp t)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
