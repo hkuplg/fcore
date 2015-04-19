@@ -35,10 +35,11 @@ library
                       , transformers == 0.3.*
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
-  hs-source-dirs:       lib,lib/services,lib/typeCheck,lib/simplify
+  hs-source-dirs:       lib,lib/BaseTransCFJava,lib/services,lib/typeCheck,lib/simplify
   exposed-modules:      ApplyTransCFJava
                         BackEnd
                         BaseTransCFJava
+                        BaseTransCFJava.Helper
                         BenchGenCF2J
                         BenchGenStack
                         ClosureF

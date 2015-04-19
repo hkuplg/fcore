@@ -37,12 +37,6 @@ data TransJavaExp = SingleVar J.Name
                   | DualVar (J.Name, J.Name) -- (primitive, reference)
                   | PrimLit J.Literal
 
-unwrap :: TransJavaExp -> J.Exp
-unwrap x = case x of
-  SingleVar (J.Name xs) -> J.ExpName . J.Name $ xs
-  DualVar ((J.Name xs), _) -> J.ExpName . J.Name $ xs
-  PrimLit e -> J.Lit e
-
 type TransType = ([J.BlockStmt], TransJavaExp, Type Var)
 type InitVars = [J.BlockStmt]
 
@@ -93,16 +87,30 @@ convertExp :: VarAssignment -> Type Var -> J.Exp -> J.Exp
 convertExp FromField CFBool pExp = J.BinOp pExp J.Equal (J.Lit $ J.Int 1)
 convertExp ToField CFBool pExp = error "Boolean assignment conversion not implemented."
 
-multiAssignment :: VarAssignment -> Type Var -> TransJavaExp -> (J.Exp -> J.BlockStmt, J.Exp -> J.BlockStmt) -> Var -> ([J.BlockStmt], TransJavaExp)
+unwrap :: Either TransJavaExp (J.Exp, J.Exp) -> J.Exp
+unwrap x = case x of
+  Left (SingleVar xs) -> J.ExpName xs
+  Left (DualVar (xs, _)) -> J.ExpName xs
+  Left (PrimLit e) -> J.Lit e
+  Right (j1, _) -> j1
+
+
+doubleUnwrap :: Either TransJavaExp (J.Exp, J.Exp) -> (J.Exp, J.Exp)
+doubleUnwrap x = case x of
+  Left (DualVar (xs, ys)) -> (J.ExpName xs, J.ExpName ys)
+  Right t -> t
+
+multiAssignment :: VarAssignment -> Type Var -> Either TransJavaExp (J.Exp, J.Exp) -> (J.Exp -> J.BlockStmt, J.Exp -> J.BlockStmt) -> Var -> ([J.BlockStmt], TransJavaExp)
 multiAssignment dir t trExp (primA, objA) (primRN, objRN) = case t of
-  CFLong -> ([primA (unwrap trExp)], SingleVar $ primRN)
-  CFBool -> ([primA (convertExp dir t (unwrap trExp))], SingleVar $ primRN)
+  CFLong -> ([primA (unwrap trExp)], SingleVar primRN)
+  CFBool -> ([primA (convertExp dir t (unwrap trExp))], SingleVar primRN)
   CFChar -> error "Character conversion not implemented." -- Character.toChars(int value)
   CFDouble -> error "Floating point conversion not implemented." -- Double.longBitsToDouble(long value)
-  TVar _ -> let (longP, objP) = case trExp of DualVar (y1,y2) -> (y1,y2) in ([primA (J.ExpName longP),
-    objA (J.ExpName objP)], DualVar $ (primRN, objRN))
-  _ -> case trExp of SingleVar objP -> ([objA (J.ExpName objP)], SingleVar $ objRN)
-                     _ -> error "expected a single variable, got a dual or a literal"
+  TVar _ -> let (longP, objP) = doubleUnwrap trExp in ([primA longP,
+    objA objP], DualVar (primRN, objRN))
+  _ -> case trExp of (Left (SingleVar objP)) -> ([objA (J.ExpName objP)], SingleVar objRN)
+                     (Right (_, objP)) -> ([objA objP], SingleVar objRN)
+                     _ -> error "expected a variable, got a literal"
 
 {-
 let fargAssign = case t2 of

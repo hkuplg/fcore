@@ -29,7 +29,7 @@ import           JavaEDSL(wrapperClass,bStmt,mainBody,var,classTy,
                           -- needed by app
                           assignField, applyMethodCall,fieldAccExp)
 import qualified Src as S
-import           StringPrefixes(localvarstr)
+import           StringPrefixes(localvarstr, closureOutputO, closureOutputL)
 
 -- messy lam/fixpoint
 import           Debug.Trace
@@ -54,8 +54,8 @@ trans self = let this = up self
       PrimOp e1 op e2 ->
             do (s1,j1,_) <- translateM this e1
                (s2,j2,_) <- translateM this e2
-               let j1' = unwrap j1
-               let j2' = unwrap j2
+               let j1' = unwrap (Left j1)
+               let j2' = unwrap (Left j2)
                let (jexpr,typ) = case op of
                                    (S.Arith realOp) -> (J.BinOp j1' realOp j2', CFLong)
                                    (S.Compare realOp) -> (J.BinOp j1' realOp j2', CFBool)
@@ -81,37 +81,28 @@ trans self = let this = up self
            put (n+2)
            let f = fname ++ show n
            let (primitiveAccessField, objectAccessField) = dualArgFields f
-           let fargAssign = case t2 of
-                CFLong -> [assignField primitiveAccessField (unwrap j2)]
-                CFBool -> error "Boolean assignment conversion not implemented."
-                CFChar -> error "Character assignment conversion not implemented." -- Character.toChars(int value)
-                CFDouble -> error "Floating point assignemnt conversion not implemented." -- Double.longBitsToDouble(long value)
-                TVar _ -> let (longP, objP) = case j2 of DualVar (y1,y2) -> (y1,y2) in [assignField primitiveAccessField (J.ExpName longP),
-                  assignField objectAccessField (J.ExpName objP)]
 
-                _ -> case j2 of DualVar (_,objP) -> [assignField objectAccessField (J.ExpName objP)]
-                                PrimLit l -> [assignField primitiveAccessField (J.Lit l)] -- Unit?
+           -- TODO: the final parameter (name [f], name [f]) to Nothing?
+           let (fargAssign, _) = multiAssignment ToField t2 (Left j2)
+                                (assignField primitiveAccessField,
+                                assignField objectAccessField) (name [f], name [f])
+
            let fd = localVar (classTy "f2j.unbox.Closure") (varDecl f (J.ExpName j1))
-           let primitiveResultField = fieldAccess (J.ExpName (name [f])) "lres"
-           let objectResultField = fieldAccess (J.ExpName (name [f])) "ores"
-           let apply = [bStmt $ applyMethodCall (J.ExpName $ name [fname])]
+           let primitiveResultField = fieldAccess (J.ExpName (name [f])) closureOutputL
+           let objectResultField = fieldAccess (J.ExpName (name [f])) closureOutputO
+           let apply = [bStmt $ applyMethodCall (J.ExpName $ name [f])]
 
            let xfl = "l" ++ localvarstr ++ show (n+1)
            let xfo = "o" ++ localvarstr ++ show (n+1)
            let rt = scope2ctyp retTyp
            let typRT = javaType rt
            let flag = typRT == objClassTy
-           let (tempVars, finalExpr) = case rt of
-                CFLong -> ([localFinalVar typRT (varDecl xfl primitiveResultField)], SingleVar $ name [xfl])
-                CFBool -> ([localFinalVar typRT (varDecl xfl (J.BinOp primitiveResultField J.Equal (J.Lit $ J.Int 1)))], SingleVar $ name [xfl])
-                CFChar -> error "Character conversion not implemented." -- Character.toChars(int value)
-                CFDouble -> error "Floating point conversion not implemented." -- Double.longBitsToDouble(long value)
-                TVar _ -> ([localFinalVar (J.PrimType J.LongT) (varDecl xfl primitiveResultField),
-                          localFinalVar typRT (varDecl xfo objectResultField)], DualVar (name [xfl], name [xfo]))
-
-                _ -> ([localFinalVar typRT (varDecl xfo (if flag
-                   then objectResultField
-                   else cast typRT objectResultField))], SingleVar $ name [xfo])
+           let primRT = case rt of (TVar _) -> J.PrimType J.LongT
+                                   _ -> typRT
+           let objFun field = localFinalVar typRT (varDecl xfo (if flag then field else cast typRT field))
+           let (tempVars, finalExpr) = multiAssignment FromField rt (Right (primitiveResultField, objectResultField))
+                                (localFinalVar primRT . varDecl xfl,
+                                objFun) (name [xfl], name [xfo])
 
            let s3 = fd : fargAssign ++ apply ++ tempVars
            return (s1 ++ s2 ++ s3, finalExpr, rt)
@@ -153,17 +144,13 @@ trans self = let this = up self
              let (primitiveAccessField, objectAccessField)  = (J.FieldAccess primitiveField, J.FieldAccess objectField)
              let typT1 = javaType t
              let flag = typT1 == objClassTy
-             let tempVars = case t of
-                  CFLong -> [localFinalVar typT1 (varDecl x2l primitiveAccessField)]
-                  CFBool -> [localFinalVar typT1 (varDecl x2l (J.BinOp primitiveAccessField J.Equal (J.Lit $ J.Int 1)))]
-                  CFChar -> error "Character conversion not implemented." -- Character.toChars(int value)
-                  CFDouble -> error "Floating point conversion not implemented." -- Double.longBitsToDouble(long value)
-                  TVar _ -> [localFinalVar (J.PrimType J.LongT) (varDecl x2l primitiveAccessField),
-                            localFinalVar typT1 (varDecl x2o objectAccessField)]
+             let primRT = case t of (TVar _) -> J.PrimType J.LongT
+                                    _ -> typT1
+             let objFun field = localFinalVar typT1 (varDecl x2o (if flag then field else cast typT1 field))
 
-                  _ -> [localFinalVar typT1 (varDecl x2o (if flag
-                     then objectAccessField
-                     else cast typT1 objectAccessField))]
+             let (tempVars, _) = multiAssignment FromField t (Right (primitiveAccessField, objectAccessField))
+                                  (localFinalVar primRT . varDecl x2l,
+                                  objFun) (name [x2l], name [x2o])
 
              let nextInClosure = g ((name [x2l], name [x2o]),t)
 
@@ -172,18 +159,13 @@ trans self = let this = up self
              (ostmts,oexpr,t1) <- translateScopeM this nextInClosure
              let t1' = case t1 of
                            Kind _ _ -> error "Found Kind, where Type or Body expected."
-                           Type _ _ _ -> Forall t1
+                           Type {} -> Forall t1
                            Body b -> b
 
-             let outAssignment = case t1' of
-                  CFLong -> [assign (name ["lres"]) (unwrap oexpr)]
-                  CFBool -> error "Boolean assignment conversion not implemented."
-                  CFChar -> error "Character assignment conversion not implemented." -- Character.toChars(int value)
-                  CFDouble -> error "Floating point assignemnt conversion not implemented." -- Double.longBitsToDouble(long value)
-                  TVar _ -> let (longP, objP) = case oexpr of DualVar (y1,y2) -> (y1,y2) in [assign (name ["lres"]) (J.ExpName longP),
-                            assign (name ["ores"]) (J.ExpName objP)]
+             let (outAssignment, _) = multiAssignment ToField t1' (Left oexpr)
+                                  (assign (name [closureOutputL]),
+                                  assign (name [closureOutputO])) (name [x1], name [x1])
 
-                  _ -> case oexpr of SingleVar objP -> [assign (name ["ores"]) (J.ExpName objP)]
              let cvar = [localClassDecl ("Fun" ++ show n)
                                      closureClass
                                      (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
@@ -200,7 +182,7 @@ trans self = let this = up self
     do
       (bs,e,t) <- translateM this fExp
       let returnStmt = case t of
-             CFLong -> [bStmt $ J.Return $ Just (unwrap e)]
+             CFLong -> [bStmt $ J.Return $ Just (unwrap (Left e))]
              CFBool -> error "Boolean conversion not implemented."
              CFChar -> error "Character conversion not implemented." -- Character.toChars(int value)
              CFDouble -> error "Floating point conversion not implemented."
