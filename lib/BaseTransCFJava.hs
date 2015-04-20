@@ -111,9 +111,16 @@ trans self = let this = up self
             do (s,je,t) <- translateScopeM this se
                return (s,je,Forall t)
 
-
-      -- TODO: finish (workaround the current nonsense lets)
-      Let lname expr b -> translateM this (b (undefined,undefined))
+      Let lname expr b ->
+        do (s1, j1, t1) <- translateM this expr
+           (n :: Int) <- get
+           put (n + 1)
+           let x = lname ++ show n
+           -- hack?
+           (s2, j2, t2) <- translateM this (b ((name [x], name [x]), t1))
+           let javaT1 = javaType t1
+           let xDecl = localVar javaT1 (varDecl x $ unwrap (Left j1))
+           return (s1 ++ [xDecl] ++ s2, j2, t2)
                 -- TODO: rest; just default to be able to run tests
       _ -> return ([], PrimLit J.Null, Unit)
                ,

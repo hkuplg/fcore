@@ -106,9 +106,11 @@ multiAssignment dir t trExp (primA, objA) (primRN, objRN) = case t of
   CFBool -> ([primA (convertExp dir t (unwrap trExp))], SingleVar primRN)
   CFChar -> error "Character conversion not implemented." -- Character.toChars(int value)
   CFDouble -> error "Floating point conversion not implemented." -- Double.longBitsToDouble(long value)
+  Unit -> ([], PrimLit J.Null)
   TVar _ -> let (longP, objP) = doubleUnwrap trExp in ([primA longP,
     objA objP], DualVar (primRN, objRN))
   _ -> case trExp of (Left (SingleVar objP)) -> ([objA (J.ExpName objP)], SingleVar objRN)
+                     (Left (DualVar (_, objP))) -> ([objA (J.ExpName objP)], SingleVar objRN)
                      (Right (_, objP)) -> ([objA objP], SingleVar objRN)
                      _ -> error "expected a variable, got a literal"
 
