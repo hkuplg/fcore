@@ -67,12 +67,11 @@ data Expr t e =
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
    | JField  (Either ClassName (Expr t e)) FieldName ClassName
-   | PolyList [Expr t e] (Type t)
-   | JProxyCall (Expr t e) (Type t)
    | SeqExprs [Expr t e]
    | Data S.RecFlag [DataBind t] (Expr t e)
    | Constr (Constructor t) [Expr t e]
    | Case (Expr t e) [Alt t e]
+   | Error (Type t) (Expr t e)
 
 data DataBind t = DataBind S.ReaderId [S.ReaderId] ([t] -> [Constructor t])
 data Constructor t = Constructor {constrName :: S.ReaderId, constrParams :: [Type t]}
@@ -101,7 +100,6 @@ ftyp2ctyp (C.JClass "java.lang.Character") = JClass "java.lang.Character"
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp (C.Unit)                       = Unit
-ftyp2ctyp (C.ListOf t)                   = ListType (ftyp2ctyp t)
 ftyp2ctyp (C.Datatype name params ctrnames ) = Datatype ('$':name) (map ftyp2ctyp params) (map ('$':)ctrnames)
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
@@ -146,8 +144,7 @@ fexp2cexp (C.JMethod c mName args r) =
 fexp2cexp (C.JField c fName r) =
   case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName r
             (S.Static cn)    -> JField (Left cn) fName r
-fexp2cexp (C.PolyList es t)     = PolyList (map fexp2cexp es) (ftyp2ctyp t)
-fexp2cexp (C.JProxyCall jmethod t) = JProxyCall (fexp2cexp jmethod) (ftyp2ctyp t)
+fexp2cexp (C.Error ty str)         = Error (ftyp2ctyp ty) (fexp2cexp str)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp (C.Data recflag binds e) = Data recflag (map fdatabind2cdatabind binds) (fexp2cexp e)
     where fdatabind2cdatabind (C.DataBind name params ctrs) = DataBind ('$':name) params (map fctr2cctr . ctrs)
@@ -373,8 +370,7 @@ prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
     fieldStr (Left x)  = text x
     fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
 
-prettyExpr p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr p i ) $ es
-prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text ")" <> prettyExpr p (i,j) jmethod
+prettyExpr p i (Error _ str) = text "error:" <+> prettyExpr p i str
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
 
