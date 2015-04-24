@@ -63,7 +63,7 @@ data Expr t e =
    | Let S.ReaderId (Expr t e) (e -> Expr t e)
    -- fixpoints
    | LetRec [S.ReaderId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
-   | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
+   | Fix S.ReaderId (Type t) (e -> EScope t e)
    -- Java
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
@@ -143,8 +143,8 @@ fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
 fexp2cexp (C.Let n bind body)        = Let n (fexp2cexp bind) (\e -> fexp2cexp $ body e)
 fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (\decls -> map fexp2cexp (f decls)) (\decls -> fexp2cexp (g decls))
 fexp2cexp (C.Fix n1 n2 f t1 t2) =
-  let  g e = groupLambda (C.Lam (n1 ++ "_" ++ n2) t1 (f e)) -- is this right???? (BUG)
-  in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
+  let  g e = groupLambda (C.Lam (n1 ++ n2) t1 (f e)) -- is this right???? (BUG)
+  in   Fix (if n1 == "_" then "haoyuan" else n1) (Forall (adjust (C.Fun t1 t2) (g undefined))) g
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
@@ -376,7 +376,7 @@ prettyExpr p (i, j) (Let _ x f) =
   text "in" <$$>
   indent 2 (prettyExpr basePrec (i, succ j) (f j))
 
-prettyExpr p (i, j) (Fix _ _ t f) =
+prettyExpr p (i, j) (Fix _ t f) =
   nest 2 (text "Fix(" <$>
   backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$>
   prettyEScope p (i, succ j) (f j)) <$>

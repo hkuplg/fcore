@@ -42,9 +42,9 @@ type InitVars = [J.BlockStmt]
 
 data Translate m =
     T {
-    translateScopeM :: EScope Var (Var, Type Var) -> m ([J.BlockStmt],TransJavaExp,TScope Var),
-    translateM :: Expr Var (Var,Type Var) -> m TransType,
-    createWrap :: String -> Expr Var (Var,Type Var) -> m (J.CompilationUnit,Type Var)}
+    translateScopeM :: EScope Var (Var, Type Var) -> Maybe (Var, Type Var) -> m ([J.BlockStmt],TransJavaExp,TScope Var),
+    translateM :: Expr Var (Var, Type Var) -> m TransType,
+    createWrap :: String -> Expr Var (Var, Type Var) -> m (J.CompilationUnit, Type Var)}
 
 instance (:<) (Translate m) (Translate m) where
   up = id
@@ -71,7 +71,7 @@ javaType typ = case typ of
 assignVar :: Type Var -> String -> J.Exp -> J.BlockStmt
 assignVar t varId e = localFinalVar (javaType t) (varDecl varId e)
 
-dualArgFields fname = let fexp = J.ExpName $ name [fname]
+dualArgFields fname = let fexp = fname
                           primitiveField = fieldAccExp fexp closureInputL
                           referenceField = fieldAccExp fexp closureInputO
                       in (primitiveField, referenceField)
@@ -113,6 +113,11 @@ multiAssignment dir t trExp (primA, objA) (primRN, objRN) = case t of
                      (Left (DualVar (_, objP))) -> ([objA (J.ExpName objP)], SingleVar objRN)
                      (Right (_, objP)) -> ([objA objP], SingleVar objRN)
                      _ -> error "expected a variable, got a literal"
+
+pairUp :: [Var] -> [(TransJavaExp, Type Var)] -> [(Var, Type Var)]
+pairUp bindings vars = exchanged
+ where z = bindings `zip` vars
+       exchanged = map (\(a,(_,c)) -> (a,c)) z
 
 {-
 let fargAssign = case t2 of
