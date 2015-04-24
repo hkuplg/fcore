@@ -35,7 +35,7 @@ library
                       , transformers == 0.3.*
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
-  hs-source-dirs:       lib,lib/services,lib/typeCheck,lib/simplify
+  hs-source-dirs:       lib,lib/services,lib/typeCheck,lib/simplify,repl
   exposed-modules:      ApplyTransCFJava
                         BackEnd
                         BaseTransCFJava
@@ -45,8 +45,10 @@ library
                         Config
                         Core
                         Desugar
+                        Environment
                         FileIO
                         FrontEnd
+                        History
                         IOEnv
                         Inheritance
                         Inliner
@@ -55,6 +57,7 @@ library
                         JvmTypeQuery
                         Lexer
                         Link
+                        Loop
                         Mixin
                         MonadLib
                         OptiUtils
