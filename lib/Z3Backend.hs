@@ -49,12 +49,12 @@ declareAllDatatypes env = go
           go (FI.Data S.NonRec [databind] e1) = declareDatatype env 0 databind : go e1
           go (FI.If e1 e2 e3) = go e1 ++ go e2 ++ go e3
           go (FI.PrimOp e1 _ e2) = go e1 ++ go e2
-          go (FI.Let _ e1 _) = go e1
+          go (FI.Let _ e1 e2) = go e1 ++ go (e2 $ Exp $ SBool True)
           go (FI.TApp e1 _) = go e1
           go (FI.App e1 e2) = go e1 ++ go e2
           go (FI.Constr _ es) = concatMap go es
           go (FI.Case e1 _) = go e1
-          go _ = []
+          go e = error $ show e
 
 -- Declare a datatype, e.g. List: mkDatatype "List" [Nil, Cons]
 declareDatatype :: Z3Env -> Int -> FI.DataBind () -> Z3 (String, Sort)
