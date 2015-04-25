@@ -12,7 +12,7 @@ Portability :  portable
 module Z3ModelParser where
 
 import           Control.Applicative           ((<$>))
-import           Data.Char                     (toLower)
+import           Data.Char                     (toUpper)
 import qualified Data.IntMap                   as IntMap
 import           Text.ParserCombinators.Parsec
 
@@ -20,11 +20,6 @@ import           Text.ParserCombinators.Parsec
 -- Cons -> {
 --   (Cons!2885 (k!2883 (:var 0)) (k!2884 (:var 1)))
 -- }
--- TODO: unknown format: let bindings
--- k!1 -> (let ((a!1 (Cons 1 (Cons 2 (Cons 3 (Cons 4 Nil)))))
---              (...))
---          (Cons 0 a!1))
-
 -- NOTE: Use `try` when alternatives share one prefix, otherwise the stream will be consumed
 
 parseModel :: String -> [Bind]
@@ -94,7 +89,7 @@ instance Show MExpr where
 
 instance Show MValue where
     show (MInt i) = show i
-    show (MBool b) = let c:cs = show b in toLower c : cs
+    show (MBool b) = let c:cs = show b in toUpper c : cs
     show (MSort s i) = s ++ "!val!" ++ show i
     show (MFun [([], v)]) = "{" ++ "\n  " ++ show v ++ "\n" ++ "}"
     show (MFun rs) = unlines ("{" : map showRule rs) ++ "}"
