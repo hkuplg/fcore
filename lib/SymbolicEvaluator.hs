@@ -101,9 +101,8 @@ data ExecutionTree = Exp SymValue
 data SymType = TInt
              | TBool
              | TFun [SymType] SymType
-             | TData S.ReaderId
+             | TData S.ReaderId [S.ReaderId]
              | TAny S.ReaderId
-               deriving Eq
 
 data SymValue = SVar S.ReaderId Int SymType -- free variables
               | SInt Integer
@@ -199,7 +198,7 @@ propagate (NewSymVar i typ t) ts = NewSymVar i typ (propagate t ts)
 transType :: Type () -> SymType
 transType (JClass t) = jname2symtype t
 transType (Fun t1 t2) = TFun [transType t1] (transType t2)
-transType (Datatype n _ _) = TData n
+transType (Datatype n _ ns) = TData n ns
 transType (TVar n _) = TAny n
 transType t = panic $ "transType: " ++ show t
 
@@ -307,8 +306,8 @@ instance Pretty Op where
                  AND -> "&&"
 
 instance Pretty SymValue where
-    -- pretty (SVar n i _) = text n <> int i
-    pretty (SVar _ i _) = text "x" <> int i
+    pretty (SVar n i _) = text n <> int i
+    -- pretty (SVar _ i _) = text "x" <> int i
     -- pretty (SVar n _ _) = text n
     pretty (SInt i) = integer i
     pretty (SBool b) = bool b
