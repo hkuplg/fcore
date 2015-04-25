@@ -142,20 +142,12 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                 loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
 
 #ifdef Z3
+-- #if MIN_VERSION_z3(0,3,2)
           ":se" -> do
                 case getCMD xs of
-                  Just filename -> do expr <- liftIO (OptiUtils.src2fi filename)
-                                      case getCMD (tail xs) of
-                                        Just n -> liftIO $ explore (read n) expr
-                                        Nothing -> liftIO $ explore 20 expr
-                  Nothing       -> outputStrLn "Invalid input"
-                loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
-          ":sc" -> do
-                case getCMD xs of
-                  Just filename -> do expr <- liftIO (OptiUtils.src2fi filename)
-                                      case getCMD (tail xs) of
-                                        Just n -> liftIO $ counter (read n) expr
-                                        Nothing -> liftIO $ counter 20 expr
+                  Just filename -> do
+                    expr <- liftIO (OptiUtils.src2fi filename)
+                    liftIO $ solve expr
                   Nothing       -> outputStrLn "Invalid input"
                 loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
 #endif
@@ -358,8 +350,7 @@ printHelp = do
         putStrLn "                      Link sourceFile with modules"
         putStrLn ":expr <sourceFile>    Show core expression of the file"
 #ifdef Z3
-        putStrLn ":se <sourceFile> n    Symbolically evaluate the file"
-        putStrLn ":sc <sourceFile> n    Symbolically check the file. Report counter-example if the property is not true."
+        putStrLn ":se <sourceFile>      Symbolically evaluate the file"
 #endif
         putStrLn ":let var = expr       Bind expr to var"
         putStrLn ":type var             Show the type of var"
