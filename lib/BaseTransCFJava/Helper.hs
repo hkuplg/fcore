@@ -42,7 +42,7 @@ type InitVars = [J.BlockStmt]
 
 data Translate m =
     T {
-    translateScopeM :: EScope Var (Var, Type Var) -> Maybe (Var, Type Var) -> m ([J.BlockStmt],TransJavaExp,TScope Var),
+    translateScopeM :: EScope Var (Var, Type Var) -> m ([J.BlockStmt],TransJavaExp,TScope Var),
     translateM :: Expr Var (Var, Type Var) -> m TransType,
     createWrap :: String -> Expr Var (Var, Type Var) -> m (J.CompilationUnit, Type Var)}
 
@@ -85,7 +85,7 @@ data VarAssignment = FromField | ToField
 
 convertExp :: VarAssignment -> Type Var -> J.Exp -> J.Exp
 convertExp FromField CFBool pExp = J.BinOp pExp J.Equal (J.Lit $ J.Int 1)
-convertExp ToField CFBool pExp = error "Boolean assignment conversion not implemented."
+convertExp ToField CFBool pExp = J.Cond pExp (J.Lit $ J.Int 1) (J.Lit $ J.Int 0)
 
 unwrap :: Either TransJavaExp (J.Exp, J.Exp) -> J.Exp
 unwrap x = case x of
@@ -112,7 +112,7 @@ multiAssignment dir t trExp (primA, objA) (primRN, objRN) = case t of
   _ -> case trExp of (Left (SingleVar objP)) -> ([objA (J.ExpName objP)], SingleVar objRN)
                      (Left (DualVar (_, objP))) -> ([objA (J.ExpName objP)], SingleVar objRN)
                      (Right (_, objP)) -> ([objA objP], SingleVar objRN)
-                     _ -> error "expected a variable, got a literal"
+                     (Left (PrimLit x)) -> ([objA (J.Lit x)], SingleVar objRN)--string? error "expected a variable, got a literal"
 
 pairUp :: [Var] -> [(TransJavaExp, Type Var)] -> [(Var, Type Var)]
 pairUp bindings vars = exchanged
