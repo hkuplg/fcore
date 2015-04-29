@@ -29,7 +29,7 @@ import           JavaEDSL(wrapperClass,bStmt,mainBody,var,classTy,
 import qualified Language.Java.Syntax as J
 import           ClosureF
 import           MonadLib
-import           StringPrefixes(localvarstr,closureInputL,closureInputO)
+import           StringPrefixes(localvarstr,closureInputL,closureInputO,cuClassName)
 
 type Var = (J.Name, J.Name) -- (primitive, reference)
 
@@ -65,7 +65,7 @@ javaType typ = case typ of
     CFBool -> J.PrimType J.BooleanT
     CFChar -> J.PrimType J.CharT
     CFDouble -> J.PrimType J.DoubleT
-    (Forall _) -> classTy "f2j.unbox.Closure"
+    (Forall _) -> classTy cuClassName
     _ -> objClassTy
 
 assignVar :: Type Var -> String -> J.Exp -> J.BlockStmt
@@ -118,6 +118,9 @@ pairUp :: [Var] -> [(TransJavaExp, Type Var)] -> [(Var, Type Var)]
 pairUp bindings vars = exchanged
  where z = bindings `zip` vars
        exchanged = map (\(a,(_,c)) -> (a,c)) z
+
+doubleVarName :: String -> Int -> (String, String)
+doubleVarName lname n = ("l" ++ lname ++ show n, "o" ++ lname ++ show n)
 
 {-
 let fargAssign = case t2 of

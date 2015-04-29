@@ -15,29 +15,27 @@ more information, please refer to the paper on wiki.
 
 
 module BaseTransCFJava(Translate,InitVars,createWrap,trans,Var) where
-
+-- TODO: $ in constructing variable / class names
 import qualified Language.Java.Syntax as J
 import           ClosureF
 import           Inheritance
 import           MonadLib
-import           JavaEDSL(wrapperClass,bStmt,mainBody,var,classTy,
-                          objClassTy,localFinalVar,varDecl,
+import           JavaEDSL(wrapperClass,bStmt,mainBody,classTy,
+                          objClassTy,localFinalVar,varDecl,varExp,
                           -- needed by lam/fixpoint?
-                          name, fieldAccess, left, cast, localVar, funInstCreate,
-                          localClassDecl, classBody, methodDecl, memberDecl, fieldDecl,
+                          name, fieldAccess, cast, localVar, funInstCreate,
+                          localClassDecl, classBody, memberDecl, fieldDecl,
                           assign,
                           -- needed by app
-                          assignField, applyMethodCall,fieldAccExp,
+                          assignField, applyMethodCall,
                           -- letrec
                           varDeclNoInit, localClass, instCreat, classTyp,
                           -- if
                           block)
 import qualified Src as S
-import           StringPrefixes(localvarstr, closureOutputO, closureOutputL, tempvarstr, ifresultstr)
+import           StringPrefixes(localvarstr, closureOutputO, closureOutputL,
+                                tempvarstr, ifresultstr, cuClassName, letClass)
 
--- messy lam/fixpoint
-import           Debug.Trace
-import           Data.Char
 import           BaseTransCFJava.Helper
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
@@ -100,20 +98,21 @@ trans self = let this = up self
            (n :: Int) <- get
            put (n+2)
            let f = fname ++ show n
-           let (primitiveAccessField, objectAccessField) = dualArgFields (J.ExpName $ name [f])
+           let (primitiveAccessField, objectAccessField) = dualArgFields (varExp f)
 
            -- TODO: the final parameter (name [f], name [f]) to Nothing?
            let (fargAssign, _) = multiAssignment ToField t2 (Left j2)
                                 (assignField primitiveAccessField,
                                 assignField objectAccessField) (name [f], name [f])
 
-           let fd = localVar (classTy "f2j.unbox.Closure") (varDecl f (J.ExpName j1))
-           let primitiveResultField = fieldAccess (J.ExpName (name [f])) closureOutputL
-           let objectResultField = fieldAccess (J.ExpName (name [f])) closureOutputO
-           let apply = [bStmt $ applyMethodCall (J.ExpName $ name [f])]
+           let fd = localVar (classTy cuClassName) (varDecl f (J.ExpName j1))
+           let fexp = varExp f
+           let primitiveResultField = fieldAccess fexp closureOutputL
+           let objectResultField = fieldAccess fexp closureOutputO
+           let apply = [bStmt $ applyMethodCall fexp]
 
-           let xfl = "l" ++ localvarstr ++ show (n+1)
-           let xfo = "o" ++ localvarstr ++ show (n+1)
+           let (xfl, xfo) = doubleVarName localvarstr (n + 1)
+
            let rt = scope2ctyp retTyp
            let typRT = javaType rt
            let flag = typRT == objClassTy
@@ -159,17 +158,18 @@ trans self = let this = up self
             let assm = map (\((_,i),jz) -> assign i jz)
                            (varnums `zip` map (unwrap . Left) bindExprs)
             let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap (Left bodyExpr))]
-            let letClass =
-                  [localClass ("Let" ++ show n)
+            let letClassName = letClass ++ show n
+            let letClassDef =
+                  [localClass letClassName
                                (classBody (memberDecl (fieldDecl typ (varDeclNoInit tempvarstr)) :
                                            mDecls ++ [J.InitDecl False (J.Block stasm)]))
 
-                  ,localVar (classTy ("Let" ++ show n))
+                  ,localVar (classTy letClassName)
                             (varDecl (localvarstr ++ show n)
-                                     (instCreat (classTyp ("Let" ++ show n)) []))
+                                     (instCreat (classTyp letClassName) []))
                   ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
                                               (J.ExpName (name [localvarstr ++ show n, tempvarstr])))]
-            return (letClass,SingleVar (name [localvarstr ++ show (n + 1)]),t')
+            return (letClassDef,SingleVar (name [localvarstr ++ show (n + 1)]),t')
 
       Let lname expr b ->
         do (s1, j1, t1) <- translateM this expr
@@ -196,18 +196,17 @@ trans self = let this = up self
         Kind lname f ->
           do (n :: Int) <- get
              put (n + 1) -- needed to distingush type variable
-             let xl = name ["l" ++ lname ++ show n]
-             let xo = name ["o" ++ lname ++ show n]
-             (s,je,t1) <- translateScopeM this (f (xl, xo))
-             return (s,je,Kind lname (\a -> substScope' (xl, xo) (TVar a) t1))
+             let (xl, xo) = doubleVarName lname n
+             let fvar = (name [xl], name [xo])
+             (s,je,t1) <- translateScopeM this (f fvar)
+             return (s,je,Kind lname (\a -> substScope' fvar (TVar a) t1))
 
         Type lname t g ->
           do (n :: Int) <- get
              let x1 = lname ++ show n
-             let x2l = "l" ++ lname ++ show (n + 1)
-             let x2o = "o" ++ lname ++ show (n + 1)
+             let (x2l, x2o) = doubleVarName lname (n + 1)
              put (n + 2)
-             let (primitiveField, objectField) = dualArgFields (J.ExpName $ name [x1])
+             let (primitiveField, objectField) = dualArgFields (varExp x1)
              let (primitiveAccessField, objectAccessField)  = (J.FieldAccess primitiveField, J.FieldAccess objectField)
              let typT1 = javaType t
              let flag = typT1 == objClassTy
@@ -222,7 +221,6 @@ trans self = let this = up self
              let nextInClosure = g ((name [x2l], name [x2o]),t)
 
 
-             let closureClass = "f2j.unbox.Closure"
              (ostmts,oexpr,t1) <- translateScopeM this nextInClosure
              let t1' = case t1 of
                            Kind _ _ -> Forall t1 --error "Found Kind, where Type or Body expected."
@@ -234,13 +232,13 @@ trans self = let this = up self
                                   assign (name [closureOutputO])) (name [x1], name [x1])
 
              let cvar = [localClassDecl ("Fun" ++ show n)
-                                     closureClass
-                                     (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
+                                     cuClassName
+                                     (closureBodyGen [memberDecl $ fieldDecl (classTy cuClassName)
                                                                              (varDecl x1 J.This)]
                                                      (tempVars ++ ostmts ++ outAssignment)
-                                                     (classTy closureClass))]
+                                                     (classTy cuClassName))]
 
-             let fstmt = [localVar (classTy "f2j.unbox.Closure") (varDecl x1 (funInstCreate n))]
+             let fstmt = [localVar (classTy cuClassName) (varDecl x1 (funInstCreate n))]
 
              return (cvar ++ fstmt, SingleVar $ name [x1] ,Type lname t (const t1))
     ,
