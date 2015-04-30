@@ -110,7 +110,6 @@ data Expr t e
   | Data Src.RecFlag [DataBind t] (Expr t e)
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
-  | CaseCast (Expr t e) (Constructor t)
 
 newtype FExp = HideF { revealF :: forall t e. Expr t e }
 
@@ -167,7 +166,6 @@ mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
     where mapAlt (ConstrAlt (Constructor n ts) e1) = ConstrAlt (Constructor n (map h ts)) (mapVar g h e1)
           mapAlt (Default e1) = Default (mapVar g h e1)
-mapVar g h (CaseCast e (Constructor n ts))         = CaseCast (mapVar g h e) (Constructor n (map h ts))
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
@@ -376,4 +374,3 @@ prettyExpr' p (i,j) (Case e alts) =
           pretty_alt (Default e1) =
                (text "_" <+> arrow <+> (align $ prettyExpr' p (i, j) e1 ))
 
-prettyExpr' p (i,j) (CaseCast e (Constructor nam _ )) = parens $ (parens $ text nam) <> prettyExpr' p (i,j) e

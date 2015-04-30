@@ -78,7 +78,6 @@ infer i j (FI.Constr c _)         = last . FI.constrParams $ c
 infer i j (FI.Case _ alts)        = inferAlt . head $ alts
   where inferAlt (FI.ConstrAlt _ e) = infer i j e
         inferAlt (FI.Default e)       = infer i j e
-infer i j (FI.CaseCast _ (FI.Constructor _ ty)) = last ty
 infer i j (FI.Data _ _ e)         = infer i j e
 infer _ _ _                       = trace "Unsupported: Simplify.infer" FI.Unit
 
@@ -128,7 +127,6 @@ transExpr i j (FI.RecordProj e l1)         = App c $ transExpr i j e
 transExpr i j (FI.RecordUpdate e (l1, e1)) = App c $ transExpr i j e
   where Just (_, c) = putter i j (infer i j e) l1 (transExpr i j e1)
 transExpr i j (FI.Constr (FI.Constructor n ts) es) = Constr (Constructor n . map (transType i) $ ts) . map (transExpr i j) $ es
-transExpr i j (FI.CaseCast e (FI.Constructor n ts))= CaseCast (transExpr i j e) (Constructor n . map (transType i) $ ts)
 transExpr i j (FI.Case e alts)             = Case e' . map transAlt $ alts
   where
     e' = transExpr i j e
@@ -304,7 +302,6 @@ dedeBruE i as j xs (Case e alts)                  = Case (dedeBruE i as j xs e) 
   where dedeBruijnAlt (ConstrAlt (Constructor name ts) e1) =
           ConstrAlt (Constructor name (map (dedeBruT i as) ts)) (dedeBruE i as j xs e1)
         dedeBruijnAlt (Default e1) = Default (dedeBruE i as j xs e1)
-dedeBruE i as j xs (CaseCast e (Constructor name types)) = CaseCast (dedeBruE i as j xs e) (Constructor name (map (dedeBruT i as) types))
 
 dedeBruE i as j xs (Data recflag databinds e)     = Data recflag (map dedeBruijnDatabind databinds) (dedeBruE i as j xs e)
   where dedeBruijnConstr i' as' (Constructor name types) = Constructor name (map (dedeBruT i' as') types)

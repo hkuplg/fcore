@@ -157,7 +157,6 @@ data Expr id ty
   | ConstrTemp Name
   | Constr Constructor [LExpr id ty] -- post typecheck only
                                      -- the last type in Constructor will always be the real type
-  | CaseCast (LExpr id ty) Constructor
   | JProxyCall (LExpr id ty) ty
   deriving (Eq, Show)
 
@@ -477,7 +476,6 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
     pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (CaseCast e (Constructor nam _ )) = parens $ (parens $ text nam) <> pretty e
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
   pretty e = text (show e)
