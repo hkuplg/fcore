@@ -20,25 +20,27 @@ References:
 module Lexer
     ( lexer
     , Token(..)
-    , Located(..)
-    , getLocation
+    , Alex(..)
+    , alexError
+    , runAlex
     ) where
 
 import qualified Language.Java.Syntax as J (Op(..))
-import Numeric (readOct)
-import Data.Char (isHexDigit, isOctDigit)
+import Data.Char (isOctDigit, chr)
+import SrcLoc
 
 }
 
-%wrapper "posn"
+%wrapper "monad"
 
 $alpha = [A-Za-z]
 $digit = [0-9]
 
 $vchar = [$alpha $digit \_ \']
 
+$symbols = [\! \# \$ \% \& \* \+ \. \/ \< \= \> \? \@ \\ \^ \| \- \~]
+
 -- Use Java string specification
--- From Language.Java v0.2.7 (BSD3 License)
 $octdig     = [0-7]
 $hexdig     = [0-9A-Fa-f]
 @octEscape  = [0123]? $octdig{1,2}
@@ -47,10 +49,18 @@ $hexdig     = [0-9A-Fa-f]
 
 tokens :-
 
-    $white+     ;
-    "#".*       ;
-    "--".*      ;
-    "//".*      ;
+    <0, strexp> $white+ ;
+    <0> "#".*       ;
+    <0> "--".*      ;
+    <0> "//".*      ;
+    <0> "{-"        { nested_comment }
+    <0> \"          { start_string `andBegin` str }
+    <str> (@charEscape | $printable # [\" \\] | \\\{) { save_string }
+    <strexp> \}     { end_strexp `andBegin` str }
+    <str> \"        { end_string `andBegin` 0 }
+    
+    <0> \}          { locate (\_ _ -> Tccurly) }
+    <0, strexp>     {
 
     \(          { locate (\_ _ -> Toparen) }
     \)          { locate (\_ _ -> Tcparen) }
@@ -58,7 +68,6 @@ tokens :-
     \]          { locate (\_ _ -> Tcbrack) }
     \::         { locate (\_ _ -> Tdcolon) }
     \{          { locate (\_ _ -> Tocurly) }
-    \}          { locate (\_ _ -> Tccurly) }
     \/\\        { locate (\_ _ -> Ttlam) }
     \\          { locate (\_ _ -> Tlam) }
     \:          { locate (\_ _ -> Tcolon) }
@@ -91,16 +100,17 @@ tokens :-
     \,          { locate (\_ _ -> Tcomma) }
     new         { locate (\_ _ -> Tnew) }
     module      { locate (\_ _ -> Tmodule) }
+    import      { locate (\_ _ -> Timport) }
     data        { locate (\_ _ -> Tdata) }
     \|          { locate (\_ _ -> Tbar) }
     case        { locate (\_ _ -> Tcase) }
     of          { locate (\_ _ -> Tof) }
     \_          { locate (\_ _ -> Tunderscore) }
+    \`          { locate (\_ _ -> Tbackquote) }
 
     -- Literals
     $digit+                { locate (\_ s -> Tint (read s)) }
-    \"(@charEscape | $printable # [\" \\])*\" { locate (\_ s -> Tstring (convChar . init . tail $ s)) }
-    \'(@charEscape | $printable # [\' \\])\'  { locate (\_ s -> Tchar (head . convChar . init .tail $ s)) }
+    \'(@charEscape | $printable # [\' \\])\'  { convChar False }
     True                   { locate (\_ s -> Tbool True) }
     False                  { locate (\_ s -> Tbool False) }
     Empty                  { locate (\_ _ -> Temptytree) }
@@ -117,9 +127,9 @@ tokens :-
     ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { locate (\_ s -> Tjavaclass s) }
 
     -- ID
-    [A-Z] [$vchar]*     { locate (\_ s -> Tupperid s) }
-    \_ [$alpha \_] [$vchar]* | [a-z] [$vchar]*     { locate (\_ s -> Tlowerid s) }
-    \_ $digit+          { locate (\_ s -> Tunderid (read (tail s))) }
+    [A-Z] [$vchar]*                                      { locate (\_ s -> Tupperid s) }
+    \_ [$alpha \_] [$vchar]* | [a-z] [$vchar]*           { locate (\_ s -> Tlowerid s) }
+    \_ $digit+                                           { locate (\_ s -> Tunderid (read (tail s))) }
 
     -- http://hackage.haskell.org/package/language-java-0.2.5/docs/src/Language-Java-Syntax.html#Op
     \*          { locate (\_ _ -> Tprimop J.Mult   ) }
@@ -136,83 +146,107 @@ tokens :-
     \&\&        { locate (\_ _ -> Tprimop J.CAnd   ) }
     \|\|        { locate (\_ _ -> Tprimop J.COr    ) }
 
+    $symbols+   { locate (\_ s -> Tsymbolid s) }
+
+    } -- end of start code scope
+
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote
+           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tbackquote
            -- | Tthis | Tsuper
            | Ttype | Tlet | Trec | Teq | Tand
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
            | Tcomma | Tsemi
-           | Tupperid String | Tlowerid String | Tunderid Int
-           | Tint Integer | Tstring String | Tbool Bool | Tchar Char | Tunitlit | Tunit
+           | Tupperid String | Tlowerid String | Tunderid Int | Tsymbolid String
+           | Tint Integer | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule
+           | Tmodule | Timport
            | Temptytree | Tnonemptytree
            | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
+           | Teof | Tschar Char | Tstrl | Tstrr | Tstrexpl | Tstrexpr
            deriving (Eq, Show)
-
-data Located a = Located AlexPosn a
-
-getLocation :: Located a -> (Int, Int)
-getLocation (Located (AlexPn _ line col) _) = (line, col)
 
 -- Modify a normal rule inside { ... } so that it returns a *located* token.
 locate
   :: (AlexPosn -> String -> Token)
-  -> (AlexPosn -> String -> Located Token)
-locate f = \p s -> Located p (f p s)
+  -> (AlexInput -> Int -> Alex (Located Token))
+locate f = \(p@(AlexPn _ l c),_,_,s) len -> return (L (Loc l c) (f p (take len s)))
 
--- From Language.Java v0.2.7 (BSD3 License)
-lexicalError :: String -> a
-lexicalError = error . ("lexical error: " ++)
+-- Monadic lexer
+-- https://github.com/simonmar/alex/blob/master/examples/haskell.x
+alexEOF :: Alex (Located Token)
+alexEOF = do
+  ((AlexPn _ l c),_,_,_) <- alexGetInput
+  return (L (Loc l c) Teof)
 
--- Converts a sequence of (unquoted) Java character literals, including
--- escapes, into the sequence of corresponding Chars. The calls to
--- 'lexicalError' double-check that this function is consistent with
--- the lexer rules for character and string literals. This function
--- could be expressed as another Alex lexer, but it's simple enough
--- to implement by hand.
-convChar :: String -> String
-convChar ('\\':'u':s@(d1:d2:d3:d4:s')) =
-  -- TODO: this is the wrong place for handling unicode escapes
-  -- according to the Java Language Specification. Unicode escapes can
-  -- appear anywhere in the source text, and are best processed
-  -- before lexing.
-  if all isHexDigit [d1,d2,d3,d4]
-  then toEnum (read ['0','x',d1,d2,d3,d4]):convChar s'
-  else lexicalError $ "bad unicode escape \"\\u" ++ take 4 s ++ "\""
-convChar ('\\':'u':s) =
-  lexicalError $ "bad unicode escape \"\\u" ++ take 4 s ++ "\""
-convChar ('\\':c:s) =
-  if isOctDigit c
-  then convOctal maxRemainingOctals
-  else (case c of
-          'b' -> '\b'
-          'f' -> '\f'
-          'n' -> '\n'
-          'r' -> '\r'
-          't' -> '\t'
-          '\'' -> '\''
-          '\\' -> '\\'
-          '"' -> '"'
-          _ -> badEscape):convChar s
-  where maxRemainingOctals =
-          if c <= '3' then 2 else 1
-        convOctal n =
-          let octals = takeWhile isOctDigit $ take n s
-              noctals = length octals
-              toChar = toEnum . fst . head . readOct
-          in toChar (c:octals):convChar (drop noctals s)
-        badEscape = lexicalError $ "bad escape \"\\" ++ c:"\""
-convChar ("\\") =
-  lexicalError "bad escape \"\\\""
-convChar (x:s) = x:convChar s
-convChar "" = ""
+showPosn :: AlexPosn -> String
+showPosn (AlexPn _ line col) = show line ++ ':': show col
 
-lexer :: String -> [Located Token]
-lexer = alexScanTokens
+lexError :: String -> Alex a
+lexError s = do
+  (p,c,_,input) <- alexGetInput
+  alexError (showPosn p ++ ": " ++ s ++ 
+                   (if (not (null input))
+                     then " before " ++ show (head input)
+                     else " at end of file"))
+
+-- Nested comment block
+nested_comment :: AlexInput -> Int -> Alex (Located Token)
+nested_comment _ _ = do
+  input <- alexGetInput
+  go 1 input
+  where go 0 input = do alexSetInput input; alexMonadScan
+        go n input = do
+          case alexGetByte input of
+            Nothing  -> err input
+            Just (c,input) -> do
+              case chr (fromIntegral c) of
+                '-' -> do
+                  case alexGetByte input of
+                    Nothing  -> err input
+                    Just (125,input) -> go (n-1) input
+                    Just (c,input)   -> go n input
+                '\123' -> do
+                  case alexGetByte input of
+                    Nothing  -> err input
+                    Just (c,input) | c == fromIntegral (ord '-') -> go (n+1) input
+                    Just (c,input)   -> go n input
+                c -> go n input
+        err input = do alexSetInput input; lexError "error in nested comment"
+
+-- String interpolation
+start_string ((AlexPn _ l c),_,_,_) _ = return $ L (Loc l c) Tstrl
+end_string ((AlexPn _ l c),_,_,_) _ = return $ L (Loc l c) Tstrr
+start_strexp ((AlexPn _ l c),_,_,_) _ = return $ L (Loc l c) Tstrexpl
+end_strexp ((AlexPn _ l c),_,_,_) _ = return $ L (Loc l c) Tstrexpr
+save_string p@(_,_,_,s) len = do
+  let action = if take len s == "\\{" then start_strexp `andBegin` strexp
+               else convChar True
+  action p len
+
+-- Character escape
+unescape :: String -> (Char, Bool)
+unescape [] = ('\0', True)
+unescape ('\\':'u':s) = (read ("'\\x" ++ s ++ "'"), True)
+unescape ('\\':s) | all isOctDigit s && length s <= 3 = (read ("'\\o" ++ s ++ "'"), True)
+                  | length s == 1 = (read ("'\\" ++ s ++ "'"), True)
+                  | otherwise = ('\0', False)
+unescape (x:_) = (x, True)
+
+convChar :: Bool -> AlexInput -> Int -> Alex (Located Token)
+convChar isSChar (p@(AlexPn _ l c),_,_,s) len = do
+  let s' = take len s
+      raw = if isSChar then s' else init (tail s')
+      (ch, ret) = unescape raw
+  if ret then
+    if isSChar then return (L (Loc l c) (Tschar ch))
+    else return (L (Loc l c) (Tchar ch))
+  else alexError (showPosn p ++ ": bad escape \"" ++ s ++ "\"")
+
+lexer :: (Located Token -> Alex a) -> Alex a
+lexer = (alexMonadScan >>=)
 }

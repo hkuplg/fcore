@@ -48,7 +48,7 @@ public class PlotWindow extends JFrame
             repaint();
     }
 
-    public static Complex toComplex(int x, int y) 
+    public static Complex toComplex(int x, int y)
     {
         double xscale = (double)x / SIZE, yscale = (double)y / SIZE;
         return new Complex(xscale * (rx-lx) + lx, yscale * (ty-by) + by);

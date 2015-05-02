@@ -36,6 +36,12 @@ closureInputL = "larg"
 closureOutputL :: String
 closureOutputL = "lres"
 
+cuClassName :: String
+cuClassName = "f2j.unbox.Closure"
+
+letClass :: String
+letClass = "Let"
+
 -- Datatype tag
 datatypetag :: String
 datatypetag = "tag"

@@ -34,6 +34,8 @@ Variable names start with lower case letters.
 
 Boolean literals: `True`, `False`
 
+String interpolation: `let t = 3; "\{t} times 2 is \{(\(x: Int) -> x * 2) t}"`
+
 Lambdas: `\(x: Int) (y: Int) -> x + y`
 
 Type lambdas: `/\A -> \(x: A) -> x`
@@ -84,6 +86,14 @@ data BTree [A,B] = Leaf A
                  | Node BTree[A,B] B BTree[A,B]
                  ;
 let tree = Node[Bool,Int] (Leaf[Bool,Int] True) 7 (Leaf[Bool,Int] False); ...
+```
+
+ADT can be mutually recursive, by using `rec` and `and`
+```
+data rec
+  TreeT [A] = EmptyT | NodeT A (Forest [A])
+and
+  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]);
 ```
 
 Pattern matching on ADTs (Case expressions):

@@ -2,9 +2,9 @@
 
 The layout of the testsuite is this:
 
-| Path                    | Description                    |
-|-------------------------|--------------------------------|
-| `tests`                 | The actual test cases to run   |
-| ` └ should_compile`     | Tests that should compile only |
-| ` └ should_run`         | Tests that should compile, run, and generate a particular output |
-| ` └ shouldnt_typecheck` | Tests that shouldn't typecheck |
+| Path                   | Description                    |
+|------------------------|--------------------------------|
+| `tests`                | The actual test cases to run   |
+| ` └ shouldCompile`     | Tests that should compile only |
+| ` └ shouldRun`         | Tests that should compile, run, and generate a particular output |
+| ` └ shouldntTypecheck` | Tests that shouldn't typecheck |

@@ -23,9 +23,10 @@ module Main (main, TransMethod) where
 
 -- import           Assertions () -- Import this just to run static assertions at compile time.
 
+import           FrontEnd (source2core)
+import           BackEnd
 import           JavaUtils
 import           MonadLib
-import           Translations
 import           Link
 
 import qualified Data.ByteString as B
@@ -140,15 +141,23 @@ main = do
            translate_method = optTransMethod
            modList          = optModules
            sort_and_rmdups  = map head . group . sort . (++) [Naive]
-       opt <- getOpt (sort_and_rmdups translate_method)
+       opts <- getOpt (sort_and_rmdups translate_method)
        unless (null optModules) $
-         do content <- Link.linkModule modList
+         do cont <- Link.linkModule modList
+            let content = Link.namespace cont
             putStrLn "Linking..."
             Link.link source_path content
             putStrLn (source_path_new ++ " generated!")
        putStrLn (takeBaseName source_path_new ++ " using " ++ show (sort_and_rmdups translate_method))
        putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
-       compilesf2java optInline optDump opt source_path_new output_path
+
+       source     <- readFile source_path_new
+       coreExpr   <- source2core optDump source
+       javaSource <- core2java True optInline optDump opts (inferClassName output_path) coreExpr
+       writeFile output_path javaSource
+       --let closureClassDef = closureClass opts
+       --writeFile "Closure.java" (prettyPrint closureClassDef)
+
        when (optCompile || optCompileAndRun) $
          do when optVerbose (putStrLn "  Compiling to Java bytecode")
             compileJava output_path
