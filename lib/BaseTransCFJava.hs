@@ -393,6 +393,7 @@ trans self =
                                      -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
                                      -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
                                      -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
+                                     Datatype x _ _ -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
                                      _ -> sorry "BaseTransCFJava.trans.JMethod: no idea how to do")
                              types
                    (classStatement,rhs) <- case c of
@@ -448,16 +449,6 @@ trans self =
                           foldl (\acc es' -> translateApply this False acc es')
                                 (return ([st1], var newVar, functiontype))
                                 (map (translateM this) es)
-              CaseCast expr (Constructor ctrname ty) ->
-                do  (stmts, oexpr, t) <- translateM this expr
-                    let (Datatype nam _ _) = last ty
-                    if length ty == 1
-                    then return (stmts, oexpr, t)
-                    else do varname <- getNewVarName this
-                            let classname = (nam ++ '.' : nam ++ ctrname)
-                                objtype =  classTy classname
-                                objdecl =  localVar objtype $ varDecl varname (cast objtype $ unwrap oexpr)
-                            return (stmts ++ [objdecl], var varname, JClass classname)
               Case scrut alts ->
                 do (scrutStmts, scrutExpr, _) <- translateM this scrut
                    (altsStmts, varName, typ) <- transAlts this scrutExpr alts

@@ -73,7 +73,6 @@ data Expr t e =
    | Data S.RecFlag [DataBind t] (Expr t e)
    | Constr (Constructor t) [Expr t e]
    | Case (Expr t e) [Alt t e]
-   | CaseCast (Expr t e) (Constructor t)
 
 data DataBind t = DataBind S.ReaderId [S.ReaderId] ([t] -> [Constructor t])
 data Constructor t = Constructor {constrName :: S.ReaderId, constrParams :: [Type t]}
@@ -157,7 +156,6 @@ fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr e1) = ConstrAlt (fctr2cctr ctr) (fexp2cexp e1)
         falt2calt (C.Default e1)       = Default (fexp2cexp e1)
-fexp2cexp (C.CaseCast e ctr) = CaseCast (fexp2cexp e) (fctr2cctr ctr)
 fexp2cexp e                         = Lam "Fun" (groupLambda e)
 
 fctr2cctr :: C.Constructor t -> Constructor t
@@ -396,4 +394,3 @@ prettyExpr p (i,j) (Case e alts) =
                (text (constrName c) <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))
           pretty_alt (Default e1) =
                (text "_" <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))
-prettyExpr p (i,j) (CaseCast e (Constructor nam _ )) = parens $ (parens $ text nam) <> prettyExpr p (i,j) e

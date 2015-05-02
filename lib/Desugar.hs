@@ -156,7 +156,6 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (L _ (Data recflag databinds e)) = F.Data recflag (map (desugarDatabind d) databinds) (go e)
 
     go (L _ (Constr c es)) = F.Constr (desugarConstructor d c) (map go es)
-    go (L _ (CaseCast e ctr)) = F.CaseCast (go e) (desugarConstructor d ctr)
     go (L _ (Case e alts)) = decisionTree (d,g) [e] pats exprs
                      where pats = [ [pat] | ConstrAlt pat _ <- alts]
                            exprs = [ expr | ConstrAlt _ expr <- alts]
@@ -280,7 +279,10 @@ decisionTree (d,g) = go
                 (appearconstrs, missingconstrs) = constrInfo patshead
                 makeNewAltFromCtr ctr@(Constructor name params) =
                        let len = length params - 1
-                           curExp = noLoc $ CaseCast curExp' ctr
+                           Datatype dtnam _ _ = last params
+                           ctrclass = '$': dtnam ++ ".$" ++ dtnam ++ '$':name
+                           curExp = noLoc $ JMethod (NonStatic (noLoc $ JField (Static ctrclass) "class" (JType . JClass $ "Class<" ++ ctrclass++ ">")))
+                                                    "cast" [curExp'] ctrclass
                            javafieldexprs = zipWith (\num pam -> noLoc $ JField (NonStatic curExp) (fieldtag ++ show num) pam)
                                                     [1..len]
                                                     params
