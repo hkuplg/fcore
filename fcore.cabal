@@ -33,8 +33,6 @@ library
                       , time == 1.4.*
                       , timeit == 1.0.*
                       , transformers == 0.3.*
-                      , alex == 3.1.*
-                      , happy == 1.19.*
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
   hs-source-dirs:       lib,lib/services,lib/typeCheck,lib/simplify,repl
