@@ -240,7 +240,7 @@ expr :: { ReaderExpr }
     | "type" UPPER_IDENT ty_param_list_or_empty "=" type expr       { Type (toString $2) (map unLoc $3) $5 $6 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
     | "data" recflag and_databinds ";" expr        { Data $2 $3 $5 `withLoc` $1 }
-    | "case" expr "of" patterns           { Case $2 $4 `withLoc` $1 }
+    | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
     | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
@@ -429,22 +429,31 @@ constr_decl :: { Constructor }
 constr_name :: { LReaderId }
     : UPPER_IDENT  { toString $1 `withLoc` $1 }
 
-patterns :: { [Alt ReaderId Type] }
-    : pattern               { [$1] }
-    | pattern "|" patterns  { $1:$3 }
+alts :: { [Alt ReaderId Type] }
+    : alt               { [$1] }
+    | alt "|" alts      { $1:$3 }
 
-pattern :: { Alt ReaderId Type}
-    : constr_name pat_vars "->" expr  { ConstrAlt (Constructor (unLoc $1) []) $2 $4 }
-    | "[" "]" "->" expr               { ConstrAlt (Constructor "empty" []) [] $4}
-    | pat_var ":" pat_var "->" expr   { ConstrAlt (Constructor "cons" []) [$1,$3] $5}
+alt :: { Alt ReaderId Type}
+    : pattern "->" expr               { ConstrAlt $1 $3 }
+    | "[" "]" "->" expr               { ConstrAlt ( PConstr (Constructor "empty" []) [] ) $4}
+    | pat_var ":" pat_var "->" expr   { ConstrAlt ( PConstr (Constructor "cons" []) [$1,$3]) $5}
 
-pat_var :: { ReaderId }
-  : LOWER_IDENT  { toString $1 }
-  | "_"          { "_" }
+pattern1s :: { [Pattern] }
+    : pattern1                 { [$1] }
+    | pattern1 pattern1s       { $1:$2 }
 
-pat_vars :: { [ReaderId] }
-  : {- empty -}       { [] }
-  | pat_var pat_vars  { $1:$2 }
+pattern1 :: { Pattern }
+    : constr_name              { PConstr (Constructor (unLoc $1) []) [] }
+    | "(" pattern ")"          { $2 }
+    | pat_var                  { $1 }
+
+pattern :: { Pattern }
+    : pattern1                 { $1 }
+    | constr_name pattern1s    { PConstr (Constructor (unLoc $1) []) $2 }
+
+pat_var :: { Pattern }
+    : LOWER_IDENT              { PVar (toString $1) undefined }
+    | "_"                      { PWildcard }
 
 param :: { Located (ReaderId, ReaderType) }
   : LOWER_IDENT ":" type          { (toString $1, $3) `withLoc` $1 }
