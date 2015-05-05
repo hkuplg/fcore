@@ -156,7 +156,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (L _ (Data recflag databinds e)) = F.Data recflag (map (desugarDatabind d) databinds) (go e)
 
     go (L _ (Constr c es)) = F.Constr (desugarConstructor d c) (map go es)
-    go (L _ (Case e alts)) = decisionTree (d,g) [e] pats exprs
+    go (L _ (Case e alts)) = decisionTree (d,g) [e] pats exprs (replicate (length alts) [])
                      where pats = [ [pat] | ConstrAlt pat _ <- alts]
                            exprs = [ expr | ConstrAlt _ expr <- alts]
     go (L _ (CaseString e alts)) =
@@ -259,19 +259,21 @@ desugarConstructor d' = go
  -                              let z = (Cons)((Cons)var.field2).field2
  -                              expr
  -}
-decisionTree ::  (TVarMap t, VarMap t e) -> [CheckedExpr] -> [[Pattern]] -> [CheckedExpr] -> F.Expr t e
+
+decisionTree ::  (TVarMap t, VarMap t e) -> [CheckedExpr] -> [[Pattern]] -> [CheckedExpr] -> [[(Name, Type, LExpr (Name,Type) Type)]] -> F.Expr t e
 decisionTree (d,g) = go
   where -- no pattern left. Then the first expr will be the result
-        go [] _ exprs = desugarExpr (d,g) $ head exprs
-        go exprs pats branches
+        go [] _ branches binds = desugarExpr (d,g) $ noLoc $ LetOut NonRec (head binds) (head branches)
+        go exprs pats branches binds
           | all isWildcardOrVar patshead =
                go (tail exprs)
                   (map tail pats)
-                  (zipWith (\pat branch -> case (head pat) of
-                               PVar nam ty -> noLoc $ LetOut NonRec [(nam, ty, curExp')] branch
-                               _ -> branch )
+                  branches
+                  (zipWith (\pat bind -> case (head pat) of
+                               PVar nam ty -> (nam, ty, curExp'):bind
+                               _ -> bind )
                            pats
-                           branches)
+                           binds)
           | missingconstrs == [] = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs)
           | otherwise            = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs ++ makeDefault)
           where patshead = map head pats
@@ -287,28 +289,28 @@ decisionTree (d,g) = go
                                                     [1..len]
                                                     params
                            exprs' = javafieldexprs ++ (tail exprs)
-                           (pats', branches') =
-                               unzip $ foldr (\(curPattern:rest, branch) acc ->
+                           (pats', branches', binds') =
+                               unzip3 $ foldr (\(curPattern:rest, branch, bind) acc ->
                                                   let nextPats = (extractorsubpattern name len curPattern)++rest
                                                   in  case curPattern of
-                                                       PWildcard -> ( nextPats, branch) :acc
-                                                       PVar nam ty -> (nextPats, noLoc $ LetOut NonRec [(nam, ty, curExp)] branch) :acc
+                                                       PWildcard -> ( nextPats, branch, bind) :acc
+                                                       PVar nam ty -> (nextPats, branch, (nam, ty, curExp): bind) :acc
                                                        PConstr (Constructor nam _) _
                                                            | nam /= name -> acc
-                                                           | otherwise -> (nextPats, branch):acc)
+                                                           | otherwise -> (nextPats, branch, bind):acc)
                                              []
-                                             (zip pats branches)
-                       in F.ConstrAlt (desugarConstructor d ctr) (go exprs' pats' branches')
+                                             (zip3 pats branches binds)
+                       in F.ConstrAlt (desugarConstructor d ctr) (go exprs' pats' branches' binds')
                 makeDefault =
-                       let (pats', branches') =
-                               unzip $ foldr (\(curPattern:rest, branch) acc ->
+                       let (pats', branches', binds') =
+                               unzip3 $ foldr (\(curPattern:rest, branch, bind) acc ->
                                                   case curPattern of
-                                                     PWildcard -> (rest , branch) :acc
-                                                     PVar nam ty -> (rest, noLoc $ LetOut NonRec [(nam, ty, curExp')] branch) :acc
+                                                     PWildcard -> (rest , branch, bind) :acc
+                                                     PVar nam ty -> (rest, branch, (nam, ty, curExp'): bind) :acc
                                                      _ -> acc)
                                              []
-                                             (zip pats branches)
-                       in [F.Default $ go (tail exprs) pats' branches']
+                                             (zip3 pats branches binds)
+                       in [F.Default $ go (tail exprs) pats' branches' binds']
 
 addToVarMap :: [(ReaderId, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
