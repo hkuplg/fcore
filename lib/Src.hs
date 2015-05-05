@@ -18,7 +18,7 @@ module Src
   ( Module(..), ReaderModule
   , Kind(..)
   , Type(..), ReaderType
-  , Expr(..), ReaderExpr, CheckedExpr
+  , Expr(..), ReaderExpr, CheckedExpr, LExpr
   , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
