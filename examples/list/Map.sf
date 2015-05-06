@@ -1,9 +1,9 @@
 let rec
   map [A, B] (f:A->B) (xs:List[A]):List[B] =
-    if(isNil(xs))
-    then new List[B]()
-    else cons(f (head(xs)), map [A, B] f (new List[A]()));
+    if(null [A] xs)
+    then Nil [B]
+    else Cons [B] (f (head [A] xs)) (map [A, B] f (tail [A] xs));
 
 let f(x:Int):Int = x+1;
 
-head(map [Int, Int] f (new List[Int](2,3)))
+head [Int] (map [Int, Int] f L[2,3])
