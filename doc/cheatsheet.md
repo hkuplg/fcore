@@ -70,6 +70,8 @@ A handy syntax sugar construction: `L[1,2,3]`, but empty list must be: `Nil [Int
 
 List support functions: `head [Int] a`, `tail [Int] a`, `null [Int] a`, `length [Int] a`
 
+Throw an Error : `error [Int] "head: empty list"`
+
 Merge of two values: `1 ,, "hi"`
 
 Record construction: `{name = "George", age = 21}`
