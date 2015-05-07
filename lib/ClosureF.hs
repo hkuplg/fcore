@@ -67,17 +67,17 @@ data Expr t e =
    -- Java
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
-   | JField  (Either ClassName (Expr t e)) FieldName ClassName
-   | PolyList [Expr t e] (Type t)
-   | JProxyCall (Expr t e) (Type t)
+   | JField  (Either ClassName (Expr t e)) FieldName (Type t)
    | SeqExprs [Expr t e]
    | Data S.RecFlag [DataBind t] (Expr t e)
    | Constr (Constructor t) [Expr t e]
    | Case (Expr t e) [Alt t e]
+   | Error (Type t) (Expr t e)
 
 data DataBind t = DataBind S.ReaderId [S.ReaderId] ([t] -> [Constructor t])
 data Constructor t = Constructor {constrName :: S.ReaderId, constrParams :: [Type t]}
-data Alt t e = ConstrAlt (Constructor t) [S.ReaderId] ([e] -> Expr t e)
+data Alt t e = ConstrAlt (Constructor t) (Expr t e)
+             | Default (Expr t e)
 
 -- System F to Closure F
 
@@ -102,7 +102,6 @@ ftyp2ctyp (C.JClass "java.lang.Character") = JClass "java.lang.Character"
 ftyp2ctyp (C.JClass c)                   = JClass c
 ftyp2ctyp (C.Product ts)                 = TupleType (map ftyp2ctyp ts)
 ftyp2ctyp (C.Unit)                       = Unit
-ftyp2ctyp (C.ListOf t)                   = ListType (ftyp2ctyp t)
 ftyp2ctyp (C.Datatype name params ctrnames ) = Datatype ('$':name) (map ftyp2ctyp params) (map ('$':)ctrnames)
 ftyp2ctyp t                              = Forall (ftyp2scope t)
 
@@ -145,16 +144,16 @@ fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
             (S.Static cn)    -> JMethod (Left cn) mName (map fexp2cexp args) r
 fexp2cexp (C.JField c fName r) =
-  case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName r
-            (S.Static cn)    -> JField (Left cn) fName r
-fexp2cexp (C.PolyList es t)     = PolyList (map fexp2cexp es) (ftyp2ctyp t)
-fexp2cexp (C.JProxyCall jmethod t) = JProxyCall (fexp2cexp jmethod) (ftyp2ctyp t)
+  case c of (S.NonStatic ce) -> JField (Right $ fexp2cexp ce) fName (ftyp2ctyp r)
+            (S.Static cn)    -> JField (Left cn) fName (ftyp2ctyp r)
+fexp2cexp (C.Error ty str)         = Error (ftyp2ctyp ty) (fexp2cexp str)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp (C.Data recflag binds e) = Data recflag (map fdatabind2cdatabind binds) (fexp2cexp e)
     where fdatabind2cdatabind (C.DataBind name params ctrs) = DataBind ('$':name) params (map fctr2cctr . ctrs)
 fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
-  where falt2calt (C.ConstrAlt ctr names f) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp.f)
+  where falt2calt (C.ConstrAlt ctr e1) = ConstrAlt (fctr2cctr ctr) (fexp2cexp e1)
+        falt2calt (C.Default e1)       = Default (fexp2cexp e1)
 fexp2cexp e                         = Lam "Fun" (groupLambda e)
 
 fctr2cctr :: C.Constructor t -> Constructor t
@@ -374,8 +373,7 @@ prettyExpr p i (JField name f r) = fieldStr name <> dot <> text f
     fieldStr (Left x)  = text x
     fieldStr (Right x) = prettyExpr (6,PrecMinus) i x
 
-prettyExpr p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr p i ) $ es
-prettyExpr p (i,j) (JProxyCall jmethod t) = text "("<> prettyType p i t <> text ")" <> prettyExpr p (i,j) jmethod
+prettyExpr p i (Error _ str) = text "error:" <+> prettyExpr p i str
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
 
@@ -385,10 +383,11 @@ prettyExpr p (i,j) (Data recflag databinds e) =
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
                    (equals <+> intersperseBar (map (prettyCtr (i+ length tvars))$ cons [i..(i-1+length tvars)]) <$$> semi)
 
-prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> hsep (map (prettyExpr p i) es))
+prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
+
 prettyExpr p (i,j) (Case e alts) =
-    hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> text " " <+> S.intersperseBar (map pretty_alt alts)
-    where pretty_alt (ConstrAlt c ns es) =
-              let n = length ns
-                  ids = [j..j+n-1]
-              in hsep (text (constrName c) : map prettyVar ids) <+> arrow <+> prettyExpr p (i, j+n) (es ids)
+    hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))
+    where pretty_alt (ConstrAlt c e1) =
+               (text (constrName c) <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))
+          pretty_alt (Default e1) =
+               (text "_" <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))
