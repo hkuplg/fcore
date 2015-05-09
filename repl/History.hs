@@ -19,5 +19,3 @@ empty = []
 
 insert :: Hist -> String -> Hist
 insert xs cmd = cmd : xs
-
-

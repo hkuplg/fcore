@@ -1,9 +1,9 @@
 let rec
   foldr [A, B] (f:A->B->B) (x:B) (xs:List[A]) :B =
-    if(isNil(xs))
+    if(null [A] xs)
     then x
-    else f head(xs) (foldr [A, B] f x tail(xs));
+    else f (head [A] xs) (foldr [A, B] f x (tail [A] xs));
 
 let  f (x:Int) (y:Int) :Int = x+y;
 
-foldr [Int, Int] f 0 (new List[Int](-1,0,1,2,3))
+foldr [Int, Int] f 0 L[-1,0,1,2,3]

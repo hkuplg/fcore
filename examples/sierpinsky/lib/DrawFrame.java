@@ -4,9 +4,9 @@ import java.awt.*;
 import javax.swing.*;
 import java.awt.image.BufferedImage;
 
- 
+
 public class DrawFrame extends JFrame {
- 
+
     private static int level;
     private static int x = 0, y = 0, SIZE = 4 * 128, dist;
     private static BufferedImage bufferedImage = new BufferedImage(SIZE, SIZE, BufferedImage.TYPE_INT_RGB);
@@ -19,7 +19,7 @@ public class DrawFrame extends JFrame {
         y = dist;
         s = new DrawFrame();
     }
- 
+
     public static void refresh() {
         s.repaint();
     }

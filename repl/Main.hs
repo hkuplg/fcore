@@ -2,29 +2,26 @@
 
 module Main where
 
+import BackEnd
+import FileIO                           (TransMethod (Naive))
 import RuntimeProcessManager            (withRuntimeProcess)
 
-import System.Console.Haskeline         (runInputT, defaultSettings)
-import System.IO
-import System.Process hiding (runCommand)
-import System.Directory                 (doesFileExist)
-
-import Control.Monad.Error
-
-import Data.FileEmbed                   (embedFile)
-import qualified Data.Map as Map
-
-import BackEnd
-import JavaUtils
-import StringPrefixes                   (namespace)
-
+-- REPL-specific modules
 import Loop
 import qualified Environment as Env
 import qualified History as Hist
-import FileIO                           (TransMethod (Naive))
+
+import Data.FileEmbed                   (embedFile)
+
+import System.Console.Haskeline         (runInputT, defaultSettings)
+import System.Directory                 (doesFileExist, getTemporaryDirectory)
+import System.FilePath                  ((</>))
+import System.IO
+
+import Control.Monad.Error
+
 import qualified Data.ByteString as B
-import System.Directory (getTemporaryDirectory)
-import System.FilePath ((</>))
+import qualified Data.Map as Map
 
 runtimeBytes :: B.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
@@ -48,9 +45,7 @@ main = do
 fileExist :: String -> IO ()
 fileExist name = do
         exist <- doesFileExist name
-        if (exist)
-          then return ()
-          else fileExist name
+        unless exist $ fileExist name
 
 printFile :: IO ()
 printFile = do

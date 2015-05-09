@@ -165,6 +165,9 @@ classDecl modi ident =
 integerExp :: Integer -> Exp
 integerExp = Lit . Int
 
+stringExp :: String -> Exp
+stringExp = Lit . String
+
 nullExp :: Exp
 nullExp = Lit Null
 

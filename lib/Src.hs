@@ -18,8 +18,8 @@ module Src
   ( Module(..), ReaderModule
   , Kind(..)
   , Type(..), ReaderType
-  , Expr(..), ReaderExpr, CheckedExpr
-  , Constructor(..), Alt(..)
+  , Expr(..), ReaderExpr, CheckedExpr, LExpr
+  , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId, LReaderId
@@ -40,6 +40,12 @@ module Src
   , wrap
   , opPrec
   , intersperseBar
+
+  , isWildcardOrVar
+  , constrInfo
+  , extractorsubpattern
+  , specializedMatrix
+  , defaultMatrix
   ) where
 
 import Config
@@ -54,8 +60,9 @@ import Text.PrettyPrint.ANSI.Leijen
 
 import Control.Arrow (second)
 
+import Data.Maybe (fromJust)
 import Data.Data
-import Data.List (intersperse)
+import Data.List (intersperse, findIndex, nub)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -92,7 +99,6 @@ data Type
   | OpAbs Name Type -- Type-level abstraction: "type T A = t" becomes "type T = \A. t", and "\A. t" is the abstraction.
   | OpApp Type Type -- Type-level application: t1 t2
 
-  | ListOf Type
   | Datatype Name [Type] [Name]
 
   -- Warning: If you ever add a case to this, you MUST also define the binary
@@ -132,9 +138,9 @@ data Expr id ty
 
   | JNew ClassName [LExpr id ty]
   | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName
-  | JField  (JCallee (LExpr id ty)) FieldName            ClassName
+  | JField  (JCallee (LExpr id ty)) FieldName            Type
   | Seq [LExpr id ty]
-  | PolyList [LExpr id ty] ty
+  | PolyList [LExpr id ty]
   | Merge (LExpr id ty) (LExpr id ty)
   | RecordCon [(Label, LExpr id ty)]
   | RecordProj (LExpr id ty) Label
@@ -151,16 +157,22 @@ data Expr id ty
   | CaseString (LExpr id ty) [Alt id ty] --pattern match on string
   | ConstrTemp Name
   | Constr Constructor [LExpr id ty] -- post typecheck only
-  | JProxyCall (LExpr id ty) ty
+                                     -- the last type in Constructor will always be the real type
+  | Error Type (LExpr id ty)
   deriving (Eq, Show)
 
 data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
                    deriving (Eq, Show)
 
-data Alt id ty = ConstrAlt Constructor [Name] (LExpr id ty)
+data Alt id ty = ConstrAlt Pattern (LExpr id ty)
             -- | Default (Expr id)
               deriving (Eq, Show)
+
+data Pattern = PConstr Constructor [Pattern]
+             | PVar Name Type
+             | PWildcard
+             deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
 type ReaderExpr  = LExpr Name Type
@@ -237,7 +249,6 @@ expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
 expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalType) d) t)
 expandType d (Product ts) = Product (map (expandType d) ts)
 expandType d (RecordType fs)  = RecordType (map (second (expandType d)) fs)
-expandType d (ListOf t)   = ListOf (expandType d t)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
 expandType d (Thunk t)    = Thunk (expandType d t)
 expandType d (Datatype n ts ns) = Datatype n (map (expandType d) ts) ns
@@ -266,7 +277,6 @@ subtypeS (Forall a1 t1) (Forall a2 t2)         = subtypeS (fsubstTT (a1,TVar a2)
 subtypeS (Product ts1)  (Product ts2)          = length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
 subtypeS (RecordType [(l1,t1)]) (RecordType [(l2,t2)]) = l1 == l2 && subtypeS t1 t2
 subtypeS (RecordType fs1)   (RecordType fs2)           = subtypeS (desugarMultiRecordType fs1) (desugarMultiRecordType fs2)
-subtypeS (ListOf t1)    (ListOf t2)            = subtypeS t1 t2  -- List :: * -> * is covariant
 -- The order is significant for the two `And` cases below.
 subtypeS t1             (And t2 t3) = subtypeS t1 t2 && subtypeS t1 t3
 subtypeS (And t1 t2)    t3          = subtypeS t1 t3 || subtypeS t2 t3
@@ -350,7 +360,6 @@ fsubstTT (x,r) (Forall a t)
         let fresh = freshName a (freeTVars t `Set.union` freeTVars r)
         in Forall fresh (fsubstTT (x,r) (fsubstTT (a, TVar fresh) t))
     | otherwise                = Forall a (fsubstTT (x,r) t)
-fsubstTT (x,r) (ListOf a)      = ListOf (fsubstTT (x,r) a)
 fsubstTT (_,_) Unit            = Unit
 fsubstTT (x,r) (RecordType fs)     = RecordType (map (second (fsubstTT (x,r))) fs)
 fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
@@ -375,7 +384,6 @@ freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
 freeTVars (Forall a t) = Set.delete a (freeTVars t)
 freeTVars (Product ts) = Set.unions (map freeTVars ts)
 freeTVars (RecordType fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
-freeTVars (ListOf t)   = freeTVars t
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
 freeTVars (Thunk t)    = freeTVars t
 freeTVars (OpAbs _ t)  = freeTVars t
@@ -404,7 +412,6 @@ instance Pretty Type where
   pretty (Thunk t)    = squote <> parens (pretty t)
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
-  pretty (ListOf a)   = brackets $ pretty a
   pretty (Datatype n ts _) = hsep (text n : map pretty ts)
 
 groupForall :: Type -> ([Name], Type)
@@ -455,8 +462,8 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
                                           (NonStatic e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (JField e f _) = case e of (Static c)     -> pretty c  <> dot <> text f
                                     (NonStatic e') -> pretty e' <> dot <> text f
-  pretty (PolyList l _)    = brackets . hcat . intersperse comma $ map pretty l
-  pretty (JProxyCall jmethod _) = pretty jmethod
+  pretty (PolyList l)    = brackets . hcat . intersperse comma $ map pretty l
+  pretty (Error _ str)  = text "error:" <+> pretty str
   pretty (Merge e1 e2)  = parens $ pretty e1 <+> text ",," <+> pretty e2
   pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty (Data recFlag datatypes e ) =
@@ -489,8 +496,18 @@ instance Pretty DataBind where
   pretty (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
-    pretty (ConstrAlt c ns e2) = hsep (text (constrName c) : map text ns) <+> arrow <+> pretty e2
     -- pretty (Default e) = text "_" <+> arrow <+> pretty e
+    pretty (ConstrAlt p e2)    = (pretty p) <+> arrow <+> pretty e2
+
+instance Pretty Pattern where
+    pretty (PVar nam _)     = text nam
+    pretty (PWildcard)      = text "_"
+    pretty (PConstr ctr []) = text (constrName ctr)
+    pretty (PConstr ctr ps) = text (constrName ctr) <+> (hsep $ map pretty2 ps)
+      where pretty2 (PConstr ctr' [])  = text (constrName ctr')
+            pretty2 (PConstr ctr' ps') = parens $ text (constrName ctr') <+> (hsep $ map pretty ps')
+            pretty2 (PVar nam _)       = text nam
+            pretty2 (PWildcard)        = text "_"
 
 -- Utilities
 
@@ -513,3 +530,56 @@ opPrec (Compare J.Equal)  = 7
 opPrec (Compare J.NotEq)  = 7
 opPrec (Logic J.CAnd)     = 11
 opPrec (Logic J.COr)      = 12
+
+-- utilities for pattern match
+
+isWildcardOrVar :: Pattern -> Bool
+isWildcardOrVar (PConstr _ _) = False
+isWildcardOrVar     _         = True
+
+---- return (appearing constructors, missing constructor)
+constrInfo :: [Pattern] -> ([Constructor],[Name])
+constrInfo patshead =
+    if all isWildcardOrVar patshead then ([],[])
+    else
+        let (PConstr (Constructor _ types) _) = patshead !! (fromJust $ findIndex (not. isWildcardOrVar) patshead)
+            (Datatype _ _ allcontructor') = last types
+            allcontructor = Set.fromList allcontructor'
+            appearconstructor' = nub [ ctr | PConstr ctr@(Constructor _ _ ) _ <- patshead ]
+            appearconstructor = Set.fromList $ map constrName appearconstructor'
+        in
+            (appearconstructor', Set.toList $ Set.difference allcontructor appearconstructor)
+
+---- utility for specialized matrix
+extractorsubpattern :: Name -> Int -> Pattern -> [Pattern]
+extractorsubpattern   _  num PWildcard = replicate num PWildcard
+extractorsubpattern   _  num (PVar _ _) = replicate num PWildcard
+extractorsubpattern name  _  (PConstr (Constructor name' _) subpattern)
+    | name == name' = subpattern
+    | otherwise     = []
+
+centainPConstr :: Name -> Pattern -> Bool
+centainPConstr name (PConstr (Constructor name' _) _) = name == name'
+centainPConstr  _  _ = False
+
+-- specialized matrix S(c, P)
+--           pi1               |        S(c ,P)
+--  c (r1,...,ra)              |     r1,...,ra,pi2,...pin
+--  c' (r1,...,ra), c'/=c      |     no row
+--  _                          |     _ ... _, pi2,...pin
+specializedMatrix :: Constructor -> [[Pattern]] -> [[Pattern]]
+specializedMatrix ctr pats =
+    let (Constructor name types) = ctr
+        num = length types - 1
+    in  [ res ++ (tail list1) | list1 <- pats,
+                                let curPattern = head list1,
+                                (isWildcardOrVar curPattern) || (centainPConstr name curPattern),
+                                let res = extractorsubpattern name num curPattern ]
+
+-- default matrix D(P)
+--           pi1               |        D(P)
+--  c (r1,...,ra)              |     no row
+--  _                          |     pi2,...pin
+defaultMatrix :: [[Pattern]] -> [[Pattern]]
+defaultMatrix pats =
+    [tail list1 | list1 <- pats, isWildcardOrVar . head $ list1]
