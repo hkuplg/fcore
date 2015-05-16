@@ -80,6 +80,16 @@ import JavaUtils
 
   "module"  { L _ Tmodule }
 
+  -- Update.
+  "sig"             { L _ Tsig }
+  "where"           { L _ Twhere }
+  "algebra"         { L _ Talgebra }
+  "extends"         { L _ Textends }
+  "fdata"           { L _ Tfdata }
+  "from"            { L _ Tfrom }
+  "implements"      { L _ Timplements }
+  "@"               { L _ Tat }
+
   INT      { L _ (Tint _) }
   SCHAR    { L _ (Tschar _) }
   BOOL     { L _ (Tbool _) }
@@ -239,6 +249,10 @@ expr :: { ReaderExpr }
     | infixexpr0                          { $1 }
     | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
+   
+    -- Update.
+    | "sig" UPPER_IDENT ty_param_list "where" record_type_fields_rev ";" expr { SigDec (toString $2) (SigBody (map unLoc $3) $5) $7 `withLoc` $1 }
+    | "algebra" LOWER_IDENT "implements" oa_alg_impls "where" oa_alg_cases ";" expr { AlgDec (toString $2) (AlgBody $4) $6 $8 `withLoc` $1 } 
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
@@ -465,6 +479,29 @@ ident :: { LReaderId }
 
 label :: { Label }
   : LOWER_IDENT  { toString $1 }
+
+-- Update.
+------------------------------------------------------------------------
+-- Object Algebras
+------------------------------------------------------------------------
+
+oa_alg_impls :: { [(ReaderId, [ReaderType])] }
+  : oa_alg_impl                     { [$1] }
+  | oa_alg_impl "," oa_alg_impls    { $1:$3 }
+
+oa_alg_impl :: { (ReaderId, [ReaderType]) }
+  : UPPER_IDENT type_list    { (toString $1, $2) }
+
+oa_alg_cases :: { [(ReaderId, ReaderId, [ReaderId], ReaderExpr)] }
+  : oa_alg_case                     { [$1] }
+  | oa_alg_case "," oa_alg_cases    { $1:$3 }
+
+oa_alg_case :: { (ReaderId, ReaderId, [ReaderId], ReaderExpr) }
+  : label "@" "(" label args ")" "=" expr    { ($1, $4, $5, $8) }
+
+args :: { [ReaderId] }
+  : {- empty -}    { [] }
+  | label args     { $1:$2 }
 
 {
 -- The monadic parser

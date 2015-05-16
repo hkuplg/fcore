@@ -107,6 +107,16 @@ tokens :-
     \_          { locate (\_ _ -> Tunderscore) }
     \`          { locate (\_ _ -> Tbackquote) }
     error       { locate (\_ _ -> Terror)}
+    
+    -- Update.
+    sig         { locate (\_ _ -> Tsig) }
+    extends     { locate (\_ _ -> Textends) }
+    where       { locate (\_ _ -> Twhere) }
+    algebra     { locate (\_ _ -> Talgebra) }
+    fdata       { locate (\_ _ -> Tfdata) }
+    from        { locate (\_ _ -> Tfrom) }
+    implements  { locate (\_ _ -> Timplements) }
+    \@          { locate (\_ _ -> Tat) }
 
     -- Literals
     $digit+                { locate (\_ s -> Tint (read s)) }
@@ -162,6 +172,11 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tmodule | Timport
            | Temptytree | Tnonemptytree
            | Tlistbegin
+
+           -- Update.
+           | Tsig | Textends | Talgebra | Twhere | Tfdata | Tfrom
+           | Timplements | Tat
+
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
            | Teof | Tschar Char | Tstrl | Tstrr | Tstrexpl | Tstrexpr
            | Terror

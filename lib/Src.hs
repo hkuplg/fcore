@@ -20,10 +20,11 @@ module Src
   , Type(..), ReaderType
   , Expr(..), ReaderExpr, CheckedExpr, LExpr
   , Constructor(..), Alt(..), Pattern(..)
+  , SigBody(..), AlgBody(..)
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId, LReaderId
-  , TypeValue(..), TypeContext, ValueContext
+  , TypeValue(..), TypeContext, ValueContext, SigContext
   , DataBind(..)
   , groupForall
   , expandType
@@ -157,7 +158,18 @@ data Expr id ty
   | Constr Constructor [LExpr id ty] -- post typecheck only
                                      -- the last type in Constructor will always be the real type
   | Error Type (LExpr id ty)
+
+  -- Update.
+  | SigDec Name SigBody (LExpr id ty)
+    -- E.g. SigDec "ExpAlg" (SigBody ["E"] [("lit", Int -> E)]) e
+  | AlgDec Name AlgBody [(Name, Name, [Name], LExpr id ty)] (LExpr id ty)
+    -- E.g. AlgDec "evalAlg" (AlgBody [("ExpAlg", [Int])]) [("eval", "lit", ["x"], x)] e
+
   deriving (Eq, Show)
+
+-- Update.
+data SigBody = SigBody [Name] [(Name, Type)] deriving (Eq, Show)
+data AlgBody = AlgBody [(Name, [Type])] deriving (Eq, Show)
 
 data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
@@ -221,6 +233,8 @@ data TypeValue
 type TypeContext  = Map.Map ReaderId (Kind, TypeValue) -- Delta
 type ValueContext = Map.Map ReaderId Type              -- Gamma
 
+-- Update.
+type SigContext   = Map.Map ReaderId SigBody
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
 -- Used in `compatible` and `subtype`.

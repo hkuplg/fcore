@@ -75,6 +75,7 @@ data TcEnv
   = TcEnv
   { tceTypeContext     :: TypeContext
   , tceValueContext    :: ValueContext
+  , tceSigContext   :: SigContext -- Update.
   , tceTypeserver   :: Connection
   , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
@@ -84,6 +85,7 @@ mkInitTcEnv type_server
   = TcEnv
   { tceTypeContext     = Map.empty
   , tceValueContext    = Map.empty
+  , tceSigContext   = Map.empty -- Update.
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -94,6 +96,7 @@ mkInitTcEnvWithEnv value_ctxt type_server
   = TcEnv
   { tceTypeContext     = Map.empty
   , tceValueContext    = value_ctxt
+  , tceSigContext   = Map.empty -- Update.
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -188,6 +191,10 @@ getTypeContext = liftM tceTypeContext getTcEnv
 getValueContext :: Checker ValueContext
 getValueContext = liftM tceValueContext getTcEnv
 
+-- Update.
+getSigContext :: Checker SigContext
+getSigContext = liftM tceSigContext getTcEnv
+
 getTypeServer :: Checker (Handle, Handle)
 getTypeServer = liftM tceTypeserver getTcEnv
 
@@ -223,6 +230,18 @@ withLocalVars vars do_this
        TcEnv {..} <- getTcEnv
        setTcEnv TcEnv { tceValueContext = gamma, ..}
        return r
+
+-- Update.
+withLocalSig :: (ReaderId, SigBody) -> Checker a -> Checker a
+withLocalSig (sigName, sigBody) do_this = do
+  sigEnv <- getSigContext
+  let sigEnv' = Map.insert sigName sigBody sigEnv
+  TcEnv {..} <- getTcEnv
+  setTcEnv TcEnv { tceSigContext = sigEnv', ..}
+  r <- do_this
+  TcEnv {..} <- getTcEnv
+  setTcEnv TcEnv { tceSigContext = sigEnv, ..}
+  return r
 
 type TypeSubstitution = Map.Map Name Type
 
@@ -544,6 +563,17 @@ checkExpr expr@(L _ (Type t params rhs e))
          Just k  -> withLocalTVars [(t, (k, NonTerminalType pulledRight))] $ checkExpr e
   where
     pulledRight = pullRight params rhs
+
+-- Update.
+checkExpr all@(L loc (SigDec s b@(SigBody params rhs) e)) =
+  do sigContext <- getSigContext
+     case Map.lookup s sigContext of
+       Just k  -> throwError $ DuplicateParam s `withExpr` all
+       Nothing -> withLocalSig (s, b) $ checkExpr (L loc (Type s params rhs' e))
+  where rhs' = foldl (\acc x -> And acc (RecordType [x])) (RecordType [last rhs]) (init rhs)
+
+-- Update.
+checkExpr (L loc (AlgDec aname snames body e)) = ???
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext
