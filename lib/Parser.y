@@ -250,7 +250,7 @@ expr :: { ReaderExpr }
     | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
    
-    -- Update.
+    -- Update. (Notice: each constructor should have type * -> * -> .. -> *.)
     | "sig" UPPER_IDENT ty_param_list "where" record_type_fields_rev ";" expr { SigDec (toString $2) (SigBody (map unLoc $3) $5) $7 `withLoc` $1 }
     | "algebra" LOWER_IDENT "implements" oa_alg_impls "where" oa_alg_cases ";" expr { AlgDec (toString $2) (AlgBody $4) $6 $8 `withLoc` $1 } 
 

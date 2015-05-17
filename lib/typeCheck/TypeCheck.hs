@@ -52,7 +52,7 @@ import Control.Monad.Error
 import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
-import Data.List (intersperse, findIndex, find)
+import Data.List (intersperse, findIndex, find, sort, nub)
 
 import Prelude hiding (pred)
 
@@ -579,13 +579,20 @@ checkExpr all@(L loc (AlgDec aname snames body e)) =
      typeContext <- getTypeContext
      let sigs = getSigs snames
      let labels = getAllLabels sigContext sigs
-     checkDupNames labels -- check duplicate fields
      let AlgBody snames_body = snames
-     mapM checkType $ concatMap snd snames_body -- check types
-     let snames_body' = map (\(x, ys) -> (x, map (expandType typeContext) ys)) snames_body -- expand types. snames_body' :: [(Name, [Type])]
-     case find (\x -> Map.notMember x sigContext) sigs of -- signatures should exist in env
+     case find (\x -> Map.notMember x sigContext) sigs of -- (1) sigs should exist in env
        Just k  -> throwError $ NotInScope k `withExpr` all
-       Nothing -> checkExpr e -- TODO (1) label@(... x y z): label types correct (2) arguments no dup, count match (3) TODO
+       Nothing -> return ()
+     checkDupNames labels -- (2) check duplicate fields
+     case sort labels == sort (map (\(_, x, _, _) -> x) body) of -- (3) fields match
+       True  -> return ()
+       False -> throwError $ General (text $ "fields in algebra \"" ++ aname ++ "\" not expected.") `withExpr` all
+     mapM checkType $ concatMap snd snames_body -- (4) check types
+     let snames_body' = map (\(x, ys) -> (x, map (expandType typeContext) ys)) snames_body -- (5) expand types. snames_body' :: [(Name, [Type])]
+     case find (not . null) (checkArgs sigContext sigs body) of -- (6) args no dup, num match
+       Just s -> throwError $ General (text $ "in " ++ aname ++ "." ++ s) `withExpr` all
+       _      -> return ()
+     checkExpr e -- TODO: label with correct types, implementation
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext

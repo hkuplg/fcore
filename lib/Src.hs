@@ -47,7 +47,7 @@ module Src
   , extractorsubpattern
   , specializedMatrix
   , defaultMatrix
-  , getSigs, getAllLabels
+  , getSigs, getAllLabels, getTypes, getSigsInfo, checkArgs
   ) where
 
 import Config
@@ -599,11 +599,38 @@ defaultMatrix pats =
 
 -- utilities for object algebras
 
+-- get the signatures that an algebra implements.
 getSigs :: AlgBody -> [Name]
 getSigs l = let AlgBody list = l in map fst list
 
+-- get all constructors that an algebra should implement.
 getAllLabels :: SigContext -> [Name] -> [Name]
 getAllLabels env l = concatMap getLabel l
   where getLabel x = case Map.lookup x env of 
                        Just (SigBody _ xs)  -> map fst xs
                        _                    -> []
+
+-- Type: * -> * -> * into [*, *, *].
+getTypes :: Type -> [Type]
+getTypes (Fun x y) = x : (getTypes y)
+getTypes x = [x]
+
+-- Given signatures, for each label l, construct (l, [sorts], [getTypes]).
+getSigsInfo :: SigContext -> [Name] -> [(Name, [Name], Type)]
+getSigsInfo s = concatMap f
+  where f = \x -> case Map.lookup x s of
+                    Just (SigBody xs ys) -> map (\(p, q) -> (p, xs, q)) ys
+                    _                    -> []
+
+-- Pattern-matching in AlgDec, check the number of arguments and the distinct names.
+checkArgs :: SigContext -> [Name] -> [(Name, Name, [Name], a)] -> [String]
+checkArgs s sigs body = map checkIt body 
+  where
+    argList = map (\(x, _, y) -> (x, length . getTypes $ y)) $ getSigsInfo s sigs
+    argMap = Map.fromList argList
+    getArgNum x = case Map.lookup x argMap of
+                    Just k  -> k - 1
+                    Nothing -> -1
+    checkIt (_, x, y, _) = if length y /= length (nub y) then x ++ ": duplicate arg names"
+                           else if length y /= getArgNum x then x ++ ": num of args not expected"
+                           else ""
