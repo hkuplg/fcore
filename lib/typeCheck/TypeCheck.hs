@@ -51,7 +51,7 @@ import Control.Monad.Error
 import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
-import Data.List (intersperse, findIndex)
+import Data.List (intersperse, findIndex, find)
 
 import Prelude hiding (pred)
 
@@ -567,13 +567,21 @@ checkExpr expr@(L _ (Type t params rhs e))
 -- Update.
 checkExpr all@(L loc (SigDec s b@(SigBody params rhs) e)) =
   do sigContext <- getSigContext
-     case Map.lookup s sigContext of
-       Just k  -> throwError $ DuplicateParam s `withExpr` all
-       Nothing -> withLocalSig (s, b) $ checkExpr (L loc (Type s params rhs' e))
+     case Map.member s sigContext of
+       True  -> throwError $ DuplicateParam s `withExpr` all
+       False -> withLocalSig (s, b) $ checkExpr (L loc (Type s params rhs' e))
   where rhs' = foldl (\acc x -> And acc (RecordType [x])) (RecordType [last rhs]) (init rhs)
 
 -- Update.
-checkExpr (L loc (AlgDec aname snames body e)) = ???
+checkExpr all@(L loc (AlgDec aname snames body e)) =
+  do sigContext <- getSigContext
+     let sigs = getSigs snames
+     let labels = getAllLabels sigContext sigs
+     checkDupNames labels
+     checkType . head . getAllTypes $ snames -- checkTypes ???
+     case find (\x -> Map.notMember x sigContext) sigs of
+       Just k  -> throwError $ NotInScope k `withExpr` all
+       Nothing -> checkExpr e -- TODO
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext

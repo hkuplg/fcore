@@ -47,6 +47,7 @@ module Src
   , extractorsubpattern
   , specializedMatrix
   , defaultMatrix
+  , getSigs, getAllLabels, getAllTypes 
   ) where
 
 import Config
@@ -595,3 +596,17 @@ specializedMatrix ctr pats =
 defaultMatrix :: [[Pattern]] -> [[Pattern]]
 defaultMatrix pats =
     [tail list1 | list1 <- pats, isWildcardOrVar . head $ list1]
+
+-- utilities for object algebras
+
+getSigs :: AlgBody -> [Name]
+getSigs l = let AlgBody list = l in map fst list
+
+getAllLabels :: SigContext -> [Name] -> [Name]
+getAllLabels env l = concatMap getLabel l
+  where getLabel x = case Map.lookup x env of 
+                       Just (SigBody _ xs)  -> map fst xs
+                       _                    -> []
+
+getAllTypes :: AlgBody -> [Type]
+getAllTypes (AlgBody xs) = concatMap snd xs
