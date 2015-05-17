@@ -47,7 +47,7 @@ module Src
   , extractorsubpattern
   , specializedMatrix
   , defaultMatrix
-  , getSigs, getAllLabels, getAllTypes 
+  , getSigs, getAllLabels
   ) where
 
 import Config
@@ -607,6 +607,3 @@ getAllLabels env l = concatMap getLabel l
   where getLabel x = case Map.lookup x env of 
                        Just (SigBody _ xs)  -> map fst xs
                        _                    -> []
-
-getAllTypes :: AlgBody -> [Type]
-getAllTypes (AlgBody xs) = concatMap snd xs

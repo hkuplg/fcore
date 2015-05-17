@@ -42,6 +42,7 @@ import Panic
 import StringPrefixes
 
 import Text.PrettyPrint.ANSI.Leijen
+import Debug.Trace (trace)
 
 import System.IO
 import System.Process
@@ -575,13 +576,16 @@ checkExpr all@(L loc (SigDec s b@(SigBody params rhs) e)) =
 -- Update.
 checkExpr all@(L loc (AlgDec aname snames body e)) =
   do sigContext <- getSigContext
+     typeContext <- getTypeContext
      let sigs = getSigs snames
      let labels = getAllLabels sigContext sigs
-     checkDupNames labels
-     checkType . head . getAllTypes $ snames -- checkTypes ???
-     case find (\x -> Map.notMember x sigContext) sigs of
+     checkDupNames labels -- check duplicate fields
+     let AlgBody snames_body = snames
+     mapM checkType $ concatMap snd snames_body -- check types
+     let snames_body' = map (\(x, ys) -> (x, map (expandType typeContext) ys)) snames_body -- expand types. snames_body' :: [(Name, [Type])]
+     case find (\x -> Map.notMember x sigContext) sigs of -- signatures should exist in env
        Just k  -> throwError $ NotInScope k `withExpr` all
-       Nothing -> checkExpr e -- TODO
+       Nothing -> checkExpr e -- TODO (1) label@(... x y z): label types correct (2) arguments no dup, count match (3) TODO
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext
