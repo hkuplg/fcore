@@ -622,8 +622,9 @@ checkExpr all@(L loc (AlgDec aname (AlgBody snames) body e)) =
      let checkedExpr = zipWith (\(x, y, _, _) (z, w) -> (x, y, z, w)) body body'
      case find (not . null) (checkReturnType typeContext checkedExpr info) of
        Just s  -> throwError $ General (text $ "In " ++ aname ++ "." ++ s) `withExpr` all 
-       Nothing -> return () 
-     checkExpr e
+       Nothing -> return ()
+     let preCalc = map (\(x, y, zs, w) -> (x, y, zip zs (genTypeArgs y), w)) body
+     checkExpr . L loc $ Let NonRec [genBind loc aname preCalc] e
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext

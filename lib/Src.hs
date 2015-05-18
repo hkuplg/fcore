@@ -47,7 +47,8 @@ module Src
   , extractorsubpattern
   , specializedMatrix
   , defaultMatrix
-  , getSigBody, getAllLabels, getTypes, substSigTypes, checkArgs, checkReturnType
+  , getSigBody, getAllLabels, getTypes, substSigTypes 
+  , checkArgs, checkReturnType, genBind
   ) where
 
 import Config
@@ -597,7 +598,7 @@ defaultMatrix :: [[Pattern]] -> [[Pattern]]
 defaultMatrix pats =
     [tail list1 | list1 <- pats, isWildcardOrVar . head $ list1]
 
--- utilities for object algebras
+-- Utilities for object algebras
 
 getSigBody :: SigContext -> Name -> SigBody
 getSigBody s n = case Map.lookup n s of
@@ -613,7 +614,7 @@ substSigTypes s = concatMap f
                      in let subst t = foldr fsubstTT t (zip sorts types)
                      in map (\(x, y) -> (x, map subst . getTypes $ y)) constrs
 
--- get all constructors that an algebra should implement.
+-- Get all constructors that an algebra should implement.
 getAllLabels :: SigContext -> [Name] -> [Name]
 getAllLabels env l = concatMap getLabel l
   where getLabel x = case Map.lookup x env of 
@@ -640,10 +641,24 @@ checkArgs s sigs body = map checkIt body
                            else if length y /= getArgNum x then x ++ ": num of args not expected."
                            else ""
 
+-- Pattern-matching in AlgDec, check the return type.
 checkReturnType :: TypeContext -> [(Name, Name, Type, a)] -> Map.Map Name [Type] -> [String]
 checkReturnType tcon checkedExpr info = map checkIt checkedExpr
   where checkIt (l, constr, t, _) =
           case Map.lookup constr info of
             Nothing -> panic "Impossible: bug reached"
             Just ts -> if subtype tcon (RecordType [(l, t)]) (last ts) then "" 
-                       else constr ++ ": type not expected." 
+                       else constr ++ ": type not expected."
+
+-- Generate LetBind for AlgDec.
+genBind :: Loc -> Name -> [(Name, Name, [(Name, Type)], LExpr Name Type)] -> Bind Name Type
+genBind loc aname info = Bind {
+  bindId = aname,
+  bindTyParams = [],
+  bindParams = [],
+  bindRhs = L loc . RecordCon . map genRecord $ info,
+  bindRhsTyAscription = Nothing
+} where
+    genRecord (l, constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
+    genLam [] e     = e
+    genLam (x:xs) e = L loc . Lam x $ genLam xs e
