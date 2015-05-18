@@ -47,7 +47,7 @@ module Src
   , extractorsubpattern
   , specializedMatrix
   , defaultMatrix
-  , getSigs, getAllLabels, getTypes, getSigsInfo, checkArgs
+  , getSigBody, getAllLabels, getTypes, substSigTypes, checkArgs, checkReturnType
   ) where
 
 import Config
@@ -599,9 +599,19 @@ defaultMatrix pats =
 
 -- utilities for object algebras
 
--- get the signatures that an algebra implements.
-getSigs :: AlgBody -> [Name]
-getSigs l = let AlgBody list = l in map fst list
+getSigBody :: SigContext -> Name -> SigBody
+getSigBody s n = case Map.lookup n s of
+                   Just k -> k
+                   Nothing -> panic $ "\"" ++ n ++ "\" not found in env" 
+
+-- Given AlgBody, get the types of constructors by substitution.
+-- E.g. ExpAlg[IEval] => [("lit", [Int, IEval]), ("add", [IEval, IEval, IEval])].
+substSigTypes :: SigContext -> [(Name, [Type])] -> [(Name, [Type])]
+substSigTypes s = concatMap f
+  where
+    f (sig, types) = let SigBody sorts constrs = getSigBody s sig
+                     in let subst t = foldr fsubstTT t (zip sorts types)
+                     in map (\(x, y) -> (x, map subst . getTypes $ y)) constrs
 
 -- get all constructors that an algebra should implement.
 getAllLabels :: SigContext -> [Name] -> [Name]
@@ -615,22 +625,25 @@ getTypes :: Type -> [Type]
 getTypes (Fun x y) = x : (getTypes y)
 getTypes x = [x]
 
--- Given signatures, for each label l, construct (l, [sorts], [getTypes]).
-getSigsInfo :: SigContext -> [Name] -> [(Name, [Name], Type)]
-getSigsInfo s = concatMap f
-  where f = \x -> case Map.lookup x s of
-                    Just (SigBody xs ys) -> map (\(p, q) -> (p, xs, q)) ys
-                    _                    -> []
-
 -- Pattern-matching in AlgDec, check the number of arguments and the distinct names.
 checkArgs :: SigContext -> [Name] -> [(Name, Name, [Name], a)] -> [String]
 checkArgs s sigs body = map checkIt body 
   where
-    argList = map (\(x, _, y) -> (x, length . getTypes $ y)) $ getSigsInfo s sigs
+    getNumArgs = \(x, y) -> (x, length . getTypes $ y)
+    getConstrs = \n -> let SigBody _ constrs = getSigBody s n in map getNumArgs constrs
+    argList = concatMap getConstrs sigs
     argMap = Map.fromList argList
     getArgNum x = case Map.lookup x argMap of
                     Just k  -> k - 1
                     Nothing -> -1
-    checkIt (_, x, y, _) = if length y /= length (nub y) then x ++ ": duplicate arg names"
-                           else if length y /= getArgNum x then x ++ ": num of args not expected"
+    checkIt (_, x, y, _) = if length y /= length (nub y) then x ++ ": duplicate arg names."
+                           else if length y /= getArgNum x then x ++ ": num of args not expected."
                            else ""
+
+checkReturnType :: TypeContext -> [(Name, Name, Type, a)] -> Map.Map Name [Type] -> [String]
+checkReturnType tcon checkedExpr info = map checkIt checkedExpr
+  where checkIt (l, constr, t, _) =
+          case Map.lookup constr info of
+            Nothing -> panic "Impossible: bug reached"
+            Just ts -> if subtype tcon (RecordType [(l, t)]) (last ts) then "" 
+                       else constr ++ ": type not expected." 

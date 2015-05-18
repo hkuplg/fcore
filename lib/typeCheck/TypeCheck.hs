@@ -574,25 +574,56 @@ checkExpr all@(L loc (SigDec s b@(SigBody params rhs) e)) =
   where rhs' = foldl (\acc x -> And acc (RecordType [x])) (RecordType [last rhs]) (init rhs)
 
 -- Update.
-checkExpr all@(L loc (AlgDec aname snames body e)) =
+-- AlgDec algName (AlgBody [(sig, types)]) [(label, constr, args, e)] expr
+-- (1) each sig in env
+-- (2) fields of all sigs have no duplicate names
+-- (3) the constrs cover all required fields
+-- (4) check types: for each sig, the number of types matches
+-- (5) check types: types are implied from env
+-- (6) expand types with typeContext
+-- (7) args have no duplicate names
+-- (8) for each constr, the number of args matches
+-- (9) with label and e, it gives the right return type
+-- (+) translation  
+checkExpr all@(L loc (AlgDec aname (AlgBody snames) body e)) =
   do sigContext <- getSigContext
      typeContext <- getTypeContext
-     let sigs = getSigs snames
+     let sigs = map fst snames
      let labels = getAllLabels sigContext sigs
-     let AlgBody snames_body = snames
-     case find (\x -> Map.notMember x sigContext) sigs of -- (1) sigs should exist in env
+     let sigsWithSorts = map (\(x, y) -> (x, y, getSigBody sigContext x)) snames 
+     -- (1)
+     case find (\x -> Map.notMember x sigContext) sigs of
        Just k  -> throwError $ NotInScope k `withExpr` all
        Nothing -> return ()
-     checkDupNames labels -- (2) check duplicate fields
-     case sort labels == sort (map (\(_, x, _, _) -> x) body) of -- (3) fields match
+     -- (2)
+     checkDupNames labels
+     -- (3)
+     case sort labels == sort (map (\(_, x, _, _) -> x) body) of
        True  -> return ()
-       False -> throwError $ General (text $ "fields in algebra \"" ++ aname ++ "\" not expected.") `withExpr` all
-     mapM checkType $ concatMap snd snames_body -- (4) check types
-     let snames_body' = map (\(x, ys) -> (x, map (expandType typeContext) ys)) snames_body -- (5) expand types. snames_body' :: [(Name, [Type])]
-     case find (not . null) (checkArgs sigContext sigs body) of -- (6) args no dup, num match
-       Just s -> throwError $ General (text $ "in " ++ aname ++ "." ++ s) `withExpr` all
+       False -> throwError $ General (text $ "In " ++ aname ++ ": fields not expected.") `withExpr` all
+     -- (4)
+     case find (\(_, xs, SigBody ys _) -> length xs /= length ys) sigsWithSorts of
+       Just (x, _, _)  -> throwError $ General (text $ "In " ++ aname ++ ": targs of " ++ x ++ " not expected.") `withExpr` all
+       Nothing         -> return ()
+     -- (5)
+     mapM_ checkType $ concatMap snd snames
+     -- (6)
+     let snames' = map (\(x, ys) -> (x, map (expandType typeContext) ys)) snames
+     -- (7) (8)
+     case find (not . null) (checkArgs sigContext sigs body) of
+       Just s -> throwError $ General (text $ "In " ++ aname ++ "." ++ s) `withExpr` all
        _      -> return ()
-     checkExpr e -- TODO: label with correct types, implementation
+     -- (9)
+     let info = Map.fromList . substSigTypes sigContext $ snames'
+     let genTypeArgs = \x -> case (Map.lookup x info) of
+                               Just k  -> init k
+                               Nothing -> panic "Impossible: bug reached"
+     body' <- mapM (\(_, x, ys, z) -> withLocalVars (zip ys (genTypeArgs x)) (checkExpr z)) body
+     let checkedExpr = zipWith (\(x, y, _, _) (z, w) -> (x, y, z, w)) body body'
+     case find (not . null) (checkReturnType typeContext checkedExpr info) of
+       Just s  -> throwError $ General (text $ "In " ++ aname ++ "." ++ s) `withExpr` all 
+       Nothing -> return () 
+     checkExpr e
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext
