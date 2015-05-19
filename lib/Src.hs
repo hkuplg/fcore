@@ -48,7 +48,8 @@ module Src
   , specializedMatrix
   , defaultMatrix
   , getSigBody, getAllLabels, getTypes, substSigTypes 
-  , checkArgs, checkReturnType, genBind
+  , checkArgs, checkReturnType, genBind, mergeSigBody
+  , extendSigBody
   ) where
 
 import Config
@@ -665,3 +666,27 @@ genBind loc aname info = Bind {
     genRecord (l, constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
     genLam [] e     = e
     genLam (x:xs) e = L loc . Lam x $ genLam xs e
+
+-- SigExt: merge constructors from sigs. They must be distinct.
+mergeSigBody :: SigContext -> [(Name, [Name])] -> [(Name, Type)] -> [(Name, Type)]
+mergeSigBody s ext rhs = res
+  where
+    res = concatMap (\(x, ys) -> let SigBody zs ws = getSigBody s x in map (g zs ys) ws) ext
+    g zs ys (n, t) = (n, foldr subst t $ zip zs ys)
+    subst r@(a, b) p@(TVar x)           = if a == x then TVar b else p
+    subst r@(a, b) p@(JType c)          = p
+    subst r@(a, b) p@(Fun t1 t2)        = Fun (subst r t1) (subst r t2)
+    subst r@(a, b) p@(Product ts)       = Product . map (subst r) $ ts
+    subst r@(a, b) p@(Forall x t)       = Forall x . subst r $ t
+    subst r@(a, b) p@(Unit)             = p
+    subst r@(a, b) p@(RecordType fs)    = RecordType . map (\(x, y) -> (x, subst r y)) $ fs
+    subst r@(a, b) p@(And t1 t2)        = And (subst r t1) (subst r t2)
+    subst r@(a, b) p@(Thunk t)          = Thunk . subst r $ t
+    subst r@(a, b) p@(OpAbs x t)        = OpAbs x . subst r $ t
+    subst r@(a, b) p@(OpApp t1 t2)      = OpApp (subst r t1) (subst r t2)
+    subst r@(a, b) p@(Datatype n ts ns) = Datatype n (map (subst r) ts) ns
+
+-- SigExt: merge constructors. But those can be overridden.
+-- extendSigBody subst prev.
+extendSigBody :: [(Name, Type)] -> [(Name, Type)] -> [(Name, Type)]
+extendSigBody = foldr (\x acc -> if any (\y -> fst x == fst y) acc then acc else x:acc)

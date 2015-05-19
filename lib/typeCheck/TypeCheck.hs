@@ -571,13 +571,13 @@ checkExpr expr@(L _ (Type t params rhs e))
 checkExpr all@(L loc (SigDec s b@(SigBody params rhs) e)) =
   do sigContext <- getSigContext
      typeContext <- getTypeContext
-     -- let b' = SigBody params . map (\(x, y) -> (x, expandType typeContext y)) $ rhs
      case Map.member s sigContext of
        True  -> throwError $ DuplicateParam s `withExpr` all
        False -> withLocalSig (s, b) $ checkExpr (L loc (Type s params rhs' e))
   where rhs' = foldl (\acc x -> And acc (RecordType [x])) (RecordType [last rhs]) (init rhs)
 
 -- Update.
+-- Formalization gives the rules of extending signatures.
 checkExpr all@(L loc (SigExt s (SigBody params rhs) ext e)) =
   do sigContext <- getSigContext
      let sigs = map fst ext
@@ -587,14 +587,14 @@ checkExpr all@(L loc (SigExt s (SigBody params rhs) ext e)) =
      case find (\x -> Map.notMember x sigContext) sigs of
        Just k  -> throwError $ NotInScope k `withExpr` all
        Nothing -> return ()
-     let labels = getAllLabels sigContext sigs
-     checkDupNames labels
+     checkDupNames $ getAllLabels sigContext sigs
+     checkDupNames $ map fst rhs
      let sigsWithSorts = map (\(x, y) -> (x, y, getSigBody sigContext x)) ext
      case find (\(_, xs, SigBody ys _) -> length xs /= length ys) sigsWithSorts of
        Just (x, _, _)  -> throwError $ General (text $ "In " ++ s ++ ": targs of " ++ x ++ " not expected.") `withExpr` all
        Nothing         -> return ()
-     checkExpr e
-     --withLocalSig (s, ?) $ checkExpr (L loc (Type s params (And ? ?) e))
+     let b = SigBody params . extendSigBody rhs . mergeSigBody sigContext ext $ rhs
+     checkExpr $ L loc (SigDec s b e)
 
 -- Update.
 -- AlgDec algName (AlgBody [(sig, types)]) [(label, constr, args, e)] expr
