@@ -164,6 +164,9 @@ data Expr id ty
   -- Update.
   | SigDec Name SigBody (LExpr id ty)
     -- E.g. SigDec "ExpAlg" (SigBody ["E"] [("lit", Int -> E)]) e
+    -- TODO: Capital. "lit, add" -> "Lit, Add".
+  | SigExt Name SigBody [(Name, [Name])] (LExpr id ty)
+    -- E.g. SigExt "SubAlg" (...) [("ExpAlg", [E])] e
   | AlgDec Name AlgBody [(Name, Name, [Name], LExpr id ty)] (LExpr id ty)
     -- E.g. AlgDec "evalAlg" (AlgBody [("ExpAlg", [Int])]) [("eval", "lit", ["x"], x)] e
 
@@ -607,11 +610,11 @@ getSigBody s n = case Map.lookup n s of
 
 -- Given AlgBody, get the types of constructors by substitution.
 -- E.g. ExpAlg[IEval] => [("lit", [Int, IEval]), ("add", [IEval, IEval, IEval])].
-substSigTypes :: SigContext -> [(Name, [Type])] -> [(Name, [Type])]
-substSigTypes s = concatMap f
+substSigTypes :: SigContext -> TypeContext -> [(Name, [Type])] -> [(Name, [Type])]
+substSigTypes sct tct = concatMap f
   where
-    f (sig, types) = let SigBody sorts constrs = getSigBody s sig
-                     in let subst t = foldr fsubstTT t (zip sorts types)
+    f (sig, types) = let SigBody sorts constrs = getSigBody sct sig
+                     in let subst t = expandType tct . foldr fsubstTT t $ zip sorts types
                      in map (\(x, y) -> (x, map subst . getTypes $ y)) constrs
 
 -- Get all constructors that an algebra should implement.

@@ -252,7 +252,8 @@ expr :: { ReaderExpr }
    
     -- Update. (Notice: each constructor should have type * -> * -> .. -> *.)
     | "sig" UPPER_IDENT ty_param_list "where" record_type_fields_rev ";" expr { SigDec (toString $2) (SigBody (map unLoc $3) $5) $7 `withLoc` $1 }
-    | "algebra" LOWER_IDENT "implements" oa_alg_impls "where" oa_alg_cases ";" expr { AlgDec (toString $2) (AlgBody $4) $6 $8 `withLoc` $1 } 
+    | "algebra" LOWER_IDENT "implements" oa_alg_impls "where" oa_alg_cases ";" expr { AlgDec (toString $2) (AlgBody $4) $6 $8 `withLoc` $1 }
+    | "sig" UPPER_IDENT ty_param_list "extends" oa_sig_extend_sigs "where" record_type_fields_rev ";" expr { SigExt (toString $2) (SigBody (map unLoc $3) $7) $5 $9 `withLoc` $1 }  
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
@@ -498,6 +499,13 @@ oa_alg_cases :: { [(ReaderId, ReaderId, [ReaderId], ReaderExpr)] }
 
 oa_alg_case :: { (ReaderId, ReaderId, [ReaderId], ReaderExpr) }
   : label "@" "(" label args ")" "=" expr    { ($1, $4, $5, $8) }
+
+oa_sig_extend_sigs :: { [(ReaderId, [ReaderId])] }
+  : oa_sig_extend_sig                        { [$1] }
+  | oa_sig_extend_sig "," oa_sig_extend_sigs { $1:$3 }
+
+oa_sig_extend_sig :: { (ReaderId, [ReaderId]) }
+  : UPPER_IDENT ty_param_list    { (toString $1, map unLoc $2) }
 
 args :: { [ReaderId] }
   : {- empty -}    { [] }

@@ -566,12 +566,35 @@ checkExpr expr@(L _ (Type t params rhs e))
     pulledRight = pullRight params rhs
 
 -- Update.
+-- Notice that just like type synonyms, the types inside a signature won't be expanded until they are used.
+-- Don't forget to expand them.
 checkExpr all@(L loc (SigDec s b@(SigBody params rhs) e)) =
   do sigContext <- getSigContext
+     typeContext <- getTypeContext
+     -- let b' = SigBody params . map (\(x, y) -> (x, expandType typeContext y)) $ rhs
      case Map.member s sigContext of
        True  -> throwError $ DuplicateParam s `withExpr` all
        False -> withLocalSig (s, b) $ checkExpr (L loc (Type s params rhs' e))
   where rhs' = foldl (\acc x -> And acc (RecordType [x])) (RecordType [last rhs]) (init rhs)
+
+-- Update.
+checkExpr all@(L loc (SigExt s (SigBody params rhs) ext e)) =
+  do sigContext <- getSigContext
+     let sigs = map fst ext
+     case Map.member s sigContext of
+       True  -> throwError $ DuplicateParam s `withExpr` all
+       False -> return ()
+     case find (\x -> Map.notMember x sigContext) sigs of
+       Just k  -> throwError $ NotInScope k `withExpr` all
+       Nothing -> return ()
+     let labels = getAllLabels sigContext sigs
+     checkDupNames labels
+     let sigsWithSorts = map (\(x, y) -> (x, y, getSigBody sigContext x)) ext
+     case find (\(_, xs, SigBody ys _) -> length xs /= length ys) sigsWithSorts of
+       Just (x, _, _)  -> throwError $ General (text $ "In " ++ s ++ ": targs of " ++ x ++ " not expected.") `withExpr` all
+       Nothing         -> return ()
+     checkExpr e
+     --withLocalSig (s, ?) $ checkExpr (L loc (Type s params (And ? ?) e))
 
 -- Update.
 -- AlgDec algName (AlgBody [(sig, types)]) [(label, constr, args, e)] expr
@@ -589,19 +612,19 @@ checkExpr all@(L loc (AlgDec aname (AlgBody snames) body e)) =
   do sigContext <- getSigContext
      typeContext <- getTypeContext
      let sigs = map fst snames
-     let labels = getAllLabels sigContext sigs
-     let sigsWithSorts = map (\(x, y) -> (x, y, getSigBody sigContext x)) snames 
      -- (1)
      case find (\x -> Map.notMember x sigContext) sigs of
        Just k  -> throwError $ NotInScope k `withExpr` all
        Nothing -> return ()
      -- (2)
+     let labels = getAllLabels sigContext sigs
      checkDupNames labels
      -- (3)
      case sort labels == sort (map (\(_, x, _, _) -> x) body) of
        True  -> return ()
        False -> throwError $ General (text $ "In " ++ aname ++ ": fields not expected.") `withExpr` all
      -- (4)
+     let sigsWithSorts = map (\(x, y) -> (x, y, getSigBody sigContext x)) snames 
      case find (\(_, xs, SigBody ys _) -> length xs /= length ys) sigsWithSorts of
        Just (x, _, _)  -> throwError $ General (text $ "In " ++ aname ++ ": targs of " ++ x ++ " not expected.") `withExpr` all
        Nothing         -> return ()
@@ -614,7 +637,7 @@ checkExpr all@(L loc (AlgDec aname (AlgBody snames) body e)) =
        Just s -> throwError $ General (text $ "In " ++ aname ++ "." ++ s) `withExpr` all
        _      -> return ()
      -- (9)
-     let info = Map.fromList . substSigTypes sigContext $ snames'
+     let info = Map.fromList . substSigTypes sigContext typeContext $ snames'
      let genTypeArgs = \x -> case (Map.lookup x info) of
                                Just k  -> init k
                                Nothing -> panic "Impossible: bug reached"
