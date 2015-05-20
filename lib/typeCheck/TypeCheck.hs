@@ -77,6 +77,7 @@ data TcEnv
   { tceTypeContext     :: TypeContext
   , tceValueContext    :: ValueContext
   , tceSigContext   :: SigContext -- Update.
+  , tceAlgContext   :: AlgContext -- Update.
   , tceTypeserver   :: Connection
   , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
@@ -87,6 +88,7 @@ mkInitTcEnv type_server
   { tceTypeContext     = Map.empty
   , tceValueContext    = Map.empty
   , tceSigContext   = Map.empty -- Update.
+  , tceAlgContext   = Map.empty -- update.
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -98,6 +100,7 @@ mkInitTcEnvWithEnv value_ctxt type_server
   { tceTypeContext     = Map.empty
   , tceValueContext    = value_ctxt
   , tceSigContext   = Map.empty -- Update.
+  , tceAlgContext   = Map.empty -- update.
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -196,6 +199,10 @@ getValueContext = liftM tceValueContext getTcEnv
 getSigContext :: Checker SigContext
 getSigContext = liftM tceSigContext getTcEnv
 
+-- Update.
+getAlgContext :: Checker AlgContext
+getAlgContext = liftM tceAlgContext getTcEnv
+
 getTypeServer :: Checker (Handle, Handle)
 getTypeServer = liftM tceTypeserver getTcEnv
 
@@ -242,6 +249,18 @@ withLocalSig (sigName, sigBody) do_this = do
   r <- do_this
   TcEnv {..} <- getTcEnv
   setTcEnv TcEnv { tceSigContext = sigEnv, ..}
+  return r
+
+-- Update.
+withLocalAlg :: (ReaderId, AlgBody) -> Checker a -> Checker a
+withLocalAlg (algName, algBody) do_this = do
+  algEnv <- getAlgContext
+  let algEnv' = Map.insert algName algBody algEnv
+  TcEnv {..} <- getTcEnv
+  setTcEnv TcEnv { tceAlgContext = algEnv', ..}
+  r <- do_this
+  TcEnv {..} <- getTcEnv
+  setTcEnv TcEnv { tceAlgContext = algEnv, ..}
   return r
 
 type TypeSubstitution = Map.Map Name Type
@@ -647,7 +666,7 @@ checkExpr all@(L loc (AlgDec aname (AlgBody snames) body e)) =
        Just s  -> throwError $ General (text $ "In " ++ aname ++ "." ++ s) `withExpr` all 
        Nothing -> return ()
      let preCalc = map (\(x, y, zs, w) -> (x, y, zip zs (genTypeArgs y), w)) body
-     checkExpr . L loc $ Let NonRec [genBind loc aname preCalc] e
+     trace (show $ (aname, AlgBody snames)) $ withLocalAlg (aname, AlgBody snames) . checkExpr . L loc $ Let NonRec [genBind loc aname preCalc] e
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext

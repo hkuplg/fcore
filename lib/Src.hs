@@ -24,7 +24,7 @@ module Src
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId, LReaderId
-  , TypeValue(..), TypeContext, ValueContext, SigContext
+  , TypeValue(..), TypeContext, ValueContext, SigContext, AlgContext
   , DataBind(..)
   , groupForall
   , expandType
@@ -170,6 +170,8 @@ data Expr id ty
     -- E.g. SigExt "SubAlg" (...) [("ExpAlg", [E])] e
   | AlgDec Name AlgBody [(Name, Name, [Name], LExpr id ty)] (LExpr id ty)
     -- E.g. AlgDec "evalAlg" (AlgBody [("ExpAlg", [Int])]) [("eval", "lit", ["x"], x)] e
+  | AlgExt Name [Name] AlgBody [(Name, Name, [Name], LExpr id ty)] (LExpr id ty)
+    -- E.g. AlgExt "evalSubAlg" ["evalAlg"] ...
 
   deriving (Eq, Show)
 
@@ -241,6 +243,7 @@ type ValueContext = Map.Map ReaderId Type              -- Gamma
 
 -- Update.
 type SigContext   = Map.Map ReaderId SigBody
+type AlgContext   = Map.Map ReaderId AlgBody
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
 -- Used in `compatible` and `subtype`.

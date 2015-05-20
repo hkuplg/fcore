@@ -254,6 +254,7 @@ expr :: { ReaderExpr }
     | "sig" UPPER_IDENT ty_param_list "where" record_type_fields_rev ";" expr { SigDec (toString $2) (SigBody (map unLoc $3) $5) $7 `withLoc` $1 }
     | "algebra" LOWER_IDENT "implements" oa_alg_impls "where" oa_alg_cases ";" expr { AlgDec (toString $2) (AlgBody $4) $6 $8 `withLoc` $1 }
     | "sig" UPPER_IDENT ty_param_list "extends" oa_sig_extend_sigs "where" record_type_fields_rev ";" expr { SigExt (toString $2) (SigBody (map unLoc $3) $7) $5 $9 `withLoc` $1 }  
+    | "algebra" LOWER_IDENT "extends" oa_alg_exts "implements" oa_alg_impls "where" oa_alg_cases ";" expr { AlgExt (toString $2) $4 (AlgBody $6) $8 $10 `withLoc` $1 }
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
@@ -510,6 +511,10 @@ oa_sig_extend_sig :: { (ReaderId, [ReaderId]) }
 args :: { [ReaderId] }
   : {- empty -}    { [] }
   | label args     { $1:$2 }
+
+oa_alg_exts :: { [ReaderId] }
+  : label                 { [$1] }
+  | label "," oa_alg_exts { $1:$3 }
 
 {
 -- The monadic parser
