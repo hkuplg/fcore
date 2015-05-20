@@ -76,8 +76,7 @@ joinExpr (JProxyCall jmethod t) = JProxyCall (joinExpr jmethod) t
 joinExpr (Data recflag databinds e) = Data recflag databinds (joinExpr e)
 joinExpr (Constr ctr es) = Constr ctr (map joinExpr es)
 joinExpr (Case e alts) = Case (joinExpr e) (map joinAlt alts)
-  where joinAlt (ConstrAlt ctr e1) = ConstrAlt ctr (joinExpr e1)
-        joinAlt (Default e1) = Default (joinExpr e1)
+  where joinAlt (ConstrAlt ctr vars f) = ConstrAlt ctr vars (joinExpr . f . zipWith Var vars)
 joinExpr (Proj i e) = Proj i (joinExpr e)
 joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
 joinExpr (Let n bind body) = Let n (joinExpr bind) (joinExpr . body . Var n)
@@ -118,9 +117,8 @@ mapExpr f e =
       JProxyCall jmethod t -> JProxyCall (f jmethod) t
       Data recflag databinds e -> Data recflag databinds (f e)
       Constr ctr es -> Constr ctr (map f es)
-      Case e' alts -> Case (f e') (map mapAlt alts)
-         where mapAlt (ConstrAlt ctr e1) = ConstrAlt ctr (f e1)
-               mapAlt (Default e1) = Default (f e1)
+      Case e alts -> Case (f e) (map mapAlt alts)
+         where mapAlt (ConstrAlt ctr vars g) = ConstrAlt ctr vars (f.g)
       Seq es -> Seq $ map f es
       _ -> sorry "Not implemented yet"
 
@@ -157,8 +155,12 @@ rewriteExpr f num env expr =
    Constr c es -> Constr c (map (f num env) es)
    Case e alts -> Case (f num env e) (map rewriteAlt alts)
  where
-   rewriteAlt (ConstrAlt ctr e) = ConstrAlt ctr (f num env e)
-   rewriteAlt (Default e)       = Default (f num env e)
+   rewriteAlt (ConstrAlt ctr names g) = ConstrAlt ctr names (
+            \es ->
+              let len = length names
+                  es' = g [num .. num + len -1]
+              in f (num + len) (foldl' multInsert env (zip [num .. num +len-1] es)) es'
+        )
 
 newtype Exp = Hide {reveal :: forall t e. Expr t e}
 

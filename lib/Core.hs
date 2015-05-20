@@ -95,7 +95,7 @@ data Expr t e
   -- Java
   | JNew ClassName [Expr t e]
   | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
-  | JField  (Src.JCallee (Expr t e)) FieldName (Type t)
+  | JField  (Src.JCallee (Expr t e)) FieldName ClassName
   | PolyList [Expr t e] (Type t)
   | JProxyCall (Expr t e) (Type t)
 
@@ -107,8 +107,8 @@ data Expr t e
 
 data DataBind t = DataBind Src.ReaderId [Src.ReaderId] ([t] -> [Constructor t])
 
-data Alt t e = ConstrAlt (Constructor t) (Expr t e)
-             | Default (Expr t e)
+data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ([e] -> Expr t e)
+            -- | Default (Expr t e)
 
 data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
 
@@ -151,8 +151,7 @@ mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (map
 mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
-    where mapAlt (ConstrAlt (Constructor n ts) e1) = ConstrAlt (Constructor n (map h ts)) (mapVar g h e1)
-          mapAlt (Default e1) = Default (mapVar g h e1)
+    where mapAlt (ConstrAlt (Constructor n ts) ns f) = ConstrAlt (Constructor n (map h ts)) ns ((mapVar g h) . f)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
@@ -161,7 +160,7 @@ mapVar g h (Tuple es)                = Tuple (map (mapVar g h) es)
 mapVar g h (Proj i e)                = Proj i (mapVar g h e)
 mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
 mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
-mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f (h c)
+mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (PolyList es t)           = PolyList (map (mapVar g h) es) (h t)
 mapVar g h (JProxyCall jmethod t)    = JProxyCall (mapVar g h jmethod) (h t)
@@ -352,11 +351,11 @@ prettyExpr' p (i,j) (Data recflag databinds e) =
 prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
-    hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))
-    where pretty_alt (ConstrAlt c e1) =
-               (text (constrName c) <+> arrow <+> (align $ prettyExpr' p (i, j) e1 ))
-          pretty_alt (Default e1) =
-               (text "_" <+> arrow <+> (align $ prettyExpr' p (i, j) e1 ))
+    hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)
+    where pretty_alt (ConstrAlt c ns es) =
+              let n = length ns
+                  ids = [j..j+n-1]
+              in hsep (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
 
 javaInt :: Type t
 javaInt = JClass "java.lang.Integer"
