@@ -88,8 +88,12 @@ import JavaUtils
   "Fork"     { L _ Tnonemptytree }
   "()"     { L _ Tunitlit }
   "Unit"   { L _ Tunit }
-  "error"  { L _ Terror}
-  "L["     { L _ Tlistbegin}
+  "List"     { L _ Tlist }
+  "head"     { L _ Tlisthead }
+  "tail"     { L _ Tlisttail }
+  "cons"     { L _ Tlistcons }
+  "isNil"    { L _ Tlistisnil }
+  "length"   { L _ Tlistlength }
 
   "*"      { L _ (Tprimop J.Mult)   }
   "/"      { L _ (Tprimop J.Div)    }
@@ -181,6 +185,7 @@ atype :: { ReaderType }
   | record_type              { $1 }
   | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
+  | "List" "[" type "]"      { ListOf $3}
 
 product_body :: { [ReaderType] }
   : type "," type             { $1:[$3] }
@@ -291,7 +296,6 @@ fexpr :: { ReaderExpr }
     : fexpr aexpr      { App  $1 $2 `withLoc` $1 }
     | fexpr type_list  { foldl (\acc t -> TApp acc t `withLoc` acc) (TApp $1 (head $2) `withLoc` $1) (tail $2) }
     | aexpr            { $1 }
-    | "error" "[" type "]" aexpr { Error $3 $5 `withLoc` $1}
 
 aexpr :: { ReaderExpr }
     : LOWER_IDENT               { Var (toString $1) `withLoc` $1 }
@@ -304,9 +308,15 @@ aexpr :: { ReaderExpr }
     | "{" semi_exprs "}"        { Seq $2 `withLoc` $1 }
     | record_construct                { $1 }
     | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (reverse $4) `withLoc` $1 }
+    | "new" "List" "[" type "]" "()"  {PolyList [] $4 `withLoc` $1 }
+    | "new" "List" "[" type "]" "(" comma_exprs0 ")"  { PolyList $7 $4 `withLoc` $1 }
+    | "head" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "head" [] undefined `withLoc` $1) undefined `withLoc` $1 }
+    | "tail" "(" fexpr ")"              { JProxyCall (JMethod (NonStatic $3 ) "tail" [] undefined `withLoc` $1) undefined `withLoc` $1 }
+    | "isNil" "(" fexpr ")"             { JMethod (NonStatic $3) "isEmpty" [] undefined `withLoc` $1 }
+    | "length" "(" fexpr ")"            { JMethod (NonStatic $3) "length" [] undefined `withLoc` $1 }
+    | "cons" "(" fexpr "," fexpr ")"    { JProxyCall (JNew "f2j.FunctionalList" [$3,$5] `withLoc` $1) undefined `withLoc` $1 }
     | constr_name               { ConstrTemp (unLoc $1) `withLoc` $1 }
     | "(" expr ")"              { $2 }
-    | "L[" comma_exprs1 "]"     { PolyList $2 `withLoc` $1}
 
 javaexpr :: { ReaderExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew (toString $2) $4 `withLoc` $1 }
