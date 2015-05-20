@@ -12,13 +12,10 @@ injectPredef :: String -> String
 injectPredef s = predef ++ s
 
 predef :: String
-predef = intercalate "\n" (map toString [predefIO, predefList])
+predef = intercalate "\n" (map toString [predefIO])
 
 predefIO :: ByteString
 predefIO = $(embedFile "lib/predef/IO.sf")
-
-predefList :: ByteString
-predefList = $(embedFile "lib/predef/List.sf")
 
 toString :: ByteString -> String
 toString = map (chr . fromEnum) . unpack

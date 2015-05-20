@@ -6,8 +6,8 @@ let max (x : Int) (y : Int) : Int =
 let rec
   at[A] (n:Int) (x:List[A]): A =
     if (n==0)
-    then head [A] x
-    else at[A] (n-1) (tail [A] x)
+    then head(x)
+    else at[A] (n-1) tail(x)
 ;
 let maxValue (values : List[Int]) (weights : List[Int]) (totalWeight : Int) : Int = (
   let rec maxValue' (k : Int -> Int) (i : Int) (w : Int) : Int =
@@ -22,7 +22,7 @@ let maxValue (values : List[Int]) (weights : List[Int]) (totalWeight : Int) : In
         (i - 1)
         w
   ;
-  maxValue' (\(x : Int) -> x) (length [Int] values) totalWeight
+  maxValue' (\(x : Int) -> x) length(values) totalWeight
 )
 ;
-maxValue L[9,3,4] L[2,5,8] 10
+maxValue (new List[Int](9,3,4)) (new List[Int](2,5,8)) 10

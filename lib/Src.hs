@@ -97,6 +97,7 @@ data Type
   | OpAbs Name Type -- Type-level abstraction: "type T A = t" becomes "type T = \A. t", and "\A. t" is the abstraction.
   | OpApp Type Type -- Type-level application: t1 t2
 
+  | ListOf Type
   | Datatype Name [Type] [Name]
 
   -- Warning: If you ever add a case to this, you MUST also define the binary
@@ -138,7 +139,7 @@ data Expr id ty
   | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName
   | JField  (JCallee (LExpr id ty)) FieldName            Type
   | Seq [LExpr id ty]
-  | PolyList [LExpr id ty]
+  | PolyList [LExpr id ty] ty
   | Merge (LExpr id ty) (LExpr id ty)
   | RecordCon [(Label, LExpr id ty)]
   | RecordProj (LExpr id ty) Label
@@ -156,7 +157,7 @@ data Expr id ty
   | ConstrTemp Name
   | Constr Constructor [LExpr id ty] -- post typecheck only
                                      -- the last type in Constructor will always be the real type
-  | Error Type (LExpr id ty)
+  | JProxyCall (LExpr id ty) ty
   deriving (Eq, Show)
 
 data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
@@ -247,6 +248,7 @@ expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
 expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalType) d) t)
 expandType d (Product ts) = Product (map (expandType d) ts)
 expandType d (RecordType fs)  = RecordType (map (second (expandType d)) fs)
+expandType d (ListOf t)   = ListOf (expandType d t)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
 expandType d (Thunk t)    = Thunk (expandType d t)
 expandType d (Datatype n ts ns) = Datatype n (map (expandType d) ts) ns
@@ -275,6 +277,7 @@ subtypeS (Forall a1 t1) (Forall a2 t2)         = subtypeS (fsubstTT (a1,TVar a2)
 subtypeS (Product ts1)  (Product ts2)          = length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
 subtypeS (RecordType [(l1,t1)]) (RecordType [(l2,t2)]) = l1 == l2 && subtypeS t1 t2
 subtypeS (RecordType fs1)   (RecordType fs2)           = subtypeS (desugarMultiRecordType fs1) (desugarMultiRecordType fs2)
+subtypeS (ListOf t1)    (ListOf t2)            = subtypeS t1 t2  -- List :: * -> * is covariant
 -- The order is significant for the two `And` cases below.
 subtypeS t1             (And t2 t3) = subtypeS t1 t2 && subtypeS t1 t3
 subtypeS (And t1 t2)    t3          = subtypeS t1 t3 || subtypeS t2 t3
@@ -358,6 +361,7 @@ fsubstTT (x,r) (Forall a t)
         let fresh = freshName a (freeTVars t `Set.union` freeTVars r)
         in Forall fresh (fsubstTT (x,r) (fsubstTT (a, TVar fresh) t))
     | otherwise                = Forall a (fsubstTT (x,r) t)
+fsubstTT (x,r) (ListOf a)      = ListOf (fsubstTT (x,r) a)
 fsubstTT (_,_) Unit            = Unit
 fsubstTT (x,r) (RecordType fs)     = RecordType (map (second (fsubstTT (x,r))) fs)
 fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
@@ -382,6 +386,7 @@ freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
 freeTVars (Forall a t) = Set.delete a (freeTVars t)
 freeTVars (Product ts) = Set.unions (map freeTVars ts)
 freeTVars (RecordType fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
+freeTVars (ListOf t)   = freeTVars t
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
 freeTVars (Thunk t)    = freeTVars t
 freeTVars (OpAbs _ t)  = freeTVars t
@@ -410,6 +415,7 @@ instance Pretty Type where
   pretty (Thunk t)    = squote <> parens (pretty t)
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
+  pretty (ListOf a)   = brackets $ pretty a
   pretty (Datatype n ts _) = hsep (text n : map pretty ts)
 
 groupForall :: Type -> ([Name], Type)
@@ -460,8 +466,8 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
                                           (NonStatic e') -> pretty e' <> dot <> text m <> tupled (map pretty args)
   pretty (JField e f _) = case e of (Static c)     -> pretty c  <> dot <> text f
                                     (NonStatic e') -> pretty e' <> dot <> text f
-  pretty (PolyList l)    = brackets . hcat . intersperse comma $ map pretty l
-  pretty (Error _ str)  = text "error:" <+> pretty str
+  pretty (PolyList l _)    = brackets . hcat . intersperse comma $ map pretty l
+  pretty (JProxyCall jmethod _) = pretty jmethod
   pretty (Merge e1 e2)  = parens $ pretty e1 <+> text ",," <+> pretty e2
   pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty (Data recFlag datatypes e ) =

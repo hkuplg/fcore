@@ -243,6 +243,7 @@ kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, TerminalType) d
 kind d (Product ts) = justStarIffAllHaveKindStar d ts
 kind d (RecordType fs)  = justStarIffAllHaveKindStar d (map snd fs)
+kind d (ListOf t)   = kind d t
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Thunk t)    = kind d t
 
@@ -509,6 +510,39 @@ checkExpr (L loc (Merge e1 e2)) =
      (t2, e2') <- checkExpr e2
      return (And t1 t2, Merge e1' e2' `withLoc` e1')
 
+checkExpr (L loc (PolyList l t)) =
+  do (ts, es) <- mapAndUnzipM checkExpr l
+     case ts of [] -> return (ListOf t, PolyList es t `withLocs` es)
+                _  ->
+                     do d <- getTypeContext
+                        case findIndex (not . compatible d t) ts of
+                          Nothing -> return (ListOf t, PolyList es t `withLocs` es)
+                          Just i -> throwError $ TypeMismatch t (ts !! i) `withExpr` (l !! i)
+
+checkExpr e@(L loc (JProxyCall (L _ (JNew c args)) t)) =
+    if c /= (namespace ++ "FunctionalList")
+    then
+        throwError $ (General $ text $ show c ++ " from JProxyCall: not supported") `withExpr` e
+    else
+        do ([t1, t2], es) <- mapAndUnzipM checkExpr args
+           d <- getTypeContext
+           if compatible d (ListOf t1) t2
+             then return (t2, L loc $ JProxyCall (L loc $ JNew c es) t2)
+             else throwError $ TypeMismatch t1 t2 `withExpr` e
+
+checkExpr e@(L loc (JProxyCall jmethod t)) =
+    case jmethod of
+        L _ (JMethod (NonStatic e) methodname _ _) -> do
+            ty <- case methodname of
+                "head" -> do (ListOf a, _) <- checkExpr e
+                             return a
+                "tail" -> do (a, _) <- checkExpr e
+                             return a
+                _      -> throwError $ (General $ text $ show methodname ++ " from JProxyCall: not supported") `withExpr` e
+            d <- getTypeContext
+            m <- checkExpr jmethod
+            return (ty, L loc $ JProxyCall (snd m) ty)
+
 checkExpr (L loc (RecordCon fs)) =
   do (ts, es') <- mapAndUnzipM checkExpr (map snd fs)
      let fs' = zip (map fst fs) ts
@@ -544,12 +578,6 @@ checkExpr expr@(L _ (Type t params rhs e))
          Just k  -> withLocalTVars [(t, (k, NonTerminalType pulledRight))] $ checkExpr e
   where
     pulledRight = pullRight params rhs
-
-checkExpr (L loc (Error ty str)) = do
-       d <- getTypeContext
-       let ty' = expandType d ty
-       (_, e) <- inferAgainst str (JType (JClass "java.lang.String"))
-       return (ty', L loc $ Error ty' e)
 
 -- data List A = Nil | Cons A (List A) and ...; e
 -- gamma |- Nil: \/A. List A, Cons: \/A. A List A
@@ -605,16 +633,6 @@ checkExpr e@(L loc (ConstrTemp name)) =
        case Map.lookup name g of
          Just t  -> return (t, L loc $ Constr (Constructor name [t]) []) -- the last type will always be the real type
          Nothing -> throwError (NotInScope name `withExpr` e)
-
-checkExpr (L loc (PolyList es)) =
- do (ts, _) <- mapAndUnzipM checkExpr es
-    d <- getTypeContext
-    let t = head ts
-    case findIndex (not . compatible d t) ts of
-        Just i -> throwError $ TypeMismatch t (ts !! i) `withExpr` (es !! i)
-        Nothing -> let es' = map (L loc . App (L loc $ TApp (L loc . ConstrTemp $ "Cons") t)) es
-                       desugares = foldr (\e acc -> L loc $ App e acc) (L loc $ TApp (L loc $ ConstrTemp "Nil") t) es'
-                   in checkExpr desugares
 
 checkExpr expr@(L loc (Case e alts)) =
  do
@@ -747,6 +765,7 @@ inferAgainstAnyJClass expr
        case deThunkOnce ty of
         -- JType (JPrim "char") -> return ("java.lang.Character", expr')
         JType (JClass c) -> return (c, expr')
+        ListOf _         -> return (namespace ++ "FunctionalList", expr')
         _ -> throwError $ TypeMismatch ty (JType $ JPrim "Java class") `withExpr` expr
 
 -- | Check "f [A1,...,An] (x1:t1) ... (xn:tn): t = e"
