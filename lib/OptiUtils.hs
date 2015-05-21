@@ -36,6 +36,8 @@ import qualified SystemFI as FI
 -- simplify2 (FI.JMethod jc m es cn) =
 --   JMethod (fmap simplify2 jc) m (map simplify2 es) cn
 -- simplify2 (FI.JField jc fn cn) = JField (fmap simplify2 jc) fn cn
+-- simplify2 (FI.PolyList es t) = PolyList (map simplify2 es) (transType2 t)
+-- simplify2 (FI.JProxyCall jmethod t) = JProxyCall (simplify2 jmethod) (transType2 t)
 -- simplify2 (FI.Seq es) = Seq (map simplify2 es)
 -- simplify2 (FI.Data name params ctrs e) = Data name params (map simplify2Ctr ctrs) (simplify2 e)
 -- simplify2 (FI.Constr ctr es) = Constr (simplify2Ctr ctr) (map simplify2 es)
@@ -53,6 +55,7 @@ import qualified SystemFI as FI
 -- transType2 (FI.Forall n f) = Forall n (\t -> transType2 (f t))
 -- transType2 (FI.Product ts) = Product (map transType2 ts)
 -- transType2 (FI.Unit) = Unit
+-- transType2 (FI.ListOf t) = ListOf (transType2 t)
 -- transType2 (FI.Datatype n ts ns)  = Datatype n (map transType2 ts) ns
 -- transType2 _ = sorry "No"
 
@@ -68,12 +71,12 @@ joinExpr (Lit s) = Lit s
 joinExpr (If e1 e2 e3) = If (joinExpr e1) (joinExpr e2) (joinExpr e3)
 joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
-joinExpr (Error ty str)         = Error ty (joinExpr str)
+joinExpr (PolyList es t) = PolyList (map joinExpr es) t
+joinExpr (JProxyCall jmethod t) = JProxyCall (joinExpr jmethod) t
 joinExpr (Data recflag databinds e) = Data recflag databinds (joinExpr e)
 joinExpr (Constr ctr es) = Constr ctr (map joinExpr es)
 joinExpr (Case e alts) = Case (joinExpr e) (map joinAlt alts)
-  where joinAlt (ConstrAlt ctr e1) = ConstrAlt ctr (joinExpr e1)
-        joinAlt (Default e1) = Default (joinExpr e1)
+  where joinAlt (ConstrAlt ctr vars f) = ConstrAlt ctr vars (joinExpr . f . zipWith Var vars)
 joinExpr (Proj i e) = Proj i (joinExpr e)
 joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
 joinExpr (Let n bind body) = Let n (joinExpr bind) (joinExpr . body . Var n)
@@ -110,12 +113,12 @@ mapExpr f e =
       JNew cname es -> JNew cname (map f es)
       JMethod cnameOrE mname es cname -> JMethod (fmap f cnameOrE) mname (map f es) cname
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
-      Error ty str -> Error ty (f str)
+      PolyList es t -> PolyList (map f es) t
+      JProxyCall jmethod t -> JProxyCall (f jmethod) t
       Data recflag databinds e -> Data recflag databinds (f e)
       Constr ctr es -> Constr ctr (map f es)
-      Case e' alts -> Case (f e') (map mapAlt alts)
-         where mapAlt (ConstrAlt ctr e1) = ConstrAlt ctr (f e1)
-               mapAlt (Default e1) = Default (f e1)
+      Case e alts -> Case (f e) (map mapAlt alts)
+         where mapAlt (ConstrAlt ctr vars g) = ConstrAlt ctr vars (f.g)
       Seq es -> Seq $ map f es
       _ -> sorry "Not implemented yet"
 
@@ -145,14 +148,19 @@ rewriteExpr f num env expr =
    JNew n es -> JNew n (map (f num env) es)
    JMethod e b es d -> JMethod (fmap (f num env) e) b (map (f num env) es) d
    JField e a b -> JField (fmap (f num env) e) a b
-   Error ty str -> Error ty (f num env str)
+   PolyList es t -> PolyList (map (f num env) es) t
+   JProxyCall j t -> JProxyCall (f num env j) t
    Seq es -> Seq (map (f num env) es)
    Data recflag databinds e -> Data recflag databinds (f num env e)
    Constr c es -> Constr c (map (f num env) es)
    Case e alts -> Case (f num env e) (map rewriteAlt alts)
  where
-   rewriteAlt (ConstrAlt ctr e) = ConstrAlt ctr (f num env e)
-   rewriteAlt (Default e)       = Default (f num env e)
+   rewriteAlt (ConstrAlt ctr names g) = ConstrAlt ctr names (
+            \es ->
+              let len = length names
+                  es' = g [num .. num + len -1]
+              in f (num + len) (foldl' multInsert env (zip [num .. num +len-1] es)) es'
+        )
 
 newtype Exp = Hide {reveal :: forall t e. Expr t e}
 
@@ -192,7 +200,8 @@ peq n (JMethod e1 _ es _) (JMethod g1 _ gs _) =
       len2 = length gs
   in len1 == len2 && checkCall n e1 g1 && and (zipWith (peq n) es gs)
 peq n (JField e1 _ _) (JField g1 _ _) = checkCall n e1 g1
-peq n (Error _ str1) (Error _ str2) = peq n str1 str2
+peq n (PolyList es _) (PolyList gs _) = and (zipWith (peq n) es gs)
+peq n (JProxyCall e _) (JProxyCall g _) = peq n e g
 peq n (Seq es) (Seq gs) = and (zipWith (peq n) es gs)
 peq _ _ _ = False
 
