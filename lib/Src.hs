@@ -18,8 +18,8 @@ module Src
   ( Module(..), ReaderModule
   , Kind(..)
   , Type(..), ReaderType
-  , Expr(..), ReaderExpr, CheckedExpr
-  , Constructor(..), Alt(..)
+  , Expr(..), ReaderExpr, CheckedExpr, LExpr
+  , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId, LReaderId
@@ -40,6 +40,12 @@ module Src
   , wrap
   , opPrec
   , intersperseBar
+
+  , isWildcardOrVar
+  , constrInfo
+  , extractorsubpattern
+  , specializedMatrix
+  , defaultMatrix
   ) where
 
 import Config
@@ -54,8 +60,9 @@ import Text.PrettyPrint.ANSI.Leijen
 
 import Control.Arrow (second)
 
+import Data.Maybe (fromJust)
 import Data.Data
-import Data.List (intersperse)
+import Data.List (intersperse, findIndex, nub)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -130,7 +137,7 @@ data Expr id ty
 
   | JNew ClassName [LExpr id ty]
   | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName
-  | JField  (JCallee (LExpr id ty)) FieldName            ClassName
+  | JField  (JCallee (LExpr id ty)) FieldName            Type
   | Seq [LExpr id ty]
   | PolyList [LExpr id ty] ty
   | Merge (LExpr id ty) (LExpr id ty)
@@ -149,6 +156,7 @@ data Expr id ty
   | CaseString (LExpr id ty) [Alt id ty] --pattern match on string
   | ConstrTemp Name
   | Constr Constructor [LExpr id ty] -- post typecheck only
+                                     -- the last type in Constructor will always be the real type
   | JProxyCall (LExpr id ty) ty
   deriving (Eq, Show)
 
@@ -156,9 +164,14 @@ data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
                    deriving (Eq, Show)
 
-data Alt id ty = ConstrAlt Constructor [Name] (LExpr id ty)
+data Alt id ty = ConstrAlt Pattern (LExpr id ty)
             -- | Default (Expr id)
               deriving (Eq, Show)
+
+data Pattern = PConstr Constructor [Pattern]
+             | PVar Name Type
+             | PWildcard
+             deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
 type ReaderExpr  = LExpr Name Type
@@ -487,8 +500,18 @@ instance Pretty DataBind where
   pretty (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
-    pretty (ConstrAlt c ns e2) = hsep (text (constrName c) : map text ns) <+> arrow <+> pretty e2
     -- pretty (Default e) = text "_" <+> arrow <+> pretty e
+    pretty (ConstrAlt p e2)    = (pretty p) <+> arrow <+> pretty e2
+
+instance Pretty Pattern where
+    pretty (PVar nam _)     = text nam
+    pretty (PWildcard)      = text "_"
+    pretty (PConstr ctr []) = text (constrName ctr)
+    pretty (PConstr ctr ps) = text (constrName ctr) <+> (hsep $ map pretty2 ps)
+      where pretty2 (PConstr ctr' [])  = text (constrName ctr')
+            pretty2 (PConstr ctr' ps') = parens $ text (constrName ctr') <+> (hsep $ map pretty ps')
+            pretty2 (PVar nam _)       = text nam
+            pretty2 (PWildcard)        = text "_"
 
 -- Utilities
 
@@ -511,3 +534,56 @@ opPrec (Compare J.Equal)  = 7
 opPrec (Compare J.NotEq)  = 7
 opPrec (Logic J.CAnd)     = 11
 opPrec (Logic J.COr)      = 12
+
+-- utilities for pattern match
+
+isWildcardOrVar :: Pattern -> Bool
+isWildcardOrVar (PConstr _ _) = False
+isWildcardOrVar     _         = True
+
+---- return (appearing constructors, missing constructor)
+constrInfo :: [Pattern] -> ([Constructor],[Name])
+constrInfo patshead =
+    if all isWildcardOrVar patshead then ([],[])
+    else
+        let (PConstr (Constructor _ types) _) = patshead !! (fromJust $ findIndex (not. isWildcardOrVar) patshead)
+            (Datatype _ _ allcontructor') = last types
+            allcontructor = Set.fromList allcontructor'
+            appearconstructor' = nub [ ctr | PConstr ctr@(Constructor _ _ ) _ <- patshead ]
+            appearconstructor = Set.fromList $ map constrName appearconstructor'
+        in
+            (appearconstructor', Set.toList $ Set.difference allcontructor appearconstructor)
+
+---- utility for specialized matrix
+extractorsubpattern :: Name -> Int -> Pattern -> [Pattern]
+extractorsubpattern   _  num PWildcard = replicate num PWildcard
+extractorsubpattern   _  num (PVar _ _) = replicate num PWildcard
+extractorsubpattern name  _  (PConstr (Constructor name' _) subpattern)
+    | name == name' = subpattern
+    | otherwise     = []
+
+centainPConstr :: Name -> Pattern -> Bool
+centainPConstr name (PConstr (Constructor name' _) _) = name == name'
+centainPConstr  _  _ = False
+
+-- specialized matrix S(c, P)
+--           pi1               |        S(c ,P)
+--  c (r1,...,ra)              |     r1,...,ra,pi2,...pin
+--  c' (r1,...,ra), c'/=c      |     no row
+--  _                          |     _ ... _, pi2,...pin
+specializedMatrix :: Constructor -> [[Pattern]] -> [[Pattern]]
+specializedMatrix ctr pats =
+    let (Constructor name types) = ctr
+        num = length types - 1
+    in  [ res ++ (tail list1) | list1 <- pats,
+                                let curPattern = head list1,
+                                (isWildcardOrVar curPattern) || (centainPConstr name curPattern),
+                                let res = extractorsubpattern name num curPattern ]
+
+-- default matrix D(P)
+--           pi1               |        D(P)
+--  c (r1,...,ra)              |     no row
+--  _                          |     pi2,...pin
+defaultMatrix :: [[Pattern]] -> [[Pattern]]
+defaultMatrix pats =
+    [tail list1 | list1 <- pats, isWildcardOrVar . head $ list1]
