@@ -55,7 +55,6 @@ data Type t
   | And (Type t) (Type t)               -- t1 & t2
   | RecordType (Src.Label, Type t)
   | Datatype Src.ReaderId [Type t] [Src.ReaderId]
-  | ListOf (Type t)
     -- Warning: If you ever add a case to this, you *must* also define the
     -- binary relations on your new case. Namely, add cases for your data
     -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
@@ -97,8 +96,6 @@ data Expr t e
   | JNew ClassName [Expr t e]
   | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
   | JField  (Src.JCallee (Expr t e)) FieldName (Type t)
-  | PolyList [Expr t e] (Type t)
-  | JProxyCall (Expr t e) (Type t)
 
   | Seq [Expr t e]
 
@@ -110,6 +107,8 @@ data Expr t e
   | Data Src.RecFlag [DataBind t] (Expr t e)
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
+
+  | Error (Type t) (Expr t e)
 
 newtype FExp = HideF { revealF :: forall t e. Expr t e }
 
@@ -135,7 +134,6 @@ alphaEq i (Forall _ f) (Forall _ g) = alphaEq (succ i) (f i) (g i)
 alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq i) `all` zip ss ts
 alphaEq _  Unit     Unit            = True
 alphaEq i (And s1 s2)  (And t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
-alphaEq i (ListOf t1) (ListOf t2)   = alphaEq i t1 t2
 alphaEq _ _            _            = False
 
 mapTVar :: (Src.ReaderId -> t -> Type t) -> Type t -> Type t
@@ -145,7 +143,6 @@ mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
 mapTVar g (Forall n f)   = Forall n (mapTVar g . f)
 mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
-mapTVar g (ListOf t)     = ListOf (mapTVar g t)
 mapTVar g (And t1 t2)    = And (mapTVar g t1) (mapTVar g t2)
 mapTVar g (RecordType (l,t)) = RecordType (l, mapTVar g t)
 mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
@@ -175,8 +172,7 @@ mapVar g h (Proj i e)                = Proj i (mapVar g h e)
 mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
 mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f (h c)
-mapVar g h (PolyList es t)           = PolyList (map (mapVar g h) es) (h t)
-mapVar g h (JProxyCall jmethod t)    = JProxyCall (mapVar g h jmethod) (h t)
+mapVar g h (Error ty str)            = Error (h ty) (mapVar g h str)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
 mapVar g h (RecordCon (l, e))        = RecordCon (l, mapVar g h e)
@@ -203,7 +199,6 @@ joinType  Unit            = Unit
 joinType (And t1 t2)      = And (joinType t1) (joinType t2)
 joinType (RecordType (l,t))   = RecordType (l, joinType t)
 joinType (Datatype n ts ns)  = Datatype n (map joinType ts) ns
-joinType (ListOf t)       = ListOf (joinType t)
 
 -- instance Show (Type Index) where
 --   show = show . pretty
@@ -238,7 +233,6 @@ prettyType' _ _ (JClass "java.lang.String")    = text "String"
 prettyType' _ _ (JClass "java.lang.Boolean")   = text "Bool"
 prettyType' _ _ (JClass "java.lang.Character") = text "Char"
 prettyType' _ _ (JClass c)                     = text c
-prettyType' p i (ListOf t)                     = text "List" <+> prettyType' p i t
 
 prettyType' p i (And t1 t2) =
   parensIf p 2
@@ -321,7 +315,6 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
     fieldStr (Src.NonStatic x) = prettyExpr' (6,PrecMinus) i x
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
-prettyExpr' p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr' p i ) $ es
 
 prettyExpr' p (i,j) (Data recflag databinds e) =
   text "data" <+> (pretty recflag) <+> (align .vsep) (map prettyDatabind databinds) <$> prettyExpr' p (i,j) e
@@ -329,7 +322,7 @@ prettyExpr' p (i,j) (Data recflag databinds e) =
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
                  (equals <+> intersperseBar (map (prettyCtr (length tvars + i)) $ cons [i..length tvars +i-1]) <$$> semi)
 
-prettyExpr' p i (JProxyCall jmethod t) = prettyExpr' p i jmethod
+prettyExpr' p i (Error _ str) = text "error:" <+> prettyExpr' p i str
 
 prettyExpr' p (i,j) (Fix n1 n2 f t1 t)
   = parens $ group $ hang 2 $
