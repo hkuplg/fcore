@@ -47,9 +47,9 @@ module Src
   , extractorsubpattern
   , specializedMatrix
   , defaultMatrix
-  , getSigBody, getAllLabels, getTypes, substSigTypes 
+  , getSigBody, getAlgBody, getAllLabels, getTypes
   , checkArgs, checkReturnType, genBind, mergeSigBody
-  , extendSigBody
+  , extendSigBody, substSigTypes
   ) where
 
 import Config
@@ -611,6 +611,12 @@ getSigBody :: SigContext -> Name -> SigBody
 getSigBody s n = case Map.lookup n s of
                    Just k -> k
                    Nothing -> panic $ "\"" ++ n ++ "\" not found in env" 
+
+getAlgBody :: AlgContext -> Name -> AlgBody
+getAlgBody a n = case Map.lookup n a of
+                   Just k -> k
+                   Nothing -> panic $ "\"" ++ n ++ "\" not found in env" 
+
 
 -- Given AlgBody, get the types of constructors by substitution.
 -- E.g. ExpAlg[IEval] => [("lit", [Int, IEval]), ("add", [IEval, IEval, IEval])].
