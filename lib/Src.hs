@@ -49,7 +49,8 @@ module Src
   , defaultMatrix
   , getSigBody, getAlgBody, getAllLabels, getTypes
   , checkArgs, checkReturnType, genBind, mergeSigBody
-  , extendSigBody, substSigTypes
+  , extendSigBody, substSigTypes, checkAlgType
+  , genBindExt
   ) where
 
 import Config
@@ -663,6 +664,21 @@ checkReturnType tcon checkedExpr info = map checkIt checkedExpr
             Just ts -> if subtype tcon (RecordType [(l, t)]) (last ts) then "" 
                        else constr ++ ": type not expected."
 
+-- In AlgExt (... extends algs implements sigs): check if algs are consistent with sigs.
+checkAlgType :: (SigContext, TypeContext) -> [(Name, [Type])] -> Map.Map Name [Type] -> Bool
+checkAlgType (s, t) algs info = and checked
+  where
+    algsInfo = substSigTypes s t algs
+    look_up x y = case Map.lookup x y of
+                    Just k  -> k
+                    Nothing -> panic "Impossible: bug reached"
+    checkSubType :: [Type] -> [Type] -> Bool
+    checkSubType [t1]  []  = False
+    checkSubType  []  [t2] = False
+    checkSubType [t1] [t2] = subtype t t1 t2
+    checkSubType (t1:ts1) (t2:ts2) = subtype t t2 t1 && checkSubType ts1 ts2
+    checked = map (\(name, types) -> let types' = look_up name info in checkSubType types types') algsInfo
+
 -- Generate LetBind for AlgDec.
 genBind :: Loc -> Name -> [(Name, Name, [(Name, Type)], LExpr Name Type)] -> Bind Name Type
 genBind loc aname info = Bind {
@@ -670,6 +686,19 @@ genBind loc aname info = Bind {
   bindTyParams = [],
   bindParams = [],
   bindRhs = L loc . RecordCon . map genRecord $ info,
+  bindRhsTyAscription = Nothing
+} where
+    genRecord (l, constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
+    genLam [] e     = e
+    genLam (x:xs) e = L loc . Lam x $ genLam xs e
+
+-- Generate LetBind for AlgExt.
+genBindExt :: Loc -> Name -> [Name] -> [(Name, Name, [(Name, Type)], LExpr Name Type)] -> Bind Name Type
+genBindExt loc aname algs info = Bind {
+  bindId = aname,
+  bindTyParams = [],
+  bindParams = [],
+  bindRhs = foldr (\x acc -> L loc . Merge (L loc . Var $ x) $ acc) (L loc . RecordCon . map genRecord $ info) algs,
   bindRhsTyAscription = Nothing
 } where
     genRecord (l, constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])

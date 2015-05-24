@@ -677,7 +677,6 @@ checkExpr all@(L loc (AlgDec aname (AlgBody snames) body e)) =
 -- (1) all sigs and algs in env, alg not in env
 -- (2) - (9)
 -- TODO: algs consistent with snames, implementation
--- Return type? 
 checkExpr all@(L loc (AlgExt aname algs (AlgBody snames) body e)) =
   do sigContext <- getSigContext
      typeContext <- getTypeContext
@@ -718,6 +717,9 @@ checkExpr all@(L loc (AlgExt aname algs (AlgBody snames) body e)) =
        _      -> return ()
      -- (9)
      let info = Map.fromList . substSigTypes sigContext typeContext $ snames'
+     case checkAlgType (sigContext, typeContext) snames_ext info of
+       True  -> return ()
+       False -> throwError $ General (text $ "In " ++ aname ++ ": conflicts, extended algs not expected") `withExpr` all
      let genTypeArgs = \x -> case (Map.lookup x info) of
                                Just k  -> init k
                                Nothing -> panic "Impossible: bug reached"
@@ -726,7 +728,8 @@ checkExpr all@(L loc (AlgExt aname algs (AlgBody snames) body e)) =
      case find (not . null) (checkReturnType typeContext checkedExpr info) of
        Just s  -> throwError $ General (text $ "In " ++ aname ++ "." ++ s) `withExpr` all 
        Nothing -> return ()
-     checkExpr e
+     let preCalc = map (\(x, y, zs, w) -> (x, y, zip zs (genTypeArgs y), w)) body
+     withLocalAlg (aname, AlgBody snames) . checkExpr . L loc $ Let NonRec [genBindExt loc aname algs preCalc] e
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext
