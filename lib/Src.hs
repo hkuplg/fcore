@@ -50,7 +50,7 @@ module Src
   , getSigBody, getAlgBody, getAllLabels, getTypes
   , checkArgs, checkReturnType, genBind, mergeSigBody
   , extendSigBody, substSigTypes, checkAlgType
-  , genBindExt
+  , genBindExt, genMergeAlgBind
   ) where
 
 import Config
@@ -173,6 +173,8 @@ data Expr id ty
     -- E.g. AlgDec "evalAlg" (AlgBody [("ExpAlg", [Int])]) [("eval", "lit", ["x"], x)] e
   | AlgExt Name [Name] AlgBody [(Name, Name, [Name], LExpr id ty)] (LExpr id ty)
     -- E.g. AlgExt "evalSubAlg" ["evalAlg"] ...
+  | MergeAlg [Name]
+    -- E.g. MergeAlg ["evalAlg", "printAlg"]
 
   deriving (Eq, Show)
 
@@ -728,3 +730,27 @@ mergeSigBody s ext rhs = res
 -- extendSigBody subst prev.
 extendSigBody :: [(Name, Type)] -> [(Name, Type)] -> [(Name, Type)]
 extendSigBody = foldr (\x acc -> if any (\y -> fst x == fst y) acc then acc else x:acc)
+
+genMergeAlgBind :: Loc -> (Name, SigBody) -> Bind Name Type
+genMergeAlgBind loc (sig, SigBody sorts body) = bind
+  where
+    op_app list = foldl OpApp (OpApp (TVar sig) (head list)) (tail list)
+    sorts1 = map (++ "1") sorts
+    sorts2 = map (++ "2") sorts
+    record_body = map (f . genInfo) body
+    genInfo (lbl, typ) = let typs = init . getTypes . subst $ typ in
+                         let args = zipWith (\_ n -> 'x':(show n)) typs [1..] in
+                         (lbl, zip args typs, args)
+    f (lbl, argTyps, args) = (lbl, genLam argTyps $ genLblTwo lbl args)
+    genLam [] e = e
+    genLam (x:xs) e = L loc . Lam x $ genLam xs e
+    genLblOne alg lbl = foldl (\acc x -> L loc . App acc . L loc . Var $ x) (L loc . RecordProj (L loc . Var $ alg) $ lbl)
+    genLblTwo lbl args = L loc $ Merge (genLblOne "alg1" lbl args) (genLblOne "alg2" lbl args)
+    bind = Bind {
+      bindId = "merge" ++ sig,
+      bindTyParams = sorts1 ++ sorts2,
+      bindParams = [("alg1", op_app . map TVar $ sorts1), ("alg2", op_app . map TVar $ sorts2)],
+      bindRhs = L loc . RecordCon $ record_body,
+      bindRhsTyAscription = Nothing
+    }
+    subst t = foldr fsubstTT t . zip sorts . map (\n -> And (TVar (n ++ "1")) (TVar (n ++ "2"))) $ sorts

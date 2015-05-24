@@ -323,6 +323,10 @@ aexpr :: { ReaderExpr }
     | constr_name               { ConstrTemp (unLoc $1) `withLoc` $1 }
     | "(" expr ")"              { $2 }
     | "L[" comma_exprs1 "]"     { PolyList $2 `withLoc` $1}
+ 
+    -- Update. 
+    -- MergeAlg. <...>. Ambiguity maybe?
+    | "<" merge_algs ">" { MergeAlg $2 `withLoc` $1 }
 
 javaexpr :: { ReaderExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew (toString $2) $4 `withLoc` $1 }
@@ -515,6 +519,9 @@ args :: { [ReaderId] }
 oa_alg_exts :: { [ReaderId] }
   : label                 { [$1] }
   | label "," oa_alg_exts { $1:$3 }
+
+merge_algs :: { [ReaderId] }
+  : oa_alg_exts { $1 }
 
 {
 -- The monadic parser

@@ -592,7 +592,7 @@ checkExpr all@(L loc (SigDec s b@(SigBody params rhs) e)) =
      typeContext <- getTypeContext
      case Map.member s sigContext of
        True  -> throwError $ DuplicateParam s `withExpr` all
-       False -> withLocalSig (s, b) $ checkExpr (L loc (Type s params rhs' e))
+       False -> withLocalSig (s, b) $ checkExpr (L loc . Type s params rhs' . L loc . Let NonRec [genMergeAlgBind loc (s, b)] $ e)
   where rhs' = foldl (\acc x -> And acc (RecordType [x])) (RecordType [last rhs]) (init rhs)
 
 -- Update.
@@ -730,6 +730,23 @@ checkExpr all@(L loc (AlgExt aname algs (AlgBody snames) body e)) =
        Nothing -> return ()
      let preCalc = map (\(x, y, zs, w) -> (x, y, zip zs (genTypeArgs y), w)) body
      withLocalAlg (aname, AlgBody snames) . checkExpr . L loc $ Let NonRec [genBindExt loc aname algs preCalc] e
+
+-- Update.
+checkExpr all@(L loc (MergeAlg algs)) =
+  do algContext <- getAlgContext
+     case find (\x -> Map.notMember x algContext) algs of
+       Just k  -> throwError $ NotInScope k `withExpr` all
+       Nothing -> return ()
+     let body = map (\x -> let AlgBody y = getAlgBody algContext x in y) algs
+     let sig = fst . head . head $ body
+     let errorInfo = foldl (\acc x -> acc ++ ", " ++ x) (head algs) (tail algs)
+     case find (\x -> map fst x /= [sig]) body of
+       Just _  -> throwError $ General (text $ "In <" ++ errorInfo ++ ">: cannot merge.") `withExpr` all
+       Nothing -> return ()
+     let algs' = map (\(x, ys) -> (L loc . Var $ x, snd . head $ ys)) $ zip algs body
+     let genTApps = foldl (\acc x -> L loc . TApp acc $ x) (L loc . Var $ "merge" ++ sig)
+     let e = foldl (\(acc, t1) (x, t2) -> (L loc $ App (L loc $ App (genTApps (t1 ++ t2)) acc) x, zipWith And t1 t2)) (head algs') (tail algs')
+     checkExpr . fst $ e
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext
