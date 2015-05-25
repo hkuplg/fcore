@@ -50,7 +50,7 @@ module Src
   , getSigBody, getAlgBody, getAllLabels, getTypes
   , checkArgs, checkReturnType, genBind, mergeSigBody
   , extendSigBody, substSigTypes, checkAlgType
-  , genBindExt, genMergeAlgBind
+  , genBindExt, genMergeAlgBind, errorJust
   ) where
 
 import Config
@@ -178,10 +178,6 @@ data Expr id ty
 
   deriving (Eq, Show)
 
--- Update.
-data SigBody = SigBody [Name] [(Name, Type)] deriving (Eq, Show)
-data AlgBody = AlgBody [(Name, [Type])] deriving (Eq, Show)
-
 data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
                    deriving (Eq, Show)
@@ -245,8 +241,10 @@ type TypeContext  = Map.Map ReaderId (Kind, TypeValue) -- Delta
 type ValueContext = Map.Map ReaderId Type              -- Gamma
 
 -- Update.
-type SigContext   = Map.Map ReaderId SigBody
-type AlgContext   = Map.Map ReaderId AlgBody
+data SigBody = SigBody [Name] [(Name, Type)] deriving (Eq, Show)
+data AlgBody = AlgBody [(Name, [Type])] deriving (Eq, Show)
+type SigContext = Map.Map ReaderId SigBody
+type AlgContext = Map.Map ReaderId AlgBody
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
 -- Used in `compatible` and `subtype`.
@@ -615,6 +613,7 @@ getSigBody s n = case Map.lookup n s of
                    Just k -> k
                    Nothing -> panic $ "\"" ++ n ++ "\" not found in env" 
 
+-- getSigBody == getAlgBody
 getAlgBody :: AlgContext -> Name -> AlgBody
 getAlgBody a n = case Map.lookup n a of
                    Just k -> k
@@ -713,18 +712,7 @@ mergeSigBody s ext rhs = res
   where
     res = concatMap (\(x, ys) -> let SigBody zs ws = getSigBody s x in map (g zs ys) ws) ext
     g zs ys (n, t) = (n, foldr subst t $ zip zs ys)
-    subst r@(a, b) p@(TVar x)           = if a == x then TVar b else p
-    subst r@(a, b) p@(JType c)          = p
-    subst r@(a, b) p@(Fun t1 t2)        = Fun (subst r t1) (subst r t2)
-    subst r@(a, b) p@(Product ts)       = Product . map (subst r) $ ts
-    subst r@(a, b) p@(Forall x t)       = Forall x . subst r $ t
-    subst r@(a, b) p@(Unit)             = p
-    subst r@(a, b) p@(RecordType fs)    = RecordType . map (\(x, y) -> (x, subst r y)) $ fs
-    subst r@(a, b) p@(And t1 t2)        = And (subst r t1) (subst r t2)
-    subst r@(a, b) p@(Thunk t)          = Thunk . subst r $ t
-    subst r@(a, b) p@(OpAbs x t)        = OpAbs x . subst r $ t
-    subst r@(a, b) p@(OpApp t1 t2)      = OpApp (subst r t1) (subst r t2)
-    subst r@(a, b) p@(Datatype n ts ns) = Datatype n (map (subst r) ts) ns
+    subst (a, b) t = fsubstTT (a, TVar b) t
 
 -- SigExt: merge constructors. But those can be overridden.
 -- extendSigBody subst prev.
@@ -754,3 +742,8 @@ genMergeAlgBind loc (sig, SigBody sorts body) = bind
       bindRhsTyAscription = Nothing
     }
     subst t = foldr fsubstTT t . zip sorts . map (\n -> And (TVar (n ++ "1")) (TVar (n ++ "2"))) $ sorts
+
+errorJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
+errorJust x error = case x of
+                      Just k  -> error k
+                      Nothing -> return ()

@@ -588,32 +588,31 @@ checkExpr expr@(L _ (Type t params rhs e))
 -- Notice that just like type synonyms, the types inside a signature won't be expanded until they are used.
 -- Don't forget to expand them.
 checkExpr all@(L loc (SigDec s b@(SigBody params rhs) e)) =
-  do sigContext <- getSigContext
-     typeContext <- getTypeContext
-     case Map.member s sigContext of
-       True  -> throwError $ DuplicateParam s `withExpr` all
-       False -> withLocalSig (s, b) $ checkExpr (L loc . Type s params rhs' . L loc . Let NonRec [genMergeAlgBind loc (s, b)] $ e)
-  where rhs' = foldl (\acc x -> And acc (RecordType [x])) (RecordType [last rhs]) (init rhs)
+  do s_ctxt <- getSigContext
+     t_ctxt <- getTypeContext
+     when (Map.member s s_ctxt) (throwError $ DuplicateParam s `withExpr` all)
+     let rhs' = foldl (\acc x -> And acc . RecordType $ [x]) (RecordType [last rhs]) (init rhs)
+     let e' = L loc . Type s params rhs' . L loc . Let NonRec [genMergeAlgBind loc (s, b)] $ e
+     withLocalSig (s, b) $ checkExpr e' 
 
 -- Update.
 -- Formalization gives the rules of extending signatures.
 checkExpr all@(L loc (SigExt s (SigBody params rhs) ext e)) =
-  do sigContext <- getSigContext
+  do s_ctxt <- getSigContext
      let sigs = map fst ext
-     case Map.member s sigContext of
-       True  -> throwError $ DuplicateParam s `withExpr` all
-       False -> return ()
-     case find (\x -> Map.notMember x sigContext) sigs of
-       Just k  -> throwError $ NotInScope k `withExpr` all
-       Nothing -> return ()
-     checkDupNames $ getAllLabels sigContext sigs
+     when (Map.member s s_ctxt) (throwError $ DuplicateParam s `withExpr` all)
+     errorJust (find (\x -> Map.notMember x s_ctxt) sigs) (throwError . (`withExpr` all) . NotInScope)
+     checkDupNames $ getAllLabels s_ctxt sigs
      checkDupNames $ map fst rhs
-     let sigsWithSorts = map (\(x, y) -> (x, y, getSigBody sigContext x)) ext
-     case find (\(_, xs, SigBody ys _) -> length xs /= length ys) sigsWithSorts of
-       Just (x, _, _)  -> throwError $ General (text $ "In " ++ s ++ ": targs of " ++ x ++ " not expected.") `withExpr` all
-       Nothing         -> return ()
-     let b = SigBody params . extendSigBody rhs . mergeSigBody sigContext ext $ rhs
+     let sortsInEq = map (\(x, y) -> (x, let SigBody ys _ = getSigBody s_ctxt x in length ys /= length y)) ext
+     let errorInfo x = "In " ++ s ++ ": targs of " ++ x ++ " not expected."
+     errorJust (find snd sortsInEq) (throwError . (`withExpr` all) . General . text . errorInfo . fst)
+     let b = SigBody params . extendSigBody rhs . mergeSigBody s_ctxt ext $ rhs
      checkExpr $ L loc (SigDec s b e)
+-- Note: map f ext. f = \sig sorts -> let SigBody zs ws = getSigBody s sig in
+--                                    if length sorts /= zs then []
+--                                    else map (\(n, t) -> (n, foldr subst ...)) ws
+
 
 -- Update.
 -- AlgDec algName (AlgBody [(sig, types)]) [(label, constr, args, e)] expr
