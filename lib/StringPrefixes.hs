@@ -5,6 +5,12 @@ namespace = "f2j."
 
 -- field and closures
 
+closureTransName :: String
+closureTransName = "F"
+
+letTransName :: String
+letTransName = "L"
+
 localvarstr :: String
 localvarstr = "x"
 

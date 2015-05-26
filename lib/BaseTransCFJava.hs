@@ -268,13 +268,13 @@ trans self =
                                   (varnums `zip` map unwrap bindExprs)
                    let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap bodyExpr)]
                    let letClass =
-                         [localClass ("Let" ++ show n)
-                                      (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
-                                                  mDecls ++ [J.InitDecl False (J.Block stasm)]))
+                         [localClass (letTransName ++ show n)
+                                     (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
+                                                 mDecls ++ [J.InitDecl False (J.Block stasm)]))
 
-                         ,localVar (classTy ("Let" ++ show n))
+                         ,localVar (classTy (letTransName ++ show n))
                                    (varDecl (localvarstr ++ show n)
-                                            (instCreat (classTyp ("Let" ++ show n)) []))
+                                            (instCreat (classTyp (letTransName ++ show n)) []))
                          ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
                                                      (cast typ (J.ExpName (name [localvarstr ++ show n, tempvarstr]))))]
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
@@ -541,7 +541,7 @@ trans self =
                                                    n
                                                    False
                                                    closureType
-                    let innerclassdef = localClassDecl ("Fun" ++ show n) (namespace ++ "Closure")classbody
+                    let innerclassdef = localClassDecl (closureTransName ++ show n) (namespace ++ "Closure") classbody
                     let funInst = localVar closureType (varDecl (localvarstr ++ show n) (funInstCreate n))
                     return ([innerclassdef, funInst], var (localvarstr ++ show n))
        ,transAlts =
@@ -575,7 +575,7 @@ trans self =
             do b <- genClone this
                (ostmts,oexpr,t1) <- otherStmts
                let fc = f
-               return ([localClassDecl ("Fun" ++ show fc)
+               return ([localClassDecl (closureTransName ++ show fc)
                                        closureClass
                                        (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
                                                                                (varDecl (localvarstr ++ show x1) J.This)]
