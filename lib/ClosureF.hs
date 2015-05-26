@@ -18,6 +18,7 @@ import qualified Core as C
 
 import JavaUtils
 import Panic
+import StringPrefixes
 
 import PrettyUtils
 import Text.PrettyPrint.ANSI.Leijen
@@ -153,7 +154,7 @@ fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr e1) = ConstrAlt (fctr2cctr ctr) (fexp2cexp e1)
         falt2calt (C.Default e1)       = Default (fexp2cexp e1)
-fexp2cexp e                         = Lam "Fun" (groupLambda e)
+fexp2cexp e                         = Lam closureTransName (groupLambda e)
 
 fctr2cctr :: C.Constructor t -> Constructor t
 fctr2cctr (C.Constructor ctrname ctrparams) = Constructor ('$':ctrname) (map ftyp2ctyp ctrparams)
