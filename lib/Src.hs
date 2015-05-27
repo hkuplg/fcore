@@ -48,9 +48,10 @@ module Src
   , specializedMatrix
   , defaultMatrix
   , getSigBody, getAlgBody, getAllLabels, getTypes
-  , checkArgs, checkReturnType, genBind, mergeSigBody
-  , extendSigBody, substSigTypes, checkAlgType
+  , checkArgs, checkReturnType, genBind
+  , substSigTypes, checkAlgType
   , genBindExt, genMergeAlgBind, errorJust
+  , substSigSorts
   ) where
 
 import Config
@@ -619,6 +620,16 @@ getAlgBody a n = case Map.lookup n a of
                    Just k -> k
                    Nothing -> panic $ "\"" ++ n ++ "\" not found in env" 
 
+-- E.g. ExpAlg[E]    = "add : E -> E -> E"
+-- =>   ExpAlg[F]    = "add : F -> F -> F"
+-- =>   ExpAlg[G, H] = []
+substSigSorts :: SigContext -> [(Name, [Name])] -> [(Name, [(Name, Type)])]
+substSigSorts s ext = map f ext
+  where
+    subst t xs = foldr fsubstTT t . zip xs . map TVar
+    f (sig, sorts) = let SigBody xs ys = getSigBody s sig in
+                     if length xs /= length sorts then (sig, [])
+                     else (sig, map (\(n, t) -> (n, subst t xs sorts)) ys)
 
 -- Given AlgBody, get the types of constructors by substitution.
 -- E.g. ExpAlg[IEval] => [("lit", [Int, IEval]), ("add", [IEval, IEval, IEval])].
@@ -705,19 +716,6 @@ genBindExt loc aname algs info = Bind {
     genRecord (l, constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
     genLam [] e     = e
     genLam (x:xs) e = L loc . Lam x $ genLam xs e
-
--- SigExt: merge constructors from sigs. They must be distinct.
-mergeSigBody :: SigContext -> [(Name, [Name])] -> [(Name, Type)] -> [(Name, Type)]
-mergeSigBody s ext rhs = res
-  where
-    res = concatMap (\(x, ys) -> let SigBody zs ws = getSigBody s x in map (g zs ys) ws) ext
-    g zs ys (n, t) = (n, foldr subst t $ zip zs ys)
-    subst (a, b) t = fsubstTT (a, TVar b) t
-
--- SigExt: merge constructors. But those can be overridden.
--- extendSigBody subst prev.
-extendSigBody :: [(Name, Type)] -> [(Name, Type)] -> [(Name, Type)]
-extendSigBody = foldr (\x acc -> if any (\y -> fst x == fst y) acc then acc else x:acc)
 
 genMergeAlgBind :: Loc -> (Name, SigBody) -> Bind Name Type
 genMergeAlgBind loc (sig, SigBody sorts body) = bind

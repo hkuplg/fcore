@@ -604,15 +604,12 @@ checkExpr all@(L loc (SigExt s (SigBody params rhs) ext e)) =
      errorJust (find (\x -> Map.notMember x s_ctxt) sigs) (throwError . (`withExpr` all) . NotInScope)
      checkDupNames $ getAllLabels s_ctxt sigs
      checkDupNames $ map fst rhs
-     let sortsInEq = map (\(x, y) -> (x, let SigBody ys _ = getSigBody s_ctxt x in length ys /= length y)) ext
+     let ext' = substSigSorts s_ctxt ext
      let errorInfo x = "In " ++ s ++ ": targs of " ++ x ++ " not expected."
-     errorJust (find snd sortsInEq) (throwError . (`withExpr` all) . General . text . errorInfo . fst)
-     let b = SigBody params . extendSigBody rhs . mergeSigBody s_ctxt ext $ rhs
+     errorJust (find (null . snd) ext') (throwError . (`withExpr` all) . General . text . errorInfo . fst)
+     let overlap x acc = if any (\y -> fst x == fst y) acc then acc else x:acc
+     let b = SigBody params . foldr overlap rhs . concatMap snd $ ext'
      checkExpr $ L loc (SigDec s b e)
--- Note: map f ext. f = \sig sorts -> let SigBody zs ws = getSigBody s sig in
---                                    if length sorts /= zs then []
---                                    else map (\(n, t) -> (n, foldr subst ...)) ws
-
 
 -- Update.
 -- AlgDec algName (AlgBody [(sig, types)]) [(label, constr, args, e)] expr
