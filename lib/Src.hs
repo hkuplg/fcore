@@ -176,6 +176,8 @@ data Expr id ty
     -- E.g. AlgExt "evalSubAlg" ["evalAlg"] ...
   | MergeAlg [Name]
     -- E.g. MergeAlg ["evalAlg", "printAlg"]
+  | SigData Name (Name, [Name], Name) (LExpr id ty)
+    -- E.g. SigData "Exp" ("ExpAlg", ["E"], "E") e
 
   deriving (Eq, Show)
 

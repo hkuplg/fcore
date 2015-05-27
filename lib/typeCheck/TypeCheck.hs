@@ -744,6 +744,16 @@ checkExpr all@(L loc (MergeAlg algs)) =
      let e = foldl (\(acc, t1) (x, t2) -> (L loc $ App (L loc $ App (genTApps (t1 ++ t2)) acc) x, zipWith And t1 t2)) (head algs') (tail algs')
      checkExpr . fst $ e
 
+-- Update.
+checkExpr all@(L loc (SigData d (sig, sorts, s) e)) =
+  do s_ctxt <- getSigContext
+     unless (Map.member sig s_ctxt) (throwError $ NotInScope sig `withExpr` all)
+     let SigBody xs _ = getSigBody s_ctxt sig
+     when (length sorts /= length xs) (throwError $ General (text $ "In " ++ d ++ ": targs of " ++ sig ++ " not expected.") `withExpr` all)
+     unless (s `elem` sorts) (throwError $ General (text $ "In " ++ d ++ ": unexpected \"" ++ s ++ "\".") `withExpr` all)
+     -- TODO: type synonym. generated constructors.
+     checkExpr e
+
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext
        let ty' = expandType d ty

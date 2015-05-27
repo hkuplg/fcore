@@ -255,6 +255,7 @@ expr :: { ReaderExpr }
     | "algebra" LOWER_IDENT "implements" oa_alg_impls "where" oa_alg_cases ";" expr { AlgDec (toString $2) (AlgBody $4) $6 $8 `withLoc` $1 }
     | "sig" UPPER_IDENT ty_param_list "extends" oa_sig_extend_sigs "where" record_type_fields_rev ";" expr { SigExt (toString $2) (SigBody (map unLoc $3) $7) $5 $9 `withLoc` $1 }  
     | "algebra" LOWER_IDENT "extends" oa_alg_exts "implements" oa_alg_impls "where" oa_alg_cases ";" expr { AlgExt (toString $2) $4 (AlgBody $6) $8 $10 `withLoc` $1 }
+    | "fdata" UPPER_IDENT "from" UPPER_IDENT ty_param_list "." UPPER_IDENT ";" expr { SigData (toString $2) (toString $4, map unLoc $5, toString $7) $9 `withLoc` $1 }
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
