@@ -52,7 +52,7 @@ import Control.Monad.Error
 import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
-import Data.List (intersperse, findIndex, find, sort, nub)
+import Data.List (intersperse, findIndex, find, sort, nub, delete)
 
 import Prelude hiding (pred)
 
@@ -750,9 +750,12 @@ checkExpr all@(L loc (SigData d (sig, sorts, s) e)) =
      unless (Map.member sig s_ctxt) (throwError $ NotInScope sig `withExpr` all)
      let SigBody xs _ = getSigBody s_ctxt sig
      when (length sorts /= length xs) (throwError $ General (text $ "In " ++ d ++ ": targs of " ++ sig ++ " not expected.") `withExpr` all)
+     checkDupNames sorts
      unless (s `elem` sorts) (throwError $ General (text $ "In " ++ d ++ ": unexpected \"" ++ s ++ "\".") `withExpr` all)
-     -- TODO: type synonym. generated constructors.
-     checkExpr e
+     -- TODO: generated constructors.
+     let t = Forall s . Fun (foldl OpApp (TVar sig) . map TVar $ sorts) . TVar $ s
+     let e' = L loc . Type d (delete s sorts) (RecordType [("accept", t)]) $ e
+     checkExpr e'
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext
