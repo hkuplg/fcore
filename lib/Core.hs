@@ -57,7 +57,6 @@ data Type t
   | Forall Src.ReaderId (t -> Type t)  -- forall a. t
   | Product [Type t]                   -- (t1, ..., tn)
   | Unit
-  | ListOf (Type t)
   | Datatype Src.ReaderId [Type t] [Src.ReaderId]
 
 data Expr t e
@@ -95,9 +94,7 @@ data Expr t e
   -- Java
   | JNew ClassName [Expr t e]
   | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
-  | JField  (Src.JCallee (Expr t e)) FieldName ClassName
-  | PolyList [Expr t e] (Type t)
-  | JProxyCall (Expr t e) (Type t)
+  | JField  (Src.JCallee (Expr t e)) FieldName (Type t)
 
   | Seq [Expr t e]
 
@@ -105,10 +102,12 @@ data Expr t e
   | Constr (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
 
+  | Error (Type t) (Expr t e)
+
 data DataBind t = DataBind Src.ReaderId [Src.ReaderId] ([t] -> [Constructor t])
 
-data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ([e] -> Expr t e)
-            -- | Default (Expr t e)
+data Alt t e = ConstrAlt (Constructor t) (Expr t e)
+             | Default (Expr t e)
 
 data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
 
@@ -124,7 +123,6 @@ alphaEq i (Fun s1 s2)  (Fun t1 t2)  = alphaEq i s1 t1 && alphaEq i s2 t2
 alphaEq i (Forall _ f) (Forall _ g) = alphaEq (succ i) (f i) (g i)
 alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq i) `all` zip ss ts
 alphaEq _  Unit         Unit        = True
-alphaEq i (ListOf t1) (ListOf t2)   = alphaEq i t1 t2
 alphaEq _  _            _           = False
 
 mapTVar :: (Src.ReaderId -> t -> Type t) -> Type t -> Type t
@@ -135,7 +133,6 @@ mapTVar g (Forall n f)   = Forall n (mapTVar g . f)
 mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
 mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
-mapTVar g (ListOf t)     = ListOf (mapTVar g t)
 
 mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
@@ -151,7 +148,8 @@ mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (map
 mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
-    where mapAlt (ConstrAlt (Constructor n ts) ns f) = ConstrAlt (Constructor n (map h ts)) ns ((mapVar g h) . f)
+    where mapAlt (ConstrAlt (Constructor n ts) e1) = ConstrAlt (Constructor n (map h ts)) (mapVar g h e1)
+          mapAlt (Default e1) = Default (mapVar g h e1)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
@@ -160,10 +158,9 @@ mapVar g h (Tuple es)                = Tuple (map (mapVar g h) es)
 mapVar g h (Proj i e)                = Proj i (mapVar g h e)
 mapVar g h (JNew c args)             = JNew c (map (mapVar g h) args)
 mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map (mapVar g h) args) c
-mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f c
+mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f (h c)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
-mapVar g h (PolyList es t)           = PolyList (map (mapVar g h) es) (h t)
-mapVar g h (JProxyCall jmethod t)    = JProxyCall (mapVar g h jmethod) (h t)
+mapVar g h (Error ty str)            = Error (h ty) (mapVar g h str)
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
 fsubstTT x r = mapTVar (\n a -> if a == x then r else TVar n a)
@@ -183,7 +180,6 @@ joinType (Forall n g)     = Forall n (joinType . g . TVar "_") -- Right?
 joinType (Product ts)     = Product (map joinType ts)
 joinType  Unit            = Unit
 joinType (Datatype n ts ns)  = Datatype n (map joinType ts) ns
-joinType (ListOf t)       = ListOf (joinType t)
 
 tVar :: t -> Type t
 tVar = TVar "_"
@@ -236,7 +232,6 @@ prettyType' _ _ (JClass "java.lang.String")    = text "String"
 prettyType' _ _ (JClass "java.lang.Boolean")   = text "Bool"
 prettyType' _ _ (JClass "java.lang.Character") = text "Char"
 prettyType' _ _ (JClass c)                     = text c
-prettyType' p i (ListOf t)                     = text "List" <+> prettyType' p i t
 
 -- instance Show (Expr Index Index) where
 --   show = show . pretty
@@ -310,8 +305,7 @@ prettyExpr' _ i (JField name f _) = fieldStr name <> dot <> text f
     fieldStr (Src.Static x) = text x
     fieldStr (Src.NonStatic x) = prettyExpr' (6,PrecMinus) i x
 
-prettyExpr' p i (PolyList es t) = brackets. hcat . intersperse comma . map (prettyExpr' p i ) $ es
-prettyExpr' p i (JProxyCall jmethod t) = prettyExpr' p i jmethod
+prettyExpr' p i (Error _ str) = text "error:" <+> prettyExpr' p i str
 
 prettyExpr' p (i,j) (Seq es) = semiBraces (map (prettyExpr' p (i,j)) es)
 
@@ -351,11 +345,11 @@ prettyExpr' p (i,j) (Data recflag databinds e) =
 prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
-    hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> text " " <+> Src.intersperseBar (map pretty_alt alts)
-    where pretty_alt (ConstrAlt c ns es) =
-              let n = length ns
-                  ids = [j..j+n-1]
-              in hsep (text (constrName c) : (map prettyVar ids)) <+> arrow <+> prettyExpr' p (i, j+n) (es ids)
+    hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))
+    where pretty_alt (ConstrAlt c e1) =
+               (text (constrName c) <+> arrow <+> (align $ prettyExpr' p (i, j) e1 ))
+          pretty_alt (Default e1) =
+               (text "_" <+> arrow <+> (align $ prettyExpr' p (i, j) e1 ))
 
 javaInt :: Type t
 javaInt = JClass "java.lang.Integer"

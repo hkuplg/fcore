@@ -58,7 +58,7 @@ tokens :-
     <str> (@charEscape | $printable # [\" \\] | \\\{) { save_string }
     <strexp> \}     { end_strexp `andBegin` str }
     <str> \"        { end_string `andBegin` 0 }
-    
+
     <0> \}          { locate (\_ _ -> Tccurly) }
     <0, strexp>     {
 
@@ -92,7 +92,6 @@ tokens :-
     Char        { locate (\_ _ -> Tjavaclass "java.lang.Character") }
     Float       { locate (\_ _ -> Tjavaclass "java.lang.Float") }
     Double      { locate (\_ _ -> Tjavaclass "java.lang.Double") }
-    List        { locate (\_ _ -> Tlist) }
     Tree        { locate (\_ _ -> Tjavaclass "f2j.FunctionalTree") }
     if          { locate (\_ _ -> Tif) }
     then        { locate (\_ _ -> Tthen) }
@@ -107,6 +106,7 @@ tokens :-
     of          { locate (\_ _ -> Tof) }
     \_          { locate (\_ _ -> Tunderscore) }
     \`          { locate (\_ _ -> Tbackquote) }
+    error       { locate (\_ _ -> Terror)}
 
     -- Literals
     $digit+                { locate (\_ s -> Tint (read s)) }
@@ -115,13 +115,9 @@ tokens :-
     False                  { locate (\_ s -> Tbool False) }
     Empty                  { locate (\_ _ -> Temptytree) }
     Fork                   { locate (\_ _ -> Tnonemptytree ) }
-    head                   { locate (\_ _ -> Tlisthead) }
-    tail                   { locate (\_ _ -> Tlisttail) }
-    cons                   { locate (\_ _ -> Tlistcons) }
-    isNil                  { locate (\_ _ -> Tlistisnil) }
-    length                 { locate (\_ _ -> Tlistlength) }
     \(\)                   { locate (\_ _ -> Tunitlit ) }
     Unit                   { locate (\_ _ -> Tunit) }
+    L\[                    { locate (\_ _ -> Tlistbegin)}
 
     -- java.package.path.Classname
     ([a-z] [$vchar]* \.)+ [A-Z] [$vchar]*  { locate (\_ s -> Tjavaclass s) }
@@ -165,9 +161,10 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tobrack | Tcbrack | Tdcolon
            | Tmodule | Timport
            | Temptytree | Tnonemptytree
-           | Tlist | Tlisthead | Tlisttail | Tlistcons | Tlistisnil | Tlistlength
+           | Tlistbegin
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
            | Teof | Tschar Char | Tstrl | Tstrr | Tstrexpl | Tstrexpr
+           | Terror
            deriving (Eq, Show)
 
 -- Modify a normal rule inside { ... } so that it returns a *located* token.
@@ -189,7 +186,7 @@ showPosn (AlexPn _ line col) = show line ++ ':': show col
 lexError :: String -> Alex a
 lexError s = do
   (p,c,_,input) <- alexGetInput
-  alexError (showPosn p ++ ": " ++ s ++ 
+  alexError (showPosn p ++ ": " ++ s ++
                    (if (not (null input))
                      then " before " ++ show (head input)
                      else " at end of file"))

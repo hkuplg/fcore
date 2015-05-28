@@ -165,6 +165,9 @@ classDecl modi ident =
 integerExp :: Integer -> Exp
 integerExp = Lit . Int
 
+stringExp :: String -> Exp
+stringExp = Lit . String
+
 nullExp :: Exp
 nullExp = Lit Null
 
@@ -189,7 +192,7 @@ instCreat cls args = InstanceCreation [] cls args Nothing
 
 funInstCreate :: Int -> Exp
 funInstCreate i = instCreat fun []
-  where fun = ClassType [(Ident ("Fun" ++ show i),[])]
+  where fun = ClassType [(Ident (closureTransName ++ show i),[])]
 
 -- -- assignment
 assign :: Name -> Exp -> BlockStmt

@@ -66,18 +66,17 @@ infer i j (FI.Tuple es)           = FI.Product . map (infer i j) $ es
 infer i j (FI.Proj index e)       = ts !! (index - 1)                            where FI.Product ts = infer i j e
 infer i j (FI.JNew c _)           = FI.JClass c
 infer i j (FI.JMethod _ _ _ c)    = FI.JClass c
-infer i j (FI.JField _ _ c)       = FI.JClass c
+infer i j (FI.JField _ _ c)       = c
 infer i j (FI.Seq es)             = infer i j (last es)
 infer i j (FI.Merge e1 e2)        = FI.And (infer i j e1) (infer i j e2)
 infer i j (FI.RecordCon (l, e))   = FI.RecordType (l, infer i j e)
 infer i j (FI.RecordProj e l1)    = t1                                           where Just (t1, _) = getter i j (infer i j e) l1
 infer i j (FI.RecordUpdate e _)   = infer i j e
-infer i j (FI.PolyList _ t)       = FI.ListOf t
-infer i j (FI.JProxyCall _ t)     = t
+infer _ _ (FI.Error ty _)         = ty
 infer i j (FI.Constr c _)         = last . FI.constrParams $ c
 infer i j (FI.Case _ alts)        = inferAlt . head $ alts
-  where inferAlt (FI.ConstrAlt c _ e) = let (ts, n) = (FI.constrParams c, length ts - 1)
-                                        in infer i (j + n) (e (zip [j..] (init ts)))
+  where inferAlt (FI.ConstrAlt _ e) = infer i j e
+        inferAlt (FI.Default e)       = infer i j e
 infer i j (FI.Data _ _ e)         = infer i j e
 infer _ _ _                       = trace "Unsupported: Simplify.infer" FI.Unit
 
@@ -118,7 +117,7 @@ transExpr i j (FI.Tuple es)                = Tuple . map (transExpr i j) $ es
 transExpr i j (FI.Proj index e)            = Proj index $ transExpr i j e
 transExpr i j (FI.JNew c es)               = JNew c . map (transExpr i j) $ es
 transExpr i j (FI.JMethod c m arg ret)     = JMethod (fmap (transExpr i j) c) m (map (transExpr i j) arg) ret
-transExpr i j (FI.JField c m ret)          = JField (fmap (transExpr i j) c) m ret
+transExpr i j (FI.JField c m ret)          = JField (fmap (transExpr i j) c) m (transType i ret)
 transExpr i j (FI.Seq es)                  = Seq . map (transExpr i j) $ es
 transExpr i j (FI.Merge e1 e2)             = Tuple . map (transExpr i j) $ [e1, e2]
 transExpr i j (FI.RecordCon (l, e))        = transExpr i j e
@@ -130,12 +129,10 @@ transExpr i j (FI.Constr (FI.Constructor n ts) es) = Constr (Constructor n . map
 transExpr i j (FI.Case e alts)             = Case e' . map transAlt $ alts
   where
     e' = transExpr i j e
-    transAlt (FI.ConstrAlt (FI.Constructor n ts) ns f) =
-      let m   = length ts - 1
-          ts' = map (transType i) ts
-      in ConstrAlt (Constructor n ts') ns (\es -> transExpr i (j + m) . f $ zip es ts) -- Right?
-transExpr i j (FI.PolyList es t)           = PolyList (map (transExpr i j) es) (transType i t)
-transExpr i j (FI.JProxyCall e t)          = JProxyCall (transExpr i j e) (transType i t)
+    transAlt (FI.ConstrAlt (FI.Constructor n ts) e1) =
+      ConstrAlt (Constructor n (map (transType i) ts)) (transExpr i i e1)
+    transAlt (FI.Default e1) = Default (transExpr i j e1)
+transExpr i j (FI.Error ty str)            = Error (transType i ty) (transExpr i j str)
 transExpr i j (FI.Data recflag databinds e)= Data recflag (map transDatabind databinds) (transExpr i j e)
   where transCtr (FI.Constructor name cps) = Constructor name . map (transType i) $ cps
         transDatabind (FI.DataBind n params ctrs) = DataBind n params (map transCtr . ctrs)
@@ -151,7 +148,6 @@ transType i (FI.Unit)              = Unit
 transType i (FI.And a1 a2)         = Product . map (transType i) $ [a1, a2]
 transType i (FI.RecordType (_, t)) = transType i t
 transType i (FI.Datatype n ts ns)  = Datatype n (map (transType i) ts) ns
-transType i (FI.ListOf t)          = ListOf . transType i $ t
 transType _ _                      = trace "Unsupported: Simplify.transType" (TVar "" (-1))
 
 coerce :: Index -> FI.Type Index -> FI.Type Index -> Maybe (Expr Index Index)
@@ -191,7 +187,6 @@ coerce i (FI.RecordType (l1, t1)) (FI.RecordType (l2, t2))
 coerce i this@(FI.Datatype n1 _ _) (FI.Datatype n2 _ _)
   | n1 == n2  = return $ lam (transType i this) var
   | otherwise = Nothing
-coerce i this@(FI.ListOf t1) (FI.ListOf t2) = return $ lam (transType i this) var
 coerce _ _ _ = Nothing
 
 getter :: Index -> Index -> FI.Type Index -> S.Label -> Maybe (FI.Type Index, Expr Index Index)
@@ -243,8 +238,6 @@ subst g ts@((FI.Datatype n _ ns):_) = FI.Datatype n ts' ns
     transpose :: [[a]] -> [[a]]
     transpose [] = []
     transpose xs = (map head xs):(transpose . map tail $ xs)
-subst g ts@((FI.ListOf _):_) = FI.ListOf t'
-  where t' = subst g . map (\x -> let FI.ListOf t = x in t) $ ts
 
 substTT :: Index -> FI.Type Index -> FI.Type Index -> FI.Type Index
 substTT i x t = subst (\n a -> if a == i then x else FI.TVar n a) [t]
@@ -256,7 +249,6 @@ dedeBruT i as (Fun t1 t2)        = Fun (dedeBruT i as t1) (dedeBruT i as t2)
 dedeBruT i as (Forall n f)       = Forall n (\a -> dedeBruT (i + 1) (a:as) (f i))
 dedeBruT i as (Product ts)       = Product (map (dedeBruT i as) ts)
 dedeBruT i as (Datatype n ts ns) = Datatype n (map (dedeBruT i as) ts) ns
-dedeBruT i as (ListOf t)         = ListOf (dedeBruT i as t)
 dedeBruT i as  Unit              = Unit
 
 dedeBruE :: Index -> [t] -> Index -> [e] -> Expr Index Index -> Expr t e
@@ -294,22 +286,20 @@ dedeBruE i as j xs (JNew c args)                  = JNew c (map (dedeBruE i as j
 dedeBruE i as j xs (JMethod callee m args r)      = JMethod
                                                       (fmap (dedeBruE i as j xs) callee) m
                                                       (map (dedeBruE i as j xs) args) r
-dedeBruE i as j xs (JField callee f r)            = JField (fmap (dedeBruE i as j xs) callee) f r
+dedeBruE i as j xs (JField callee f r)            = JField (fmap (dedeBruE i as j xs) callee) f (dedeBruT i as r)
 dedeBruE i as j xs (Seq es)                       = Seq (map (dedeBruE i as j xs) es)
 dedeBruE i as j xs (Constr (Constructor n ts) es) = Constr
                                                       (Constructor n (map (dedeBruT i as) ts))
                                                       (map (dedeBruE i as j xs) es)
 dedeBruE i as j xs (Case e alts)                  = Case (dedeBruE i as j xs e) (map dedeBruijnAlt alts)
-  where dedeBruijnAlt (ConstrAlt (Constructor name ts) names fe) =
-          ConstrAlt
-            (Constructor name (map (dedeBruT i as) ts)) names
-            (\xs' -> dedeBruE i as (j + n) ((reverse xs') ++ xs) (fe [j..j + n - 1])) where n = length ts - 1
+  where dedeBruijnAlt (ConstrAlt (Constructor name ts) e1) =
+          ConstrAlt (Constructor name (map (dedeBruT i as) ts)) (dedeBruE i as j xs e1)
+        dedeBruijnAlt (Default e1) = Default (dedeBruE i as j xs e1)
 
 dedeBruE i as j xs (Data recflag databinds e)     = Data recflag (map dedeBruijnDatabind databinds) (dedeBruE i as j xs e)
   where dedeBruijnConstr i' as' (Constructor name types) = Constructor name (map (dedeBruT i' as') types)
         dedeBruijnDatabind (DataBind n ns ctrs)   = DataBind n ns (\a -> map (dedeBruijnConstr (length ns + i) (a++as)) $
                                                                          (ctrs [i..length ns+i-1]) )
 
-dedeBruE i as j xs (PolyList es t)                = PolyList (map (dedeBruE i as j xs) es) (dedeBruT i as t)
-dedeBruE i as j xs (JProxyCall e t)               = JProxyCall (dedeBruE i as j xs e) (dedeBruT i as t)
+dedeBruE i as j xs (Error ty str)                 = Error (dedeBruT i as ty) (dedeBruE i as j xs str)
 
