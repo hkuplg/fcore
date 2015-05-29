@@ -52,7 +52,7 @@ import Control.Monad.Error
 import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
-import Data.List (intersperse, findIndex, find, sort, nub, delete)
+import Data.List (intersperse, findIndex, find, sort, nub, delete, elemIndex)
 
 import Prelude hiding (pred)
 
@@ -752,9 +752,9 @@ checkExpr all@(L loc (SigData d (sig, sorts, s) e)) =
      when (length sorts /= length xs) (throwError $ General (text $ "In " ++ d ++ ": targs of " ++ sig ++ " not expected.") `withExpr` all)
      checkDupNames sorts
      unless (s `elem` sorts) (throwError $ General (text $ "In " ++ d ++ ": unexpected \"" ++ s ++ "\".") `withExpr` all)
-     -- TODO: generated constructors.
      let t = Forall s . Fun (foldl OpApp (TVar sig) . map TVar $ sorts) . TVar $ s
-     let e' = L loc . Type d (delete s sorts) (RecordType [("accept", t)]) $ e
+     let binds = genConst loc (sig, getSigBody s_ctxt sig) d (xs !! (fromJust $ s `elemIndex` sorts))
+     let e' = L loc . Type d (delete s sorts) (RecordType [("accept", t)]) . foldl (\acc x -> L loc . Let NonRec [x] $ acc) e $ binds
      checkExpr e'
 
 checkExpr (L loc (Error ty str)) = do

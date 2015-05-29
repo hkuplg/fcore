@@ -68,7 +68,7 @@ import Control.Arrow (second)
 
 import Data.Maybe (fromJust)
 import Data.Data
-import Data.List (intersperse, findIndex, nub)
+import Data.List (intersperse, findIndex, nub, delete)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -757,7 +757,7 @@ genConst loc (sig, SigBody xs ys) fdata target = map bind ys'
     xs' = delete target xs
     ys' = map (\(x, y) -> (x, init y)) 
         . filter ((== TVar target) . last . snd)
-        . map (\(x, y) -> (x, getTypes typ)) $ ys
+        . map (\(x, y) -> (x, getTypes y)) $ ys
     type1 = foldl OpApp (TVar fdata) . map TVar $ xs'
     type2 = foldl OpApp (TVar sig) . map TVar $ xs 
     subst n = if n == TVar target then type1 else n 
@@ -769,9 +769,9 @@ genConst loc (sig, SigBody xs ys) fdata target = map bind ys'
       then L loc . App (L loc . TApp (L loc . RecordProj (L loc . Var $ 'x':show x) $ "accept") $ TVar target) . L loc . Var $ "alg"
       else L loc . Var $ 'x':show x
     f (l, ts) = genBLam . genLam ts . genBody . foldl genApp (L loc . RecordProj (L loc . Var $ "alg") $ l) $ zip ts [1..]
-    bind x = Bind { bindId = l,
-                    bindTyParams = [],
-                    bindParams = [],
-                    bindRhs = f x,
-                    bindRhsTyAscription = Nothing }
+    bind (l, ts) = Bind { bindId = l,
+                          bindTyParams = [],
+                          bindParams = [],
+                          bindRhs = f (l, ts),
+                          bindRhsTyAscription = Nothing }
 
