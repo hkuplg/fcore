@@ -34,6 +34,20 @@ let showMaybe (x : Maybe) = if isJust x then let x1 = fromJust x;
                                 if isInt x1 then "\{getInt x1}" else if isBool x1 then "\{getBool x1}" else "nothing"
                             else "nothing";
 
+sig TTypeAlg[T] where
+  tInt : T, tBool : T, tNot : T;
+algebra checkTNum implements TTypeAlg[{value : Int}] where
+  value@(tInt) = 1,
+  value@(tBool) = 2,
+  value@(tNot) = 3;
+fdata TType from TTypeAlg[T].T;
+let getTNum (x : TType) = (x.accept[{value : Int}] checkTNum).value;
+let isTInt (x : TType) = getTNum x == 1;
+let isTBool (x : TType) = getTNum x == 2;
+let isTNot (x : TType) = getTNum x == 3;
+let sameTypeT (x : TType) (y : TType) = getTNum x == getTNum y && getTNum x != 3;
+let showTType (x : TType) = if isTInt x then "TInt" else if isTBool x then "TBool" else "TNot";
+
 sig BinaryOpAlg[B] where
   add : B, sub : B, or : B, gt : B, eq : B;
 algebra evalBinary implements BinaryOpAlg[{func : Maybe -> Maybe -> Maybe}] where
@@ -57,8 +71,15 @@ algebra evalBinary implements BinaryOpAlg[{func : Maybe -> Maybe -> Maybe}] wher
                if isJust x && isJust y then let x1 = fromJust x; let y1 = fromJust y;
                    if isInt x1 && isInt y1 then just (boolV (getInt x1 == getInt y1)) else nothing
                else nothing;
+algebra tcheckBinary implements BinaryOpAlg[{func : TType -> TType -> TType}] where
+  func@(add) = \(x : TType) -> \(y : TType) -> if isTInt x && isTInt y then tInt else tNot,
+  func@(sub) = \(x : TType) -> \(y : TType) -> if isTInt x && isTInt y then tInt else tNot,
+  func@(or)  = \(x : TType) -> \(y : TType) -> if isTBool x && isTBool y then tBool else tNot,
+  func@(gt)  = \(x : TType) -> \(y : TType) -> if isTInt x && isTInt y then tBool else tNot,
+  func@(eq)  = \(x : TType) -> \(y : TType) -> if isTInt x && isTInt y then tBool else tNot;
 fdata Binary from BinaryOpAlg[B].B;
 let apply2 (op : Binary) (x : Maybe) (y : Maybe) = (op.accept[{func : Maybe -> Maybe -> Maybe}] evalBinary).func x y;
+let check2 (op : Binary) (x : TType) (y : TType) = (op.accept[{func : TType -> TType -> TType}] tcheckBinary).func x y;
 
 sig UnaryOpAlg[U] where
   neg : U, not : U;
@@ -69,8 +90,12 @@ algebra evalUnary implements UnaryOpAlg[{func : Maybe -> Maybe}] where
   func@(not) = \(x : Maybe) -> if isJust x then let x1 = fromJust x;
                                    if isBool x1 then just (boolV (if getBool x1 then False else True)) else nothing
                                else nothing;
+algebra tcheckUnary implements UnaryOpAlg[{func : TType -> TType}] where
+  func@(neg) = \(x : TType) -> if isTInt x then tInt else tNot,
+  func@(not) = \(x : TType) -> if isTBool x then tBool else tNot;
 fdata Unary from UnaryOpAlg[U].U;
 let apply1 (op : Unary) (x : Maybe) = (op.accept[{func : Maybe -> Maybe}] evalUnary).func x;
+let check1 (op : Unary) (x : TType) = (op.accept[{func : TType -> TType}] tcheckUnary).func x;
 
 sig ExpAlg[E] where
   literal : Value -> E,
@@ -94,11 +119,23 @@ algebra evalExp implements ExpAlg[{eval : Env -> Maybe}] where
                                               else nothing
                                           else nothing
                                       else nothing;
+type TEnv = { tEnv : String -> TType };
+let addToTEnv (x : String) (y : TType) (z : TEnv) = { tEnv = \(s : String) -> if x == s then y else z.tEnv s };
+algebra tcheckExp implements ExpAlg[{tcheck : TEnv -> TType}] where
+  tcheck@(literal x) = \(t : TEnv) -> if isInt x then tInt else if isBool x then tBool else tNot,
+  tcheck@(unary op x) = \(t : TEnv) -> check1 op (x.tcheck t),
+  tcheck@(binary op x y) = \(t : TEnv) -> check2 op (x.tcheck t) (y.tcheck t),
+  tcheck@(var x) = \(t : TEnv) -> t.tEnv x,
+  tcheck@(decl x y z) = \(t : TEnv) -> z.tcheck (addToTEnv x (y.tcheck t) t),
+  tcheck@(ifbody x y z) =  \(t : TEnv) -> if isTBool (x.tcheck t) then let y1 = y.tcheck t; let z1 = z.tcheck t;
+                                             if sameTypeT y1 z1 then y1 else tNot
+                                         else tNot;
 fdata Exp from ExpAlg[E].E;
-let evaluate (x : Exp) = (x.accept[{eval : Env -> Maybe}] evalExp).eval { env = \(s : String) -> nothing };
+let evaluate (x : Exp) = showMaybe ((x.accept[{eval : Env -> Maybe}] evalExp).eval { env = \(s : String) -> nothing });
+let typecheck (x : Exp) = showTType ((x.accept[{tcheck : TEnv -> TType}] tcheckExp).tcheck { tEnv = \(s : String) -> tNot });
 
 let exp1 = decl "x" (literal (intV 3)) (decl "y" (literal (intV 4)) (ifbody (binary gt (var "x") (var "y")) (binary add (var "x") (literal (intV 1))) (binary add (var "y") (literal (intV 1)))));
 let exp2 = decl "x" (literal (boolV True)) (decl "y" (literal (boolV False)) (binary or (unary not (binary or (unary not (var "x")) (var "y"))) (unary not (binary or (var "x") (unary not (var "y"))))));
-showMaybe (evaluate exp2)
+"(\{evaluate exp1}, \{typecheck exp1}) || (\{evaluate exp2}, \{typecheck exp2})"
 
   
