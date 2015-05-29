@@ -1,0 +1,104 @@
+sig ValueAlg[V] where
+  intV : Int -> V,
+  boolV : Bool -> V;
+algebra evalValue implements ValueAlg[{value : {toInt : Int, toBool : Bool}}] where
+  value@(intV x)  = { toInt = x, toBool = True },
+  value@(boolV x) = { toInt = 0, toBool = x    };
+algebra checkInt implements ValueAlg[{is_Int : Bool}] where
+  is_Int@(intV x)  = True,
+  is_Int@(boolV x) = False;
+algebra checkBool implements ValueAlg[{is_Bool : Bool}] where
+  is_Bool@(intV x)  = False,
+  is_Bool@(boolV x) = True;
+fdata Value from ValueAlg[V].V;
+let isInt (x : Value)    = (x.accept[{is_Int : Bool}] checkInt).is_Int;
+let isBool (x : Value)   = (x.accept[{is_Bool : Bool}] checkBool).is_Bool;
+let getInt (x : Value)   = (x.accept[{value : {toInt : Int, toBool : Bool}}] evalValue).value.toInt;
+let getBool (x : Value)  = (x.accept[{value : {toInt : Int, toBool : Bool}}] evalValue).value.toBool;
+let sameTypeV (x : Value) (y : Value) = (isInt x && isInt y) || (isBool x && isBool y);
+
+sig MaybeAlg[M] where
+  just : Value -> M,
+  nothing : M;
+algebra evalJust implements MaybeAlg[{value : Value}] where
+  value@(just x)  = x,
+  value@(nothing) = intV 0;
+algebra checkJust implements MaybeAlg[{is_Just : Bool}] where
+  is_Just@(just x)  = True,
+  is_Just@(nothing) = False;
+fdata Maybe from MaybeAlg[M].M;
+let isJust (x : Maybe)   = (x.accept[{is_Just : Bool}] checkJust).is_Just;
+let fromJust (x : Maybe) = (x.accept[{value : Value}] evalJust).value;
+let sameTypeM (x : Maybe) (y : Maybe) = if isJust x && isJust y then sameTypeV (fromJust x) (fromJust y) else False;
+let showMaybe (x : Maybe) = if isJust x then let x1 = fromJust x;
+                                if isInt x1 then "\{getInt x1}" else if isBool x1 then "\{getBool x1}" else "nothing"
+                            else "nothing";
+
+sig BinaryOpAlg[B] where
+  add : B, sub : B, or : B, gt : B, eq : B;
+algebra evalBinary implements BinaryOpAlg[{func : Maybe -> Maybe -> Maybe}] where
+  func@(add) = \(x : Maybe) -> \(y : Maybe) ->
+               if isJust x && isJust y then let x1 = fromJust x; let y1 = fromJust y;
+                   if isInt x1 && isInt y1 then just (intV (getInt x1 + getInt y1)) else nothing
+               else nothing,
+  func@(sub) = \(x : Maybe) -> \(y : Maybe) ->
+               if isJust x && isJust y then let x1 = fromJust x; let y1 = fromJust y;
+                   if isInt x1 && isInt y1 then just (intV (getInt x1 - getInt y1)) else nothing
+               else nothing,
+  func@(or)  = \(x : Maybe) -> \(y : Maybe) ->
+               if isJust x && isJust y then let x1 = fromJust x; let y1 = fromJust y;
+                   if isBool x1 && isBool y1 then just (boolV (getBool x1 || getBool y1)) else nothing
+               else nothing,
+  func@(gt)  = \(x : Maybe) -> \(y : Maybe) ->
+               if isJust x && isJust y then let x1 = fromJust x; let y1 = fromJust y;
+                   if isInt x1 && isInt y1 then just (boolV (getInt x1 > getInt y1)) else nothing
+               else nothing,
+  func@(eq)  = \(x : Maybe) -> \(y : Maybe) ->
+               if isJust x && isJust y then let x1 = fromJust x; let y1 = fromJust y;
+                   if isInt x1 && isInt y1 then just (boolV (getInt x1 == getInt y1)) else nothing
+               else nothing;
+fdata Binary from BinaryOpAlg[B].B;
+let apply2 (op : Binary) (x : Maybe) (y : Maybe) = (op.accept[{func : Maybe -> Maybe -> Maybe}] evalBinary).func x y;
+
+sig UnaryOpAlg[U] where
+  neg : U, not : U;
+algebra evalUnary implements UnaryOpAlg[{func : Maybe -> Maybe}] where
+  func@(neg) = \(x : Maybe) -> if isJust x then let x1 = fromJust x;
+                                   if isInt x1 then just (intV (-getInt x1)) else nothing
+                               else nothing,
+  func@(not) = \(x : Maybe) -> if isJust x then let x1 = fromJust x;
+                                   if isBool x1 then just (boolV (if getBool x1 then False else True)) else nothing
+                               else nothing;
+fdata Unary from UnaryOpAlg[U].U;
+let apply1 (op : Unary) (x : Maybe) = (op.accept[{func : Maybe -> Maybe}] evalUnary).func x;
+
+sig ExpAlg[E] where
+  literal : Value -> E,
+  unary : Unary -> E -> E,
+  binary : Binary -> E -> E -> E,
+  ifbody : E -> E -> E -> E,
+  var : String -> E,
+  decl : String -> E -> E -> E;
+type Env = { env : String -> Maybe };
+let addToEnv (x : String) (y : Maybe) (z : Env) = { env = \(s : String) -> if x == s then y else z.env s };
+algebra evalExp implements ExpAlg[{eval : Env -> Maybe}] where
+  eval@(literal x) = \(e : Env) -> just x,
+  eval@(unary op x) = \(e : Env) -> apply1 op (x.eval e),
+  eval@(binary op x y) = \(e : Env) -> apply2 op (x.eval e) (y.eval e),
+  eval@(var x) = \(e : Env) -> e.env x,
+  eval@(decl x y z) = \(e : Env) -> z.eval (addToEnv x (y.eval e) e),
+  eval@(ifbody x y z) = \(e : Env) -> if isJust (x.eval e) then let x1 = fromJust (x.eval e);
+                                          if isBool x1 then let b = getBool x1; let y1 = y.eval e; let z1 = z.eval e;
+                                              if sameTypeM y1 z1 then
+                                                  if b then y.eval e else z.eval e
+                                              else nothing
+                                          else nothing
+                                      else nothing;
+fdata Exp from ExpAlg[E].E;
+let evaluate (x : Exp) = (x.accept[{eval : Env -> Maybe}] evalExp).eval { env = \(s : String) -> nothing };
+
+let exp1 = decl "x" (literal (intV 3)) (decl "y" (literal (intV 4)) (ifbody (binary gt (var "x") (var "y")) (binary add (var "x") (literal (intV 1))) (binary add (var "y") (literal (intV 1)))));
+let exp2 = decl "x" (literal (boolV True)) (decl "y" (literal (boolV False)) (binary or (unary not (binary or (unary not (var "x")) (var "y"))) (unary not (binary or (var "x") (unary not (var "y"))))));
+showMaybe (evaluate exp2)
+
+  
