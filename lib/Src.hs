@@ -51,7 +51,7 @@ module Src
   , checkArgs, checkReturnType, genBind
   , substSigTypes, checkAlgType
   , genBindExt, genMergeAlgBind, errorJust
-  , substSigSorts
+  , substSigSorts, genConst
   ) where
 
 import Config
@@ -610,6 +610,7 @@ defaultMatrix pats =
     [tail list1 | list1 <- pats, isWildcardOrVar . head $ list1]
 
 -- Utilities for object algebras
+-- Q: fsubstTT -- error-prone?
 
 getSigBody :: SigContext -> Name -> SigBody
 getSigBody s n = case Map.lookup n s of
@@ -747,3 +748,30 @@ errorJust :: Monad m => Maybe a -> (a -> m ()) -> m ()
 errorJust x error = case x of
                       Just k  -> error k
                       Nothing -> return ()
+
+-- Generate constructors.
+-- expandType needed?
+genConst :: Loc -> (Name, SigBody) -> Name -> Name -> [Bind Name Type]
+genConst loc (sig, SigBody xs ys) fdata target = map bind ys'
+  where
+    xs' = delete target xs
+    ys' = map (\(x, y) -> (x, init y)) 
+        . filter ((== TVar target) . last . snd)
+        . map (\(x, y) -> (x, getTypes typ)) $ ys
+    type1 = foldl OpApp (TVar fdata) . map TVar $ xs'
+    type2 = foldl OpApp (TVar sig) . map TVar $ xs 
+    subst n = if n == TVar target then type1 else n 
+    genBLam e = foldr (\x acc -> L loc . BLam x $ acc) e xs'
+    genLam typs e = foldr (\(typ, x) acc -> L loc . Lam ('x':show x, subst typ) $ acc) e $ zip typs [1..]
+    genBody e = L loc . RecordCon $ [("accept", L loc . BLam target . L loc . Lam ("alg", type2) $ e)]
+    genApp acc (typ, x) = L loc . App acc $
+      if typ == TVar target
+      then L loc . App (L loc . TApp (L loc . RecordProj (L loc . Var $ 'x':show x) $ "accept") $ TVar target) . L loc . Var $ "alg"
+      else L loc . Var $ 'x':show x
+    f (l, ts) = genBLam . genLam ts . genBody . foldl genApp (L loc . RecordProj (L loc . Var $ "alg") $ l) $ zip ts [1..]
+    bind x = Bind { bindId = l,
+                    bindTyParams = [],
+                    bindParams = [],
+                    bindRhs = f x,
+                    bindRhsTyAscription = Nothing }
+
