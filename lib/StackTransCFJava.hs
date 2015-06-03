@@ -170,6 +170,14 @@ transS this super =
                       (scrutStmts, scrutExpr, _) <- local (False &&) $ translateM (up this) scrut
                       (altsStmts, varName, typ) <- transAlts (up this) scrutExpr alts
                       return (scrutStmts ++ altsStmts, varName, typ)
+               -- the last expression in the sequence inherit flag
+               SeqExprs es -> do
+                 let allButLast = init es
+                 let lastExpr = last es
+                 emost <- mapM (local (False &&) . translateM (up this)) allButLast
+                 (eLastStmt, eLastExpr, eLastType) <- translateM (up this) lastExpr
+                 let statements = concatMap (\(x,_,_) -> x) emost
+                 return (statements ++ eLastStmt, eLastExpr, eLastType)
                -- count other expressions as not in tail position
                _ -> local (False &&) $ translateM super e
 
