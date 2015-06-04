@@ -10,7 +10,7 @@ Ubuntu. It builds the compiler from source, thus may take some time.
 
 1. Make sure you have installed the dependencies:
 
-    + Install the [Haskell Platform](https://www.haskell.org/platform/)
+    + GHC (version 7.10 or above)
     + Java SDK (8 or newer)
     + Apache Ant (version 1.8 or above)
     + [Alex](https://www.haskell.org/alex/) and [Happy](https://www.haskell.org/happy/) (install them by `cabal install alex happy`)
@@ -24,7 +24,7 @@ Ubuntu. It builds the compiler from source, thus may take some time.
 [source]: https://github.com/hkuplg/fcore
 [git]: http://git-scm.com/
 
-3. Build and install:
+3. Build and install (preferably in the sandbox):
 
    ```bash
    cabal update
