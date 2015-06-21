@@ -1,63 +1,54 @@
 type IPrint = { print : String };
+data Maybe[A] = Just A | Nothing;
+let isJust[A] (x : Maybe[A]) =
+  case x of
+      Just _  -> True
+    | Nothing -> False;
+let fromJust[A] (x : Maybe[A]) (y : A) =
+  case x of
+      Just z  -> z
+    | Nothing -> y;
 
 sig ValueAlg[V] where
   intV  : Int -> V,
   boolV : Bool -> V;
-type MatchV = { match : { isInt : Bool, isBool : Bool, toInt : Int, toBool : Bool } };
+type MatchV = { fromInt : Maybe[Int], fromBool : Maybe[Bool] };
 algebra matchValue implements ValueAlg[MatchV] where
-  match@(intV x)  = { isInt = True,  isBool = False, toInt = x, toBool = True },
-  match@(boolV x) = { isInt = False, isBool = True,  toInt = 0, toBool = x    };
+  @(intV x)  = { fromInt = Just[Int] x,  fromBool = Nothing[Bool] },
+  @(boolV x) = { fromInt = Nothing[Int], fromBool = Just[Bool] x  };
 algebra printValue implements ValueAlg[IPrint] where
   print@(intV x)  = "\{x}",
   print@(boolV x) = "\{x}";
 fdata Value from ValueAlg[V].V;
-let applyV (x : Value) = (x.accept[MatchV] matchValue).match;
-let isInt  (x : Value) = (applyV x).isInt;
-let isBool (x : Value) = (applyV x).isBool;
-let toInt  (x : Value) = (applyV x).toInt;
-let toBool (x : Value) = (applyV x).toBool;
+let isInt  (x : Value) = isJust[Int]    (x.accept[MatchV] matchValue).fromInt;
+let isBool (x : Value) = isJust[Bool]   (x.accept[MatchV] matchValue).fromBool;
+let toInt  (x : Value) = fromJust[Int]  (x.accept[MatchV] matchValue).fromInt 0;
+let toBool (x : Value) = fromJust[Bool] (x.accept[MatchV] matchValue).fromBool False;
 let sameTypeV (x : Value) (y : Value) = (isInt x && isInt y) || (isBool x && isBool y);
 let printV (x : Value) = (x.accept[IPrint] printValue).print;
 
 sig TypAlg[T] where
   tInt  : T,
   tBool : T;
-type MatchT = { match : { isTInt : Bool, isTBool : Bool } };
+type MatchT = { isTInt : Bool, isTBool : Bool };
 algebra matchTyp implements TypAlg[MatchT] where
-  match@(tInt)  = { isTInt = True,  isTBool = False },
-  match@(tBool) = { isTInt = False, isTBool = True  };
+  @(tInt)  = { isTInt = True,  isTBool = False },
+  @(tBool) = { isTInt = False, isTBool = True  };
 algebra printTyp implements TypAlg[IPrint] where
   print@(tInt)  = "TInt",
   print@(tBool) = "TBool";
 fdata Typ from TypAlg[T].T;
-let applyT  (x : Typ) = (x.accept[MatchT] matchTyp).match;
-let isTInt  (x : Typ) = (applyT x).isTInt;
-let isTBool (x : Typ) = (applyT x).isTBool;
+let isTInt  (x : Typ) = (x.accept[MatchT] matchTyp).isTInt;
+let isTBool (x : Typ) = (x.accept[MatchT] matchTyp).isTBool;
 let eqT (x : Typ) (y : Typ) = (isTInt x && isTInt y) || (isTBool x && isTBool y);
 let printT (x : Typ) = (x.accept[IPrint] printTyp).print;
 
-sig MaybeAlg[A, M] where
-  just    : A -> M,
-  nothing : M;
-type EvalM   = { eval   : { isJust : Bool,  toValue : Value } };
-type TcheckM = { tcheck : { isTJust : Bool, toTyp   : Typ   } };
-algebra evalMaybe implements MaybeAlg[Value, EvalM] where
-  eval@(just x)  = { isJust = True,  toValue = x      },
-  eval@(nothing) = { isJust = False, toValue = intV 0 };
-algebra tcheckMaybe implements MaybeAlg[Typ, TcheckM] where
-  tcheck@(just x)  = { isTJust = True,  toTyp = x    },
-  tcheck@(nothing) = { isTJust = False, toTyp = tInt };
-fdata Maybe from MaybeAlg[A, M].M;
-let applyM1 (x : Maybe[Value]) = (x.accept[EvalM] evalMaybe).eval;
-let applyM2 (x : Maybe[Typ])   = (x.accept[TcheckM] tcheckMaybe).tcheck;
-let isJust  (x : Maybe[Value]) = (applyM1 x).isJust;
-let toValue (x : Maybe[Value]) = (applyM1 x).toValue;
-let isTJust (x : Maybe[Typ])   = (applyM2 x).isTJust;
-let toTyp   (x : Maybe[Typ])   = (applyM2 x).toTyp;
-let sameTypeM (x : Maybe[Value]) (y : Maybe[Value]) = isJust x && isJust y && sameTypeV (toValue x) (toValue y);
-let eqM (x : Maybe[Typ]) (y : Maybe[Typ]) = isTJust x && isTJust y && eqT (toTyp x) (toTyp y);
-let printMV (x : Maybe[Value]) = if isJust  x then printV (toValue x) else "NoValue";
-let printMT (x : Maybe[Typ])   = if isTJust x then printT (toTyp x)   else "NoType";
+let toValue (x : Maybe[Value]) = fromJust[Value] x (intV 0);
+let toTyp   (x : Maybe[Typ])   = fromJust[Typ] x tInt;
+let sameTypeM (x : Maybe[Value]) (y : Maybe[Value]) = isJust[Value] x && isJust[Value] y && sameTypeV (toValue x) (toValue y);
+let eqM (x : Maybe[Typ]) (y : Maybe[Typ]) = isJust[Typ] x && isJust[Typ] y && eqT (toTyp x) (toTyp y);
+let printMV (x : Maybe[Value]) = if isJust[Value] x then printV (toValue x) else "NoValue";
+let printMT (x : Maybe[Typ])   = if isJust[Typ]   x then printT (toTyp x)   else "NoType";
 
 sig BinaryAlg[B] where
  add : B, sub : B, gt : B, eq : B, ane : B, or : B;
@@ -65,30 +56,30 @@ type EvalB   = { eval   : Maybe[Value] -> Maybe[Value] -> Maybe[Value] };
 type TcheckB = { tcheck : Maybe[Typ]   -> Maybe[Typ]   -> Maybe[Typ]   };
 algebra evalBinary implements BinaryAlg[EvalB] where
   eval@(add) = \(x : Maybe[Value]) -> \(y : Maybe[Value]) -> let x1 = toValue x; let y1 = toValue y;
-               if isJust x && isJust y && isInt x1 && isInt y1 then just[Value] (intV (toInt x1 + toInt y1)) else nothing[Value],
+               if isJust[Value] x && isJust[Value] y && isInt x1 && isInt y1 then Just[Value] (intV (toInt x1 + toInt y1)) else Nothing[Value],
   eval@(sub) = \(x : Maybe[Value]) -> \(y : Maybe[Value]) -> let x1 = toValue x; let y1 = toValue y;
-               if isJust x && isJust y && isInt x1 && isInt y1 then just[Value] (intV (toInt x1 - toInt y1)) else nothing[Value],
+               if isJust[Value] x && isJust[Value] y && isInt x1 && isInt y1 then Just[Value] (intV (toInt x1 - toInt y1)) else Nothing[Value],
   eval@(gt)  = \(x : Maybe[Value]) -> \(y : Maybe[Value]) -> let x1 = toValue x; let y1 = toValue y;
-               if isJust x && isJust y && isInt x1 && isInt y1 then just[Value] (boolV (toInt x1 > toInt y1)) else nothing[Value],
+               if isJust[Value] x && isJust[Value] y && isInt x1 && isInt y1 then Just[Value] (boolV (toInt x1 > toInt y1)) else Nothing[Value],
   eval@(eq)  = \(x : Maybe[Value]) -> \(y : Maybe[Value]) -> let x1 = toValue x; let y1 = toValue y;
-               if isJust x && isJust y && isInt x1 && isInt y1 then just[Value] (boolV (toInt x1 == toInt y1)) else nothing[Value],
+               if isJust[Value] x && isJust[Value] y && isInt x1 && isInt y1 then Just[Value] (boolV (toInt x1 == toInt y1)) else Nothing[Value],
   eval@(ane) = \(x : Maybe[Value]) -> \(y : Maybe[Value]) -> let x1 = toValue x; let y1 = toValue y;
-               if isJust x && isJust y && isBool x1 && isBool y1 then just[Value] (boolV (toBool x1 && toBool y1)) else nothing[Value],
+               if isJust[Value] x && isJust[Value] y && isBool x1 && isBool y1 then Just[Value] (boolV (toBool x1 && toBool y1)) else Nothing[Value],
   eval@(or)  = \(x : Maybe[Value]) -> \(y : Maybe[Value]) -> let x1 = toValue x; let y1 = toValue y;
-               if isJust x && isJust y && isBool x1 && isBool y1 then just[Value] (boolV (toBool x1 || toBool y1)) else nothing[Value];
+               if isJust[Value] x && isJust[Value] y && isBool x1 && isBool y1 then Just[Value] (boolV (toBool x1 || toBool y1)) else Nothing[Value];
 algebra tcheckBinary implements BinaryAlg[TcheckB] where
   tcheck@(add) = \(x : Maybe[Typ]) -> \(y : Maybe[Typ]) -> let x1 = toTyp x; let y1 = toTyp y;
-               if isTJust x && isTJust y && isTInt x1 && isTInt y1 then just[Typ] tInt else nothing[Typ],
+               if isJust[Typ] x && isJust[Typ] y && isTInt x1 && isTInt y1 then Just[Typ] tInt else Nothing[Typ],
   tcheck@(sub) = \(x : Maybe[Typ]) -> \(y : Maybe[Typ]) -> let x1 = toTyp x; let y1 = toTyp y;
-               if isTJust x && isTJust y && isTInt x1 && isTInt y1 then just[Typ] tInt else nothing[Typ],
+               if isJust[Typ] x && isJust[Typ] y && isTInt x1 && isTInt y1 then Just[Typ] tInt else Nothing[Typ],
   tcheck@(gt)  = \(x : Maybe[Typ]) -> \(y : Maybe[Typ]) -> let x1 = toTyp x; let y1 = toTyp y;
-               if isTJust x && isTJust y && isTInt x1 && isTInt y1 then just[Typ] tBool else nothing[Typ],
+               if isJust[Typ] x && isJust[Typ] y && isTInt x1 && isTInt y1 then Just[Typ] tBool else Nothing[Typ],
   tcheck@(eq)  = \(x : Maybe[Typ]) -> \(y : Maybe[Typ]) -> let x1 = toTyp x; let y1 = toTyp y;
-               if isTJust x && isTJust y && isTInt x1 && isTInt y1 then just[Typ] tBool else nothing[Typ],
+               if isJust[Typ] x && isJust[Typ] y && isTInt x1 && isTInt y1 then Just[Typ] tBool else Nothing[Typ],
   tcheck@(ane) = \(x : Maybe[Typ]) -> \(y : Maybe[Typ]) -> let x1 = toTyp x; let y1 = toTyp y;
-               if isTJust x && isTJust y && isTBool x1 && isTBool y1 then just[Typ] tBool else nothing[Typ],
+               if isJust[Typ] x && isJust[Typ] y && isTBool x1 && isTBool y1 then Just[Typ] tBool else Nothing[Typ],
   tcheck@(or)  = \(x : Maybe[Typ]) -> \(y : Maybe[Typ]) -> let x1 = toTyp x; let y1 = toTyp y;
-               if isTJust x && isTJust y && isTBool x1 && isTBool y1 then just[Typ] tBool else nothing[Typ];
+               if isJust[Typ] x && isJust[Typ] y && isTBool x1 && isTBool y1 then Just[Typ] tBool else Nothing[Typ];
 algebra printBinary implements BinaryAlg[IPrint] where
   print@(add) = "+",
   print@(sub) = "-",
@@ -107,14 +98,14 @@ type EvalU   = { eval   : Maybe[Value] -> Maybe[Value] };
 type TcheckU = { tcheck : Maybe[Typ]   -> Maybe[Typ]   };
 algebra evalUnary implements UnaryAlg[EvalU] where
   eval@(neg) = \(x : Maybe[Value]) -> let x1 = toValue x;
-               if isJust x && isInt x1 then just[Value] (intV (-toInt x1)) else nothing[Value],
+               if isJust[Value] x && isInt x1 then Just[Value] (intV (-toInt x1)) else Nothing[Value],
   eval@(not) = \(x : Maybe[Value]) -> let x1 = toValue x;
-               if isJust x && isBool x1 then just[Value] (boolV (if toBool x1 then False else True)) else nothing[Value];
+               if isJust[Value] x && isBool x1 then Just[Value] (boolV (if toBool x1 then False else True)) else Nothing[Value];
 algebra tcheckUnary implements UnaryAlg[TcheckU] where
   tcheck@(neg) = \(x : Maybe[Typ]) -> let x1 = toTyp x;
-                 if isTJust x && isTInt x1 then just[Typ] tInt else nothing[Typ],
+                 if isJust[Typ] x && isTInt x1 then Just[Typ] tInt else Nothing[Typ],
   tcheck@(not) = \(x : Maybe[Typ]) -> let x1 = toTyp x;
-                 if isTJust x && isTBool x1 then just[Typ] tBool else nothing[Typ];
+                 if isJust[Typ] x && isTBool x1 then Just[Typ] tBool else Nothing[Typ];
 algebra printUnary implements UnaryAlg[IPrint] where
   print@(neg) = "-",
   print@(not) = "!";
@@ -138,23 +129,23 @@ sig ExpAlg[E] where
 type EvalE   = { eval   : Env  -> Maybe[Value] };
 type TcheckE = { tcheck : TEnv -> Maybe[Typ]   };
 algebra evalExp implements ExpAlg[EvalE] where
-  eval@(literal x)     = \(e : Env) -> just[Value] x,
+  eval@(literal x)     = \(e : Env) -> Just[Value] x,
   eval@(unary op x)    = \(e : Env) -> apply1E op (x.eval e),
   eval@(binary op x y) = \(e : Env) -> apply2E op (x.eval e) (y.eval e),
   eval@(var x)         = \(e : Env) -> e.env x,
   eval@(decl x y z)    = \(e : Env) -> z.eval (addToEnv x (y.eval e) e),
   eval@(ifbody x y z)  = \(e : Env) -> let x1 = x.eval e; let y1 = y.eval e; let z1 = z.eval e;
-                         if isJust x1 && isBool (toValue x1) && sameTypeM y1 z1
+                         if isJust[Value] x1 && isBool (toValue x1) && sameTypeM y1 z1
                          then if toBool (toValue x1) then y1 else z1
-                         else nothing[Value];
+                         else Nothing[Value];
 algebra tcheckExp implements ExpAlg[TcheckE] where
-  tcheck@(literal x)     = \(t : TEnv) -> if isInt x then just[Typ] tInt else if isBool x then just[Typ] tBool else nothing[Typ],
+  tcheck@(literal x)     = \(t : TEnv) -> if isInt x then Just[Typ] tInt else if isBool x then Just[Typ] tBool else Nothing[Typ],
   tcheck@(unary op x)    = \(t : TEnv) -> apply1T op (x.tcheck t),
   tcheck@(binary op x y) = \(t : TEnv) -> apply2T op (x.tcheck t) (y.tcheck t),
   tcheck@(var x)         = \(t : TEnv) -> t.tenv x,
   tcheck@(decl x y z)    = \(t : TEnv) -> z.tcheck (addToTEnv x (y.tcheck t) t),
   tcheck@(ifbody x y z)  = \(t : TEnv) -> let x1 = x.tcheck t; let y1 = y.tcheck t; let z1 = z.tcheck t;
-                                          if isTJust x1 && isTBool (toTyp x1) && eqM y1 z1 then y1 else nothing[Typ];
+                                          if isJust[Typ] x1 && isTBool (toTyp x1) && eqM y1 z1 then y1 else Nothing[Typ];
 algebra printExp implements ExpAlg[IPrint] where
   print@(literal x)     = printV x,
   print@(unary op x)    = "\{print1 op}(\{x.print})",
@@ -169,8 +160,8 @@ let exp1 = decl "x" (literal (intV 3)) (decl "y" (literal (intV 4)) (ifbody (bin
 #let res = exp1.accept[EvalE & TcheckE & IPrint]<evalExp, tcheckExp, printExp>;
 # Doesn't work. f2j: Pattern match failure in do expression at lib/BaseTransCFJava.hs:468:16-42
 
-let res1 = (exp1.accept[EvalE] evalExp).eval { env = \(s : String) -> nothing[Value] };
-let res2 = (exp1.accept[TcheckE] tcheckExp).tcheck { tenv = \(s : String) -> nothing[Typ] };
+let res1 = (exp1.accept[EvalE] evalExp).eval { env = \(s : String) -> Nothing[Value] };
+let res2 = (exp1.accept[TcheckE] tcheckExp).tcheck { tenv = \(s : String) -> Nothing[Typ] };
 let res3 = (exp1.accept[IPrint] printExp).print;
 
 "\{printMV res1} || \{printMT res2} || \{res3}"
@@ -178,7 +169,5 @@ let res3 = (exp1.accept[IPrint] printExp).print;
 
 # TODO:
 # (1) Constructors: LOWER_IDENT => UPPER_IDENT (how?);
-# (2) Syntactic sugar: x.accept[A & B]<algA, algB> => x<algA, algB>;
-# (3) algebra ... implements ...[Int] (or [{ f1 : ..., f2 : ... }]);
-# (4) why merge algebra doesn't work in backend.
+# (2) Syntactic sugar: x.accept[A & B]<algA, algB> => x<algA, algB>.
 

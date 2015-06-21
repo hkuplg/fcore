@@ -505,6 +505,7 @@ oa_alg_cases :: { [(ReaderId, ReaderId, [ReaderId], ReaderExpr)] }
 
 oa_alg_case :: { (ReaderId, ReaderId, [ReaderId], ReaderExpr) }
   : label "@" "(" label args ")" "=" expr    { ($1, $4, $5, $8) }
+  | "@" "(" label args ")" "=" expr          { ("", $3, $4, $7) }
 
 oa_sig_extend_sigs :: { [(ReaderId, [ReaderId])] }
   : oa_sig_extend_sig                        { [$1] }

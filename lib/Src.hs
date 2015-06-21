@@ -676,7 +676,8 @@ checkReturnType tcon checkedExpr info = map checkIt checkedExpr
   where checkIt (l, constr, t, _) =
           case Map.lookup constr info of
             Nothing -> panic "Impossible: bug reached"
-            Just ts -> if subtype tcon (RecordType [(l, t)]) (last ts) then "" 
+            Just ts -> if not (null l) && subtype tcon (RecordType [(l, t)]) (last ts) then "" 
+                       else if null l && subtype tcon t (last ts) then ""
                        else constr ++ ": type not expected."
 
 -- In AlgExt (... extends algs implements sigs): check if algs are consistent with sigs.
@@ -703,7 +704,8 @@ genBind loc aname info = Bind {
   bindRhs = L loc . RecordCon . map genRecord $ info,
   bindRhsTyAscription = Nothing
 } where
-    genRecord (l, constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
+    genRecord ("", constr, args, e) = (constr, genLam args e)
+    genRecord (l,  constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
     genLam [] e     = e
     genLam (x:xs) e = L loc . Lam x $ genLam xs e
 
@@ -716,7 +718,8 @@ genBindExt loc aname algs info = Bind {
   bindRhs = foldr (\x acc -> L loc . Merge (L loc . Var $ x) $ acc) (L loc . RecordCon . map genRecord $ info) algs,
   bindRhsTyAscription = Nothing
 } where
-    genRecord (l, constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
+    genRecord ("", constr, args, e) = (constr, genLam args e)
+    genRecord (l,  constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
     genLam [] e     = e
     genLam (x:xs) e = L loc . Lam x $ genLam xs e
 
