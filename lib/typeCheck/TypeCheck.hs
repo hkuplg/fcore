@@ -630,7 +630,7 @@ checkExpr all@(L loc (AlgDec aname (AlgBody snames) body e)) =
      -- (2)
      let labels = getAllLabels s_ctxt sigs
      checkDupNames labels
-     when (sort labels /= sort (map (\(_, x, _, _) -> x) body))
+     when (sort labels /= sort (nub . map (\(_, x, _, _) -> x) $ body))
        (throwError $ General (text $ "In " ++ aname ++ ": fields not expected.") `withExpr` all)
      -- (3)
      let sigsWithSorts = map (\(x, y) -> (x, y, getSigBody s_ctxt x)) snames 
@@ -646,10 +646,10 @@ checkExpr all@(L loc (AlgDec aname (AlgBody snames) body e)) =
      let genTypeArgs = \x -> let Just k = Map.lookup x info in init k
      body' <- mapM (\(_, x, ys, z) -> withLocalVars (zip ys (genTypeArgs x)) (checkExpr z)) body
      let checkedExpr = zipWith (\(x, y, _, _) (z, w) -> (x, y, z, w)) body body'
-     errorJust (find (not . null) (checkReturnType t_ctxt checkedExpr info))
+     errorJust (find (not . null) (checkReturnType t_ctxt labels checkedExpr info))
        (throwError . (`withExpr` all) . General . text . (\s -> "In " ++ aname ++ "." ++ s))
      let preCalc = map (\(x, y, zs, w) -> (x, y, zip zs (genTypeArgs y), w)) body
-     withLocalAlg (aname, AlgBody snames) . checkExpr . L loc $ Let NonRec [genBind loc aname preCalc] e
+     withLocalAlg (aname, AlgBody snames) . checkExpr . L loc $ Let NonRec [genBind loc aname labels [] preCalc] e
 
 -- Update.
 -- AlgExt algName extAlgs AlgBody [(label, constr, args, e)] expr
@@ -667,7 +667,8 @@ checkExpr all@(L loc (AlgExt aname algs (AlgBody snames) body e)) =
      let snames_ext = concatMap (\x -> let AlgBody y = getAlgBody a_ctxt x in y) algs
      let sigs_ext = map fst snames_ext
      let labels = getAllLabels s_ctxt sigs
-     let labels' = map (\(_, x, _, _) -> x) body ++ getAllLabels s_ctxt sigs_ext
+     let labels2 = nub . map (\(_, x, _, _) -> x) $ body
+     let labels' = labels2 ++ getAllLabels s_ctxt sigs_ext
      checkDupNames labels
      when (sort labels /= sort labels') (throwError $ General (text $ "In " ++ aname ++ ": fields not expected.") `withExpr` all)
      -- (3) 
@@ -686,10 +687,10 @@ checkExpr all@(L loc (AlgExt aname algs (AlgBody snames) body e)) =
      let genTypeArgs = \x -> let Just k = Map.lookup x info in init k
      body' <- mapM (\(_, x, ys, z) -> withLocalVars (zip ys (genTypeArgs x)) (checkExpr z)) body
      let checkedExpr = zipWith (\(x, y, _, _) (z, w) -> (x, y, z, w)) body body'
-     errorJust (find (not . null) (checkReturnType t_ctxt checkedExpr info))
+     errorJust (find (not . null) (checkReturnType t_ctxt labels2 checkedExpr info))
        (throwError . (`withExpr` all) . General . text . (\s -> "In " ++ aname ++ "." ++ s))
      let preCalc = map (\(x, y, zs, w) -> (x, y, zip zs (genTypeArgs y), w)) body
-     withLocalAlg (aname, AlgBody snames) . checkExpr . L loc $ Let NonRec [genBindExt loc aname algs preCalc] e
+     withLocalAlg (aname, AlgBody snames) . checkExpr . L loc $ Let NonRec [genBind loc aname labels2 algs preCalc] e
 
 -- Update.
 checkExpr all@(L loc (MergeAlg algs)) =

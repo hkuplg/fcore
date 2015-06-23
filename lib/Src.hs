@@ -50,7 +50,7 @@ module Src
   , getSigBody, getAlgBody, getAllLabels, getTypes
   , checkArgs, checkReturnType, genBind
   , substSigTypes, checkAlgType
-  , genBindExt, genMergeAlgBind, errorJust
+  , genMergeAlgBind, errorJust
   , substSigSorts, genConst
   ) where
 
@@ -68,7 +68,7 @@ import Control.Arrow (second)
 
 import Data.Maybe (fromJust)
 import Data.Data
-import Data.List (intersperse, findIndex, nub, delete)
+import Data.List (intersperse, findIndex, nub, delete, find)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
@@ -671,14 +671,15 @@ checkArgs s sigs body = map checkIt body
                            else ""
 
 -- Pattern-matching in AlgDec, check the return type.
-checkReturnType :: TypeContext -> [(Name, Name, Type, a)] -> Map.Map Name [Type] -> [String]
-checkReturnType tcon checkedExpr info = map checkIt checkedExpr
-  where checkIt (l, constr, t, _) =
-          case Map.lookup constr info of
-            Nothing -> panic "Impossible: bug reached"
-            Just ts -> if not (null l) && subtype tcon (RecordType [(l, t)]) (last ts) then "" 
-                       else if null l && subtype tcon t (last ts) then ""
-                       else constr ++ ": type not expected."
+checkReturnType :: TypeContext -> [Name] -> [(Name, Name, Type, a)] -> Map.Map Name [Type] -> [String]
+checkReturnType tcon cases checkedExpr info = map checkIt preCalc
+  where
+    getType = \c -> foldl1 And . map (\(x, _, y, _) -> RecordType [(x, y)]) . filter (\(_, x, _, _) -> x == c) $ checkedExpr
+    preCalc = map (\c -> (c, getType c)) cases
+    checkIt (c, t) = case Map.lookup c info of
+                        Nothing -> panic "Impossible: bug reached"
+                        Just ts -> if subtype tcon t (last ts) then ""
+                                   else c ++ ": type not expected."
 
 -- In AlgExt (... extends algs implements sigs): check if algs are consistent with sigs.
 checkAlgType :: (SigContext, TypeContext) -> [(Name, [Type])] -> Map.Map Name [Type] -> Bool
@@ -695,33 +696,25 @@ checkAlgType (s, t) algs info = and checked
     checkSubType (t1:ts1) (t2:ts2) = subtype t t2 t1 && checkSubType ts1 ts2
     checked = map (\(name, types) -> let types' = look_up name info in checkSubType types types') algsInfo
 
--- Generate LetBind for AlgDec.
-genBind :: Loc -> Name -> [(Name, Name, [(Name, Type)], LExpr Name Type)] -> Bind Name Type
-genBind loc aname info = Bind {
-  bindId = aname,
-  bindTyParams = [],
-  bindParams = [],
-  bindRhs = L loc . RecordCon . map genRecord $ info,
-  bindRhsTyAscription = Nothing
-} where
-    genRecord ("", constr, args, e) = (constr, genLam args e)
-    genRecord (l,  constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
-    genLam [] e     = e
-    genLam (x:xs) e = L loc . Lam x $ genLam xs e
-
 -- Generate LetBind for AlgExt.
-genBindExt :: Loc -> Name -> [Name] -> [(Name, Name, [(Name, Type)], LExpr Name Type)] -> Bind Name Type
-genBindExt loc aname algs info = Bind {
+genBind :: Loc -> Name -> [Name] -> [Name] -> [(Name, Name, [(Name, Type)], LExpr Name Type)] -> Bind Name Type
+genBind loc aname cases algs info = Bind {
   bindId = aname,
   bindTyParams = [],
   bindParams = [],
-  bindRhs = foldr (\x acc -> L loc . Merge (L loc . Var $ x) $ acc) (L loc . RecordCon . map genRecord $ info) algs,
+  bindRhs = foldr (\x acc -> L loc . Merge (L loc . Var $ x) $ acc) (L loc . RecordCon . map genBody $ cases) algs,
   bindRhsTyAscription = Nothing
 } where
-    genRecord ("", constr, args, e) = (constr, genLam args e)
-    genRecord (l,  constr, args, e) = (constr, genLam args . L loc . RecordCon $ [(l, e)])
+    sec c = \(_, x, _, _) -> x == c
     genLam [] e     = e
     genLam (x:xs) e = L loc . Lam x $ genLam xs e
+    genBody c = let Just (_, _, args0, _) = find (sec c) info in
+                let es = filter (sec c) info in
+                let arg0 = map fst args0 in
+                let app_f = \acc x -> L loc . App acc . L loc . Var $ x in
+                let merge_f = \acc x -> L loc . Merge acc $ x in
+                let apply_es = \(l, constr, args, e) -> foldl app_f (genLam args . L loc . RecordCon $ [(l, e)]) arg0 in
+                (c, genLam args0 . foldl1 merge_f . map apply_es $ es)
 
 genMergeAlgBind :: Loc -> (Name, SigBody) -> Bind Name Type
 genMergeAlgBind loc (sig, SigBody sorts body) = bind
