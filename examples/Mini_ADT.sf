@@ -14,8 +14,10 @@ sig ValueAlg[V] where
   boolV : Bool -> V;
 type MatchV = { fromInt : Maybe[Int], fromBool : Maybe[Bool] };
 algebra matchValue implements ValueAlg[MatchV] where
-  @(intV x)  = { fromInt = Just[Int] x,  fromBool = Nothing[Bool] },
-  @(boolV x) = { fromInt = Nothing[Int], fromBool = Just[Bool] x  };
+  fromInt@(intV x)   = Just[Int] x,
+  fromInt@(boolV x)  = Nothing[Int],
+  fromBool@(intV x)  = Nothing[Bool],
+  fromBool@(boolV x) = Just[Bool] x;
 algebra printValue implements ValueAlg[IPrint] where
   print@(intV x)  = "\{x}",
   print@(boolV x) = "\{x}";
@@ -32,8 +34,10 @@ sig TypAlg[T] where
   tBool : T;
 type MatchT = { isTInt : Bool, isTBool : Bool };
 algebra matchTyp implements TypAlg[MatchT] where
-  @(tInt)  = { isTInt = True,  isTBool = False },
-  @(tBool) = { isTInt = False, isTBool = True  };
+  isTInt@(tInt)   = True,
+  isTInt@(tBool)  = False,
+  isTBool@(tInt)  = False,
+  isTBool@(tBool) = True;
 algebra printTyp implements TypAlg[IPrint] where
   print@(tInt)  = "TInt",
   print@(tBool) = "TBool";

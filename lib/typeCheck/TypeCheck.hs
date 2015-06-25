@@ -694,16 +694,13 @@ checkExpr all@(L loc (AlgExt aname algs (AlgBody snames) body e)) =
 
 -- Update.
 checkExpr all@(L loc (MergeAlg algs)) =
-  do algContext <- getAlgContext
-     case find (\x -> Map.notMember x algContext) algs of
-       Just k  -> throwError $ NotInScope k `withExpr` all
-       Nothing -> return ()
-     let body = map (\x -> let AlgBody y = getAlgBody algContext x in y) algs
+  do a_ctxt <- getAlgContext
+     errorJust (find (\x -> Map.notMember x a_ctxt) algs) (throwError . (`withExpr` all) . NotInScope)
+     let body = map (\x -> let AlgBody y = getAlgBody a_ctxt x in y) algs
      let sig = fst . head . head $ body
      let errorInfo = foldl (\acc x -> acc ++ ", " ++ x) (head algs) (tail algs)
-     case find (\x -> map fst x /= [sig]) body of
-       Just _  -> throwError $ General (text $ "In <" ++ errorInfo ++ ">: cannot merge.") `withExpr` all
-       Nothing -> return ()
+     when (isJust . find (\x -> map fst x /= [sig]) $ body)
+       (throwError $ General (text $ "In <" ++ errorInfo ++ ">: cannot merge.") `withExpr` all)
      let algs' = map (\(x, ys) -> (L loc . Var $ x, snd . head $ ys)) $ zip algs body
      let genTApps = foldl (\acc x -> L loc . TApp acc $ x) (L loc . Var $ "merge" ++ sig)
      let e = foldl (\(acc, t1) (x, t2) -> (L loc $ App (L loc $ App (genTApps (t1 ++ t2)) acc) x, zipWith And t1 t2)) (head algs') (tail algs')

@@ -696,7 +696,8 @@ checkAlgType (s, t) algs info = and checked
     checkSubType (t1:ts1) (t2:ts2) = subtype t t2 t1 && checkSubType ts1 ts2
     checked = map (\(name, types) -> let types' = look_up name info in checkSubType types types') algsInfo
 
--- Generate LetBind for AlgExt.
+-- Generate LetBind for AlgDec, AlgExt.
+-- Here not subst but App is used because substitution is error-prone.
 genBind :: Loc -> Name -> [Name] -> [Name] -> [(Name, Name, [(Name, Type)], LExpr Name Type)] -> Bind Name Type
 genBind loc aname cases algs info = Bind {
   bindId = aname,
