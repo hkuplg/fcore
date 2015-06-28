@@ -78,6 +78,7 @@ data TcEnv
   , tceValueContext    :: ValueContext
   , tceSigContext   :: SigContext -- Update.
   , tceAlgContext   :: AlgContext -- Update.
+  , tceFDataContext :: FDataContext -- Update.
   , tceTypeserver   :: Connection
   , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
@@ -88,7 +89,8 @@ mkInitTcEnv type_server
   { tceTypeContext     = Map.empty
   , tceValueContext    = Map.empty
   , tceSigContext   = Map.empty -- Update.
-  , tceAlgContext   = Map.empty -- update.
+  , tceAlgContext   = Map.empty -- Update.
+  , tceFDataContext = Map.empty -- Update.
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -203,6 +205,10 @@ getSigContext = liftM tceSigContext getTcEnv
 getAlgContext :: Checker AlgContext
 getAlgContext = liftM tceAlgContext getTcEnv
 
+-- Update.
+getFDataContext :: Checker FDataContext
+getFDataContext = liftM tceFDataContext getTcEnv
+
 getTypeServer :: Checker (Handle, Handle)
 getTypeServer = liftM tceTypeserver getTcEnv
 
@@ -261,6 +267,18 @@ withLocalAlg (algName, algBody) do_this = do
   r <- do_this
   TcEnv {..} <- getTcEnv
   setTcEnv TcEnv { tceAlgContext = algEnv, ..}
+  return r
+
+-- Update.
+withLocalFData :: (ReaderId, (Name, Int)) -> Checker a -> Checker a
+withLocalFData (fdataName, body) do_this = do
+  fdataEnv <- getFDataContext
+  let fdataEnv' = Map.insert fdataName body fdataEnv
+  TcEnv {..} <- getTcEnv
+  setTcEnv TcEnv { tceFDataContext = fdataEnv', ..}
+  r <- do_this
+  TcEnv {..} <- getTcEnv
+  setTcEnv TcEnv { tceFDataContext = fdataEnv, ..}
   return r
 
 type TypeSubstitution = Map.Map Name Type
@@ -709,15 +727,18 @@ checkExpr all@(L loc (MergeAlg algs)) =
 -- Update.
 checkExpr all@(L loc (SigData d (sig, sorts, s) e)) =
   do s_ctxt <- getSigContext
+     f_ctxt <- getFDataContext
      unless (Map.member sig s_ctxt) (throwError $ NotInScope sig `withExpr` all)
+     when (Map.member d f_ctxt) (throwError $ DuplicateParam d `withExpr` all)
      let SigBody xs _ = getSigBody s_ctxt sig
      when (length sorts /= length xs) (throwError $ General (text $ "In " ++ d ++ ": targs of " ++ sig ++ " not expected.") `withExpr` all)
      checkDupNames sorts
      unless (s `elem` sorts) (throwError $ General (text $ "In " ++ d ++ ": unexpected \"" ++ s ++ "\".") `withExpr` all)
      let t = Forall s . Fun (foldl OpApp (TVar sig) . map TVar $ sorts) . TVar $ s
      let binds = genConst loc (sig, getSigBody s_ctxt sig) d (xs !! (fromJust $ s `elemIndex` sorts))
-     let e' = L loc . Type d (delete s sorts) (RecordType [("accept", t)]) . foldl (\acc x -> L loc . Let NonRec [x] $ acc) e $ binds
-     checkExpr e'
+     let e1 = if d == "Maybe" then e else genMatchAlg s_ctxt f_ctxt d sig (fromJust $ s `elemIndex` sorts) e
+     let e2 = L loc . Type d (delete s sorts) (RecordType [("accept", t)]) . foldl (\acc x -> L loc . Let NonRec [x] $ acc) e1 $ binds
+     trace (show . pretty $ e1) (withLocalFData (d, (sig, fromJust $ s `elemIndex` sorts)) . checkExpr $ e2)
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext

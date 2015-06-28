@@ -24,7 +24,7 @@ module Src
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId, LReaderId
-  , TypeValue(..), TypeContext, ValueContext, SigContext, AlgContext
+  , TypeValue(..), TypeContext, ValueContext, SigContext, AlgContext, FDataContext
   , DataBind(..)
   , groupForall
   , expandType
@@ -47,11 +47,11 @@ module Src
   , extractorsubpattern
   , specializedMatrix
   , defaultMatrix
-  , getSigBody, getAlgBody, getAllLabels, getTypes
+  , getSigBody, getAlgBody, getFDataBody, getAllLabels, getTypes
   , checkArgs, checkReturnType, genBind
   , substSigTypes, checkAlgType
   , genMergeAlgBind, errorJust
-  , substSigSorts, genConst
+  , substSigSorts, genConst, genMatchAlg
   ) where
 
 import Config
@@ -178,6 +178,8 @@ data Expr id ty
     -- E.g. MergeAlg ["evalAlg", "printAlg"]
   | SigData Name (Name, [Name], Name) (LExpr id ty)
     -- E.g. SigData "Exp" ("ExpAlg", ["E"], "E") e
+  | SigCase (LExpr id ty) [(Name, [Type], [Name], LExpr id ty)]
+    -- E.g. SigCase x [(nil, [Int], [], 0), (cons, [Int], ["y", "ys"], 1)] e
 
   deriving (Eq, Show)
 
@@ -248,6 +250,9 @@ data SigBody = SigBody [Name] [(Name, Type)] deriving (Eq, Show)
 data AlgBody = AlgBody [(Name, [Type])] deriving (Eq, Show)
 type SigContext = Map.Map ReaderId SigBody
 type AlgContext = Map.Map ReaderId AlgBody
+type FDataContext = Map.Map ReaderId (Name, Int)
+-- fdata Exp from ExpAlg[E].E; ("ExpAlg", 0)
+-- fdata List from ListAlg[A, L].L; ("ListAlg", 1)
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
 -- Used in `compatible` and `subtype`.
@@ -621,7 +626,12 @@ getSigBody s n = case Map.lookup n s of
 getAlgBody :: AlgContext -> Name -> AlgBody
 getAlgBody a n = case Map.lookup n a of
                    Just k -> k
-                   Nothing -> panic $ "\"" ++ n ++ "\" not found in env" 
+                   Nothing -> panic $ "\"" ++ n ++ "\" not found in env"
+
+getFDataBody :: FDataContext -> Name -> (Name, Int) 
+getFDataBody f n = case Map.lookup n f of
+                     Just k -> k
+                     Nothing -> panic $ "\"" ++ n ++ "\" not found in env"
 
 -- E.g. ExpAlg[E]    = "add : E -> E -> E"
 -- =>   ExpAlg[F]    = "add : F -> F -> F"
@@ -774,28 +784,28 @@ genConst loc (sig, SigBody xs ys) fdata target = map bind ys'
 
 -- Pattern-matching for fdatatype.
 -- label: fdata L. denv needed. label in xs.
-genMatchAlg = genAlg
+genMatchAlg :: SigContext -> FDataContext -> Name -> Name -> Int -> LExpr Name Type -> LExpr Name Type
+genMatchAlg senv fdenv fdata sig num = genAlg
   where
-    sig = "ExpAlg"
-    label = "E"
-    fdata = "Exp"
-    xs = ["E"]
-    ys = [("lit", Fun (TVar "Int") (TVar "E")), ("add", Fun (TVar "E") (Fun (TVar "E") (TVar "E")))]
-    cases = [("lit", ["x"]), ("add", ["x.test._1", "y.test._1"])]
+    SigBody xs ys = getSigBody senv sig
+    label = xs !! num
     isSat = find ((/= TVar label) . last . getTypes . snd) ys == Nothing
     (matchType, ys') = let preCalc t = case map (\x -> if x == TVar label then TVar fdata else x) (init . getTypes $ t) of
                                          [t0] -> t0
                                          ts -> Product ts
                        in let res = map (\(l, t) -> RecordType [(l, OpApp (TVar "Maybe") (preCalc t))]) ys
                        in (RecordType [("match", Product [TVar fdata, foldl1 And $ res])], map (\(l, t) -> preCalc t) ys)
-    genExpr (l0, paras) = let expr1 = foldl (\acc x -> L NoLoc . App acc . L NoLoc . Var $ x) (L NoLoc . Var $ l0) paras
-                          in let f = \((l, t), t') -> if l /= l0 then (l, L NoLoc . TApp (L NoLoc . Var $ "Nothing") $ t')
-                                                      else let res = case map (L NoLoc . Var) paras of
+    genExpr (l0, paras) = let expr1 = foldl (\acc x -> L NoLoc . App acc $ x) (L NoLoc . Var $ l0) paras
+                          in let f = \((l, t), t') -> if l /= l0 then (l, L NoLoc . TApp (L NoLoc . Var $ "nothing") $ t')
+                                                      else let res = case paras of
                                                                        [p0] -> p0
                                                                        ps -> L NoLoc . Tuple $ ps
-                                                      in (l, L NoLoc . App (L NoLoc . TApp (L NoLoc . Var $ "Just") $ t') $ res)
+                                                      in (l, L NoLoc . App (L NoLoc . TApp (L NoLoc . Var $ "just") $ t') $ res)
                           in let expr2 = L NoLoc . RecordCon . map f . zip ys $ ys'
                           in L NoLoc . Tuple $ [expr1, expr2]
-    genBody = map (\(l, t) -> let paras = map (\(n, t0) -> ("x" ++ (show n), if t0 == TVar label then "x" ++ (show n) ++ ".test._1" else "x" ++ (show n))) . zip [1..] . init . getTypes $ t in ("match", l, map fst paras, genExpr (l, map snd paras))) ys
-    genAlg = AlgDec ("match" ++ sig) (AlgBody [(sig, [matchType])]) genBody (L NoLoc . Lit . Int $ 1)
+    genParas = \(n, t0) -> ('x' : show n, if t0 == TVar label then L NoLoc . Proj (L NoLoc . RecordProj (L NoLoc . Var $ 'x' : show n) $
+                            "match") $ 1 else L NoLoc . Var $ 'x' : show n)
+    genBody = map (\(l, t) -> let paras = map genParas . zip [1..] . init . getTypes $ t
+                              in ("match", l, map fst paras, genExpr (l, map snd paras))) ys
+    genAlg e = L NoLoc $ AlgDec ("match" ++ sig) (AlgBody [(sig, [matchType])]) genBody e 
  

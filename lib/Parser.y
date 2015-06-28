@@ -89,6 +89,7 @@ import JavaUtils
   "from"            { L _ Tfrom }
   "implements"      { L _ Timplements }
   "@"               { L _ Tat }
+  "fcase"           { L _ Tfcase }
 
   INT      { L _ (Tint _) }
   SCHAR    { L _ (Tschar _) }
@@ -256,6 +257,7 @@ expr :: { ReaderExpr }
     | "sig" UPPER_IDENT ty_param_list "extends" oa_sig_extend_sigs "where" record_type_fields_rev ";" expr { SigExt (toString $2) (SigBody (map unLoc $3) $7) $5 $9 `withLoc` $1 }  
     | "algebra" LOWER_IDENT "extends" oa_alg_exts "implements" oa_alg_impls "where" oa_alg_cases ";" expr { AlgExt (toString $2) $4 (AlgBody $6) $8 $10 `withLoc` $1 }
     | "fdata" UPPER_IDENT "from" UPPER_IDENT ty_param_list "." UPPER_IDENT ";" expr { SigData (toString $2) (toString $4, map unLoc $5, toString $7) $9 `withLoc` $1 }
+    | "fcase" expr "of" fcase_body { SigCase $2 $4 `withLoc` $1 }
 
 semi_exprs :: { [ReaderExpr] }
            : expr                { [$1] }
@@ -523,6 +525,13 @@ oa_alg_exts :: { [ReaderId] }
 
 merge_algs :: { [ReaderId] }
   : oa_alg_exts { $1 }
+
+fcase_body :: { [(ReaderId, [ReaderType], [ReaderId], ReaderExpr)] }
+  : fcase                { [$1] }
+  | fcase "," fcase_body { $1:$3 }
+
+fcase :: { (ReaderId, [ReaderType], [ReaderId], ReaderExpr) }
+  : label type_list args "->" expr { ($1, $2, $3, $5) }
 
 {
 -- The monadic parser

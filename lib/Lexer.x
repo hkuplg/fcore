@@ -117,6 +117,7 @@ tokens :-
     from        { locate (\_ _ -> Tfrom) }
     implements  { locate (\_ _ -> Timplements) }
     \@          { locate (\_ _ -> Tat) }
+    fcase       { locate (\_ _ -> Tfcase) }
 
     -- Literals
     $digit+                { locate (\_ s -> Tint (read s)) }
@@ -175,7 +176,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
 
            -- Update.
            | Tsig | Textends | Talgebra | Twhere | Tfdata | Tfrom
-           | Timplements | Tat
+           | Timplements | Tat | Tfcase
 
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
            | Teof | Tschar Char | Tstrl | Tstrr | Tstrexpl | Tstrexpr
