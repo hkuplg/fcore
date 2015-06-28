@@ -772,3 +772,30 @@ genConst loc (sig, SigBody xs ys) fdata target = map bind ys'
                           bindRhs = f (l, ts),
                           bindRhsTyAscription = Nothing }
 
+-- Pattern-matching for fdatatype.
+-- label: fdata L. denv needed. label in xs.
+genMatchAlg = genAlg
+  where
+    sig = "ExpAlg"
+    label = "E"
+    fdata = "Exp"
+    xs = ["E"]
+    ys = [("lit", Fun (TVar "Int") (TVar "E")), ("add", Fun (TVar "E") (Fun (TVar "E") (TVar "E")))]
+    cases = [("lit", ["x"]), ("add", ["x.test._1", "y.test._1"])]
+    isSat = find ((/= TVar label) . last . getTypes . snd) ys == Nothing
+    (matchType, ys') = let preCalc t = case map (\x -> if x == TVar label then TVar fdata else x) (init . getTypes $ t) of
+                                         [t0] -> t0
+                                         ts -> Product ts
+                       in let res = map (\(l, t) -> RecordType [(l, OpApp (TVar "Maybe") (preCalc t))]) ys
+                       in (RecordType [("match", Product [TVar fdata, foldl1 And $ res])], map (\(l, t) -> preCalc t) ys)
+    genExpr (l0, paras) = let expr1 = foldl (\acc x -> L NoLoc . App acc . L NoLoc . Var $ x) (L NoLoc . Var $ l0) paras
+                          in let f = \((l, t), t') -> if l /= l0 then (l, L NoLoc . TApp (L NoLoc . Var $ "Nothing") $ t')
+                                                      else let res = case map (L NoLoc . Var) paras of
+                                                                       [p0] -> p0
+                                                                       ps -> L NoLoc . Tuple $ ps
+                                                      in (l, L NoLoc . App (L NoLoc . TApp (L NoLoc . Var $ "Just") $ t') $ res)
+                          in let expr2 = L NoLoc . RecordCon . map f . zip ys $ ys'
+                          in L NoLoc . Tuple $ [expr1, expr2]
+    genBody = map (\(l, t) -> let paras = map (\(n, t0) -> ("x" ++ (show n), if t0 == TVar label then "x" ++ (show n) ++ ".test._1" else "x" ++ (show n))) . zip [1..] . init . getTypes $ t in ("match", l, map fst paras, genExpr (l, map snd paras))) ys
+    genAlg = AlgDec ("match" ++ sig) (AlgBody [(sig, [matchType])]) genBody (L NoLoc . Lit . Int $ 1)
+ 
