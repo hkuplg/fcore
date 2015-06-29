@@ -531,7 +531,12 @@ fcase_body :: { [(ReaderId, [ReaderType], [ReaderId], ReaderExpr)] }
   | fcase "," fcase_body { $1:$3 }
 
 fcase :: { (ReaderId, [ReaderType], [ReaderId], ReaderExpr) }
-  : label type_list args "->" expr { ($1, $2, $3, $5) }
+  : label type_list_or_empty args "->" expr { ($1, $2, $3, $5) }
+
+type_list_or_empty :: { [ReaderType] }
+  : type_list         { $1 }
+  | {- empty -}       { [] }
+
 
 {
 -- The monadic parser

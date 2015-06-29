@@ -52,7 +52,7 @@ import Control.Monad.Error
 import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
-import Data.List (intersperse, findIndex, find, sort, nub, delete, elemIndex)
+import Data.List (intersperse, findIndex, find, sort, nub, delete, elemIndex, splitAt)
 
 import Prelude hiding (pred)
 
@@ -736,9 +736,41 @@ checkExpr all@(L loc (SigData d (sig, sorts, s) e)) =
      unless (s `elem` sorts) (throwError $ General (text $ "In " ++ d ++ ": unexpected \"" ++ s ++ "\".") `withExpr` all)
      let t = Forall s . Fun (foldl OpApp (TVar sig) . map TVar $ sorts) . TVar $ s
      let binds = genConst loc (sig, getSigBody s_ctxt sig) d (xs !! (fromJust $ s `elemIndex` sorts))
-     let e1 = if d == "Maybe" then e else genMatchAlg s_ctxt f_ctxt d sig (fromJust $ s `elemIndex` sorts) e
-     let e2 = L loc . Type d (delete s sorts) (RecordType [("accept", t)]) . foldl (\acc x -> L loc . Let NonRec [x] $ acc) e1 $ binds
-     trace (show . pretty $ e1) (withLocalFData (d, (sig, fromJust $ s `elemIndex` sorts)) . checkExpr $ e2)
+     --let e1 = genMatchAlg s_ctxt f_ctxt d sig (fromJust $ s `elemIndex` sorts) e
+     let e2 = L loc . Type d (delete s sorts) (RecordType [("accept", t)]) . foldl (\acc x -> L loc . Let NonRec [x] $ acc) e $ binds
+     withLocalFData (d, (sig, fromJust $ s `elemIndex` sorts)) . checkExpr $ e2
+
+-- Update.
+-- Currently only check the first possible fdata.
+-- Requirements: fdata ? from ?[???].L, L must be the return type of ALL cases.
+-- E.g. when "lit" comes, check the env and find fdata "Exp" has a label named "lit".
+-- TODO: enhancement.
+checkExpr all@(L loc (SigCase e cases)) =
+  do s_ctxt <- getSigContext
+     t_ctxt <- getTypeContext
+     f_ctxt <- getFDataContext
+     let fdatas = Map.keys f_ctxt
+     let (fstLabel, ts, _, _) = head cases
+     let findFData = find (\x -> let (sig, _) = getFDataBody f_ctxt x
+                                 in let SigBody _ xs = getSigBody s_ctxt sig
+                                 in elem fstLabel . map fst $ xs) fdatas
+     unless (isJust findFData) (throwError $ General (text $ "Pattern-matching failed: no such fdata.") `withExpr` all)
+     let fdata = fromJust findFData
+     let (sig, num) = getFDataBody f_ctxt fdata
+     let SigBody xs ys = getSigBody s_ctxt sig
+     let labels = map fst ys
+     when (isJust . find ((/= TVar (xs !! num)) .last . getTypes . snd) $ ys) 
+       (throwError $ General (text $ "Pattern-matching failed: types in sig not expected.") `withExpr` all)
+     (t, _) <- checkExpr e
+     let t' = foldl (\acc x -> OpApp acc x) (TVar fdata) ts
+     unless (subtype t_ctxt t t')
+       (throwError $ General (text $ "Pattern-matching failed: type of expr not expected.") `withExpr` all)
+     let checkCase = \(x, y, z, w) -> not (elem x labels && y == ts && length z == length (nub z))
+     when (isJust . find checkCase $ cases)
+       (throwError $ General (text $ "Pattern-matching failed: cases inconsistent.") `withExpr` all)
+     checkExpr . genMatchAlg s_ctxt t_ctxt (SigBody xs ys) (sig, num) t' ts $ L loc (Lit (Int 999))
+     -- TODO: translation.
+     -- TODO: x.accept[...]<...> Syntactic sugar.
 
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext

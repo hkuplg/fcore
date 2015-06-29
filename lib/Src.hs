@@ -179,7 +179,7 @@ data Expr id ty
   | SigData Name (Name, [Name], Name) (LExpr id ty)
     -- E.g. SigData "Exp" ("ExpAlg", ["E"], "E") e
   | SigCase (LExpr id ty) [(Name, [Type], [Name], LExpr id ty)]
-    -- E.g. SigCase x [(nil, [Int], [], 0), (cons, [Int], ["y", "ys"], 1)] e
+    -- E.g. SigCase x [(nil, [Int], [], 0), (cons, [Int], ["y", "ys"], 1)]
 
   deriving (Eq, Show)
 
@@ -520,7 +520,7 @@ instance Pretty RecFlag where
   pretty NonRec = empty
 
 instance Pretty Constructor where
-    pretty (Constructor n ts) = hsep $ text n : map pretty ts
+    pretty (Constructor n ts) = hsep $ (text n : (text "||" : map pretty ts)) ++ [text "|-|"]
 
 instance Pretty DataBind where
   pretty (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align (equals <+> intersperseBar (map pretty cons) <$$> semi)
@@ -783,29 +783,33 @@ genConst loc (sig, SigBody xs ys) fdata target = map bind ys'
                           bindRhsTyAscription = Nothing }
 
 -- Pattern-matching for fdatatype.
--- label: fdata L. denv needed. label in xs.
-genMatchAlg :: SigContext -> FDataContext -> Name -> Name -> Int -> LExpr Name Type -> LExpr Name Type
-genMatchAlg senv fdenv fdata sig num = genAlg
+genMatchAlg :: SigContext -> TypeContext -> SigBody -> (Name, Int) -> Type -> [Type] -> LExpr Name Type -> LExpr Name Type
+genMatchAlg sct tct (SigBody xs ys) (sig, num) typeCase ts = genAlg
   where
-    SigBody xs ys = getSigBody senv sig
+    -- TVar "Maybe" ???
     label = xs !! num
-    isSat = find ((/= TVar label) . last . getTypes . snd) ys == Nothing
-    (matchType, ys') = let preCalc t = case map (\x -> if x == TVar label then TVar fdata else x) (init . getTypes $ t) of
-                                         [t0] -> t0
-                                         ts -> Product ts
-                       in let res = map (\(l, t) -> RecordType [(l, OpApp (TVar "Maybe") (preCalc t))]) ys
-                       in (RecordType [("match", Product [TVar fdata, foldl1 And $ res])], map (\(l, t) -> preCalc t) ys)
-    genExpr (l0, paras) = let expr1 = foldl (\acc x -> L NoLoc . App acc $ x) (L NoLoc . Var $ l0) paras
-                          in let f = \((l, t), t') -> if l /= l0 then (l, L NoLoc . TApp (L NoLoc . Var $ "nothing") $ t')
-                                                      else let res = case paras of
-                                                                       [p0] -> p0
-                                                                       ps -> L NoLoc . Tuple $ ps
-                                                      in (l, L NoLoc . App (L NoLoc . TApp (L NoLoc . Var $ "just") $ t') $ res)
-                          in let expr2 = L NoLoc . RecordCon . map f . zip ys $ ys'
-                          in L NoLoc . Tuple $ [expr1, expr2]
+    addToTs x = let (xs1, xs2) = splitAt num ts in xs1 ++ (x : xs2)
+    types = addToTs typeCase
+    preCalc = substSigTypes sct tct $ [(sig, types)]
+    (matchType, ys') = let f ts = case init ts of
+                                    [t] -> t
+                                    [] -> Unit
+                                    ts -> Product ts
+                       in let res = map (\(l, ts) -> RecordType [(l, OpApp (TVar "Maybe") (f ts))]) preCalc
+                       in (RecordType [("match", Product [typeCase, foldl1 And $ res])], map (\(l, ts) -> f ts) preCalc)
+    genExpr (l0, paras) =
+      let expr1 = foldl (\acc x -> L NoLoc . App acc $ x) (foldl (\acc x -> L NoLoc . TApp acc $ x) (L NoLoc . Var $ l0) ts) paras
+      in let f = \((l, t), t') -> if l /= l0 then (l, L NoLoc . TApp (L NoLoc . ConstrTemp $ "Nothing") $ t')
+                                  else let res = case paras of
+                                                   [p0] -> p0
+                                                   [] -> L NoLoc . Lit $ UnitLit
+                                                   ps -> L NoLoc . Tuple $ ps
+                                       in (l, L NoLoc . App (L NoLoc . TApp (L NoLoc . ConstrTemp $ "Just") $ t') $ res)
+      in let expr2 = L NoLoc . RecordCon . map f . zip ys $ ys'
+      in L NoLoc . Tuple $ [expr1, expr2]
     genParas = \(n, t0) -> ('x' : show n, if t0 == TVar label then L NoLoc . Proj (L NoLoc . RecordProj (L NoLoc . Var $ 'x' : show n) $
                             "match") $ 1 else L NoLoc . Var $ 'x' : show n)
     genBody = map (\(l, t) -> let paras = map genParas . zip [1..] . init . getTypes $ t
                               in ("match", l, map fst paras, genExpr (l, map snd paras))) ys
-    genAlg e = L NoLoc $ AlgDec ("match" ++ sig) (AlgBody [(sig, [matchType])]) genBody e 
+    genAlg e = L NoLoc $ AlgDec ("match" ++ sig) (AlgBody [(sig, addToTs matchType)]) genBody e 
  

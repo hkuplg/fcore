@@ -1,0 +1,7 @@
+data Maybe[A] = Just A | Nothing;
+let isJust[A] (x : Maybe[A]) = case x of
+                                   Just _  -> True
+                                 | Nothing -> False;
+let fromJust[A] (x : Maybe[A]) = case x of
+                                     Just y  -> y
+                                   | Nothing -> error[A] "fromJust Nothing";
