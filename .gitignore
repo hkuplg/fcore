@@ -26,6 +26,7 @@ cabal-dev
 .hsenv
 .cabal-sandbox/
 cabal.sandbox.config
+.stack-work/
 
 ### Java ###
 /*.java

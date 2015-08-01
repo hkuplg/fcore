@@ -7,7 +7,7 @@ license-file:           LICENSE
 copyright:              (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 category:               Language
 stability:              experimental
-tested-with:            GHC == 7.10.1
+tested-with:            GHC == 7.10.2
 data-files:             runtime/runtime.jar
 
 library
@@ -31,7 +31,6 @@ library
                       , split == 0.2.*
                       , template-haskell == 2.10.*
                       , time == 1.5.*
-                      , timeit == 1.0.*
                       , transformers == 0.4.*
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
@@ -93,7 +92,7 @@ executable f2j
                       , array == 0.5.*
                       , base == 4.*
                       , bytestring == 0.10.*
-                      , clock == 0.4.*
+                      , clock == 0.5.*
                       , cmdargs == 0.10.*
                       , containers == 0.5.*
                       , directory == 1.2.*
@@ -109,7 +108,6 @@ executable f2j
                       , split == 0.2.*
                       , template-haskell == 2.10.*
                       , time == 1.5.*
-                      , timeit == 1.0.*
                       , transformers == 0.4.*
   ghc-options:          -Wall
                         -fno-warn-missing-signatures
@@ -145,7 +143,6 @@ executable f2ji
                       , split == 0.2.*
                       , template-haskell == 2.10.*
                       , time == 1.5.*
-                      , timeit == 1.0.*
                       , transformers == 0.4.*
   ghc-options:          -Wall
                         -fno-warn-missing-signatures

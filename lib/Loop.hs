@@ -17,7 +17,7 @@ module Loop where
 import System.Console.Haskeline
 import System.IO
 import System.Process hiding (runCommand)
-import System.TimeIt
+-- import System.TimeIt
 import System.CPUTime
 import System.Directory                 (removeFile, doesFileExist)
 import System.FilePath                  (dropExtension)
