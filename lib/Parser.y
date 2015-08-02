@@ -204,6 +204,7 @@ record_type_field :: { (Label, ReaderType) }
 
 ty_param :: { LReaderId }
   : UPPER_IDENT                    { toString $1 `withLoc` $1 }
+  | UPPER_IDENT "*" type           { toString $1 `withLoc` $1 }
 
 ty_params :: { [LReaderId] }
   : {- empty -}                    { []    }
