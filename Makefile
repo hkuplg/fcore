@@ -4,29 +4,24 @@ srcdir=lib
 testdir=testsuite
 
 .PHONY : compiler
-compiler : dependencies runtime
-	$${CABAL=cabal}  install
+compiler : runtime dependencies
+	stack install
 
 .PHONY : smt
-smt : dependencies runtime
+smt : runtime dependencies
 	$${CABAL=cabal}  install -f Z3
 
 .PHONY : test
-test : whitespace_test dependencies runtime
-	$${CABAL=cabal} configure --enable-tests && $${CABAL=cabal} build && $${CABAL=cabal} test
-
-.PHONY : test2
-test2 : whitespace_test dependencies runtime
-	make parsers
-	runhaskell -i$(srcdir):lib/services:lib/typeCheck:lib/simplify $(testdir)/FileLoad.hs
+test : whitespace_test runtime
+	stack test --no-terminal
 
 .PHONY : whitespace_test
 whitespace_test :
 	ruby $(testdir)/whitespace_check.rb
 
 .PHONY : dependencies
-dependencies : 
-	$${CABAL=cabal} install --only-dependencies --enable-tests
+dependencies :
+	stack build --only-snapshot --no-terminal
 
 .PHONY : runtime
 runtime :
