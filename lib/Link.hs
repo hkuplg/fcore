@@ -1,6 +1,5 @@
 module Link where
 
-import System.IO
 import System.FilePath (dropExtension)
 import Data.Char
 import Data.List.Split (splitOn)

@@ -3,17 +3,19 @@
 
 module TransCFSpec where
 
-import Test.Hspec
+import Test.Tasty.Hspec
 import SpecHelper
 import TestTerms
 
-import Parser       (reader)
+import Parser    (reader, P(..))
 import TypeCheck    (typeCheck)
 import Desugar      (desugar)
 import Simplify     (simplify)
+import qualified OptiUtils (Exp(Hide))
 import PartialEvaluator
+import BackEnd (compileN, compileAO, compileS)
 
-import Translations (compileN, compileAO, compileS)
+import qualified SystemFI as FI
 
 import MonadLib
 
@@ -30,8 +32,6 @@ import JavaUtils
 import FileIO
 import StringPrefixes   (namespace)
 
-import qualified Data.List as List      (isSuffixOf)
-
 runtimeBytes :: B.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
 
@@ -41,7 +41,7 @@ writeRuntimeToTemp =
      let tempFile = tempdir </> "runtime.jar"
      B.writeFile tempFile runtimeBytes
 
-testCasesPath = "testsuite/tests/run-pass"
+testCasesPath = "testsuite/tests/shouldRun"
 
 -- java compilation + run
 compileAndRun inP outP name compileF exp =
@@ -52,11 +52,16 @@ compileAndRun inP outP name compileF exp =
      result <- receiveMsg3 outP
      return result
 
-esf2sf expr =
-  do res <- TypeCheck.typeCheck expr
-     case res of
-       Left typeError     -> error $ show ({- Text.PrettyPrint.ANSI.Leijen.pretty -} typeError)
-       Right (_t, tcExpr) -> return (rewriteAndEval (Hide ((simplify . desugar) tcExpr)))
+esf2sf source =
+  do case source of
+      PError msg -> error $ show msg
+      POk parsed -> do
+        result <- typeCheck parsed
+        case result of
+          Left typeError -> error $ show typeError
+          Right (_, checked) ->
+            let fiExpr = desugar checked
+            in return (rewriteAndEval (OptiUtils.Hide (simplify (FI.HideF fiExpr))))
 
 testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput) = do
   let className = getClassName $ dropExtension (takeFileName filePath)
@@ -86,7 +91,7 @@ abstractCases =
 
 -- intappCase = \c -> it "Should infer type of intapp" $ "(forall (_ : java.lang.Integer) . java.lang.Integer)" `shouldBe` ( let (cu, t) = (c "Main" intapp) in show t)
 
-spec =
+transSpec =
   do concreteCases <- runIO (discoverTestCases testCasesPath)
      forM_
        [("BaseTransCF" , compileN)
@@ -103,6 +108,3 @@ spec =
               forM_ abstractCases (testAbstractSyn inP outP compilation)
               forM_ concreteCases (testConcreteSyn inP outP compilation))
               --terminateProcess proch
-
-main :: IO ()
-main = hspec spec

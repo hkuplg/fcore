@@ -205,7 +205,7 @@ getter _ _ _ _ = Nothing
 
 putter :: Index -> Index -> FI.Type Index -> S.Label -> Expr Index Index -> Maybe (FI.Type Index, Expr Index Index)
 putter i j this@(FI.RecordType (l, t)) l1 e
-  | l1 == l = return $ (t, lam (transType i this) (Prelude.const e))
+  | l1 == l = return $ (t, lam (transType i this) (const e))
   | otherwise = Nothing
 putter i j this@(FI.And t1 t2) l e =
   case putter i j t2 l e of
@@ -216,8 +216,8 @@ putter i j this@(FI.And t1 t2) l e =
 putter _ _ _ _ _ = Nothing
 
 subst :: (S.ReaderId -> Index -> FI.Type Index) -> [FI.Type Index] -> FI.Type Index
-subst g ts@((FI.TVar n a):_)      = if const then g n a else FI.TVar n a
-  where const = all (== a) . map (\x -> let FI.TVar _ y = x in y) $ ts
+subst g ts@((FI.TVar n a):_)      = if constr then g n a else FI.TVar n a
+  where constr = all (== a) . map (\x -> let FI.TVar _ y = x in y) $ ts
 subst g ((FI.JClass c):_)         = FI.JClass c
 subst g ts@((FI.Fun _ _):_)       = FI.Fun (subst g ts1) (subst g ts2)
   where (ts1, ts2) = unzip . map (\x -> let FI.Fun t1 t2 = x in (t1, t2)) $ ts

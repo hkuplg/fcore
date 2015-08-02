@@ -6,8 +6,6 @@ module SpecHelper
 import System.Directory (getDirectoryContents)
 import System.FilePath  (dropExtension, (</>))
 
-import Control.Applicative ((<$>))
-
 import Data.Char (isSpace)
 import Data.List (isSuffixOf)
 

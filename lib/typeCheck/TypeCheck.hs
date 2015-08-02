@@ -39,14 +39,10 @@ import PrettyUtils
 import RuntimeProcessManager (withRuntimeProcess)
 import JvmTypeQuery
 import Panic
-import StringPrefixes
 
 import Text.PrettyPrint.ANSI.Leijen
-
 import System.IO
-import System.Process
-
-import Control.Monad.Error
+import Control.Monad.Except
 
 import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Map  as Map
@@ -60,13 +56,13 @@ type Connection = (Handle, Handle)
 typeCheck :: ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnv type_server) . runErrorT . checkExpr) e)
+  (evalIOEnv (mkInitTcEnv type_server) . runExceptT . checkExpr) e)
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . checkExpr) e)
+  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runExceptT . checkExpr) e)
 
 withTypeServer :: (Connection -> IO a) -> IO a
 withTypeServer = withRuntimeProcess "TypeServer" NoBuffering
@@ -121,7 +117,7 @@ data TypeError
 
 type LTypeErrorExpr = Located (TypeError, Maybe ReaderExpr)
 
-instance Error LTypeErrorExpr where
+-- instance Except LTypeErrorExpr where
 
 instance Pretty LTypeErrorExpr where
     pretty (L loc (err, expr)) =
@@ -171,10 +167,10 @@ instance Pretty TypeError where
 
   pretty e = prettyError <+> text (show e)
 
-instance Error TypeError where
+-- instance Error TypeError where
   -- strMsg
 
-type Checker a = ErrorT LTypeErrorExpr (IOEnv TcEnv) a
+type Checker a = ExceptT LTypeErrorExpr (IOEnv TcEnv) a
 
 getTcEnv :: Checker TcEnv
 getTcEnv = lift getEnv

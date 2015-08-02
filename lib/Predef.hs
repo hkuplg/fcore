@@ -3,7 +3,6 @@
 module Predef (injectPredef) where
 
 import Data.ByteString       (ByteString, unpack)
-import Data.ByteString.Char8 (pack)
 import Data.Char             (chr)
 import Data.FileEmbed        (embedFile)
 import Data.List             (intercalate)

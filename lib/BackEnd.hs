@@ -7,7 +7,7 @@
            , TypeOperators
            #-}
 
-{-# OPTIONS_GHC -fno-warn-unused-binds -fwarn-incomplete-patterns #-}
+{-# OPTIONS_GHC -fno-warn-unused-binds -fwarn-incomplete-patterns -fno-warn-orphans #-}
 
 module BackEnd
     ( Compilation
