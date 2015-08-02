@@ -12,7 +12,7 @@ Portability :  portable
 {-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Src
   ( Module(..), ReaderModule
@@ -373,7 +373,7 @@ fsubstTT (x,r) (OpApp t1 t2)   = OpApp (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Datatype n ts ns) = Datatype n (map (fsubstTT (x,r)) ts) ns
 
 freshName :: Name -> Set.Set Name -> Name
-freshName name existedNames = head $ dropWhile (`Set.member` existedNames) [name ++ show i | i <- [1..]]
+freshName name existedNames = head $ dropWhile (`Set.member` existedNames) [name ++ show i | i <- [1 :: Int ..]]
 
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x

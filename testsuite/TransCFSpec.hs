@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fwarn-unused-imports #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module TransCFSpec where

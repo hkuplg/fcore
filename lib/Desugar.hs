@@ -13,7 +13,7 @@ stage.
 -}
 
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Desugar (desugar) where
 
