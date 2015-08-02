@@ -8,7 +8,6 @@ module JvmTypeQuery
 import JavaUtils (ClassName, MethodName, FieldName)
 
 import System.IO           (hPutStrLn, hGetLine, Handle)
-import Control.Applicative ((<$>))
 import Data.Char           (isSpace, toLower)
 
 sendRecv :: (Handle, Handle) -> [String] -> IO String

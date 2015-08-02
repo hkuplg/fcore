@@ -15,8 +15,6 @@ Portability :  portable
 module Loop where
 
 import System.Console.Haskeline
-import System.IO
-import System.Process hiding (runCommand)
 -- import System.TimeIt
 import System.CPUTime
 import System.Directory                 (removeFile, doesFileExist)
@@ -26,8 +24,6 @@ import Control.Monad.Except             (liftIO)
 import Control.Concurrent               (threadDelay)
 import qualified Control.Exception as E
 
-import Data.Char
-import Data.List.Split
 import Data.List                        (stripPrefix, group, sort)
 import qualified Data.Map as Map
 
@@ -35,7 +31,6 @@ import TypeCheck
 import Src hiding (wrap)
 import Text.PrettyPrint.ANSI.Leijen
 import BackEnd
-import JavaUtils
 import qualified OptiUtils              (src2core, src2fi)
 import qualified Core                   (prettyExpr)
 import Parser
@@ -43,7 +38,6 @@ import ParseCMD
 import FileIO
 import qualified Environment as Env
 import qualified History as Hist
-import FileIO                           (TransMethod (Apply, Naive, Stack, Unbox, StackAU1, StackAU2, BenchN, BenchS, BenchNA, BenchSA, BenchSAI1, BenchSAI2))
 import Link
 
 #ifdef Z3
