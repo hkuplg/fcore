@@ -31,6 +31,41 @@ import Data.List        (intercalate)
 import Text.PrettyPrint.ANSI.Leijen
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set (member)
+
+
+-- | Generate a fresh variable in the context. This is a very general API and
+-- requires caution from the user, that is, it is the responsibility of the user
+-- to ensure that the fresh variable is inserted to VarMap in the ensuing code.
+-- For example,
+--
+--     `Map.insert x (F.Var x x') g`
+-- where x' is a bound *Haskell* variable.
+--
+-- Example:
+-- If you want a fresh variable at the position denoted by "?" in the following
+-- program, ``\x. \y. \?. e` with the current `VarMap` being `g`, then you can
+-- write `let x = generateFreshVar g in ...` so that inside `...` you have
+-- the fresh variable `x` as well as the updated `VarMap` `g1`.
+--
+-- The generated variable is guaranteed to be distinct:
+-- 1) with all variables introduced at the outer scope (therefore
+-- in this case, "?" will be neither "x" not "y"); and
+-- 2) with all free variables of `e`, so that "?" will not accidently capture them.
+--
+-- A note on the implementation: For the sake of performance & convenience,
+-- we do not compute the free variables of `e`, since at the stage of this
+-- module, we can assume that `e` does not contain free variables that are not
+-- captured by the outer scope. In other words, FV(e) \ FV(Γ) is empty.
+generateFreshVar :: VarMap t e -> Name
+generateFreshVar g0 = try g0 1
+  where
+    try :: VarMap t e -> Int -> Name
+    try g n
+      | fresh_var n `Set.member` Map.keysSet g = try g (n + 1)
+      | otherwise                              = fresh_var n
+    fresh_var n = "fresh" ++ show n
+
 
 desugar :: CheckedExpr -> F.Expr t e
 desugar = desugarExpr (Map.empty, Map.empty)
@@ -54,6 +89,7 @@ transType _ Unit         = F.Unit
 transType i (Thunk t)    = F.Fun F.Unit (transType i t)
 transType i (Datatype n ts ns) = F.Datatype n (map (transType i) ts) ns
 transType _ t            = prettySorry "transType" (pretty t)
+
 
 desugarExpr :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
 desugarExpr (d, g) = go
