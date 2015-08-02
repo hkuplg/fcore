@@ -26,8 +26,8 @@ module BackEnd
 
 import           ApplyTransCFJava
 import           BaseTransCFJava
-import           BenchGenCF2J
-import           BenchGenStack
+-- import           BenchGenCF2J
+-- import           BenchGenStack
 import           ClosureF
 import qualified Core
 import           Inheritance
@@ -128,17 +128,17 @@ instance (:<)  (ApplyOptTranslate m) (TranslateStack m) where
 -- instance (:<) (ApplyOptTranslate m) (UnboxTranslate m) where
 --   up = UT . toT
 
-instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
-  up = NT . toTBA
+-- instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
+--   up = NT . toTBA
 
-instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
-  up = TS . toTBS
+-- instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
+--   up = TS . toTBS
 
-instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
-  up = NT . toTBSA
+-- instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
+--   up = NT . toTBSA
 
-instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
-  up = TS . toTBSA
+-- instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
+--   up = TS . toTBSA
 
 -- instance (:<) (BenchGenTranslateStackOpt m) (UnboxTranslate m) where
 --   up = UT . toTBSA
