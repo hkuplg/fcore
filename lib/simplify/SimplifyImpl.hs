@@ -75,7 +75,9 @@ infer i j (FI.RecordUpdate e _)   = infer i j e
 infer _ _ (FI.Error ty _)         = ty
 infer i j (FI.Constr c _)         = last . FI.constrParams $ c
 infer i j (FI.Case _ alts)        = inferAlt . head $ alts
-  where inferAlt (FI.ConstrAlt _ e) = infer i j e
+  where inferAlt (FI.ConstrAlt c ns e) =
+            let (ts, n) = (FI.constrParams c, length ts - 1)
+            in infer i (j + n) (e (zip [j..] (init ts)))
         inferAlt (FI.Default e)       = infer i j e
 infer i j (FI.Data _ _ e)         = infer i j e
 infer _ _ _                       = trace "Unsupported: Simplify.infer" FI.Unit
@@ -129,8 +131,10 @@ transExpr i j (FI.Constr (FI.Constructor n ts) es) = Constr (Constructor n . map
 transExpr i j (FI.Case e alts)             = Case e' . map transAlt $ alts
   where
     e' = transExpr i j e
-    transAlt (FI.ConstrAlt (FI.Constructor n ts) e1) =
-      ConstrAlt (Constructor n (map (transType i) ts)) (transExpr i i e1)
+    transAlt (FI.ConstrAlt (FI.Constructor n ts) ns e1) =
+      let m = length ts - 1
+          ts' = map (transType i) ts
+      in ConstrAlt (Constructor n ts') ns (\es -> transExpr i (j + m) . e1 $ zip es ts)
     transAlt (FI.Default e1) = Default (transExpr i j e1)
 transExpr i j (FI.Error ty str)            = Error (transType i ty) (transExpr i j str)
 transExpr i j (FI.Data recflag databinds e)= Data recflag (map transDatabind databinds) (transExpr i j e)
@@ -292,8 +296,11 @@ dedeBruE i as j xs (Constr (Constructor n ts) es) = Constr
                                                       (Constructor n (map (dedeBruT i as) ts))
                                                       (map (dedeBruE i as j xs) es)
 dedeBruE i as j xs (Case e alts)                  = Case (dedeBruE i as j xs e) (map dedeBruijnAlt alts)
-  where dedeBruijnAlt (ConstrAlt (Constructor name ts) e1) =
-          ConstrAlt (Constructor name (map (dedeBruT i as) ts)) (dedeBruE i as j xs e1)
+  where dedeBruijnAlt (ConstrAlt (Constructor name ts) ns e1) =
+          ConstrAlt
+            (Constructor name (map (dedeBruT i as) ts))
+            ns
+            (\xs' -> dedeBruE i as (j + n) (reverse xs' ++ xs) (e1 [j .. j + n -1])) where n = length ts - 1
         dedeBruijnAlt (Default e1) = Default (dedeBruE i as j xs e1)
 
 dedeBruE i as j xs (Data recflag databinds e)     = Data recflag (map dedeBruijnDatabind databinds) (dedeBruE i as j xs e)

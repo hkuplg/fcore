@@ -72,7 +72,7 @@ joinExpr (Error ty str)         = Error ty (joinExpr str)
 joinExpr (Data recflag databinds e) = Data recflag databinds (joinExpr e)
 joinExpr (Constr ctr es) = Constr ctr (map joinExpr es)
 joinExpr (Case e alts) = Case (joinExpr e) (map joinAlt alts)
-  where joinAlt (ConstrAlt ctr e1) = ConstrAlt ctr (joinExpr e1)
+  where joinAlt (ConstrAlt ctr vars e1) = ConstrAlt ctr vars (joinExpr . e1 . zipWith Var vars)
         joinAlt (Default e1) = Default (joinExpr e1)
 joinExpr (Proj i e) = Proj i (joinExpr e)
 joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
@@ -114,7 +114,7 @@ mapExpr f e =
       Data recflag databinds e -> Data recflag databinds (f e)
       Constr ctr es -> Constr ctr (map f es)
       Case e' alts -> Case (f e') (map mapAlt alts)
-         where mapAlt (ConstrAlt ctr e1) = ConstrAlt ctr (f e1)
+         where mapAlt (ConstrAlt ctr vars e1) = ConstrAlt ctr vars (f . e1)
                mapAlt (Default e1) = Default (f e1)
       Seq es -> Seq $ map f es
       _ -> sorry "Not implemented yet"
@@ -151,7 +151,12 @@ rewriteExpr f num env expr =
    Constr c es -> Constr c (map (f num env) es)
    Case e alts -> Case (f num env e) (map rewriteAlt alts)
  where
-   rewriteAlt (ConstrAlt ctr e) = ConstrAlt ctr (f num env e)
+   rewriteAlt (ConstrAlt ctr names e) = ConstrAlt ctr names (
+        \es ->
+            let len = length names
+                es' = e [num .. num + len -1]
+            in f (num + len) (foldl' multInsert env (zip [num .. num + len -1] es)) es'
+        )
    rewriteAlt (Default e)       = Default (f num env e)
 
 newtype Exp = Hide {reveal :: forall t e. Expr t e}

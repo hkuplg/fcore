@@ -76,7 +76,7 @@ data Expr t e =
 
 data DataBind t = DataBind S.ReaderId [S.ReaderId] ([t] -> [Constructor t])
 data Constructor t = Constructor {constrName :: S.ReaderId, constrParams :: [Type t]}
-data Alt t e = ConstrAlt (Constructor t) (Expr t e)
+data Alt t e = ConstrAlt (Constructor t) [S.ReaderId] ( [e] -> Expr t e)
              | Default (Expr t e)
 
 -- System F to Closure F
@@ -152,7 +152,7 @@ fexp2cexp (C.Data recflag binds e) = Data recflag (map fdatabind2cdatabind binds
     where fdatabind2cdatabind (C.DataBind name params ctrs) = DataBind ('$':name) params (map fctr2cctr . ctrs)
 fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
-  where falt2calt (C.ConstrAlt ctr e1) = ConstrAlt (fctr2cctr ctr) (fexp2cexp e1)
+  where falt2calt (C.ConstrAlt ctr names e1) = ConstrAlt (fctr2cctr ctr) names (fexp2cexp . e1)
         falt2calt (C.Default e1)       = Default (fexp2cexp e1)
 fexp2cexp e                         = Lam closureTransName (groupLambda e)
 
@@ -387,7 +387,10 @@ prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrNam
 
 prettyExpr p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))
-    where pretty_alt (ConstrAlt c e1) =
-               (text (constrName c) <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))
+    where pretty_alt (ConstrAlt c ns e1) =
+            let n= length ns
+                ids = [j..j+n-1]
+            in
+                hsep (text (constrName c) : map text ns ) <+> arrow <+> (align $ prettyExpr p (i, j+n) (e1 ids))
           pretty_alt (Default e1) =
                (text "_" <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))

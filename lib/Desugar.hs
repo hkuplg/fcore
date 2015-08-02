@@ -66,6 +66,15 @@ generateFreshVar g0 = try g0 1
       | otherwise                              = fresh_var n
     fresh_var n = "fresh" ++ show n
 
+generateNFreshVar :: VarMap t e -> Int -> [Name]
+generateNFreshVar g0 num0 = try g0 num0 1
+  where
+    try :: VarMap t e -> Int -> Int -> [Name]
+    try g num n
+      | num == 0                               = []
+      | fresh_var n `Set.member` Map.keysSet g = try g num (n + 1)
+      | otherwise                              = (fresh_var n) : (try g (num - 1) (n + 1))
+    fresh_var n = "fresh" ++ show n
 
 desugar :: CheckedExpr -> F.Expr t e
 desugar = desugarExpr (Map.empty, Map.empty)
@@ -285,64 +294,52 @@ desugarConstructor d' = go
 {-
  - given: case var of Cons x (Cons y z) -> expr
  - result: case var of
- -           Cons -> case (Cons)var.field2 of
- -                      Cons -> let x = (Cons)var.field1
- -                              let y = (Cons)((Cons)var.field2).field1
- -                              let z = (Cons)((Cons)var.field2).field2
- -                              expr
+ -              Cons p q ->
+ -                  case q of
+ -                      Cons r s ->
+ -                          let z = s
+ -                          let y = r
+ -                          let x = p
  -}
 
 decisionTree ::  (TVarMap t, VarMap t e) -> [CheckedExpr] -> [[Pattern]] -> [CheckedExpr] -> [[(Name, Type, LExpr (Name,Type) Type)]] -> F.Expr t e
-decisionTree (d,g) = go
-  where -- no pattern left. Then the first expr will be the result
-        go [] _ branches binds = desugarExpr (d,g) $ noLoc $ LetOut NonRec (head binds) (head branches)
-        go exprs pats branches binds
-          | all isWildcardOrVar patshead =
-               go (tail exprs)
-                  (map tail pats)
-                  branches
-                  (zipWith (\pat bind -> case (head pat) of
-                               PVar nam ty -> (nam, ty, curExp'):bind
-                               _ -> bind )
-                           pats
-                           binds)
-          | missingconstrs == [] = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs)
-          | otherwise            = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs ++ makeDefault)
-          where patshead = map head pats
-                curExp' = head exprs
-                (appearconstrs, missingconstrs) = constrInfo patshead
-                makeNewAltFromCtr ctr@(Constructor name params) =
-                       let len = length params - 1
-                           Datatype dtnam _ _ = last params
-                           ctrclass = '$': dtnam ++ ".$" ++ dtnam ++ '$':name
-                           curExp = noLoc $ JMethod (NonStatic (noLoc $ JField (Static ctrclass) "class" (JType . JClass $ "Class<" ++ ctrclass++ ">")))
-                                                    "cast" [curExp'] ctrclass
-                           javafieldexprs = zipWith (\num pam -> noLoc $ JField (NonStatic curExp) (fieldtag ++ show num) pam)
-                                                    [1..len]
-                                                    params
-                           exprs' = javafieldexprs ++ (tail exprs)
-                           (pats', branches', binds') =
-                               unzip3 $ foldr (\(curPattern:rest, branch, bind) acc ->
-                                                  let nextPats = (extractorsubpattern name len curPattern)++rest
-                                                  in  case curPattern of
-                                                       PWildcard -> ( nextPats, branch, bind) :acc
-                                                       PVar nam ty -> (nextPats, branch, (nam, ty, curExp): bind) :acc
-                                                       PConstr (Constructor nam _) _
-                                                           | nam /= name -> acc
-                                                           | otherwise -> (nextPats, branch, bind):acc)
-                                             []
-                                             (zip3 pats branches binds)
-                       in F.ConstrAlt (desugarConstructor d ctr) (go exprs' pats' branches' binds')
-                makeDefault =
-                       let (pats', branches', binds') =
-                               unzip3 $ foldr (\(curPattern:rest, branch, bind) acc ->
-                                                  case curPattern of
-                                                     PWildcard -> (rest , branch, bind) :acc
-                                                     PVar nam ty -> (rest, branch, (nam, ty, curExp'): bind) :acc
-                                                     _ -> acc)
-                                             []
-                                             (zip3 pats branches binds)
-                       in [F.Default $ go (tail exprs) pats' branches' binds']
+decisionTree = go
+  where go (d,g) exprs pats branches binds
+            -- first pattern matches
+          | all isWildcardOrVar (head pats) =
+                let bind' = [(nam, ty, e) | (e, PVar nam ty) <- zip exprs (head pats)] ++ head binds
+                in desugarExpr (d,g) $ noLoc $ LetOut NonRec bind' (head branches)
+          | all isWildcardOrVar (map head pats) =
+                let newbind (PVar nam ty:_) bind = (nam, ty, curExp):bind
+                    newbind _               bind =  bind
+                in go (d,g) (tail exprs) (map tail pats) branches (zipWith newbind pats binds)
+          | null missingconstrs = F.Case (desugarExpr (d,g) curExp) (map makeNewAltFromCtr appearconstrs)
+          | otherwise           = F.Case (desugarExpr (d,g) curExp) (map makeNewAltFromCtr appearconstrs ++ [makeDefault])
+          where curExp = head exprs
+                (appearconstrs, missingconstrs) = constrInfo (map head pats)
+                makeNewAltFromCtr ctr@(Constructor name params) = F.ConstrAlt (desugarConstructor d ctr) freshes result
+                     where len = length params - 1
+                           freshes = generateNFreshVar g len
+                           iterate (curPattern:rest, branch, bind) acc =
+                              let nextPats = rest ++ (extractorsubpattern name len curPattern)
+                              in  case curPattern of
+                                    PWildcard -> ( nextPats, branch, bind) : acc
+                                    PVar nam ty -> (nextPats, branch, (nam, ty, curExp) : bind) : acc
+                                    PConstr (Constructor nam _) _
+                                        | nam /= name -> acc
+                                        | otherwise -> (nextPats, branch, bind):acc
+                           result es =
+                              let g' = zipWith (\fresh e -> (fresh, F.Var fresh e)) freshes es `addToVarMap` g
+                                  exprs' = tail exprs ++ (zipWith (\fresh ty -> noLoc $ Var (fresh, ty)) freshes (init params))
+                                  (pats', branches', binds') = unzip3 $ foldr iterate [] (zip3 pats branches binds)
+                              in go (d, g') exprs' pats' branches' binds'
+                makeDefault = F.Default $ go (d, g) (tail exprs) pats' branches' binds'
+                     where  (pats', branches', binds') = unzip3 $ foldr iterate [] (zip3 pats branches binds)
+                            iterate (curPattern:rest, branch, bind) acc =
+                                 case curPattern of
+                                    PWildcard -> (rest , branch, bind) :acc
+                                    PVar nam ty -> (rest, branch, (nam, ty, curExp): bind) :acc
+                                    _ -> acc
 
 addToVarMap :: [(ReaderId, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs

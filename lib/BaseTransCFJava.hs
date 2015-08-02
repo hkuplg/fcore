@@ -561,14 +561,29 @@ trans self =
                        (altstmt, alte, altt) <- translateM this e1
                        let result = assign resultName (unwrap alte)
                        return (switchBlock Nothing $ altstmt ++ [result], altt)
-                   ConstrAlt (Constructor ctrname types) e1 -> do
-                       let (Datatype _ _ ctrnames) = last types
+                   ConstrAlt (Constructor ctrname types) names e1 -> do
+                       let (Datatype nam tvars ctrnames) = last types
                            Just label = elemIndex ctrname ctrnames
-                       (altstmt, alte, altt) <- translateM this e1
+                           len = length types - 1
+                           objtype = if len == 0 then classTy nam else classTy (nam ++ "." ++ nam ++ ctrname)
+                       (n::Int) <- get
+                       put (n + len + 1)
+                       let varname = localvarstr ++ show n
+                       jtypes <- mapM (javaType this) (init types)
+                       tvarjtypes <- mapM (javaType this) tvars
+                       let objdecl = if len == 0 then localVar objtype $ varDecl varname scrut
+                                                 else localVar objtype $ varDecl varname (cast objtype scrut)
+                           vardecls = zipWith (\i ty -> let fieldaccess = fieldAccess (varExp varname) (fieldtag ++ show i)
+                                                        in if (ty == objClassTy || not (elem ty tvarjtypes))
+                                                           then localVar ty $ varDecl (localvarstr ++ show (n + i)) fieldaccess
+                                                           else localVar ty $ varDecl (localvarstr ++ show (n + i)) (cast ty fieldaccess))
+                                              [1 .. len]
+                                              jtypes
+                       (altstmt, alte, altt) <- translateM this $ e1 (zip [(n + 1) .. ] (init types))
                        let result = assign resultName (unwrap alte)
                        return (switchBlock
                                   (Just (integerExp $ fromIntegral label + 1))
-                                  (altstmt ++ [result]),
+                                  (objdecl : vardecls ++ altstmt ++ [result]),
                                altt)
        ,translateScopeTyp =
           \x1 f initVars _ otherStmts closureClass ->

@@ -106,7 +106,7 @@ data Expr t e
 
 data DataBind t = DataBind Src.ReaderId [Src.ReaderId] ([t] -> [Constructor t])
 
-data Alt t e = ConstrAlt (Constructor t) (Expr t e)
+data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ( [e] -> Expr t e)
              | Default (Expr t e)
 
 data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
@@ -148,7 +148,7 @@ mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (map
 mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
-    where mapAlt (ConstrAlt (Constructor n ts) e1) = ConstrAlt (Constructor n (map h ts)) (mapVar g h e1)
+    where mapAlt (ConstrAlt (Constructor n ts) ns e1) = ConstrAlt (Constructor n (map h ts)) ns ((mapVar g h) . e1)
           mapAlt (Default e1) = Default (mapVar g h e1)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
 mapVar g h (TApp f t)                = TApp (mapVar g h f) (h t)
@@ -346,8 +346,11 @@ prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName 
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))
-    where pretty_alt (ConstrAlt c e1) =
-               (text (constrName c) <+> arrow <+> (align $ prettyExpr' p (i, j) e1 ))
+    where pretty_alt (ConstrAlt c ns e1) =
+            let n= length ns
+                ids = [j..j+n-1]
+            in
+                hsep (text (constrName c) : map text ns ) <+> arrow <+> (align $ prettyExpr' p (i, j+n) (e1 ids))
           pretty_alt (Default e1) =
                (text "_" <+> arrow <+> (align $ prettyExpr' p (i, j) e1 ))
 

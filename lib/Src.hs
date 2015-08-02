@@ -556,9 +556,9 @@ extractorsubpattern name  _  (PConstr (Constructor name' _) subpattern)
     | name == name' = subpattern
     | otherwise     = []
 
-centainPConstr :: Name -> Pattern -> Bool
-centainPConstr name (PConstr (Constructor name' _) _) = name == name'
-centainPConstr  _  _ = False
+certainPConstr :: Name -> Pattern -> Bool
+certainPConstr name (PConstr (Constructor name' _) _) = name == name'
+certainPConstr  _  _ = False
 
 -- specialized matrix S(c, P)
 --           pi1               |        S(c ,P)
@@ -571,7 +571,7 @@ specializedMatrix ctr pats =
         num = length types - 1
     in  [ res ++ (tail list1) | list1 <- pats,
                                 let curPattern = head list1,
-                                (isWildcardOrVar curPattern) || (centainPConstr name curPattern),
+                                (isWildcardOrVar curPattern) || (certainPConstr name curPattern),
                                 let res = extractorsubpattern name num curPattern ]
 
 -- default matrix D(P)
