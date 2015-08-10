@@ -31,7 +31,7 @@ import TypeCheck
 import Src hiding (wrap)
 import Text.PrettyPrint.ANSI.Leijen
 import BackEnd
-import qualified OptiUtils              (src2core, src2fi)
+import qualified OptiUtils              (src2core)
 import qualified Core                   (prettyExpr)
 import Parser
 import ParseCMD
@@ -292,6 +292,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
           input   -> do
             outputStrLn $ "Command not recognized: " ++ input
             loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
+processCMD _ _ _ _ _ _ _ _ _ _ _ _ [] = outputStrLn "Parse error!"
 
 getCMD :: [String] -> Maybe String
 getCMD xs = case xs of
