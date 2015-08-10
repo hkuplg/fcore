@@ -3,15 +3,7 @@ module Playground where
 import           BackEnd (module2java)
 import qualified ClosureF as C
 import           Core
-import qualified Data.Map.Strict as Map
-import           Desugar (desugar)
-import           Inliner (inliner)
-import           Parser (reader)
-import           PartialEvaluator
-import           Simplify (simplify)
 import qualified Src as S
-import           System.Directory (getCurrentDirectory)
-import           TypeCheck (typeCheck)
 import           Unsafe.Coerce (unsafeCoerce)
 
 import qualified Language.Java.Syntax as J (Op(..))
@@ -37,15 +29,19 @@ def f2 (n : Int) = f1 n + 1;
 
 -}
 
+javaIntS = (S.JType (S.JClass "java.lang.Integer"))
+
 m1 :: Module t e
 m1 = Mod "M1"
-       (Def "f1" (javaInt `Fun` javaInt) (lam javaInt (\n -> var n `add` one))
+       (Def "f1" (javaIntS `S.Fun` javaIntS) (lam javaInt (\n -> var n `add` one))
           (\f1 ->
              Def
                "f2"
-               (javaInt `Fun` javaInt)
+               (javaIntS `S.Fun` javaIntS)
                (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
                (\f2 -> Null)))
+
+printModule m = module2java m >>= putStrLn
 
 
 m2 = Let "a" one (\a -> Let "b" zero (\b -> var a `add` var b))

@@ -25,7 +25,6 @@ import qualified Language.Java.Pretty (prettyPrint)
 import           Prelude hiding ((<$>))
 import           PrettyUtils
 import           Text.PrettyPrint.ANSI.Leijen
-import           Unsafe.Coerce (unsafeCoerce)
 
 -- Closure F syntax
 
@@ -51,7 +50,7 @@ data Type t =
     | ListType (Type t)
     | Datatype S.ReaderId [Type t] [S.ReaderId]
 
-data Definition t e = Def S.Name (Type t) (Expr t e) (e -> Definition t e)
+data Definition t e = Def S.Name S.Type (Expr t e) (e -> Definition t e)
                     | Null
 
 data Module t e = Mod S.Name (Definition t e)
@@ -135,7 +134,7 @@ fmod2cmod :: C.Module t e -> Module t e
 fmod2cmod (C.Mod fname defs) = Mod fname (fdef2cdef defs)
 
 fdef2cdef :: C.Definition t e -> Definition t e
-fdef2cdef (C.Def fname typ e def) = Def fname (ftyp2ctyp typ) (fexp2cexp e)
+fdef2cdef (C.Def fname typ e def) = Def fname typ (fexp2cexp e)
                                       (\d -> fdef2cdef (def d))
 fdef2cdef C.Null = Null
 
@@ -302,7 +301,7 @@ prettyMod (Mod name defs) = text "Module" <+> text name <> semi <$> prettyDef ba
 
 prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
 prettyDef p (i, j) (Def fname typ e def) =
-  text "def" <+> (prettyVar j) <+> colon <+> prettyType p i typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
+  text "def" <+> (prettyVar j) <+> colon <+> pretty typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
   prettyDef p (i, succ j) (def j)
 prettyDef _ _ Null = text ""
 

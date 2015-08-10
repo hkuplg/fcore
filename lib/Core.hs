@@ -64,7 +64,7 @@ data Type t
   | Unit
   | Datatype Src.ReaderId [Type t] [Src.ReaderId]
 
-data Definition t e = Def Src.Name (Type t) (Expr t e) (e -> Definition t e)
+data Definition t e = Def Src.Name Src.Type (Expr t e) (e -> Definition t e)
                     | Null
 
 data Module t e = Mod Src.Name (Definition t e)
@@ -254,7 +254,7 @@ prettyMod (Mod name defs) = text "Module" <+> text name <> semi <$> prettyDef de
 
 prettyDef :: Definition Index Index -> Doc
 prettyDef (Def fname typ e def) =
-  text "def" <+> text fname <+> colon <+> prettyType typ <+> equals <+> prettyExpr e <> semi <$>
+  text "def" <+> text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr e <> semi <$>
   prettyDef (def 0)
 prettyDef Null = text ""
 
