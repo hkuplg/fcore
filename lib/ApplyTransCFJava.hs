@@ -86,7 +86,7 @@ modifiedScopeTyp oexpr ostmts x1 f closureClass = completeClosure
         currentInitialDeclaration = memberDecl $ fieldDecl closureType' (varDecl (localvarstr ++ show x1) J.This)
         setApplyFlag = assignField (fieldAccExp (left $ var (localvarstr ++ show x1)) "hasApply") (J.Lit (J.Boolean False))
         fc = f
-        completeClosure = [localClassDecl ("Fun" ++ show fc) closureClass
+        completeClosure = [localClassDecl (closureTransName ++ show fc) closureClass
                             (closureBodyGen
                              [currentInitialDeclaration, J.InitDecl False (block (setApplyFlag : ostmts ++ [assign (name [closureOutput]) oexpr]))]
                              []

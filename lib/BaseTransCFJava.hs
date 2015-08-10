@@ -200,14 +200,6 @@ trans self =
                        let rhs = instCreat (classTyp c) (map unwrap exprs)
                        assignExpr <- assignVar this (JClass c) newVarName rhs
                        return (statements ++ [assignExpr],var newVarName,TupleType types)
-              PolyList l t ->
-                do l'  <- mapM (translateM this) l
-                   let (statements,exprs, _) = concatFirst (unzip3 l')
-                   newVarName <- getNewVarName this
-                   let c = namespace ++ "FunctionalList"
-                   let rhs = instCreat (classTyp c) (map unwrap exprs)
-                   assignExpr <- assignVar this (JClass c) newVarName rhs
-                   return (statements ++ [assignExpr], var newVarName, ListType t)
               Proj index expr ->
                 do ret@(statement,javaExpr,exprType) <- translateM this expr
                    case exprType of
@@ -276,13 +268,13 @@ trans self =
                                   (varnums `zip` map unwrap bindExprs)
                    let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap bodyExpr)]
                    let letClass =
-                         [localClass ("Let" ++ show n)
-                                      (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
-                                                  mDecls ++ [J.InitDecl False (J.Block stasm)]))
+                         [localClass (letTransName ++ show n)
+                                     (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
+                                                 mDecls ++ [J.InitDecl False (J.Block stasm)]))
 
-                         ,localVar (classTy ("Let" ++ show n))
+                         ,localVar (classTy (letTransName ++ show n))
                                    (varDecl (localvarstr ++ show n)
-                                            (instCreat (classTyp ("Let" ++ show n)) []))
+                                            (instCreat (classTyp (letTransName ++ show n)) []))
                          ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
                                                      (cast typ (J.ExpName (name [localvarstr ++ show n, tempvarstr]))))]
                    return (letClass,var (localvarstr ++ show (n + 1)),t')
@@ -323,65 +315,12 @@ trans self =
                            [assignExpr]
                           ,var newVarName
                           ,typ)
-
-              JProxyCall (JNew c args) realType ->
-                do args' <- mapM (translateM this) args
-                   let (statements,exprs,types) = concatFirst $ unzip3 args'
-                   let rhs =
-                         J.InstanceCreation
-                           (map (\y -> case y of
-                                         -- JClass "char" -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                         JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                         -- CFInt -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         -- CFInteger -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                         -- CFChar -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                         -- CFCharacter -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                         ListType _ -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident (namespace ++ "FunctionalList"),[])]
-                                         TVar _  -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Object", [])]
-                                         _ -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
-                                types)
-                           (J.ClassType [(J.Ident c,[])])
-                           (map unwrap exprs)
-                           Nothing
-                   -- let typ = JClass c
-                   newVarName <- getNewVarName this
-                   assignExpr <- assignVar this realType newVarName rhs
-                   return (statements ++
-                           [assignExpr]
-                          ,var newVarName
-                          ,realType)
-
-              JProxyCall (JMethod c m args r) realType ->
-                do args' <- mapM (translateM this) args
-                   let (statements,exprs,types) = concatFirst $ unzip3 args'
-                   let exprs' = map unwrap exprs
-                   let refTypes =
-                         map (\y -> case y of
-                                     JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
-                                     -- CFInt -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     -- CFInteger -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Integer", [])]
-                                     -- CFChar -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     -- CFCharacter -> J.ClassRefType $ J.ClassType [(J.Ident "java.lang.Character", [])]
-                                     _ -> sorry "BaseTransCFJava.trans.JMethod: no idea how to do")
-                             types
-                   realJavaType <- javaType this realType
-                   (classStatement,rhs) <- case c of
-                                             Right ce ->
-                                               do (classS,classE,_) <- translateM this ce
-                                                  if realJavaType == objClassTy
-                                                    then return (classS ,J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs')
-                                                    else return (classS ,cast realJavaType (J.MethodInv $ J.PrimaryMethodCall (unwrap classE) refTypes (J.Ident m) exprs'))
-                                             Left cn ->
-                                               if realJavaType == objClassTy
-                                                 then return ([] ,J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs')
-                                                 else return ([] ,cast realJavaType (J.MethodInv $ J.TypeMethodCall (J.Name [J.Ident cn]) refTypes (J.Ident m) exprs'))
-                   -- let typ = JClass r
-                   if r /= "java.lang.Void"
-                      then do newVarName <- getNewVarName this
-                              assignExpr <- assignVar this realType newVarName rhs
-                              return (statements ++ classStatement ++ [assignExpr] ,var newVarName ,realType)
-                      else return (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right J.Null, realType)
-              JProxyCall _ _ -> sorry "JProxyCall: Not supported"
+              Error ty str -> do
+                   (stmt, oexpr, _) <- translateM this str
+                   let J.ExpStmt errormsg = classMethodCall (stringExp "Error: ") "concat" [unwrap oexpr]
+                   let erro = bStmt $ methodCall ["System","err","println"] [errormsg]
+                   let exit = bStmt $ methodCall ["System", "exit"] [integerExp 0]
+                   return (stmt ++ [erro, exit], Right $ J.Null, ty)
               JMethod c m args r ->
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'
@@ -602,7 +541,7 @@ trans self =
                                                    n
                                                    False
                                                    closureType
-                    let innerclassdef = localClassDecl ("Fun" ++ show n) (namespace ++ "Closure")classbody
+                    let innerclassdef = localClassDecl (closureTransName ++ show n) (namespace ++ "Closure") classbody
                     let funInst = localVar closureType (varDecl (localvarstr ++ show n) (funInstCreate n))
                     return ([innerclassdef, funInst], var (localvarstr ++ show n))
        ,transAlts =
@@ -622,21 +561,36 @@ trans self =
                        (altstmt, alte, altt) <- translateM this e1
                        let result = assign resultName (unwrap alte)
                        return (switchBlock Nothing $ altstmt ++ [result], altt)
-                   ConstrAlt (Constructor ctrname types) e1 -> do
-                       let (Datatype _ _ ctrnames) = last types
+                   ConstrAlt (Constructor ctrname types) names e1 -> do
+                       let (Datatype nam tvars ctrnames) = last types
                            Just label = elemIndex ctrname ctrnames
-                       (altstmt, alte, altt) <- translateM this e1
+                           len = length types - 1
+                           objtype = if len == 0 then classTy nam else classTy (nam ++ "." ++ nam ++ ctrname)
+                       (n::Int) <- get
+                       put (n + len + 1)
+                       let varname = localvarstr ++ show n
+                       jtypes <- mapM (javaType this) (init types)
+                       tvarjtypes <- mapM (javaType this) tvars
+                       let objdecl = if len == 0 then localVar objtype $ varDecl varname scrut
+                                                 else localVar objtype $ varDecl varname (cast objtype scrut)
+                           vardecls = zipWith (\i ty -> let fieldaccess = fieldAccess (varExp varname) (fieldtag ++ show i)
+                                                        in if (ty == objClassTy || not (elem ty tvarjtypes))
+                                                           then localVar ty $ varDecl (localvarstr ++ show (n + i)) fieldaccess
+                                                           else localVar ty $ varDecl (localvarstr ++ show (n + i)) (cast ty fieldaccess))
+                                              [1 .. len]
+                                              jtypes
+                       (altstmt, alte, altt) <- translateM this $ e1 (zip [(n + 1) .. ] (init types))
                        let result = assign resultName (unwrap alte)
                        return (switchBlock
                                   (Just (integerExp $ fromIntegral label + 1))
-                                  (altstmt ++ [result]),
+                                  (objdecl : vardecls ++ altstmt ++ [result]),
                                altt)
        ,translateScopeTyp =
           \x1 f initVars _ otherStmts closureClass ->
             do b <- genClone this
                (ostmts,oexpr,t1) <- otherStmts
                let fc = f
-               return ([localClassDecl ("Fun" ++ show fc)
+               return ([localClassDecl (closureTransName ++ show fc)
                                        closureClass
                                        (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
                                                                                (varDecl (localvarstr ++ show x1) J.This)]

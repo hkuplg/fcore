@@ -1,0 +1,3 @@
+let showInt    = \(x : Int)    -> "showInt";
+let showString = \(x : String) -> "showString";
+(showInt ,, showString) 100

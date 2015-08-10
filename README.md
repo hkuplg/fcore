@@ -13,6 +13,7 @@ Ubuntu. It builds the compiler from source, thus may take some time.
     + Install the [Haskell Platform](https://www.haskell.org/platform/)
     + Java SDK (8 or newer)
     + Apache Ant (version 1.8 or above)
+    + [Alex](https://www.haskell.org/alex/) and [Happy](https://www.haskell.org/happy/) (install them by `cabal install alex happy`)
 
 2. Clone the [source] with [git]:
 
