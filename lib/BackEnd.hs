@@ -177,7 +177,7 @@ core2java supernaive optInline optDump compilation className closedCoreExpr =
      return $ prettyPrint cu
 
 
-type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)--PFExp Int (Var, Type Int) -> (J.Block, J.Exp, Type Int)
+type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)
 
 -- | setting for various combination of optimization
 
