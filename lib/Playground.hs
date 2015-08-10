@@ -2,6 +2,7 @@
 module Examples where
 
 import           Core
+import qualified ClosureF as C
 import           Desugar (desugar)
 import           Inliner (inliner)
 import           Parser (reader)
@@ -23,6 +24,9 @@ instance Show (Type t) where
 
 instance Show (Module t e) where
   show = show . prettyMod . unsafeCoerce
+
+instance Show (C.Module t e) where
+  show = show . C.prettyMod . unsafeCoerce
 
 {-
 module M1;

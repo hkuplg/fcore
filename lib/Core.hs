@@ -254,7 +254,7 @@ prettyMod (Mod name defs) = text "Module" <+> text name <> semi <$> prettyDef de
 
 prettyDef :: Definition Index Index -> Doc
 prettyDef (Def fname typ e def) =
-  text "def" <+> text fname <+> colon <+> prettyType typ <+> equals <+> prettyExpr e <+> semi <$>
+  text "def" <+> text fname <+> colon <+> prettyType typ <+> equals <+> prettyExpr e <> semi <$>
   prettyDef (def 0)
 prettyDef Null = text ""
 

@@ -13,18 +13,19 @@ Portability :  non-portable (MPTC)
 -}
 module ClosureF where
 
-import qualified Src  as S
+import qualified Src as S
 import qualified Core as C
 
-import JavaUtils
-import Panic
-import StringPrefixes
+import           JavaUtils
+import           Panic
+import           StringPrefixes
 
-import PrettyUtils
-import Text.PrettyPrint.ANSI.Leijen
+import           Data.List (intersperse)
 import qualified Language.Java.Pretty (prettyPrint)
-import Data.List (intersperse)
-import Prelude hiding ((<$>))
+import           Prelude hiding ((<$>))
+import           PrettyUtils
+import           Text.PrettyPrint.ANSI.Leijen
+import           Unsafe.Coerce (unsafeCoerce)
 
 -- Closure F syntax
 
@@ -49,6 +50,11 @@ data Type t =
     | TupleType [Type t]
     | ListType (Type t)
     | Datatype S.ReaderId [Type t] [S.ReaderId]
+
+data Definition t e = Def S.Name (Type t) (Expr t e) (e -> Definition t e)
+                    | Null
+
+data Module t e = Mod S.Name (Definition t e)
 
 data Expr t e =
      Var S.ReaderId e
@@ -124,6 +130,14 @@ fexp2cexp2 (C.TApp e t)   =
 CTApp (fexp2cexp e) (ftyp2ctyp t)
 -}
 
+
+fmod2cmod :: C.Module t e -> Module t e
+fmod2cmod (C.Mod fname defs) = Mod fname (fdef2cdef defs)
+
+fdef2cdef :: C.Definition t e -> Definition t e
+fdef2cdef (C.Def fname typ e def) = Def fname (ftyp2ctyp typ) (fexp2cexp e)
+                                      (\d -> fdef2cdef (def d))
+fdef2cdef C.Null = Null
 
 fexp2cexp :: C.Expr t e -> Expr t e
 fexp2cexp (C.Var rid x)                = Var rid x
@@ -282,6 +296,15 @@ prettyType _ _ CFCharacter = text "Character"
 
 prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
 prettyType p i (Datatype n tvars _) = hsep $ text n : map (prettyType p i) tvars
+
+prettyMod :: Module Index Index -> Doc
+prettyMod (Mod name defs) = text "Module" <+> text name <> semi <$> prettyDef basePrec (0, 0) defs
+
+prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
+prettyDef p (i, j) (Def fname typ e def) =
+  text "def" <+> (prettyVar j) <+> colon <+> prettyType p i typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
+  prettyDef p (i, succ j) (def j)
+prettyDef _ _ Null = text ""
 
 prettyExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
