@@ -1,10 +1,10 @@
-{-# OPTIONS -XMultiParamTypeClasses -XFlexibleInstances -XRankNTypes -XTypeOperators  -XOverlappingInstances #-}
+{-# OPTIONS -XMultiParamTypeClasses -XFlexibleInstances -XRankNTypes -XTypeOperators #-}
 
 module MonadLib (module MonadLib, module Control.Monad, module Data.Monoid) where
 
 import Control.Monad
 import Data.Monoid
-import Control.Applicative (Applicative(..), Alternative(..))
+import Control.Applicative
 
 -- Interfaces for various types of effects:
 
@@ -61,7 +61,7 @@ instance Applicative (Reader r) where
     pure  = return
     (<*>) = ap
 
-instance MonadReader r (Reader r) where
+instance {-# OVERLAPPING #-} MonadReader r (Reader r) where
     ask       = Reader id
     local f m = Reader $ runReader m . f
 
@@ -97,11 +97,11 @@ instance (Monad m, MonadPlus m) => Alternative (ReaderT r m) where
     (<|>) = mplus
     empty = mzero
 
-instance (Monad m) => MonadReader r (ReaderT r m) where
+instance {-# OVERLAPPING #-} (Monad m) => MonadReader r (ReaderT r m) where
     ask       = ReaderT return
     local f m = ReaderT $ \r -> runReaderT m (f r)
 
-instance MonadReader r m => MonadReader r (ReaderT t m) where
+instance {-# OVERLAPPING #-} MonadReader r m => MonadReader r (ReaderT t m) where
     ask       = ReaderT (\_ -> ask)
     local f m = ReaderT (\r -> local f (runReaderT m r))
 
@@ -314,7 +314,7 @@ instance (MonadWriter w m) => MonadWriter w (ReaderT r m) where
     listen m = ReaderT $ \w -> listen (runReaderT m w)
     pass   m = ReaderT $ \w -> pass   (runReaderT m w)
 
-instance (MonadReader r m) => MonadReader r (StateT s m) where
+instance {-# OVERLAPPING #-} (MonadReader r m) => MonadReader r (StateT s m) where
     ask       = lift ask
     local f m = StateT $ \s -> local f (runStateT m s)
 
@@ -327,7 +327,7 @@ instance (MonadWriter w m) => MonadWriter w (StateT s m) where
         ((a, f), s') <- runStateT m s
         return ((a, s'), f)
 
-instance (Monoid w, MonadReader r m) => MonadReader r (WriterT w m) where
+instance {-# OVERLAPPING #-} (Monoid w, MonadReader r m) => MonadReader r (WriterT w m) where
     ask       = lift ask
     local f m = WriterT $ local f (runWriterT m)
 

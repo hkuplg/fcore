@@ -38,8 +38,6 @@ library
   exposed-modules:      ApplyTransCFJava
                         BackEnd
                         BaseTransCFJava
-                        BenchGenCF2J
-                        BenchGenStack
                         ClosureF
                         Config
                         Core

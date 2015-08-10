@@ -13,7 +13,7 @@ smt : runtime dependencies
 
 .PHONY : test
 test : whitespace_test runtime
-	stack test --no-terminal
+	stack --no-terminal test
 
 .PHONY : whitespace_test
 whitespace_test :
@@ -21,7 +21,7 @@ whitespace_test :
 
 .PHONY : dependencies
 dependencies :
-	stack build --only-snapshot --no-terminal
+	stack --no-terminal build --only-snapshot
 
 .PHONY : runtime
 runtime :

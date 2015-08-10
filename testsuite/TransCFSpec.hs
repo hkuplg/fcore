@@ -1,36 +1,32 @@
-{-# OPTIONS_GHC -fwarn-unused-imports #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module TransCFSpec where
 
-import Test.Tasty.Hspec
-import SpecHelper
-import TestTerms
-
-import Parser    (reader, P(..))
-import TypeCheck    (typeCheck)
-import Desugar      (desugar)
-import Simplify     (simplify)
+import           BackEnd (compileN, compileAO, compileS)
+import           Desugar (desugar)
+import           JavaUtils (getClassPath)
+import           MonadLib
 import qualified OptiUtils (Exp(Hide))
-import PartialEvaluator
-import BackEnd (compileN, compileAO, compileS)
-
+import           Parser (reader, P(..))
+import           PartialEvaluator (rewriteAndEval)
+import           Simplify (simplify)
+import           SpecHelper
+import           StringPrefixes (namespace)
+import           StringUtils (capitalize)
 import qualified SystemFI as FI
+import           TestTerms
+import           TypeCheck (typeCheck)
 
-import MonadLib
-
-import Language.Java.Pretty
-
-import System.Directory
-import System.Process
-import System.FilePath  ((</>), dropExtension, takeFileName)
-import System.IO
-
-import Data.FileEmbed   (embedFile)
 import qualified Data.ByteString as B
-import JavaUtils
-import FileIO
-import StringPrefixes   (namespace)
+import           Data.FileEmbed (embedFile)
+import           Language.Java.Pretty (prettyPrint)
+import           System.Directory
+import           System.FilePath ((</>), dropExtension, takeFileName)
+import           System.IO
+import           System.Process
+import           Test.Tasty.Hspec
+
+
 
 runtimeBytes :: B.ByteString
 runtimeBytes = $(embedFile "runtime/runtime.jar")
@@ -43,13 +39,18 @@ writeRuntimeToTemp =
 
 testCasesPath = "testsuite/tests/shouldRun"
 
+fetchResult :: Handle -> IO String
+fetchResult outP = do
+  msg <- hGetLine outP
+  if msg == "exit" then fetchResult outP else return msg
+
 -- java compilation + run
 compileAndRun inP outP name compileF exp =
   do let source = prettyPrint (fst $ (compileF name exp))
      let jname = name ++ ".java"
-     sendMsg inP jname
-     sendFile inP (source ++ "\n" ++ "//end of file")
-     result <- receiveMsg3 outP
+     hPutStrLn inP jname
+     hPutStrLn inP (source ++ "\n" ++ "//end of file")
+     result <- fetchResult outP
      return result
 
 esf2sf source =
@@ -64,7 +65,7 @@ esf2sf source =
             in return (rewriteAndEval (OptiUtils.Hide (simplify (FI.HideF fiExpr))))
 
 testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput) = do
-  let className = getClassName $ dropExtension (takeFileName filePath)
+  let className = capitalize $ dropExtension (takeFileName filePath)
   output <- runIO (compileAndRun inP outP className compilation ast)
   it ("should compile and run " ++ name ++ " and get \"" ++ expectedOutput ++ "\"") $
      (return output) `shouldReturn` expectedOutput

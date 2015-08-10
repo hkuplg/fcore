@@ -1,5 +1,28 @@
 --> 13
 
+data List [A] = Nil | Cons A (List [A]);
+
+let head [A] (x:List[A]):A =
+case x of
+     Nil -> error [A] "head: empty list"
+   | Cons x _ -> x;
+
+let tail [A] (x:List[A]):List[A] =
+case x of
+     Nil -> error [List[A]] "tail: empty list"
+   | Cons _ y -> y;
+
+let null [A] (x:List[A]): Bool =
+case x of
+     Nil -> True
+   | Cons _ _ -> False;
+
+let rec length [A] (x:List[A]): Int =
+case x of
+     Nil -> 0
+   | Cons _ _ -> 1 + length [A] (tail [A] x);
+
+
 let max (x : Int) (y : Int) : Int =
   if x > y then x else y
 ;

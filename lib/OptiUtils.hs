@@ -13,7 +13,6 @@ import Control.Monad (liftM)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 import Data.List (foldl')
-import Panic
 import qualified Src
 import qualified SystemFI as FI
 
@@ -86,7 +85,6 @@ joinExpr (JMethod jc m es cn) =
   JMethod (fmap joinExpr jc) m (map joinExpr es) cn
 joinExpr (JField jc fn cn) = JField (fmap joinExpr jc) fn cn
 joinExpr (Seq es) = Seq (map joinExpr es)
-joinExpr _ = sorry "Not implemented yet"
 
 mapExpr :: (Expr t e -> Expr t e) -> Expr t e -> Expr t e
 mapExpr f e =
@@ -117,7 +115,6 @@ mapExpr f e =
          where mapAlt (ConstrAlt ctr e1) = ConstrAlt ctr (f e1)
                mapAlt (Default e1) = Default (f e1)
       Seq es -> Seq $ map f es
-      _ -> sorry "Not implemented yet"
 
 rewriteExpr :: (Int -> Map.Map Int e -> Expr t Int -> Expr t e) -> Int -> Map.Map Int e -> Expr t Int -> Expr t e
 rewriteExpr f num env expr =

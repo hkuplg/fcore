@@ -39,6 +39,7 @@ inliner (JMethod jc m es cn) =
 inliner (JField jc fn cn) = JField (fmap inliner jc) fn cn
 inliner (Seq es) = Seq (map inliner es)
 inliner (Let n e body) = Let n (inliner e) (inliner . body . var)
+inliner e = joinExpr e
 
 -- current version cannot handle LetRec
 recurNum :: Expr t Int -> Int

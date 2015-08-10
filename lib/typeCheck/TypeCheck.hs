@@ -1,7 +1,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+
 {- |
 Module      :  TypeCheck
 Description :  Type checker for the source language.
@@ -47,7 +48,7 @@ import Control.Monad.Except
 import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
-import Data.List (intersperse, findIndex)
+import Data.List (findIndex)
 
 import Prelude hiding (pred, (<$>))
 

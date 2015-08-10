@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, RankNTypes #-}
-{-# OPTIONS_GHC -Wall #-}
+
 {- |
 Module      :  SystemFI
 Description :  Abstract syntax and pretty printer for SystemFI.
