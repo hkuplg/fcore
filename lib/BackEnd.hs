@@ -20,6 +20,7 @@ module BackEnd
     -- , compileAoptUnbox
     -- , compileSU
     , core2java
+    , module2java
     -- , sf2java2
     , DumpOption(..)
     ) where
@@ -176,8 +177,13 @@ core2java supernaive optInline optDump compilation className closedCoreExpr =
               else compilation className inlinedCore
      return $ prettyPrint cu
 
+-- | Module to Java
+module2java :: Core.Module Int (Var, Type Int) -> IO String
+module2java  = return . prettyPrint . compileModule
 
 type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)
+
+type ModuleCompilation = Core.Module Int (Var, Type Int) -> J.CompilationUnit
 
 -- | setting for various combination of optimization
 
@@ -189,8 +195,14 @@ ninst = naive
 translateN :: String -> Expr Int (Var, Type Int) -> NType (J.CompilationUnit, Type Int)
 translateN = createWrap (up ninst)
 
+transModule :: Module Int (Var, Type Int) -> NType J.CompilationUnit
+transModule = createModule (up ninst)
+
 compileN :: Compilation
 compileN name e = evalState (translateN name (fexp2cexp e)) 1
+
+compileModule :: ModuleCompilation
+compileModule m = evalState (transModule (fmod2cmod m)) 1
 
 -- Setting for apply + naive
 type AOptType = ReaderT Int (ReaderT InitVars (State Int))

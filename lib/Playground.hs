@@ -1,8 +1,9 @@
-
 module Examples where
 
-import           Core
+import           BackEnd (module2java)
 import qualified ClosureF as C
+import           Core
+import qualified Data.Map.Strict as Map
 import           Desugar (desugar)
 import           Inliner (inliner)
 import           Parser (reader)
@@ -12,7 +13,6 @@ import qualified Src as S
 import           System.Directory (getCurrentDirectory)
 import           TypeCheck (typeCheck)
 import           Unsafe.Coerce (unsafeCoerce)
-import qualified Data.Map.Strict as Map
 
 import qualified Language.Java.Syntax as J (Op(..))
 

@@ -78,7 +78,9 @@ data Translate m =
     ,chooseCastBox :: Type Int -> m (String -> J.Exp -> J.BlockStmt, J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
     ,genClosureVar :: Bool -> Int -> TransJavaExp -> m J.Exp
-    ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
+    ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)
+    ,transDefs :: Definition Int (Var, Type Int) -> m [J.BlockStmt]
+    ,createModule :: Module Int (Var, Type Int) -> m (J.CompilationUnit)}
 
 -- needed
 getTupleClassName :: [a] -> String
@@ -634,4 +636,22 @@ trans self =
                returnType <- applyRetType this t
                let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
                let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody
-               return (createCUB this [mainDecl],t)}
+               return (createCUB this [mainDecl],t)
+
+       ,transDefs =
+         \ defs -> case defs of
+                     Def fname _ expr otherDef ->
+                       do (bs,e,t) <- translateM this expr
+                          (n :: Int) <- get
+                          put (n + 1)
+                          otherDefStmts <- transDefs this (otherDef (n, t))
+                          let x = localvarstr ++ show n
+                          typ <- javaType this t
+                          let xDecl = localVar typ (varDecl x $ unwrap e)
+                          return (bs ++ [xDecl] ++ otherDefStmts)
+                     Null -> return []
+       ,createModule =
+          \(Mod mname defs) ->
+            do defStmts <- transDefs this defs
+               let defClass = J.ClassTypeDecl (classDecl [J.Public] mname (classBody (map (J.MemberDecl . localToMemberClass) defStmts)))
+               return (createCUB this [defClass])}

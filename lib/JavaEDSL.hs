@@ -80,6 +80,7 @@ unwrap x = case x of
 
 localToMemberClass :: BlockStmt -> MemberDecl
 localToMemberClass (LocalClass t) = MemberClassDecl t
+localToMemberClass (LocalVars modi typ decls) = FieldDecl modi typ decls
 localToMemberClass _ = error "parameter should be a local class"
 
 -- method
