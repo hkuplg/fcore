@@ -83,6 +83,11 @@ localToMemberClass (LocalClass t) = MemberClassDecl t
 localToMemberClass (LocalVars modi typ decls) = FieldDecl modi typ decls
 localToMemberClass _ = error "parameter should be a local class"
 
+makeStatic :: MemberDecl -> MemberDecl
+makeStatic (MemberClassDecl (ClassDecl modi i t r rs body)) = MemberClassDecl (ClassDecl (Static : modi) i t r rs body)
+makeStatic (FieldDecl modi typ decls) = FieldDecl (Static : modi) typ decls
+makeStatic _ = error "makeStatic: impossible happened!"
+
 -- method
 
 paramDecl :: Type -> String -> FormalParam

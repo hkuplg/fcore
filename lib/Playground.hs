@@ -1,4 +1,4 @@
-module Examples where
+module Playground where
 
 import           BackEnd (module2java)
 import qualified ClosureF as C

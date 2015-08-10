@@ -650,8 +650,9 @@ trans self =
                           let xDecl = localVar typ (varDecl x $ unwrap e)
                           return (bs ++ [xDecl] ++ otherDefStmts)
                      Null -> return []
+
        ,createModule =
           \(Mod mname defs) ->
             do defStmts <- transDefs this defs
-               let defClass = J.ClassTypeDecl (classDecl [J.Public] mname (classBody (map (J.MemberDecl . localToMemberClass) defStmts)))
+               let defClass = J.ClassTypeDecl (classDecl [J.Public] mname (classBody (map (J.MemberDecl . makeStatic . localToMemberClass) defStmts)))
                return (createCUB this [defClass])}
