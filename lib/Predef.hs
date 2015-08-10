@@ -8,7 +8,7 @@ import Data.FileEmbed        (embedFile)
 import Data.List             (intercalate)
 
 injectPredef :: String -> String
-injectPredef s = predef ++ s
+injectPredef s = s -- predef ++ s
 
 predef :: String
 predef = intercalate "\n" (map toString [predefIO, predefList])
