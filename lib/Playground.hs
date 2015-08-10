@@ -21,6 +21,30 @@ instance Show (Expr t e) where
 instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
+instance Show (Module t e) where
+  show = show . prettyMod . unsafeCoerce
+
+{-
+module M1;
+
+def f1 (n : Int) = n + 1;
+
+def f2 (n : Int) = f1 n + 1;
+
+-}
+
+m1 :: Module t e
+m1 = Mod "M1"
+       (Def "f1" (javaInt `Fun` javaInt) (lam javaInt (\n -> var n `add` one))
+          (\f1 ->
+             Def
+               "f2"
+               (javaInt `Fun` javaInt)
+               (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
+               (\f2 -> Null)))
+
+
+m2 = Let "a" one (\a -> Let "b" zero (\b -> var a `add` var b))
 
 tailFact :: Expr t e
 tailFact
@@ -95,17 +119,17 @@ x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y
 
-sf2c :: String -> IO (Expr t e)
-sf2c fname = do
-  path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
-  string <- readFile (path ++ "/" ++ fname)
-  let readSrc = Parser.reader string
-  result <- readSrc `seq` (typeCheck readSrc)
-  case result of
-   Left typeError -> error $ show typeError
-   Right (typ, tcheckedSrc) -> do
-     print tcheckedSrc
-     return (simplify . desugar $ tcheckedSrc)
+-- sf2c :: String -> IO (Expr t e)
+-- sf2c fname = do
+--   path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
+--   string <- readFile (path ++ "/" ++ fname)
+--   let readSrc = Parser.reader string
+--   result <- readSrc `seq` (typeCheck readSrc)
+--   case result of
+--    Left typeError -> error $ show typeError
+--    Right (typ, tcheckedSrc) -> do
+--      print tcheckedSrc
+--      return (simplify . desugar $ tcheckedSrc)
      -- case n of
      --  1 -> return (peval . simplify . desugar $ tcheckedSrc)
      --  2 -> return (simplify . desugar $ tcheckedSrc)

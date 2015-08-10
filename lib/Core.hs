@@ -20,6 +20,8 @@ module Core
   , Index
   , Constructor(..)
   , DataBind(..)
+  , Definition(..)
+  , Module(..)
   , alphaEq
   , mapTVar
   , mapVar
@@ -35,6 +37,7 @@ module Core
   , bLam
   , prettyType
   , prettyExpr
+  , prettyMod
   , javaInt
   ) where
 
@@ -60,6 +63,11 @@ data Type t
   | Product [Type t]                   -- (t1, ..., tn)
   | Unit
   | Datatype Src.ReaderId [Type t] [Src.ReaderId]
+
+data Definition t e = Def Src.Name (Type t) (Expr t e) (e -> Definition t e)
+                    | Null
+
+data Module t e = Mod Src.Name (Definition t e)
 
 data Expr t e
   = Var Src.ReaderId e
@@ -240,6 +248,15 @@ prettyType' _ _ (JClass c)                     = text c
 
 -- instance Pretty (Expr Index Index) where
 --   pretty = prettyExpr
+
+prettyMod :: Module Index Index -> Doc
+prettyMod (Mod name defs) = text "Module" <+> text name <> semi <$> prettyDef defs
+
+prettyDef :: Definition Index Index -> Doc
+prettyDef (Def fname typ e def) =
+  text "def" <+> text fname <+> colon <+> prettyType typ <+> equals <+> prettyExpr e <+> semi <$>
+  prettyDef (def 0)
+prettyDef Null = text ""
 
 prettyExpr :: Expr Index Index -> Doc
 prettyExpr = prettyExpr' basePrec (0, 0)
