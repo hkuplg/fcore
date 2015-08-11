@@ -21,7 +21,7 @@ instance Show (C.Module t e) where
   show = show . C.prettyMod . unsafeCoerce
 
 {-
-module M1;
+module;
 
 def f1 (n : Int) = n + 1;
 
@@ -39,7 +39,7 @@ m1 = Mod "M1"
                "f2"
                (javaIntS `S.Fun` javaIntS)
                (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
-               (\f2 -> Null)))
+               (\f2 -> Def "f3" javaIntS one (\f3 -> Null))))
 
 printModule m = module2java m >>= putStrLn
 

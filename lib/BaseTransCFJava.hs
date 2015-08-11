@@ -638,14 +638,15 @@ trans self =
 
        ,transDefs =
          \ defs -> case defs of
-                     Def fname _ expr otherDef ->
+                     Def fname srcTyp expr otherDef ->
                        do (bs,e,t) <- translateM this expr
                           (n :: Int) <- get
                           put (n + 1)
                           otherDefStmts <- transDefs this (otherDef (n, t))
                           let x = localvarstr ++ show n
                           typ <- javaType this t
-                          let xDecl = localVar typ (varDecl x $ unwrap e)
+                          let anno = normalAnno fname x (show srcTyp)
+                          let xDecl = localVarWithAnno anno typ (varDecl x $ unwrap e)
                           return (bs ++ [xDecl] ++ otherDefStmts)
                      Null -> return []
 

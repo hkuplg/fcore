@@ -35,3 +35,9 @@ datatypetag = "tag"
 
 fieldtag :: String
 fieldtag = "field"
+
+-- type annotation
+annoName = "ModuleFunction"
+annoSrcName = "name"
+annoGenName = "gname"
+annoSig = "signature"
