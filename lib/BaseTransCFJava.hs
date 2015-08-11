@@ -56,31 +56,29 @@ type TransType = ([J.BlockStmt], TransJavaExp, Type Int)
 
 data Translate m =
   T {translateM :: Expr Int (Var,Type Int) -> m TransType
-    ,translateScopeM :: EScope Int (Var, Type Int) -> Maybe (Int,Type Int) -> m ([J.BlockStmt],TransJavaExp,TScope Int)
+    ,translateScopeM :: EScope Int (Var,Type Int) -> Maybe (Int,Type Int) -> m ([J.BlockStmt],TransJavaExp,TScope Int)
     ,translateApply :: Bool -> m TransType -> m TransType -> m TransType
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
-    ,translateLet :: TransType -> ((Var, Type Int) -> Expr Int (Var, Type Int)) -> m TransType
-    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> EScope Int (Var, Type Int) -> m ([J.BlockStmt],TransJavaExp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
+    ,translateLet :: TransType -> ((Var,Type Int) -> Expr Int (Var,Type Int)) -> m TransType
+    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> EScope Int (Var,Type Int) -> m ([J.BlockStmt],TransJavaExp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
     ,genApply :: J.Exp -> TScope Int -> String -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
-    -- ,genTest :: m Bool
-    ,transAlts :: TransJavaExp -> [Alt Int (Var, Type Int)] -> m TransType
-    ,mapAlt :: J.Exp -> J.Name -> Alt Int (Var, Type Int) -> m (J.SwitchBlock, Type Int)
-    ,translateDatabind :: DataBind Int -> m (J.BlockStmt, J.BlockStmt)
+    ,transAlts :: TransJavaExp -> [Alt Int (Var,Type Int)] -> m TransType
+    ,mapAlt :: J.Exp -> J.Name -> Alt Int (Var,Type Int) -> m (J.SwitchBlock,Type Int)
+    ,translateDatabind :: DataBind Int -> m (J.BlockStmt,J.BlockStmt)
     ,translateCtr :: String -> Constructor Int -> Integer -> m [J.Decl]
-    ,translateCtrParams :: String -> [Type Int] -> [J.Argument] -> m ([J.BlockStmt], TransJavaExp)
+    ,translateCtrParams :: String -> [Type Int] -> [J.Argument] -> m ([J.BlockStmt],TransJavaExp)
     ,withApply :: m Bool
     ,getPrefix :: m String
-    -- ,getBox :: Type Int -> m String
     ,javaType :: Type Int -> m J.Type
-    ,chooseCastBox :: Type Int -> m (String -> J.Exp -> J.BlockStmt, J.Type)
+    ,chooseCastBox :: Type Int -> m (String -> J.Exp -> J.BlockStmt,J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
     ,genClosureVar :: Bool -> Int -> TransJavaExp -> m J.Exp
     ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)
-    ,transDefs :: Definition Int (Var, Type Int) -> m [J.BlockStmt]
-    ,createModule :: Module Int (Var, Type Int) -> m (J.CompilationUnit)}
+    ,transDefs :: Definition Int (Var,Type Int) -> m [J.BlockStmt]
+    ,createModule :: Module Int (Var,Type Int) -> m (J.CompilationUnit)}
 
 -- needed
 getTupleClassName :: [a] -> String
@@ -655,4 +653,5 @@ trans self =
           \(Mod mname defs) ->
             do defStmts <- transDefs this defs
                let defClass = J.ClassTypeDecl (classDecl [J.Public] mname (classBody (map (J.MemberDecl . makeStatic . localToMemberClass) defStmts)))
-               return (createCUB this [defClass])}
+               return (createCUB this [defClass])
+       }
