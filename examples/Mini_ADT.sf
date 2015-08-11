@@ -1,4 +1,5 @@
-type IPrint = { print : String };
+
+-- Stuff about Maybe: Maybe should be defined as fdata Maybe?
 data Maybe[A] = Just A | Nothing;
 let isJust[A] (x : Maybe[A]) =
   case x of
@@ -9,39 +10,61 @@ let fromJust[A] (x : Maybe[A]) (y : A) =
       Just z  -> z
     | Nothing -> y;
 
+-- Values
+
 sig ValueAlg[V] where
   intV  : Int -> V,
   boolV : Bool -> V;
+
+fdata Value from ValueAlg[V].V;
+
+-- Generated automatically?
 type MatchV = { fromInt : Maybe[Int], fromBool : Maybe[Bool] };
 algebra matchValue implements ValueAlg[MatchV] where
   fromInt@(intV x)   = Just[Int] x,
   fromInt@(boolV x)  = Nothing[Int],
   fromBool@(intV x)  = Nothing[Bool],
   fromBool@(boolV x) = Just[Bool] x;
+
+-- Printing Values
+type IPrint = { print : String };
+
 algebra printValue implements ValueAlg[IPrint] where
   print@(intV x)  = "\{x}",
   print@(boolV x) = "\{x}";
-fdata Value from ValueAlg[V].V;
+
+-- Is this needed?
 let isInt  (x : Value) = isJust[Int]    (x.accept[MatchV] matchValue).fromInt;
 let isBool (x : Value) = isJust[Bool]   (x.accept[MatchV] matchValue).fromBool;
 let toInt  (x : Value) = fromJust[Int]  (x.accept[MatchV] matchValue).fromInt 0;
 let toBool (x : Value) = fromJust[Bool] (x.accept[MatchV] matchValue).fromBool False;
-let sameTypeV (x : Value) (y : Value) = (isInt x && isInt y) || (isBool x && isBool y);
 let printV (x : Value) = (x.accept[IPrint] printValue).print;
+
+-- this one stills needs to be written by hand
+let sameTypeV (x : Value) (y : Value) = (isInt x && isInt y) || (isBool x && isBool y);
+
+-- Types
 
 sig TypAlg[T] where
   tInt  : T,
   tBool : T;
+
+fdata Typ from TypAlg[T].T;
+
+-- Generated using Maybe?
 type MatchT = { isTInt : Bool, isTBool : Bool };
 algebra matchTyp implements TypAlg[MatchT] where
   isTInt@(tInt)   = True,
   isTInt@(tBool)  = False,
   isTBool@(tInt)  = False,
   isTBool@(tBool) = True;
+
+-- Printing types
 algebra printTyp implements TypAlg[IPrint] where
   print@(tInt)  = "TInt",
   print@(tBool) = "TBool";
-fdata Typ from TypAlg[T].T;
+
+-- do we need this?
 let isTInt  (x : Typ) = (x.accept[MatchT] matchTyp).isTInt;
 let isTBool (x : Typ) = (x.accept[MatchT] matchTyp).isTBool;
 let eqT (x : Typ) (y : Typ) = (isTInt x && isTInt y) || (isTBool x && isTBool y);
@@ -54,12 +77,39 @@ let eqM (x : Maybe[Typ]) (y : Maybe[Typ]) = isJust[Typ] x && isJust[Typ] y && eq
 let printMV (x : Maybe[Value]) = if isJust[Value] x then printV (toValue x) else "NoValue";
 let printMT (x : Maybe[Typ])   = if isJust[Typ]   x then printT (toTyp x)   else "NoType";
 
+-- Binary operations
 sig BinaryAlg[B] where
  add : B, sub : B, gt : B, eq : B, ane : B, or : B;
+
+-- evaluation and type-checking of binary operations: this approach will not work if we want extensible types and values
+
 type EvalB   = { eval   : Maybe[Value] -> Maybe[Value] -> Maybe[Value] };
 type TcheckB = { tcheck : Maybe[Typ]   -> Maybe[Typ]   -> Maybe[Typ]   };
+
+-- Problem 1: We need something similar to pattern matching notation for Values?
+-- Solution: we need to support a notation similar to pattern matching for fdata.
+
+-- Problem 2: evalBinary assumes that Values are not extensible (example we cannot add String values 
+-- later on). How to deal with extensible values.
+-- Solution: We need to use algebra transformations if we want the definition to be extensible.
+
+{-
+type EvalB[V]   = { eval   : Maybe[V] -> Maybe[V] -> Maybe[V] };
+
+let evalBinary [V] (alg : ValueAlg[V]) : BinaryAlg[V] = { 
+  add = \x. \y. {eval = alg.intV }
+
+let evalBinaryExt [V] (alg : ExtenValueAlg[V]) : ExtendedBinaryAlg[V] = {... alg.string()}
+-}
+
+-- Algebras should take parameters, probably: algebra evalBinary V (alg : ValueAlg[V], n : int) implements BinaryAlg[EvalB[V]]
+
 algebra evalBinary implements BinaryAlg[EvalB] where
-  eval@(add) = \(x : Maybe[Value]) -> \(y : Maybe[Value]) -> let x1 = toValue x; let y1 = toValue y;
+  eval@(add) = \(x : Maybe[Value]) -> \(y : Maybe[Value]) -> 
+--                 case (x,y) of 
+--                    | (Just (IntV v1), Just (IntV v2)) -> Just (IntV (v1 + v2))
+--                    | _ -> Nothing 
+               let x1 = toValue x; let y1 = toValue y;
                if isJust[Value] x && isJust[Value] y && isInt x1 && isInt y1 then Just[Value] (intV (toInt x1 + toInt y1)) else Nothing[Value],
   eval@(sub) = \(x : Maybe[Value]) -> \(y : Maybe[Value]) -> let x1 = toValue x; let y1 = toValue y;
                if isJust[Value] x && isJust[Value] y && isInt x1 && isInt y1 then Just[Value] (intV (toInt x1 - toInt y1)) else Nothing[Value],
@@ -92,6 +142,8 @@ algebra printBinary implements BinaryAlg[IPrint] where
   print@(ane) = "&&",
   print@(or)  = "||";
 fdata Binary from BinaryAlg[B].B;
+
+-- We should not be writing the following auxiliary functions by hand
 let apply2E (op : Binary) (x : Maybe[Value]) (y : Maybe[Value]) = (op.accept[EvalB]   evalBinary  ).eval   x y;
 let apply2T (op : Binary) (x : Maybe[Typ])   (y : Maybe[Typ])   = (op.accept[TcheckB] tcheckBinary).tcheck x y;
 let print2 (op : Binary) = (op.accept[IPrint] printBinary).print;
@@ -150,6 +202,11 @@ algebra tcheckExp implements ExpAlg[TcheckE] where
   tcheck@(decl x y z)    = \(t : TEnv) -> z.tcheck (addToTEnv x (y.tcheck t) t),
   tcheck@(ifbody x y z)  = \(t : TEnv) -> let x1 = x.tcheck t; let y1 = y.tcheck t; let z1 = z.tcheck t;
                                           if isJust[Typ] x1 && isTBool (toTyp x1) && eqM y1 z1 then y1 else Nothing[Typ];
+
+
+-- Code for simple pretty printer looks good!
+-- However, lets suppose we wanted to make the pretty printer prettier by using extra parameters (for indentation, etc...). 
+
 algebra printExp implements ExpAlg[IPrint] where
   print@(literal x)     = printV x,
   print@(unary op x)    = "\{print1 op}(\{x.print})",
