@@ -4,9 +4,11 @@ import           BackEnd (module2java)
 import qualified ClosureF as C
 import           Core
 import qualified Src as S
-import           Unsafe.Coerce (unsafeCoerce)
 
+import           Data.Binary (encode, decode)
+import qualified Data.ByteString.Lazy as B
 import qualified Language.Java.Syntax as J (Op(..))
+import           Unsafe.Coerce (unsafeCoerce)
 
 instance Show (Expr t e) where
   show = show . prettyExpr . unsafeCoerce
@@ -21,7 +23,7 @@ instance Show (C.Module t e) where
   show = show . C.prettyMod . unsafeCoerce
 
 {-
-module;
+module M1;
 
 def f1 (n : Int) = n + 1;
 
@@ -41,10 +43,26 @@ m1 = Mod "M1"
                (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
                (\f2 -> Def "f3" javaIntS one (\f3 -> Null))))
 
+{-
+module M2;
+
+def f1 = /\A -> \ (x : A) -> x;
+
+-}
+
+m2 :: Module t e
+m2 =
+  Mod "M2"
+      (Def "f1"
+           (S.Forall "A"
+                     (S.Fun (S.TVar "A")
+                            (S.TVar "A")))
+           (bLam (\t ->
+                    (lam (tVar t)
+                         (\x -> var x))))
+           (\f1 -> Null))
+
 printModule m = module2java m >>= putStrLn
-
-
-m2 = Let "a" one (\a -> Let "b" zero (\b -> var a `add` var b))
 
 tailFact :: Expr t e
 tailFact
