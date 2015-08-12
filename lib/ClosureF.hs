@@ -53,8 +53,6 @@ data Type t =
 data Definition t e = Def S.Name S.Type (Expr t e) (e -> Definition t e)
                     | Null
 
-data Module t e = Mod S.Name (Definition t e)
-
 data Expr t e =
      Var S.ReaderId e
    | FVar Int
@@ -70,6 +68,8 @@ data Expr t e =
    -- fixpoints
    | LetRec [S.ReaderId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
    | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
+   -- Module
+   | Module S.Name (Definition t e)
    -- Java
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
@@ -130,12 +130,8 @@ CTApp (fexp2cexp e) (ftyp2ctyp t)
 -}
 
 
-fmod2cmod :: C.Module t e -> Module t e
-fmod2cmod (C.Mod fname defs) = Mod fname (fdef2cdef defs)
-
 fdef2cdef :: C.Definition t e -> Definition t e
-fdef2cdef (C.Def fname typ e def) = Def fname typ (fexp2cexp e)
-                                      (\d -> fdef2cdef (def d))
+fdef2cdef (C.Def fname typ e def) = Def fname typ (fexp2cexp e) (\d -> fdef2cdef (def d))
 fdef2cdef C.Null = Null
 
 fexp2cexp :: C.Expr t e -> Expr t e
@@ -153,6 +149,7 @@ fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (map fexp2cexp . f )
 fexp2cexp (C.Fix n1 n2 f t1 t2) =
   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
   in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
+fexp2cexp (C.Module m defs) = Module m (fdef2cdef defs)
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
@@ -296,9 +293,6 @@ prettyType _ _ CFCharacter = text "Character"
 prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
 prettyType p i (Datatype n tvars _) = hsep $ text n : map (prettyType p i) tvars
 
-prettyMod :: Module Index Index -> Doc
-prettyMod (Mod name defs) = text "Module" <+> text name <> semi <$> prettyDef basePrec (0, 0) defs
-
 prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
 prettyDef p (i, j) (Def fname typ e def) =
   text "def" <+> (prettyVar j) <+> colon <+> pretty typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
@@ -383,6 +377,8 @@ prettyExpr p (i, j) (Fix _ _ t f) =
   backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$>
   prettyEScope p (i, succ j) (f j)) <$>
   text ")"
+
+prettyExpr p i (Module name defs) = text "Module" <+> text name <> semi <$> prettyDef p i defs
 
 prettyExpr p i (JNew name l) = parens (text "new" <+> text name <> tupled (map (prettyExpr p i) l))
 

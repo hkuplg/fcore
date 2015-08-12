@@ -78,9 +78,8 @@ data Translate m =
     ,chooseCastBox :: Type Int -> m (String -> J.Exp -> J.BlockStmt,J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
     ,genClosureVar :: Bool -> Int -> TransJavaExp -> m J.Exp
-    ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)
     ,transDefs :: Definition Int (Var,Type Int) -> m [J.BlockStmt]
-    ,createModule :: Module Int (Var,Type Int) -> m (J.CompilationUnit)}
+    ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
 
 -- needed
 getTupleClassName :: [a] -> String
@@ -151,6 +150,10 @@ getNewVarName :: MonadState Int m => Translate m -> m String
 getNewVarName _ = do (n :: Int) <- get
                      put (n + 1)
                      return $ localvarstr ++ show n
+
+isModule :: Expr t e -> Bool
+isModule (Module{}) = True
+isModule _ = False
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self =
@@ -291,6 +294,11 @@ trans self =
                    translateApply this False
                                   (translateM this e1)
                                   (translateM this e2)
+
+              -- Module
+              Module m defs -> do defStmts <- transDefs this defs
+                                  return (defStmts, var tempvarstr, Unit)
+
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
               JNew c args ->
                 do args' <- mapM (translateM this) args
@@ -632,11 +640,16 @@ trans self =
                                _ -> return $ Just objClassTy)
        ,createWrap =
           \nam expr ->
-            do (bs,e,t) <- translateM this expr
-               returnType <- applyRetType this t
-               let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
-               let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody
-               return (createCUB this [mainDecl],t)
+              do (bs,e,t) <- translateM this expr
+                 if isModule expr then do let defClass = J.ClassTypeDecl
+                                                        (classDecl [J.Public] nam
+                                                        (classBody (map (J.MemberDecl . makeStatic . localToMemberClass)
+                                                                        bs)))
+                                          return (createCUB this [defClass], Unit)
+                 else do returnType <- applyRetType this t
+                         let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
+                         let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody
+                         return (createCUB this [mainDecl],t)
 
        ,transDefs =
          \ defs -> case defs of
@@ -652,9 +665,4 @@ trans self =
                           return (bs ++ [xDecl] ++ otherDefStmts)
                      Null -> return []
 
-       ,createModule =
-          \(Mod mname defs) ->
-            do defStmts <- transDefs this defs
-               let defClass = J.ClassTypeDecl (classDecl [J.Public] mname (classBody (map (J.MemberDecl . makeStatic . localToMemberClass) defStmts)))
-               return (createCUB this [defClass])
        }

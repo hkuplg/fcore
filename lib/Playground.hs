@@ -21,11 +21,6 @@ instance Show (Expr t e) where
 instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
-instance Show (Module t e) where
-  show = show . prettyMod . unsafeCoerce
-
-instance Show (C.Module t e) where
-  show = show . C.prettyMod . unsafeCoerce
 
 source2tc :: String -> IO S.CheckedExpr
 source2tc src = case reader src of
@@ -45,8 +40,7 @@ source2tc src = case reader src of
 
 
 
-m1src = "module M1 { f1 (n : String) = 1; f2 (n : Int) = f1 n + 1}"
-m2src = "let f1 (n : Int) = n + 1 and f2 (n : Int) = f1 n + 1; f2 3"
+m1src = "module M1 { f1 (n : Int) = 1; f2 (n : Int) = f1 n + 1}"
 
 {-
 module M1;
@@ -68,8 +62,8 @@ M1.f1 3
 
 javaIntS = (S.JType (S.JClass "java.lang.Integer"))
 
-m1 :: Module t e
-m1 = Mod "M1"
+m1 :: Expr t e
+m1 = Module "M1"
        (Def "f1" (javaIntS `S.Fun` javaIntS) fact
           (\f1 ->
              Def
@@ -85,9 +79,9 @@ def f1 = /\A -> \ (x : A) -> x;
 
 -}
 
-m2 :: Module t e
+m2 :: Expr t e
 m2 =
-  Mod "M2"
+  Module "M2"
       (Def "f1"
            (S.Forall "A"
                      (S.Fun (S.TVar "A")
@@ -97,9 +91,9 @@ m2 =
                          (\x -> var x))))
            (\f1 -> Null))
 
-m3 :: Module t e
+m3 :: Expr t e
 m3 =
-  Mod "M3"
+  Module "M3"
       (Def "f1"
            (S.Product [javaIntS, javaIntS])
            (Tuple [one, zero])

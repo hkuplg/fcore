@@ -21,7 +21,6 @@ module Core
   , Constructor(..)
   , DataBind(..)
   , Definition(..)
-  , Module(..)
   , alphaEq
   , mapTVar
   , mapVar
@@ -37,7 +36,6 @@ module Core
   , bLam
   , prettyType
   , prettyExpr
-  , prettyMod
   , javaInt
   ) where
 
@@ -66,8 +64,6 @@ data Type t
 
 data Definition t e = Def Src.Name Src.Type (Expr t e) (e -> Definition t e)
                     | Null
-
-data Module t e = Mod Src.Name (Definition t e)
 
 data Expr t e
   = Var Src.ReaderId e
@@ -100,6 +96,9 @@ data Expr t e
 
   | Tuple [Expr t e]     -- Tuple introduction
   | Proj Int (Expr t e)  -- Tuple elimination
+
+  -- Module
+  | Module Src.Name (Definition t e)
 
   -- Java
   | JNew ClassName [Expr t e]
@@ -171,6 +170,12 @@ mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f (h c)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Error ty str)            = Error (h ty) (mapVar g h str)
+mapVar g h (Module m defs)           = Module m (mapVarDef g h defs)
+
+-- Necessary?
+mapVarDef :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Definition t e -> Definition t e
+mapVarDef g h (Def name typ expr def) = Def name typ (mapVar g h expr) (mapVarDef g h . def)
+mapVarDef _ _ Null = Null
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
 fsubstTT x r = mapTVar (\n a -> if a == x then r else TVar n a)
@@ -249,13 +254,10 @@ prettyType' _ _ (JClass c)                     = text c
 -- instance Pretty (Expr Index Index) where
 --   pretty = prettyExpr
 
-prettyMod :: Module Index Index -> Doc
-prettyMod (Mod name defs) = text "Module" <+> text name <> semi <$> prettyDef defs
-
 prettyDef :: Definition Index Index -> Doc
 prettyDef (Def fname typ e def) =
   text "def" <+> text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr e <> semi <$>
-  prettyDef (def 0)
+  prettyDef (def 0) -- crappy pretty printer
 prettyDef Null = text ""
 
 prettyExpr :: Expr Index Index -> Doc
@@ -310,6 +312,8 @@ prettyExpr' _ (i,j) (Tuple es) = tupled (map (prettyExpr' basePrec (i,j)) es)
 prettyExpr' p i (Proj n e) =
   parensIf p 5
     (prettyExpr' (5,PrecMinus) i e <> dot <> char '_' <> int n)
+
+prettyExpr' _ _ (Module name defs) = text "Module" <+> text name <> semi <$> prettyDef defs
 
 prettyExpr' _ (i,j) (JNew c args) =
   parens (text "new" <+> text c <> tupled (map (prettyExpr' basePrec (i,j)) args))
