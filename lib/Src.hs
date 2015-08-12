@@ -152,7 +152,8 @@ data Expr id ty
   | RecordCon [(Label, LExpr id ty)]
   | RecordProj (LExpr id ty) Label
   | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
-  | LetModule (Module id ty) (LExpr id ty)
+  | EModule (Module id ty) (Expr id ty)
+  | EModuleOut Name [(Name, Type, LExpr (Name,Type) Type)]  -- Post typecheck only
   | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
       Name         -- T         -- Name of type constructor

@@ -3,11 +3,16 @@ module Playground where
 import           BackEnd (module2java)
 import qualified ClosureF as C
 import           Core
+import           Parser (reader, P(..))
 import qualified Src as S
+import           System.Exit
+import           TypeCheck (typeCheck)
+
 
 import           Data.Binary (encode, decode)
 import qualified Data.ByteString.Lazy as B
 import qualified Language.Java.Syntax as J (Op(..))
+import           Text.PrettyPrint.ANSI.Leijen
 import           Unsafe.Coerce (unsafeCoerce)
 
 instance Show (Expr t e) where
@@ -22,6 +27,27 @@ instance Show (Module t e) where
 instance Show (C.Module t e) where
   show = show . C.prettyMod . unsafeCoerce
 
+source2tc :: String -> IO S.CheckedExpr
+source2tc src = case reader src of
+                     PError msg -> do putStrLn msg
+                                      exitFailure
+                     POk parsed -> do result <- typeCheck parsed
+                                      case result of
+                                        Left typeError -> do print (pretty typeError)
+                                                             exitFailure
+                                        Right (_, checked) -> return checked
+
+-- source2tc :: String -> IO S.ReaderExpr
+-- source2tc src = case reader src of
+--                      PError msg -> do putStrLn msg
+--                                       exitFailure
+--                      POk parsed -> do return parsed
+
+
+
+m1src = "module M1 { f1 (n : String) = 1; f2 (n : Int) = f1 n + 1}"
+m2src = "let f1 (n : Int) = n + 1 and f2 (n : Int) = f1 n + 1; f2 3"
+
 {-
 module M1;
 
@@ -31,11 +57,20 @@ def f2 (n : Int) = f1 n + 1;
 
 -}
 
+{-
+
+import M1;
+import M2;
+
+M1.f1 3
+
+-}
+
 javaIntS = (S.JType (S.JClass "java.lang.Integer"))
 
 m1 :: Module t e
 m1 = Mod "M1"
-       (Def "f1" (javaIntS `S.Fun` javaIntS) (lam javaInt (\n -> var n `add` one))
+       (Def "f1" (javaIntS `S.Fun` javaIntS) fact
           (\f1 ->
              Def
                "f2"
@@ -62,6 +97,14 @@ m2 =
                          (\x -> var x))))
            (\f1 -> Null))
 
+m3 :: Module t e
+m3 =
+  Mod "M3"
+      (Def "f1"
+           (S.Product [javaIntS, javaIntS])
+           (Tuple [one, zero])
+           (\f1 -> Null))
+
 printModule m = module2java m >>= putStrLn
 
 tailFact :: Expr t e
@@ -85,7 +128,7 @@ fact = fix (\f n -> If (var n `eq` zero)
                        one
                        (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
-           (javaInt `Fun` javaInt)
+           javaInt
 
 
 test1 :: Expr t e

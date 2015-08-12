@@ -395,6 +395,13 @@ checkExpr (L loc (Let rec_flag binds e)) =
 
 checkExpr (L loc LetOut{}) = panic "TypeCheck.infer: LetOut"
 
+checkExpr (L loc (EModule (Module m binds) _)) =
+  do checkDupNames (map bindId binds)
+     binds' <- normalizeBindAndAccum binds
+     return (Unit, L loc $ EModuleOut m binds')
+
+checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
+
 --  Case           Possible interpretations
 --  ---------------------------------------
 --  e.x            Field access, record elim
@@ -523,10 +530,10 @@ checkExpr (L loc (RecordUpdate e fs)) =
      return (t, L loc $ RecordUpdate e' (zip (map fst fs) es'))
 
 -- Well, I know the desugaring is too early to happen here...
-checkExpr (L loc (LetModule (Module m binds) e)) =
-  do let fs = map bindId binds
-     let letrec = L loc $ Let Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
-     checkExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
+-- checkExpr (L loc (LetModule (Module m binds) e)) =
+--   do let fs = map bindId binds
+--      let letrec = L loc $ Let Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
+--      checkExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
 checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
 
 -- Type synonyms: type T A1 ... An = t in e
@@ -795,6 +802,21 @@ collectBindIdSigs
                            wrap Forall bindTyParams $
                            wrap Fun [expandType d' ty |  (_,ty) <- bindParams] $
                            expandType d' tyAscription))
+
+-- | Normalize later bindings with typing contexts augmented with
+-- previous bindings
+normalizeBindAndAccum :: [ReaderBind] -> Checker [(Name, Type, CheckedExpr)]
+normalizeBindAndAccum = normalize []
+  where
+    normalize :: [(Name, Type, CheckedExpr)]
+              -> [ReaderBind]
+              -> Checker [(Name, Type, CheckedExpr)]
+    normalize binds [] = return (reverse binds)
+    normalize binds (b:bs) = do
+      let env = map (\(a, b, c) -> (a, b)) binds
+      binds' <- withLocalVars env (normalizeBind b)
+      normalize (binds' : binds) bs
+
 
 -- | Check that a type has kind *.
 checkType :: Type -> Checker ()

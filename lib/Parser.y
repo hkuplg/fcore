@@ -37,7 +37,7 @@ import Control.Monad.State
   ")"      { L _ Tcparen }
   "["      { L _ Tobrack }
   "]"      { L _ Tcbrack }
-  "::"     { L _ Tdcolon }
+  -- "::"     { L _ Tdcolon }
   "{"      { L _ Tocurly }
   "}"      { L _ Tccurly }
   "/\\"    { L _ Ttlam }
@@ -238,7 +238,7 @@ expr :: { ReaderExpr }
     | "data" recflag and_databinds ";" expr        { Data $2 $3 $5 `withLoc` $1 }
     | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
-    | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
+    | module                              { EModule (unLoc $1) (Lit UnitLit) `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
 
 semi_exprs :: { [ReaderExpr] }
@@ -400,7 +400,7 @@ databind :: { DataBind }
 
 semi_binds :: { [ReaderBind] }
     : bind                      { [$1]  }
-    | bind ";" and_binds      { $1:$3 }
+    | bind ";" semi_binds       { $1:$3 }
 
 maybe_ty_ascription :: { Maybe ReaderType }
   : ":" type     { Just $2 }
