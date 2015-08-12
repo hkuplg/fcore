@@ -9,7 +9,8 @@ import qualified Src as S
 import           System.Exit
 import qualified SystemFI as FI
 import           TypeCheck (typeCheck)
-
+import qualified OptiUtils (Exp(Hide))
+import Simplify  (simplify)
 
 import           Data.Binary (encode, decode)
 import qualified Data.ByteString.Lazy as B
@@ -24,15 +25,20 @@ instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
 
-source2tc :: String -> IO ()
-source2tc src = case reader src of
-                     PError msg -> do putStrLn msg
-                                      exitFailure
-                     POk parsed -> do result <- typeCheck parsed
-                                      case result of
-                                        Left typeError -> do print (pretty typeError)
-                                                             exitFailure
-                                        Right (_, checked) -> print (FI.prettyExpr . desugar $ checked)
+
+src2test :: String -> IO (Expr t e)
+src2test source
+  = case reader source of
+      PError msg -> do putStrLn msg
+                       exitFailure
+      POk parsed -> do
+        result <- typeCheck parsed
+        case result of
+          Left typeError -> do print (pretty typeError)
+                               exitFailure
+          Right (_, checked) ->
+            do let fiExpr = desugar checked
+               return ((simplify (FI.HideF fiExpr)))
 
 m1src = "module M1 { f1 (n : Int) = 1; num = 3; f2 (n : Int) = f1 num + 1}"
 

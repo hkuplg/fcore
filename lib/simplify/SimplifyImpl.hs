@@ -117,6 +117,11 @@ transExpr i j (FI.If e1 e2 e3)             = If e1' e2' e3'
 transExpr i j (FI.PrimOp e1 op e2)         = PrimOp (transExpr i j e1) op (transExpr i j e2)
 transExpr i j (FI.Tuple es)                = Tuple . map (transExpr i j) $ es
 transExpr i j (FI.Proj index e)            = Proj index $ transExpr i j e
+transExpr i j (FI.Module m defs) = Module m $ transDefs i j defs
+  where
+    transDefs i j (FI.Def n (t, t') expr def) = Def n t (transExpr i j expr)
+                                            (\x -> transDefs i (j + 1) $ def (x, t'))
+    transDefs _ _ FI.Null = Null
 transExpr i j (FI.JNew c es)               = JNew c . map (transExpr i j) $ es
 transExpr i j (FI.JMethod c m arg ret)     = JMethod (fmap (transExpr i j) c) m (map (transExpr i j) arg) ret
 transExpr i j (FI.JField c m ret)          = JField (fmap (transExpr i j) c) m (transType i ret)
@@ -283,6 +288,11 @@ dedeBruE i as j xs (PrimOp e1 op e2)              = PrimOp
                                                       (dedeBruE i as j xs e1) op
                                                       (dedeBruE i as j xs e2)
 dedeBruE i as j xs (Tuple es)                     = Tuple (map (dedeBruE i as j xs) es)
+dedeBruE i as j xs (Module m defs) = Module m (dedeBruDefs i as j xs defs)
+  where
+    dedeBruDefs i as j xs (Def n t expr def) = Def n t (dedeBruE i as j xs expr)
+                                                 (\f -> dedeBruDefs i as (j + 1) (f : xs) (def j))
+    dedeBruDefs _ _ _ _ Null = Null
 dedeBruE i as j xs (Proj index e)                 = Proj index (dedeBruE i as j xs e)
 dedeBruE i as j xs (JNew c args)                  = JNew c (map (dedeBruE i as j xs) args)
 dedeBruE i as j xs (JMethod callee m args r)      = JMethod

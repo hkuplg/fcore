@@ -211,7 +211,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
 
 desugarBindsToDefs :: (TVarMap t, VarMap t e) -> [(Name, Type, CheckedExpr)] -> F.Definition t e
 desugarBindsToDefs _ [] = F.Null
-desugarBindsToDefs (d, g) ((n, t, e):bs) = F.Def n t (desugarExpr (d, g) e)
+desugarBindsToDefs (d, g) ((n, t, e):bs) = F.Def n (t, transType d t) (desugarExpr (d, g) e)
                                              (\f ->
                                                 desugarBindsToDefs (d, Map.insert n (F.Var n f) g) bs)
 

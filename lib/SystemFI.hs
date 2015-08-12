@@ -63,7 +63,7 @@ data Type t
     -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
     -- George if you're not sure.
 
-data Definition t e = Def Src.Name Src.Type (Expr t e) (e -> Definition t e)
+data Definition t e = Def Src.Name (Src.Type, Type t) (Expr t e) (e -> Definition t e)
                     | Null
 
 data Expr t e
@@ -264,7 +264,7 @@ prettyType' _ i (RecordType (l,t)) = lbrace <+> text l <+> colon <+> prettyType'
 --   pretty = prettyExpr
 
 prettyDef :: Definition Index Index -> Doc
-prettyDef (Def fname typ e def) =
+prettyDef (Def fname (typ, _) e def) =
   text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr e <> semi <$>
   prettyDef (def 0) -- crappy pretty printer
 prettyDef Null = text ""
