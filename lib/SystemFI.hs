@@ -18,6 +18,7 @@ module SystemFI
   , Constructor(..)
   , Alt(..)
   , DataBind(..)
+  , Definition(..)
 --, TypeContext
 --, ValueContext
 --, Index
@@ -264,7 +265,7 @@ prettyType' _ i (RecordType (l,t)) = lbrace <+> text l <+> colon <+> prettyType'
 
 prettyDef :: Definition Index Index -> Doc
 prettyDef (Def fname typ e def) =
-  text "def" <+> text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr e <> semi <$>
+  text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr e <> semi <$>
   prettyDef (def 0) -- crappy pretty printer
 prettyDef Null = text ""
 

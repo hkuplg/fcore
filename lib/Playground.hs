@@ -3,9 +3,11 @@ module Playground where
 import           BackEnd (module2java)
 import qualified ClosureF as C
 import           Core
+import           Desugar (desugar)
 import           Parser (reader, P(..))
 import qualified Src as S
 import           System.Exit
+import qualified SystemFI as FI
 import           TypeCheck (typeCheck)
 
 
@@ -22,7 +24,7 @@ instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
 
-source2tc :: String -> IO S.CheckedExpr
+source2tc :: String -> IO ()
 source2tc src = case reader src of
                      PError msg -> do putStrLn msg
                                       exitFailure
@@ -30,25 +32,18 @@ source2tc src = case reader src of
                                       case result of
                                         Left typeError -> do print (pretty typeError)
                                                              exitFailure
-                                        Right (_, checked) -> return checked
+                                        Right (_, checked) -> print (FI.prettyExpr . desugar $ checked)
 
--- source2tc :: String -> IO S.ReaderExpr
--- source2tc src = case reader src of
---                      PError msg -> do putStrLn msg
---                                       exitFailure
---                      POk parsed -> do return parsed
-
-
-
-m1src = "module M1 { f1 (n : Int) = 1; f2 (n : Int) = f1 n + 1}"
+m1src = "module M1 { f1 (n : Int) = 1; num = 3; f2 (n : Int) = f1 num + 1}"
 
 {-
-module M1;
+module M1 {
 
-def f1 (n : Int) = n + 1;
+f1 (n : Int) = n + 1;
 
-def f2 (n : Int) = f1 n + 1;
+f2 (n : Int) = f1 n + 1;
 
+}
 -}
 
 {-

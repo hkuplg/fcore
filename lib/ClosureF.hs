@@ -295,7 +295,7 @@ prettyType p i (Datatype n tvars _) = hsep $ text n : map (prettyType p i) tvars
 
 prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
 prettyDef p (i, j) (Def fname typ e def) =
-  text "def" <+> (prettyVar j) <+> colon <+> pretty typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
+  (prettyVar j) <+> colon <+> pretty typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
   prettyDef p (i, succ j) (def j)
 prettyDef _ _ Null = text ""
 
