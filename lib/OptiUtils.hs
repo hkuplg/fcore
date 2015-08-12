@@ -85,6 +85,11 @@ joinExpr (JMethod jc m es cn) =
   JMethod (fmap joinExpr jc) m (map joinExpr es) cn
 joinExpr (JField jc fn cn) = JField (fmap joinExpr jc) fn cn
 joinExpr (Seq es) = Seq (map joinExpr es)
+joinExpr (Module m defs) = Module m (joinDefs defs)
+
+joinDefs :: Definition t (Expr t e) -> Definition t e
+joinDefs Null = Null
+joinDefs (Def n t expr def) = Def n t (joinExpr expr) (joinDefs . def . Var n)
 
 mapExpr :: (Expr t e -> Expr t e) -> Expr t e -> Expr t e
 mapExpr f e =
@@ -105,6 +110,7 @@ mapExpr f e =
       PrimOp e1 op e2 -> PrimOp (f e1) op (f e2)
       Tuple es -> Tuple $ map f es
       Proj i e' -> Proj i (f e')
+      Module m defs -> Module m (mapDefs defs)
       JNew cname es -> JNew cname (map f es)
       JMethod cnameOrE mname es cname -> JMethod (fmap f cnameOrE) mname (map f es) cname
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
@@ -115,6 +121,9 @@ mapExpr f e =
          where mapAlt (ConstrAlt ctr e1) = ConstrAlt ctr (f e1)
                mapAlt (Default e1) = Default (f e1)
       Seq es -> Seq $ map f es
+  where mapDefs (Def n t expr def) = Def n t (mapExpr f expr) (mapDefs . def)
+        mapDefs Null = Null
+
 
 rewriteExpr :: (Int -> Map.Map Int e -> Expr t Int -> Expr t e) -> Int -> Map.Map Int e -> Expr t Int -> Expr t e
 rewriteExpr f num env expr =
@@ -139,6 +148,7 @@ rewriteExpr f num env expr =
    PrimOp e1 op e2 -> PrimOp (f num env e1) op (f num env e2)
    Tuple es -> Tuple (map (f num env) es)
    Proj n e -> Proj n (f num env e)
+   Module m defs -> Module m (rewriteDefs num env defs)
    JNew n es -> JNew n (map (f num env) es)
    JMethod e b es d -> JMethod (fmap (f num env) e) b (map (f num env) es) d
    JField e a b -> JField (fmap (f num env) e) a b
@@ -150,6 +160,10 @@ rewriteExpr f num env expr =
  where
    rewriteAlt (ConstrAlt ctr e) = ConstrAlt ctr (f num env e)
    rewriteAlt (Default e)       = Default (f num env e)
+
+   rewriteDefs _ _  Null = Null
+   rewriteDefs num env (Def n t expr def) = Def n t (rewriteExpr f num env expr)
+                                                    (\e -> rewriteDefs (num + 1) (Map.insert num e env) (def num))
 
 newtype Exp = Hide {reveal :: forall t e. Expr t e}
 
