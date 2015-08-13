@@ -144,7 +144,7 @@ data Expr id ty
   -- elim), while the former cannot.
 
   | JNew ClassName [LExpr id ty]
-  | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName
+  | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName -- `ClassName` is the return (Java) type
   | JField  (JCallee (LExpr id ty)) FieldName            Type
   | Seq [LExpr id ty]
   | PolyList [LExpr id ty]
