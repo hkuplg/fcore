@@ -6,7 +6,7 @@ Lexer.hs
 Parser.hs
 Parser.info
 
-runtime/
+runtime/build
 runtime.jar
 
 # Ignore generated Java source files

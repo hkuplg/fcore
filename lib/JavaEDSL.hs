@@ -20,7 +20,7 @@ intTy :: Type
 intTy = PrimType IntT
 
 closureType :: Type
-closureType = classTy (namespace ++ "Closure")
+closureType = classTy closureClass
 
 objClassTy :: Type
 objClassTy = classTy "Object"
