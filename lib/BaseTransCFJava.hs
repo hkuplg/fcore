@@ -549,7 +549,7 @@ trans self =
                                                    n
                                                    False
                                                    closureType
-                    let innerclassdef = localClassDecl (closureTransName ++ show n) closureClass classbody
+                    let innerclassdef = localClassDecl (closureTransName ++ show n) ifoClass classbody
                     let funInst = localVar closureType (varDecl (localvarstr ++ show n) (funInstCreate n))
                     return ([innerclassdef, funInst], var (localvarstr ++ show n))
        ,transAlts =

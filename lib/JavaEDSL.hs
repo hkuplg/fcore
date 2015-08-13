@@ -20,7 +20,7 @@ intTy :: Type
 intTy = PrimType IntT
 
 closureType :: Type
-closureType = classTy closureClass
+closureType = classTy ifoClass
 
 objClassTy :: Type
 objClassTy = classTy "Object"
