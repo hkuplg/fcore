@@ -81,15 +81,16 @@ unwrap x = case x of
             Left (Name xs) -> ExpName . Name $ xs
             Right e -> Lit e
 
-localToMemberClass :: BlockStmt -> MemberDecl
-localToMemberClass (LocalClass t) = MemberClassDecl t
-localToMemberClass (LocalVars modi typ decls) = FieldDecl modi typ decls
-localToMemberClass _ = error "parameter should be a local class"
+localToMember :: BlockStmt -> Decl
+localToMember (LocalClass t) = MemberDecl (MemberClassDecl t)
+localToMember (LocalVars modi typ decls) = MemberDecl (FieldDecl modi typ decls)
+localToMember b@(BlockStmt{}) = InitDecl True (Block [b])
 
-makeStatic :: MemberDecl -> MemberDecl
-makeStatic (MemberClassDecl (ClassDecl modi i t r rs body)) = MemberClassDecl (ClassDecl (Static : modi) i t r rs body)
-makeStatic (FieldDecl modi typ decls) = FieldDecl (Static : modi) typ decls
-makeStatic _ = error "makeStatic: impossible happened!"
+makeStatic :: Decl -> Decl
+makeStatic (MemberDecl (MemberClassDecl (ClassDecl modi i t r rs body)))
+  = MemberDecl (MemberClassDecl (ClassDecl (Static : modi) i t r rs body))
+makeStatic (MemberDecl (FieldDecl modi typ decls)) = MemberDecl (FieldDecl (Static : modi) typ decls)
+makeStatic e = e
 
 -- method
 

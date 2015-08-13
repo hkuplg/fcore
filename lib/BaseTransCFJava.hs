@@ -413,7 +413,7 @@ trans self =
                         let datatypeclass =
                              [localClass ("Datatype" ++ show n)
                                          (classBody ( memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
-                                                      map (memberDecl . localToMemberClass) databindclass ++
+                                                      map localToMember databindclass ++
                                                       [J.InitDecl False (block $ databindproxy ++ s' ++ [assign (name [tempvarstr]) (unwrap e')])]
                                                     ))
                              ,localVar (classTy ("Datatype" ++ show n))
@@ -643,7 +643,7 @@ trans self =
               do (bs,e,t) <- translateM this expr
                  if isModule expr then do let defClass = J.ClassTypeDecl
                                                         (classDecl [J.Public] nam
-                                                        (classBody (map (J.MemberDecl . makeStatic . localToMemberClass)
+                                                        (classBody (map (makeStatic . localToMember)
                                                                         bs)))
                                           return (createCUB this [defClass], Unit)
                  else do returnType <- applyRetType this t
