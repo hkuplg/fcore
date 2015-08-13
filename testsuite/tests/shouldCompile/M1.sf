@@ -1,0 +1,9 @@
+module M1 {
+
+f1 (n : Int) = n + 1;
+
+num = 3;
+
+f2 (n : Int) = f1 n + 1
+
+
