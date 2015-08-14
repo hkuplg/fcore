@@ -17,6 +17,7 @@ module JavaUtils
   , compileJava, runJava
   , inferOutputPath, inferClassName
   , ClassName, MethodName, FieldName
+  , ModuleName
   ) where
 
 import StringUtils (capitalize)
@@ -28,6 +29,7 @@ import System.Process (system)
 type ClassName  = String
 type MethodName = String
 type FieldName  = String
+type ModuleName = String
 
 getRuntimeJarPath :: IO FilePath
 getRuntimeJarPath =

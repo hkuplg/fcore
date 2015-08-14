@@ -114,6 +114,7 @@ data TypeError
   | NoSuchConstructor ClassName [ClassName]
   | NoSuchMethod      (JCallee ClassName) MethodName [ClassName]
   | NoSuchField       (JCallee ClassName) FieldName
+  | ImportFail        ModuleName
   deriving (Show)
 
 type LTypeErrorExpr = Located (TypeError, Maybe ReaderExpr)
@@ -401,6 +402,11 @@ checkExpr (L loc (EModule (Module m binds) _)) =
      return (Unit, L loc $ EModuleOut m binds')
 
 checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
+
+checkExpr (L loc (EImport (Import m) e)) =
+  do infos <- checkModuleFunction m
+     (t, e') <- withLocalVars (map (\info -> (minfo_name info, minfo_signature info)) infos) (checkExpr e)
+     return (t, e')
 
 --  Case           Possible interpretations
 --  ---------------------------------------
@@ -874,6 +880,14 @@ checkFieldAccess callee f
          Just return_class -> return return_class
     where
        (static_flag, c) = unwrapJCallee callee
+
+checkModuleFunction :: ModuleName -> Checker [ModuleInfo]
+checkModuleFunction m =
+  do typeserver <- getTypeServer
+     res <- liftIO (getModuleInfo typeserver m)
+     case res of
+       Nothing -> throwError (noExpr $ ImportFail m)
+       Just ret -> return ret
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)

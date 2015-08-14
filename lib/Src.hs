@@ -15,7 +15,7 @@ Portability :  portable
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Src
-  ( Module(..), ReaderModule
+  ( Module(..), ReaderModule, Import(..), ReaderImport
   , Kind(..)
   , Type(..), ReaderType
   , Expr(..), ReaderExpr, CheckedExpr, LExpr
@@ -78,6 +78,8 @@ type Label      = Name
 -- Modules.
 data Module id ty = Module id [Bind id ty] deriving (Eq, Show)
 type ReaderModule = Located (Module Name Type)
+data Import id = Import id deriving (Eq, Show)
+type ReaderImport = Located (Import Name)
 
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
@@ -104,11 +106,11 @@ data Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `compatible` and `subtype` below.
-  deriving (Eq, Show, Data, Typeable)
+  deriving (Eq, Show, Data, Typeable, Read)
 
 type ReaderType = Type
 
-data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
+data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable, Read)
 
 type LExpr id ty = Located (Expr id ty)
 
@@ -147,6 +149,7 @@ data Expr id ty
   | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
   | EModule (Module id ty) (Expr id ty)
   | EModuleOut Name [(Name, Type, LExpr (Name,Type) Type)]  -- Post typecheck only
+  | EImport (Import id) (LExpr id ty)
   | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
       Name         -- T         -- Name of type constructor
@@ -475,6 +478,8 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
+  pretty (EModule (Module n bs) e) = text "module" <+> pretty n <+> text "{" <> foldl (\v x -> v <$> pretty x) empty bs <$> text "}" <$> pretty e
+  pretty (EImport (Import n) e) = text "import" <+> pretty n <$> pretty e
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where

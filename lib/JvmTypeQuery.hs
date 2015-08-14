@@ -3,12 +3,21 @@ module JvmTypeQuery
   , hasConstructor
   , methodTypeOf
   , fieldTypeOf
+  , getModuleInfo
+  , ModuleInfo(..)
   ) where
 
-import JavaUtils (ClassName, MethodName, FieldName)
+import JavaUtils (ClassName, MethodName, FieldName, ModuleName)
 
 import System.IO           (hPutStrLn, hGetLine, Handle)
 import Data.Char           (isSpace, toLower)
+import Src                 (Type)
+import Data.Maybe          (listToMaybe)
+
+data ModuleInfo = ModuleInfo {
+  minfo_name :: String,
+  minfo_gname :: String,
+  minfo_signature :: Type } deriving (Show)
 
 sendRecv :: (Handle, Handle) -> [String] -> IO String
 sendRecv (to, from) args =
@@ -53,3 +62,23 @@ fieldTypeOf h c (f, is_static)
     tag = if is_static
              then "qStaticField"
              else "qField"
+
+getModuleInfo
+  :: (Handle, Handle)
+  -> ModuleName
+  -> IO (Maybe [ModuleInfo])
+getModuleInfo h m
+  = do s <- sendRecv h ["qModuleInfo", m] >>= fixRet
+       case s of
+        Nothing -> return Nothing
+        Just xs -> return $ listToModuleInfo (wordsWhen (== '$') xs)
+    where wordsWhen p s =  case dropWhile p s of
+                            "" -> []
+                            s' -> w : wordsWhen p s''
+                              where (w, s'') = break p s'
+          maybeRead = fmap fst . listToMaybe . reads
+          listToModuleInfo [] = return []
+          listToModuleInfo (x:y:z:xs) = do xs' <- listToModuleInfo xs
+                                           ty' <- maybeRead z :: Maybe Type
+                                           return $ ModuleInfo x y ty' : xs'
+          listToModuleInfo _ = Nothing

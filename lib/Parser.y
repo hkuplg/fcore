@@ -80,6 +80,7 @@ import Control.Monad.State
   "new"     { L _ Tnew }
 
   "module"  { L _ Tmodule }
+  "import"  { L _ Timport }
 
   INT      { L _ (Tint _) }
   SCHAR    { L _ (Tschar _) }
@@ -142,6 +143,9 @@ module :: { ReaderModule }
 
 module_name :: { LReaderId }
   : UPPER_IDENT  { toString $1 `withLoc` $1 }
+
+import :: { ReaderImport }
+  : "import" module_name  { Import (unLoc $2) `withLoc` $1 }
 
 ------------------------------------------------------------------------
 -- Types
@@ -239,6 +243,7 @@ expr :: { ReaderExpr }
     | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
     | module                              { EModule (unLoc $1) (Lit UnitLit) `withLoc` $1 }
+    | import ";" expr                     { EImport (unLoc $1) $3 `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
 
 semi_exprs :: { [ReaderExpr] }
