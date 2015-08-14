@@ -42,6 +42,7 @@ import JvmTypeQuery
 import Panic
 
 import Text.PrettyPrint.ANSI.Leijen
+
 import System.IO
 import Control.Monad.Except
 
@@ -427,7 +428,7 @@ checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
 checkExpr (L loc (EImport (Import m) e)) =
   do infos <- checkModuleFunction m
      withLocalMVars (map flatInfo infos) (checkExpr e)
-       where flatInfo (ModuleInfo f g t) = (f, (t, g, m)) 
+       where flatInfo (ModuleInfo f g t) = (f, (t, g, m))
 
 --  Case           Possible interpretations
 --  ---------------------------------------
