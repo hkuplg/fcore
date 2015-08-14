@@ -1,1 +1,3 @@
-M3.sub (M4.id[Int] 3) (M4.id[Int] 4)
+import M3;
+import M4;
+sub (id[Int] 3) (id[Int] 4)

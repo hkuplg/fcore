@@ -1,2 +1,4 @@
-add (a: Int) (b: Int): Int = a + b
-id = /\A -> \(x: A) -> x
+module M2 {
+    add (a: Int) (b: Int): Int = a + b;
+    id = /\A -> \(x: A) -> x
+}
