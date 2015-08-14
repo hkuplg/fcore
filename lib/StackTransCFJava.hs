@@ -213,6 +213,7 @@ transS this super =
                       mainbody <- stackMainBody (up this) t
                       let stackDecl =
                             wrapperClass
+                              False
                               nam
                               (bs ++
                                -- (if containsNext bs then [] else [empyClosure']) ++

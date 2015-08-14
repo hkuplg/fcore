@@ -22,6 +22,7 @@ module JavaUtils
 
 import StringUtils (capitalize)
 
+import Control.Monad (when)
 import System.Directory (setCurrentDirectory, getCurrentDirectory, getTemporaryDirectory)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, (</>), (<.>), dropExtension, searchPathSeparator)
 import System.Process (system)
@@ -58,12 +59,12 @@ compileJava srcPath
        system ("javac -cp " ++ cp ++ " " ++ srcPath)
        return ()
 
-runJava :: FilePath -> IO ()
-runJava srcPath = do
+runJava :: Bool -> FilePath -> IO ()
+runJava keepClass srcPath = do
     currDir <- getCurrentDirectory
     let workDir = takeDirectory srcPath
     setCurrentDirectory workDir
     cp <- getClassPath
     system $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
-    -- system "rm *.class"
+    when (not keepClass) $ system "rm *.class" >> return ()
     setCurrentDirectory currDir

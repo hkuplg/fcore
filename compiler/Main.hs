@@ -42,6 +42,7 @@ import           System.IO
 data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
+    , optKeepClass     :: Bool
     , optSourceFiles   :: [String]
     , optModules       :: [String]
     , optDump          :: DumpOption
@@ -90,6 +91,11 @@ optionsSpec =
              name "r" &=
              name "run" &=
              help "Compile & run Java source"
+          ,optKeepClass =
+             False &= explicit &=
+             name "k" &=
+             name "keep" &=
+             help "Keep generated .class files"
           ,optDump =
              NoDump &= explicit &=
              name "d" &=
@@ -133,36 +139,35 @@ main = do
   Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
 
   -- Write the bytes of runtime.jar to temp directory
+  -- TODO: don't need to write every time invoking f2j
   writeRuntimeToTemp
+
   forM_ optSourceFiles (\source_path ->
-    do let source_path_new = if null optModules then source_path else takeBaseName source_path ++ "c.sf"
-       let output_path      = inferOutputPath source_path_new
+    do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod
            modList          = optModules
            sort_and_rmdups  = map head . group . sort . (++) [Naive]
        opts <- getOpt (sort_and_rmdups translate_method)
-       unless (null optModules) $
-         do cont <- Link.linkModule modList
-            let content = Link.namespace cont
-            putStrLn "Linking..."
-            Link.link source_path content
-            putStrLn (source_path_new ++ " generated!")
-       putStrLn (takeBaseName source_path_new ++ " using " ++ show (sort_and_rmdups translate_method))
+       -- unless (null optModules) $
+       --   do cont <- Link.linkModule modList
+       --      let content = Link.namespace cont
+       --      putStrLn "Linking..."
+       --      Link.link source_path content
+       --      putStrLn (source_path_new ++ " generated!")
+       putStrLn (takeBaseName source_path ++ " using " ++ show (sort_and_rmdups translate_method))
        putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
 
-       source     <- readFile source_path_new
+       source     <- readFile source_path
        coreExpr   <- source2core optDump source
        javaSource <- core2java False optInline optDump opts (inferClassName output_path) coreExpr
        writeFile output_path javaSource
-       --let closureClassDef = closureClass opts
-       --writeFile "Closure.java" (prettyPrint closureClassDef)
 
        when (optCompile || optCompileAndRun) $
          do when optVerbose (putStrLn "  Compiling to Java bytecode")
             compileJava output_path
        when optCompileAndRun $
          do when optVerbose $ do { putStr "  Running Java\n  Output: "; hFlush stdout }
-            runJava output_path)
+            runJava optKeepClass output_path)
 
 getOpt :: [TransMethod] -> IO Compilation
 getOpt translate_method = case translate_method of

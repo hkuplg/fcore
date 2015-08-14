@@ -639,15 +639,13 @@ trans self =
        ,createWrap =
           \nam expr ->
               do (bs,e,t) <- translateM this expr
-                 if isModule expr then do let defClass = J.ClassTypeDecl
-                                                        (classDecl [J.Public] nam
-                                                        (classBody (map (makeStatic . localToMember)
-                                                                        bs)))
-                                          return (createCUB this [defClass], Unit)
-                 else do returnType <- applyRetType this t
-                         let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
-                         let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody
-                         return (createCUB this [mainDecl],t)
+                 returnType <- applyRetType this t
+                 let flag = isModule expr
+                 let javaCode = if isModule expr
+                                then wrapperClass flag nam bs returnType moduleMainBody
+                                else let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
+                                     in wrapperClass flag nam (bs ++ returnStmt) returnType mainBody
+                 return (createCUB this [javaCode], t)
 
        ,transDefs =
          \ defs -> case defs of

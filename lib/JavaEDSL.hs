@@ -250,16 +250,25 @@ mainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
                                                 "println"
                                                 [left $ var "apply()"]])
 
-wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
-wrapperClass className stmts returnType mainbodyDef  =
+moduleMainBody :: Maybe Block
+moduleMainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
+                                                "println"
+                                                [Lit (String "Module generated")]])
+
+wrapperClass :: Bool -> String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
+wrapperClass isModule className stmts returnType mainbodyDef =
   ClassTypeDecl
-    (classDecl [Public]
-               className
-               (classBody (applyMethod : [mainMethod])))
-  where body = Just (block stmts)
-        applyMethod = memberDecl $ methodDecl [Static] returnType "apply" [] body
-        -- testMethod = memberDecl $ methodDecl [Public,Static] returnType "test" testArgType testBodyDef
-        mainMethod  = memberDecl $ methodDecl [Public,Static] Nothing "main" mainArgType mainbodyDef
+    (classDecl [Public] className
+       (classBody
+          (if isModule
+             then defClasses ++ [mainMethod]
+             else applyMethod : [mainMethod])))
+  where
+    body = Just (block stmts)
+    applyMethod = memberDecl $ methodDecl [Static] returnType "apply" [] body
+    defClasses = map (makeStatic . localToMember) stmts
+    -- testMethod = memberDecl $ methodDecl [Public,Static] returnType "test" testArgType testBodyDef
+    mainMethod = memberDecl $ methodDecl [Public, Static] Nothing "main" mainArgType mainbodyDef
 
 annotation :: String -> Modifier
 annotation ann = Annotation MarkerAnnotation {annName = Name [Ident ann]}

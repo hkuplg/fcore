@@ -8,11 +8,12 @@ module JvmTypeQuery
   ) where
 
 import JavaUtils (ClassName, MethodName, FieldName, ModuleName)
+import Src (Type)
 
-import System.IO           (hPutStrLn, hGetLine, Handle)
-import Data.Char           (isSpace, toLower)
-import Src                 (Type)
-import Data.Maybe          (listToMaybe)
+import Data.Char (isSpace, toLower)
+import Data.Maybe (listToMaybe)
+import System.IO (hPutStrLn, hGetLine, Handle)
+import System.Process (system)
 
 data ModuleInfo = ModuleInfo {
   minfo_name :: String,
@@ -67,8 +68,10 @@ getModuleInfo
   :: (Handle, Handle)
   -> ModuleName
   -> IO (Maybe [ModuleInfo])
+-- Also automatically compile imported modules
 getModuleInfo h m
-  = do s <- sendRecv h ["qModuleInfo", m] >>= fixRet
+  = do system $ "f2j -r -k " ++ m ++ ".sf" -- FIXME: hackish
+       s <- sendRecv h ["qModuleInfo", m] >>= fixRet
        case s of
         Nothing -> return Nothing
         Just xs -> return $ listToModuleInfo (wordsWhen (== '$') xs)
