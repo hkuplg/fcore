@@ -15,7 +15,6 @@ library
   build-depends:        ansi-wl-pprint == 0.6.*
                       , array == 0.5.*
                       , base == 4.*
-                      , binary == 0.7.*
                       , bytestring == 0.10.*
                       , cmdargs == 0.10.*
                       , containers == 0.5.*

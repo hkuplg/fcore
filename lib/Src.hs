@@ -13,7 +13,6 @@ Portability :  portable
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
-{-# LANGUAGE DeriveGeneric #-}
 
 module Src
   ( Module(..), ReaderModule
@@ -66,8 +65,6 @@ import Data.Data
 import Data.List (intersperse, findIndex, nub)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import Data.Binary
-import GHC.Generics (Generic)
 
 import Prelude hiding ((<$>))
 
@@ -107,15 +104,11 @@ data Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `compatible` and `subtype` below.
-  deriving (Eq, Show, Data, Typeable, Generic)
-
-instance Binary Type
+  deriving (Eq, Show, Data, Typeable)
 
 type ReaderType = Type
 
-data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable, Generic)
-
-instance Binary JVMType
+data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
 
 type LExpr id ty = Located (Expr id ty)
 

@@ -26,8 +26,6 @@ import           MonadLib hiding (Alt)
 import           Panic
 import qualified Src as S
 import           StringPrefixes
-
-import           Data.Binary (encode)
 import           Data.Char (toLower)
 import           Data.List (elemIndex)
 
@@ -660,7 +658,7 @@ trans self =
                           otherDefStmts <- transDefs this (otherDef (n, t))
                           let x = localvarstr ++ show n
                           typ <- javaType this t
-                          let anno = normalAnno fname x (show . encode $ srcTyp)
+                          let anno = normalAnno fname x (show srcTyp)
                           let xDecl = localVarWithAnno anno typ (varDecl x $ unwrap e)
                           return (bs ++ [xDecl] ++ otherDefStmts)
                      Null -> return []

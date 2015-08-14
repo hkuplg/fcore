@@ -12,8 +12,6 @@ import           TypeCheck (typeCheck)
 import qualified OptiUtils (Exp(Hide))
 import Simplify  (simplify)
 
-import           Data.Binary (encode, decode)
-import qualified Data.ByteString.Lazy as B
 import qualified Language.Java.Syntax as J (Op(..))
 import           Text.PrettyPrint.ANSI.Leijen
 import           Unsafe.Coerce (unsafeCoerce)
