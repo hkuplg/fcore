@@ -23,7 +23,7 @@ module Src
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
   , Name, ReaderId, CheckedId, LReaderId
-  , TypeValue(..), TypeContext, ValueContext
+  , TypeValue(..), TypeContext, ValueContext, ModuleContext
   , DataBind(..)
   , groupForall
   , expandType
@@ -226,7 +226,7 @@ data TypeValue
 
 type TypeContext  = Map.Map ReaderId (Kind, TypeValue) -- Delta
 type ValueContext = Map.Map ReaderId Type              -- Gamma
-
+type ModuleContext = Map.Map ReaderId (Type, ReaderId, ReaderId) -- Sigma
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
 -- Used in `compatible` and `subtype`.

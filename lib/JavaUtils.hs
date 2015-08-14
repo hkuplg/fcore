@@ -65,5 +65,5 @@ runJava srcPath = do
     setCurrentDirectory workDir
     cp <- getClassPath
     system $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
-    system "rm *.class"
+    -- system "rm *.class"
     setCurrentDirectory currDir

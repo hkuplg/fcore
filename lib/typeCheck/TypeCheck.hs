@@ -72,6 +72,7 @@ data TcEnv
   = TcEnv
   { tceTypeContext     :: TypeContext
   , tceValueContext    :: ValueContext
+  , tceModuleContext   :: ModuleContext
   , tceTypeserver   :: Connection
   , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
@@ -81,6 +82,7 @@ mkInitTcEnv type_server
   = TcEnv
   { tceTypeContext     = Map.empty
   , tceValueContext    = Map.empty
+  , tceModuleContext   = Map.empty
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -91,6 +93,7 @@ mkInitTcEnvWithEnv value_ctxt type_server
   = TcEnv
   { tceTypeContext     = Map.empty
   , tceValueContext    = value_ctxt
+  , tceModuleContext   = Map.empty
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -186,6 +189,9 @@ getTypeContext = liftM tceTypeContext getTcEnv
 getValueContext :: Checker ValueContext
 getValueContext = liftM tceValueContext getTcEnv
 
+getModuleContext :: Checker ModuleContext
+getModuleContext = liftM tceModuleContext getTcEnv
+
 getTypeServer :: Checker (Handle, Handle)
 getTypeServer = liftM tceTypeserver getTcEnv
 
@@ -220,6 +226,18 @@ withLocalVars vars do_this
        r <- do_this
        TcEnv {..} <- getTcEnv
        setTcEnv TcEnv { tceValueContext = gamma, ..}
+       return r
+
+withLocalMVars :: [(ReaderId, (Type, ReaderId, ReaderId))]-> Checker a -> Checker a
+withLocalMVars vars do_this
+  = do sigma <- getModuleContext
+       let sigma' = Map.fromList vars `Map.union` sigma
+                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
+       TcEnv {..} <- getTcEnv
+       setTcEnv TcEnv { tceModuleContext = sigma', ..}
+       r <- do_this
+       TcEnv {..} <- getTcEnv
+       setTcEnv TcEnv { tceModuleContext = sigma, ..}
        return r
 
 type TypeSubstitution = Map.Map Name Type
@@ -281,9 +299,12 @@ hasKindStar d t
 checkExpr :: ReaderExpr -> Checker (Type, CheckedExpr)
 checkExpr e@(L loc (Var name))
   = do value_ctxt <- getValueContext
+       module_ctxt <- getModuleContext
        case Map.lookup name value_ctxt of
          Just t  -> return (t, L loc $ Var (name,t))
-         Nothing -> throwError (NotInScope name `withExpr` e)
+         Nothing -> case Map.lookup name module_ctxt of
+                     Just (t, g, m) -> return (t, L loc $ JField (Static $ m ++ "$") g t)
+                     Nothing -> throwError (NotInScope name `withExpr` e)
 
 checkExpr (L loc (Lit lit)) = return (srcLitType lit, L loc $ Lit lit)
 
@@ -405,8 +426,8 @@ checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
 
 checkExpr (L loc (EImport (Import m) e)) =
   do infos <- checkModuleFunction m
-     (t, e') <- withLocalVars (map (\info -> (minfo_name info, minfo_signature info)) infos) (checkExpr e)
-     return (t, e')
+     withLocalMVars (map flatInfo infos) (checkExpr e)
+       where flatInfo (ModuleInfo f g t) = (f, (t, g, m)) 
 
 --  Case           Possible interpretations
 --  ---------------------------------------
