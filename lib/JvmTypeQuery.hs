@@ -13,7 +13,7 @@ import Src (Type)
 import Data.Char (isSpace, toLower)
 import Data.Maybe (listToMaybe)
 import System.IO (hPutStrLn, hGetLine, Handle)
-import System.Process (system)
+import System.Process (callCommand)
 
 data ModuleInfo = ModuleInfo {
   minfo_name :: String,
@@ -70,7 +70,7 @@ getModuleInfo
   -> IO (Maybe [ModuleInfo])
 -- Also automatically compile imported modules
 getModuleInfo h m
-  = do system $ "f2j -r -k " ++ m ++ ".sf" -- FIXME: hackish
+  = do callCommand $ "f2j -r -k " ++ m ++ ".sf" -- FIXME: hackish
        s <- sendRecv h ["qModuleInfo", m] >>= fixRet
        case s of
         Nothing -> return Nothing
