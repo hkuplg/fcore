@@ -43,24 +43,16 @@ rewrite0' :: Map.Map Int e -> Expr t Int -> Int -> Expr t e
 rewrite0' env e@(LetRec names [Fun t1 t2] binds expr) num =
   case head (binds [num]) of
     Lam _ _ body ->
-      Let (head names)
-          (fix (\f arg ->
-                  rewrite0' (Map.insert (num + 1)
-                                        arg
-                                        (Map.insert num f env))
-                            (body (num + 1))
-                            (num + 2))
-               t1
-               t2)
-          (\es ->
-             rewrite0' (Map.insert num es env)
-                       (expr [num])
-                       (num + 1))
+      Let
+        (head names)
+        (fix
+           (\f arg ->
+              rewrite0' (Map.insert (num + 1) arg (Map.insert num f env)) (body (num + 1)) (num + 2))
+           t1
+           t2)
+        (\es -> rewrite0' (Map.insert num es env) (expr [num]) (num + 1))
     _ ->
-      rewriteExpr (swap1_3 rewrite0')
-                  num
-                  env
-                  e
+      rewriteExpr (swap1_3 rewrite0') num env e
 rewrite0' env t num = rewriteExpr (swap1_3 rewrite0') num env t
 
 -- Rule 2: let x = e in x                 =>  e

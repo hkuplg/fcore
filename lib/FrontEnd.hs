@@ -19,13 +19,13 @@ source2core optDump source
       PError msg -> do putStrLn msg
                        exitFailure
       POk parsed -> do
-        when (optDump == DumpParsed) $ print (pretty parsed)
+        when (optDump == Parsed) $ print (pretty parsed)
         result <- typeCheck parsed
         case result of
           Left typeError -> do print (pretty typeError)
                                exitFailure
           Right (_, checked) ->
-            do when (optDump == DumpTChecked) $ print (pretty checked)
+            do when (optDump == TChecked) $ print (pretty checked)
                let fiExpr = desugar checked
-               when (optDump == DumpCore) $ print (FI.prettyExpr fiExpr)
+               when (optDump == SystemFI) $ print (FI.prettyExpr fiExpr)
                return (OptiUtils.Hide (simplify (FI.HideF fiExpr)))

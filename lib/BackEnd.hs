@@ -20,7 +20,6 @@ module BackEnd
     -- , compileAoptUnbox
     -- , compileSU
     , core2java
-    , module2java
     , DumpOption(..)
     ) where
 
@@ -51,11 +50,11 @@ import           Prelude hiding (exp)
 
 data DumpOption
   = NoDump
-  | DumpParsed
-  | DumpTChecked
-  | DumpCore
-  | DumpSimpleCore
-  | DumpClosureF
+  | Parsed
+  | TChecked
+  | SystemFI
+  | SimpleCore
+  | ClosureF
     deriving (Eq, Show, Data, Typeable)
 
 -- Naive translation
@@ -163,9 +162,9 @@ core2java supernaive optInline optDump compilation className closedCoreExpr =
              1 -> inliner rewrittenCore
              2 -> inliner . inliner $ rewrittenCore
              _ -> rewrittenCore
-     when (optDump == DumpSimpleCore) $
+     when (optDump == SimpleCore) $
        print (Core.prettyExpr rewrittenCore)
-     when (optDump == DumpClosureF) $
+     when (optDump == ClosureF) $
        print (ClosureF.prettyExpr basePrec
                                   (0,0)
                                   (fexp2cexp inlinedCore))
@@ -175,10 +174,6 @@ core2java supernaive optInline optDump compilation className closedCoreExpr =
                                (reveal closedCoreExpr)
               else compilation className inlinedCore
      return $ prettyPrint cu
-
--- | Module to Java (for test)
-module2java :: Core.Expr Int (Var, Type Int) -> IO String
-module2java  = return . prettyPrint . fst . compileN "M1"
 
 type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)
 
