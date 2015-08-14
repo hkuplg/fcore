@@ -26,7 +26,6 @@ import           FrontEnd (source2core)
 import           BackEnd
 import           JavaUtils
 import           MonadLib
-import           Link
 
 import qualified Data.ByteString as B
 import           Data.FileEmbed (embedFile)
@@ -44,7 +43,6 @@ data Options = Options
     , optCompileAndRun :: Bool
     , optKeepClass     :: Bool
     , optSourceFiles   :: [String]
-    , optModules       :: [String]
     , optDump          :: DumpOption
     , optTransMethod   :: [TransMethod]
     , optVerbose       :: Bool
@@ -106,12 +104,6 @@ optionsSpec =
           ,optSourceFiles =
              [] &= args &=
              typ "SOURCE FILES"
-          ,optModules =
-             [] &= explicit &=
-             name "l" &=
-             name "module" &=
-             typ "MODULE" &=
-             help "Link modules to the source file"
           ,optTransMethod =
              [] &= explicit &=
              name "m" &=
@@ -145,15 +137,9 @@ main = do
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod
-           modList          = optModules
            sort_and_rmdups  = map head . group . sort . (++) [Naive]
        opts <- getOpt (sort_and_rmdups translate_method)
-       -- unless (null optModules) $
-       --   do cont <- Link.linkModule modList
-       --      let content = Link.namespace cont
-       --      putStrLn "Linking..."
-       --      Link.link source_path content
-       --      putStrLn (source_path_new ++ " generated!")
+
        putStrLn (takeBaseName source_path ++ " using " ++ show (sort_and_rmdups translate_method))
        putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
 

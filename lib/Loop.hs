@@ -15,10 +15,8 @@ Portability :  portable
 module Loop where
 
 import System.Console.Haskeline
--- import System.TimeIt
 import System.CPUTime
 import System.Directory                 (removeFile, doesFileExist)
-import System.FilePath                  (dropExtension)
 
 import Control.Monad.Except             (liftIO)
 import Control.Concurrent               (threadDelay)
@@ -38,7 +36,6 @@ import ParseCMD
 import FileIO
 import qualified Environment as Env
 import qualified History as Hist
-import Link
 
 #ifdef Z3
 -- #if MIN_VERSION_z3(0,3,2)
@@ -125,15 +122,15 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                   Just filename -> liftIO (wrapFlag handle opt flagC flagT flagS filename)
                   Nothing       ->  outputStrLn "Invalid input"
                 loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
-          ":link" -> do
-                let (list1,modList) = splitAt 2 xs
-                let file = head list1
-                content <- liftIO (Link.linkModule modList)
-                outputStrLn "Linking..."
-                liftIO (Link.link file content)
-                let newFile = (dropExtension file) ++ "c.sf"
-                outputStrLn (newFile ++ " generated!")
-                loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
+          -- ":link" -> do
+          --       let (list1,modList) = splitAt 2 xs
+          --       let file = head list1
+          --       content <- liftIO (Link.linkModule modList)
+          --       outputStrLn "Linking..."
+          --       liftIO (Link.link file content)
+          --       let newFile = (dropExtension file) ++ "c.sf"
+          --       outputStrLn (newFile ++ " generated!")
+          --       loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
 
 #ifdef Z3
           ":se" -> do
@@ -349,8 +346,8 @@ printHelp = do
         putStrLn "Commands:"
         putStrLn ":help                 Display help manual"
         putStrLn ":run <sourceFile>     Compile and run sourceFile"
-        putStrLn ":link <sourceFile> -m <module1> <module2> ..."
-        putStrLn "                      Link sourceFile with modules"
+        -- putStrLn ":link <sourceFile> -m <module1> <module2> ..."
+        -- putStrLn "                      Link sourceFile with modules"
         putStrLn ":expr <sourceFile>    Show core expression of the file"
 #ifdef Z3
         putStrLn ":se <sourceFile> n    Symbolically evaluate the file"
