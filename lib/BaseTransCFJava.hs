@@ -294,8 +294,8 @@ trans self =
                                   (translateM this e2)
 
               -- Module
-              Module m defs -> do defStmts <- transDefs this defs
-                                  return (defStmts, var tempvarstr, Unit)
+              Module defs -> do defStmts <- transDefs this defs
+                                return (defStmts, var tempvarstr, Unit)
 
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
               JNew c args ->

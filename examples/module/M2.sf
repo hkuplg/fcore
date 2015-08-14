@@ -1,4 +1,4 @@
-module M2 {
+module {
     add (a: Int) (b: Int): Int = a + b;
     id = /\A -> \(x: A) -> x
 }

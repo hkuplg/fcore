@@ -139,7 +139,7 @@ import Control.Monad.State
 ------------------------------------------------------------------------
 
 module :: { ReaderModule }
-  : "module" module_name "{" semi_binds "}"  { Module (unLoc $2) $4 `withLoc` $1 }
+  : "module" "{" semi_binds "}"  { Module $3 `withLoc` $1 }
 
 module_name :: { LReaderId }
   : UPPER_IDENT  { toString $1 `withLoc` $1 }

@@ -69,7 +69,7 @@ data Expr t e =
    | LetRec [S.ReaderId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
    | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
    -- Module
-   | Module S.Name (Definition t e)
+   | Module (Definition t e)
    -- Java
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
@@ -149,7 +149,7 @@ fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (map fexp2cexp . f )
 fexp2cexp (C.Fix n1 n2 f t1 t2) =
   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
   in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
-fexp2cexp (C.Module m defs) = Module m (fdef2cdef defs)
+fexp2cexp (C.Module defs) = Module (fdef2cdef defs)
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
@@ -378,7 +378,7 @@ prettyExpr p (i, j) (Fix _ _ t f) =
   prettyEScope p (i, succ j) (f j)) <$>
   text ")"
 
-prettyExpr p i (Module name defs) = text "Module" <+> text name <> semi <$> prettyDef p i defs
+prettyExpr p i (Module defs) = text "Module" <> semi <$> prettyDef p i defs
 
 prettyExpr p i (JNew name l) = parens (text "new" <+> text name <> tupled (map (prettyExpr p i) l))
 

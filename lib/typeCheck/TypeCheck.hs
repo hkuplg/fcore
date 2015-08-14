@@ -418,10 +418,10 @@ checkExpr (L loc (Let rec_flag binds e)) =
 
 checkExpr (L loc LetOut{}) = panic "TypeCheck.infer: LetOut"
 
-checkExpr (L loc (EModule (Module m binds) _)) =
+checkExpr (L loc (EModule (Module binds) _)) =
   do checkDupNames (map bindId binds)
      binds' <- normalizeBindAndAccum binds
-     return (Unit, L loc $ EModuleOut m binds')
+     return (Unit, L loc $ EModuleOut binds')
 
 checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
 

@@ -76,7 +76,7 @@ type CheckedId = (ReaderId, Type)
 type Label      = Name
 
 -- Modules.
-data Module id ty = Module id [Bind id ty] deriving (Eq, Show)
+data Module id ty = Module [Bind id ty] deriving (Eq, Show)
 type ReaderModule = Located (Module Name Type)
 data Import id = Import id deriving (Eq, Show)
 type ReaderImport = Located (Import Name)
@@ -148,7 +148,7 @@ data Expr id ty
   | RecordProj (LExpr id ty) Label
   | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
   | EModule (Module id ty) (Expr id ty)
-  | EModuleOut Name [(Name, Type, LExpr (Name,Type) Type)]  -- Post typecheck only
+  | EModuleOut [(Name, Type, LExpr (Name,Type) Type)]  -- Post typecheck only
   | EImport (Import id) (LExpr id ty)
   | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
@@ -478,7 +478,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
-  pretty (EModule (Module n bs) e) = text "module" <+> pretty n <+> text "{" <> foldl (\v x -> v <$> pretty x) empty bs <$> text "}" <$> pretty e
+  pretty (EModule (Module bs) e) = text "module" <+> text "{" <> foldl (\v x -> v <$> pretty x) empty bs <$> text "}" <$> pretty e
   pretty (EImport (Import n) e) = text "import" <+> pretty n <$> pretty e
   pretty e = text (show e)
 

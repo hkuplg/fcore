@@ -85,7 +85,7 @@ joinExpr (JMethod jc m es cn) =
   JMethod (fmap joinExpr jc) m (map joinExpr es) cn
 joinExpr (JField jc fn cn) = JField (fmap joinExpr jc) fn cn
 joinExpr (Seq es) = Seq (map joinExpr es)
-joinExpr (Module m defs) = Module m (joinDefs defs)
+joinExpr (Module defs) = Module (joinDefs defs)
 
 joinDefs :: Definition t (Expr t e) -> Definition t e
 joinDefs Null = Null
@@ -110,7 +110,7 @@ mapExpr f e =
       PrimOp e1 op e2 -> PrimOp (f e1) op (f e2)
       Tuple es -> Tuple $ map f es
       Proj i e' -> Proj i (f e')
-      Module m defs -> Module m (mapDefs defs)
+      Module defs -> Module (mapDefs defs)
       JNew cname es -> JNew cname (map f es)
       JMethod cnameOrE mname es cname -> JMethod (fmap f cnameOrE) mname (map f es) cname
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
@@ -148,7 +148,7 @@ rewriteExpr f num env expr =
    PrimOp e1 op e2 -> PrimOp (f num env e1) op (f num env e2)
    Tuple es -> Tuple (map (f num env) es)
    Proj n e -> Proj n (f num env e)
-   Module m defs -> Module m (rewriteDefs num env defs)
+   Module defs -> Module (rewriteDefs num env defs)
    JNew n es -> JNew n (map (f num env) es)
    JMethod e b es d -> JMethod (fmap (f num env) e) b (map (f num env) es) d
    JField e a b -> JField (fmap (f num env) e) a b
