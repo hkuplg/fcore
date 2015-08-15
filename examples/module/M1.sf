@@ -1,3 +1,4 @@
 import M3;
+import M2;
 import M4;
-sub (id[Int] 3) (id[Int] 4)
+sub (add 4 5) (id [Int] 3)

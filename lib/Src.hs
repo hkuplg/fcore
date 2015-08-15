@@ -76,7 +76,7 @@ type CheckedId = (ReaderId, Type)
 type Label      = Name
 
 -- Modules.
-data Module id ty = Module [Bind id ty] deriving (Eq, Show)
+data Module id ty = Module [Import id] [Bind id ty] deriving (Eq, Show)
 type ReaderModule = Located (Module Name Type)
 data Import id = Import id deriving (Eq, Show)
 type ReaderImport = Located (Import Name)
@@ -399,6 +399,14 @@ instance Pretty Kind where
   pretty Star           = char '*'
   pretty (KArrow k1 k2) = parens (pretty k1 <+> text "=>" <+> pretty k2)
 
+instance (Pretty id, Show id, Pretty ty, Show ty) => Pretty (Module id ty) where
+  pretty (Module imps bs) = text "module" <+> text "{" <>
+                                              foldl (\v x -> v <$> pretty x) empty imps <>
+                                              foldl (\v x -> v <$> pretty x) empty bs <$> text "}"
+
+instance (Pretty id) => Pretty (Import id) where
+    pretty (Import id) = text "import" <+> pretty id
+
 instance Pretty Type where
   pretty (TVar a)     = text a
   pretty (JType (JClass "java.lang.Integer"))   = text "Int"
@@ -478,8 +486,8 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
-  pretty (EModule (Module bs) e) = text "module" <+> text "{" <> foldl (\v x -> v <$> pretty x) empty bs <$> text "}" <$> pretty e
-  pretty (EImport (Import n) e) = text "import" <+> pretty n <$> pretty e
+  pretty (EModule modu e) = pretty modu <$> pretty e
+  pretty (EImport imp e) = pretty imp <$> pretty e
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where

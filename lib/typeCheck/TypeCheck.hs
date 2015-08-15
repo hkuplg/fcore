@@ -418,17 +418,25 @@ checkExpr (L loc (Let rec_flag binds e)) =
 
 checkExpr (L loc LetOut{}) = panic "TypeCheck.infer: LetOut"
 
-checkExpr (L loc (EModule (Module binds) _)) =
-  do checkDupNames (map bindId binds)
-     binds' <- normalizeBindAndAccum binds
-     return (Unit, L loc $ EModuleOut binds')
+
+checkExpr (L loc (EModule (Module imps binds) _)) =
+  do
+    infoBinds <- collectModuleInfos imps
+    checkDupNames (map bindId binds)
+    binds' <- withLocalMVars infoBinds (normalizeBindAndAccum binds)
+    return (Unit, L loc $ EModuleOut binds')
+
+  where
+    collectModuleInfos [] = return []
+    collectModuleInfos (imp:imps) = do
+      info <- checkModuleFunction imp
+      fmap (++ info) (collectModuleInfos imps)
 
 checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
 
-checkExpr (L loc (EImport (Import m) e)) =
-  do infos <- checkModuleFunction m
-     withLocalMVars (map flatInfo infos) (checkExpr e)
-       where flatInfo (ModuleInfo f g t) = (f, (t, g, m))
+checkExpr (L loc (EImport imp e)) =
+  do infoBinds <- checkModuleFunction imp
+     withLocalMVars infoBinds (checkExpr e)
 
 --  Case           Possible interpretations
 --  ---------------------------------------
@@ -903,13 +911,17 @@ checkFieldAccess callee f
     where
        (static_flag, c) = unwrapJCallee callee
 
-checkModuleFunction :: ModuleName -> Checker [ModuleInfo]
-checkModuleFunction m =
-  do typeserver <- getTypeServer
-     res <- liftIO (getModuleInfo typeserver m)
-     case res of
-       Nothing -> throwError (noExpr $ ImportFail m)
-       Just ret -> return ret
+checkModuleFunction :: Import ModuleName -> Checker [(ReaderId, (Type, ReaderId, ModuleName))]
+checkModuleFunction (Import m) =
+  do
+    typeserver <- getTypeServer
+    res <- liftIO (getModuleInfo typeserver m)
+    case res of
+      Nothing  -> throwError (noExpr $ ImportFail m)
+      Just ret -> return (map flatInfo ret)
+
+  where
+    flatInfo (ModuleInfo f g t) = (f, (t, g, m))
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)

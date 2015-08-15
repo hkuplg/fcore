@@ -4,7 +4,7 @@ srcdir=lib
 testdir=testsuite
 
 .PHONY : compiler
-compiler : runtime dependencies
+compiler : runtime dependencies parsers
 	stack install
 
 .PHONY : smt
@@ -12,7 +12,7 @@ smt : runtime dependencies
 	$${CABAL=cabal}  install -f Z3
 
 .PHONY : test
-test : whitespace_test runtime
+test : whitespace_test runtime parsers
 	stack --no-terminal test
 
 .PHONY : whitespace_test

@@ -1,4 +1,4 @@
 module {
-    add (a: Int) (b: Int): Int = a + b;
-    id = /\A -> \(x: A) -> x
+    import M4;
+    add (a: Int) (b: Int): Int = id [Int] a +id [Int] b
 }
