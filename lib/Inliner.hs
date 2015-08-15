@@ -17,6 +17,7 @@ module Inliner where
 import OptiUtils
 import Core
 
+-- TODO: inline definitions inside module?
 inliner :: Expr t (Expr t e) -> Expr t e
 inliner (Var _ x) = x
 inliner (Lam n t1 e1) = Lam n t1 (inliner . e1 . var)

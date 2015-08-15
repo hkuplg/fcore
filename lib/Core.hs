@@ -63,6 +63,7 @@ data Type t
   | Datatype Src.ReaderId [Type t] [Src.ReaderId]
 
 data Definition t e = Def Src.Name Src.Type (Expr t e) (e -> Definition t e)
+                    | DefRec [Src.Name] [Src.Type] ([e] -> [Expr t e]) ([e] -> Definition t e)
                     | Null
 
 data Expr t e
@@ -175,6 +176,7 @@ mapVar g h (Module defs)           = Module (mapVarDef g h defs)
 -- Necessary?
 mapVarDef :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Definition t e -> Definition t e
 mapVarDef g h (Def name typ expr def) = Def name typ (mapVar g h expr) (mapVarDef g h . def)
+mapVarDef g h (DefRec names types exprs def) = DefRec names types (map (mapVar g h) . exprs) (mapVarDef g h . def)
 mapVarDef _ _ Null = Null
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
@@ -254,11 +256,27 @@ prettyType' _ _ (JClass c)                     = text c
 -- instance Pretty (Expr Index Index) where
 --   pretty = prettyExpr
 
-prettyDef :: Definition Index Index -> Doc
-prettyDef (Def fname typ e def) =
-  text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr e <> semi <$>
-  prettyDef (def 0) -- crappy pretty printer
-prettyDef Null = text ""
+prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
+prettyDef _ (i, j) (Def fname typ e def) =
+  text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr' basePrec (i, j + 1) e <> semi <$>
+  prettyDef basePrec (i, j+1) (def j) -- crappy pretty printer
+
+prettyDef p (i, j) (DefRec names sigs binds def) = vcat (intersperse (text "and") pretty_binds) <> semi <$> pretty_body
+  where
+    n = length sigs
+    ids = [i .. (i + n) - 1]
+    pretty_ids = map text names
+    pretty_sigs = map pretty sigs
+    pretty_defs = map (prettyExpr' p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3
+                     (\pretty_id pretty_sig pretty_def ->
+                        pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
+                     pretty_ids
+                     pretty_sigs
+                     pretty_defs
+    pretty_body = prettyDef p (i, j + n) (def ids)
+
+prettyDef _ _ Null = text ""
 
 prettyExpr :: Expr Index Index -> Doc
 prettyExpr = prettyExpr' basePrec (0, 0)
@@ -313,7 +331,7 @@ prettyExpr' p i (Proj n e) =
   parensIf p 5
     (prettyExpr' (5,PrecMinus) i e <> dot <> char '_' <> int n)
 
-prettyExpr' _ _ (Module defs) = text "Module" <> semi <$> prettyDef defs
+prettyExpr' p t (Module defs) = text "Module" <> semi <$> prettyDef p t defs
 
 prettyExpr' _ (i,j) (JNew c args) =
   parens (text "new" <+> text c <> tupled (map (prettyExpr' basePrec (i,j)) args))

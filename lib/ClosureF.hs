@@ -51,6 +51,7 @@ data Type t =
     | Datatype S.ReaderId [Type t] [S.ReaderId]
 
 data Definition t e = Def S.Name S.Type (Expr t e) (e -> Definition t e)
+                    | DefRec [S.Name] [S.Type] ([e] -> [Expr t e]) ([e] -> Definition t e)
                     | Null
 
 data Expr t e =
@@ -131,7 +132,8 @@ CTApp (fexp2cexp e) (ftyp2ctyp t)
 
 
 fdef2cdef :: C.Definition t e -> Definition t e
-fdef2cdef (C.Def fname typ e def) = Def fname typ (fexp2cexp e) (\d -> fdef2cdef (def d))
+fdef2cdef (C.Def fname typ e def) = Def fname typ (fexp2cexp e) (fdef2cdef . def)
+fdef2cdef (C.DefRec names types exprs def) = DefRec names types (map fexp2cexp . exprs) (fdef2cdef . def)
 fdef2cdef C.Null = Null
 
 fexp2cexp :: C.Expr t e -> Expr t e
@@ -145,7 +147,7 @@ fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2ce
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
 fexp2cexp (C.Let n bind body)        = Let n (fexp2cexp bind) (fexp2cexp . body)
-fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (map fexp2cexp . f ) (fexp2cexp . g)
+fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (map fexp2cexp . f) (fexp2cexp . g)
 fexp2cexp (C.Fix n1 n2 f t1 t2) =
   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
   in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
@@ -297,6 +299,19 @@ prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
 prettyDef p (i, j) (Def fname typ e def) =
   (prettyVar j) <+> colon <+> pretty typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
   prettyDef p (i, succ j) (def j)
+
+prettyDef p (i, j) (DefRec names sigs binds defs) = vcat (intersperse (text "and") pretty_binds) <> semi <$> pretty_body
+  where
+    n   = length sigs
+    ids = [i..(i+n-1)]
+    pretty_ids   = map prettyVar ids
+    pretty_sigs  = map pretty sigs
+    pretty_defs  = map (prettyExpr p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->
+                  pretty_id <+> colon <+> pretty_sig <+> equals <$> pretty_def)
+                  pretty_ids pretty_sigs pretty_defs
+    pretty_body  = prettyDef p (i, j + n) (defs ids)
+
 prettyDef _ _ Null = text ""
 
 prettyExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc

@@ -17,46 +17,6 @@ import qualified Src
 import qualified SystemFI as FI
 
 
--- simplify2 :: FI.Expr t e -> Expr t e
--- simplify2 (FI.Var n e) = Var n e
--- simplify2 (FI.Lit n) = Lit n
--- simplify2 (FI.Lam n t f) = Lam n (transType2 t) (\e -> simplify2 (f e))
--- simplify2 (FI.Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> simplify2 (f e1 e2)) (transType2 t1) (transType2 t2)
--- simplify2 (FI.Let n e f) = Let n (simplify2 e) (\e1 -> simplify2 (f e1))
--- simplify2 (FI.LetRec ns ts e1 e2) = LetRec ns (map transType2 ts) (\es1 -> map simplify2 (e1 es1)) (\es2 -> simplify2 (e2 es2))
--- simplify2 (FI.BLam n f) = BLam n (\t -> simplify2 (f t))
--- simplify2 (FI.App e1 e2) = App (simplify2 e1) (simplify2 e2)
--- simplify2 (FI.TApp e t) = TApp (simplify2 e) (transType2 t)
--- simplify2 (FI.If e1 e2 e3) = If (simplify2 e1) (simplify2 e2) (simplify2 e3)
--- simplify2 (FI.PrimOp e1 op e2) = PrimOp (simplify2 e1) op (simplify2 e2)
--- simplify2 (FI.Tuple es) = Tuple (map simplify2 es)
--- simplify2 (FI.Proj n e) = Proj n (simplify2 e)
--- simplify2 (FI.JNew n es) = JNew n (map simplify2 es)
--- simplify2 (FI.JMethod jc m es cn) =
---   JMethod (fmap simplify2 jc) m (map simplify2 es) cn
--- simplify2 (FI.JField jc fn cn) = JField (fmap simplify2 jc) fn cn
--- simplify2 (FI.Seq es) = Seq (map simplify2 es)
--- simplify2 (FI.Data name params ctrs e) = Data name params (map simplify2Ctr ctrs) (simplify2 e)
--- simplify2 (FI.Constr ctr es) = Constr (simplify2Ctr ctr) (map simplify2 es)
--- simplify2 (FI.Case e alts) = Case (simplify2 e) (map simplify2Alt alts)
---  where simplify2Alt (FI.ConstrAlt ctr vars f) = ConstrAlt (simplify2Ctr ctr) vars (simplify2 . f)
--- simplify2 _ = sorry "No"
-
--- simplify2Ctr :: FI.Constructor t -> Constructor t
--- simplify2Ctr (FI.Constructor name params) = Constructor name (map transType2 params)
-
--- transType2 :: FI.Type t -> Type t
--- transType2 (FI.TVar n t) = TVar n t
--- transType2 (FI.JClass n) = JClass n
--- transType2 (FI.Fun t1 t2) = Fun (transType2 t1) (transType2 t2)
--- transType2 (FI.Forall n f) = Forall n (\t -> transType2 (f t))
--- transType2 (FI.Product ts) = Product (map transType2 ts)
--- transType2 (FI.Unit) = Unit
--- transType2 (FI.Datatype n ts ns)  = Datatype n (map transType2 ts) ns
--- transType2 _ = sorry "No"
-
-
-
 joinExpr :: Expr t (Expr t e) -> Expr t e
 joinExpr (Var _ x) = x
 joinExpr (Lam n t1 e1) = Lam n t1 (joinExpr . e1 . Var n )
@@ -90,6 +50,8 @@ joinExpr (Module defs) = Module (joinDefs defs)
 joinDefs :: Definition t (Expr t e) -> Definition t e
 joinDefs Null = Null
 joinDefs (Def n t expr def) = Def n t (joinExpr expr) (joinDefs . def . Var n)
+joinDefs (DefRec names types exprs def) =
+  DefRec names types (map joinExpr . exprs . zipWith Var names) (joinDefs . def . zipWith Var names)
 
 mapExpr :: (Expr t e -> Expr t e) -> Expr t e -> Expr t e
 mapExpr f e =
@@ -122,6 +84,7 @@ mapExpr f e =
                mapAlt (Default e1) = Default (f e1)
       Seq es -> Seq $ map f es
   where mapDefs (Def n t expr def) = Def n t (mapExpr f expr) (mapDefs . def)
+        mapDefs (DefRec names types exprs def) = DefRec names types (map f . exprs) (mapDefs . def)
         mapDefs Null = Null
 
 
@@ -133,14 +96,13 @@ rewriteExpr f num env expr =
    Lam n t f' -> Lam n t (\e -> f (num + 1) (Map.insert num e env) (f' num))
    Fix n1 n2 f' t1 t2 -> Fix n1 n2 (\a b -> f (num + 2) (Map.insert (num + 1) b (Map.insert num a env)) (f' num (num + 1))) t1 t2
    Let n e f' -> Let n (f num env e) (\b -> f (num + 1) (Map.insert num b env) (f' num))
-   LetRec n t b f' -> LetRec n t (\bs ->
-                                   let len = length bs
-                                       bs' = b [num .. num + len - 1]
-                                   in map (f (num + len) (foldl' multInsert env (zip [num .. num + len - 1] bs))) bs')
-                                 (\es ->
-                                   let len = length es
-                                       es' = f' [num .. num + len - 1]
-                                   in f (num + len) (foldl' multInsert env (zip [num .. num + len - 1] es)) es')
+   LetRec n t b f' ->
+     let len = length n
+         range = [num .. num + len - 1]
+     in LetRec n t (\bs -> let bs' = b range
+                           in map (f (num + len) (foldl' multInsert env (zip range bs))) bs')
+                   (\es -> let es' = f' range
+                           in f (num + len) (foldl' multInsert env (zip range es)) es')
    BLam n f' -> BLam n (f num env . f')
    App e1 e2 -> App (f num env e1) (f num env e2)
    TApp e t -> TApp (f num env e) t
@@ -163,13 +125,23 @@ rewriteExpr f num env expr =
 
    rewriteDefs _ _  Null = Null
    rewriteDefs num env (Def n t expr def) = Def n t (rewriteExpr f num env expr)
-                                                    (\e -> rewriteDefs (num + 1) (Map.insert num e env) (def num))
+                                                    (\e -> rewriteDefs (num + 1)
+                                                    (Map.insert num e env)
+                                                    (def num))
+   rewriteDefs num env (DefRec names types exprs def) =
+     let len = length names
+         range = [num .. num + len - 1]
+     in DefRec names types (\bs -> let bs' = exprs range
+                                   in map (f (num + len) (foldl' multInsert env (zip range bs))) bs')
+                           (\es -> let es' = def range
+                                   in rewriteDefs (num + len) (foldl' multInsert env (zip range es)) es')
 
 newtype Exp = Hide {reveal :: forall t e. Expr t e}
 
 instance Eq Exp where
   p1 == p2 = peq 0 (reveal p1) (reveal p2)
 
+-- TODO: equality inside module?
 peq :: Int -> Expr Int Int -> Expr Int Int -> Bool
 peq _ (Var _ a) (Var _ b) = a == b
 peq _ (Lit a) (Lit b) = a == b

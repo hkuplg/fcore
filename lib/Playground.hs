@@ -1,6 +1,6 @@
+
 module Playground where
 
-import           BackEnd (module2java)
 import qualified ClosureF as C
 import           Core
 import           Desugar (desugar)
@@ -10,6 +10,7 @@ import           System.Exit
 import qualified SystemFI as FI
 import           TypeCheck (typeCheck)
 import qualified OptiUtils (Exp(Hide))
+import PrettyUtils
 import Simplify  (simplify)
 
 import qualified Language.Java.Syntax as J (Op(..))
@@ -43,62 +44,37 @@ m1src = "module M1 { f1 (n : Int) = 1; num = 3; f2 (n : Int) = f1 num + 1}"
 {-
 module M1 {
 
-f1 (n : Int) = n + 1;
-
-f2 (n : Int) = f1 n + 1;
+even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1) and
+odd  (n : Int) : Bool = if n == 0 then False else even (n - 1);
 
 }
--}
-
-{-
-
-import M1;
-import M2;
-
-M1.f1 3
 
 -}
-
-javaIntS = (S.JType (S.JClass "java.lang.Integer"))
 
 m1 :: Expr t e
-m1 = Module "M1"
-       (Def "f1" (javaIntS `S.Fun` javaIntS) fact
-          (\f1 ->
-             Def
-               "f2"
-               (javaIntS `S.Fun` javaIntS)
-               (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
-               (\f2 -> Def "f3" javaIntS one (\f3 -> Null))))
+m1 = Module
+       (DefRec
+          ["even", "odd"]
+          [S.Fun javaIntS javaBoolS, S.Fun javaIntS javaBoolS]
+          (\ids ->
+             [ lam javaInt
+                 (\n -> If (var n `eq` zero) true (App (var (ids !! 1)) (var n `sub` one)))
+             , lam javaInt
+                 (\n -> If (var n `eq` zero) false (App (var (ids !! 0)) (var n `sub` one)))
+             ])
+          (\ids ->
+             (Def "f1" (javaIntS `S.Fun` javaIntS) fact
+                (\f1 ->
+                   Def
+                     "f2"
+                     (javaIntS `S.Fun` javaIntS)
+                     (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
+                     (\f2 -> Null)))))
 
-{-
-module M2;
 
-def f1 = /\A -> \ (x : A) -> x;
+javaIntS = (S.JType (S.JClass "java.lang.Integer"))
+javaBoolS = (S.JType (S.JClass "java.lang.Boolean"))
 
--}
-
-m2 :: Expr t e
-m2 =
-  Module "M2"
-      (Def "f1"
-           (S.Forall "A"
-                     (S.Fun (S.TVar "A")
-                            (S.TVar "A")))
-           (bLam (\t ->
-                    (lam (tVar t)
-                         (\x -> var x))))
-           (\f1 -> Null))
-
-m3 :: Expr t e
-m3 =
-  Module "M3"
-      (Def "f1"
-           (S.Product [javaIntS, javaIntS])
-           (Tuple [one, zero])
-           (\f1 -> Null))
-
-printModule m = module2java m >>= putStrLn
 
 tailFact :: Expr t e
 tailFact
