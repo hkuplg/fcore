@@ -20,6 +20,7 @@ import           JavaUtils
 import           Panic
 import           StringPrefixes
 
+import           Control.Arrow (second)
 import           Data.List (intersperse)
 import qualified Language.Java.Pretty (prettyPrint)
 import           Prelude hiding ((<$>))
@@ -51,7 +52,7 @@ data Type t =
     | Datatype S.ReaderId [Type t] [S.ReaderId]
 
 data Definition t e = Def S.Name S.Type (Expr t e) (e -> Definition t e)
-                    | DefRec [S.Name] [S.Type] ([e] -> [Expr t e]) ([e] -> Definition t e)
+                    | DefRec [S.Name] [(S.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
                     | Null
 
 data Expr t e =
@@ -133,7 +134,8 @@ CTApp (fexp2cexp e) (ftyp2ctyp t)
 
 fdef2cdef :: C.Definition t e -> Definition t e
 fdef2cdef (C.Def fname typ e def) = Def fname typ (fexp2cexp e) (fdef2cdef . def)
-fdef2cdef (C.DefRec names types exprs def) = DefRec names types (map fexp2cexp . exprs) (fdef2cdef . def)
+fdef2cdef (C.DefRec names types exprs def) =
+          DefRec names (map (second ftyp2ctyp) types) (map fexp2cexp . exprs) (fdef2cdef . def)
 fdef2cdef C.Null = Null
 
 fexp2cexp :: C.Expr t e -> Expr t e
@@ -305,7 +307,7 @@ prettyDef p (i, j) (DefRec names sigs binds defs) = vcat (intersperse (text "and
     n   = length sigs
     ids = [i..(i+n-1)]
     pretty_ids   = map prettyVar ids
-    pretty_sigs  = map pretty sigs
+    pretty_sigs  = map (pretty . fst) sigs
     pretty_defs  = map (prettyExpr p (i, j + n)) (binds ids)
     pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->
                   pretty_id <+> colon <+> pretty_sig <+> equals <$> pretty_def)

@@ -41,17 +41,16 @@ module Core
 
 import qualified Src
 
-import JavaUtils
-import PrettyUtils
+import           JavaUtils
+import           PrettyUtils
 
-import Text.PrettyPrint.ANSI.Leijen
-import qualified Language.Java.Pretty      (prettyPrint)
-
+import           Control.Arrow (second)
 import           Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-
-import Prelude hiding ((<$>))
+import qualified Language.Java.Pretty (prettyPrint)
+import           Prelude hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen
 
 data Type t
   = TVar Src.ReaderId t                -- a
@@ -63,7 +62,7 @@ data Type t
   | Datatype Src.ReaderId [Type t] [Src.ReaderId]
 
 data Definition t e = Def Src.Name Src.Type (Expr t e) (e -> Definition t e)
-                    | DefRec [Src.Name] [Src.Type] ([e] -> [Expr t e]) ([e] -> Definition t e)
+                    | DefRec [Src.Name] [(Src.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
                     | Null
 
 data Expr t e
@@ -176,7 +175,8 @@ mapVar g h (Module defs)           = Module (mapVarDef g h defs)
 -- Necessary?
 mapVarDef :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Definition t e -> Definition t e
 mapVarDef g h (Def name typ expr def) = Def name typ (mapVar g h expr) (mapVarDef g h . def)
-mapVarDef g h (DefRec names types exprs def) = DefRec names types (map (mapVar g h) . exprs) (mapVarDef g h . def)
+mapVarDef g h (DefRec names types exprs def) =
+  DefRec names (map (second h) types) (map (mapVar g h) . exprs) (mapVarDef g h . def)
 mapVarDef _ _ Null = Null
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
@@ -266,7 +266,7 @@ prettyDef p (i, j) (DefRec names sigs binds def) = vcat (intersperse (text "and"
     n = length sigs
     ids = [i .. (i + n) - 1]
     pretty_ids = map text names
-    pretty_sigs = map pretty sigs
+    pretty_sigs = map (pretty . fst) sigs
     pretty_defs = map (prettyExpr' p (i, j + n)) (binds ids)
     pretty_binds = zipWith3
                      (\pretty_id pretty_sig pretty_def ->

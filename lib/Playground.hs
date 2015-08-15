@@ -55,7 +55,9 @@ m1 :: Expr t e
 m1 = Module
        (DefRec
           ["even", "odd"]
-          [S.Fun javaIntS javaBoolS, S.Fun javaIntS javaBoolS]
+          [ (S.Fun javaIntS javaBoolS, javaInt `Fun` javaBool)
+          , (S.Fun javaIntS javaBoolS, javaInt `Fun` javaBool)
+          ]
           (\ids ->
              [ lam javaInt
                  (\n -> If (var n `eq` zero) true (App (var (ids !! 1)) (var n `sub` one)))
