@@ -305,7 +305,7 @@ aexpr :: { ReaderExpr }
     | lit                       { $1 }
     | "(" comma_exprs2 ")"      { Tuple $2 `withLoc` $1 }
     | aexpr "." UNDER_IDENT     { Proj $1 $3 `withLoc` $1 }
-    | module_name "." ident     { ModuleAccess (unLoc $1) (unLoc $3) `withLoc` $1 }
+    -- | module_name "." ident     { ModuleAccess (unLoc $1) (unLoc $3) `withLoc` $1 }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 `withLoc` $1 }
     | record_construct                { $1 }

@@ -150,7 +150,7 @@ data Expr id ty
   | EModule (Module id ty) (Expr id ty)
   | EModuleOut [(Name, Type, LExpr (Name,Type) Type)]  -- Post typecheck only
   | EImport (Import id) (LExpr id ty)
-  | ModuleAccess Name Name
+  -- | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
       Name         -- T         -- Name of type constructor
       [Name]       -- A1 ... An -- Type parameters

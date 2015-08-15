@@ -562,7 +562,7 @@ checkExpr (L loc (RecordUpdate e fs)) =
 --   do let fs = map bindId binds
 --      let letrec = L loc $ Let Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
 --      checkExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
-checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
+-- checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
 
 -- Type synonyms: type T A1 ... An = t in e
 -- First make sure that A1 ... An are distinct.
