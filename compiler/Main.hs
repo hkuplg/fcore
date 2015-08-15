@@ -27,13 +27,10 @@ import           BackEnd
 import           JavaUtils
 import           MonadLib
 
-import qualified Data.ByteString as B
-import           Data.FileEmbed (embedFile)
 import           Data.List (sort, group)
 import           System.Console.CmdArgs -- Neil Mitchell's CmdArgs library
-import           System.Directory (getTemporaryDirectory)
 import           System.Environment (getArgs, withArgs)
-import           System.FilePath (takeBaseName, (</>))
+import           System.FilePath (takeBaseName)
 import           System.IO
 
 -- type CompileOpt = (Int, Compilation)
@@ -62,15 +59,6 @@ data TransMethod = Apply
                  | BenchSAI1
                  | BenchSAI2
                  deriving (Eq, Show, Data, Typeable, Ord)
-
-runtimeBytes :: B.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
-
-writeRuntimeToTemp :: IO ()
-writeRuntimeToTemp =
-  do tempdir <- getTemporaryDirectory
-     let tempFile = tempdir </> "runtime.jar"
-     B.writeFile tempFile runtimeBytes
 
 optionsSpec :: Options
 optionsSpec =
@@ -129,10 +117,6 @@ main = do
   rawArgs <- getArgs
   -- If the user did not specify any arguments, pretend as "--help" was given
   Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
-
-  -- Write the bytes of runtime.jar to temp directory
-  -- TODO: don't need to write every time invoking f2j
-  writeRuntimeToTemp
 
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path

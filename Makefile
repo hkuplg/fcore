@@ -4,8 +4,8 @@ srcdir=lib
 testdir=testsuite
 
 .PHONY : compiler
-compiler : runtime dependencies parsers
-	stack install
+compiler : runtime parsers
+	stack build --copy-bins
 
 .PHONY : smt
 smt : runtime dependencies
@@ -13,7 +13,7 @@ smt : runtime dependencies
 
 .PHONY : test
 test : whitespace_test runtime parsers
-	stack --no-terminal test
+	stack build --test --copy-bins
 
 .PHONY : whitespace_test
 whitespace_test :

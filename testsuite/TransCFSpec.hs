@@ -1,5 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module TransCFSpec where
 
 import           BackEnd (compileN, compileAO, compileS)
@@ -17,25 +15,12 @@ import qualified SystemFI as FI
 import           TestTerms
 import           TypeCheck (typeCheck)
 
-import qualified Data.ByteString as B
-import           Data.FileEmbed (embedFile)
 import           Language.Java.Pretty (prettyPrint)
-import           System.Directory
-import           System.FilePath ((</>), dropExtension, takeFileName)
+import           System.FilePath (dropExtension, takeFileName)
 import           System.IO
 import           System.Process
 import           Test.Tasty.Hspec
 
-
-
-runtimeBytes :: B.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
-
-writeRuntimeToTemp :: IO ()
-writeRuntimeToTemp =
-  do tempdir <- getTemporaryDirectory
-     let tempFile = tempdir </> "runtime.jar"
-     B.writeFile tempFile runtimeBytes
 
 testCasesPath = "testsuite/tests/shouldRun"
 

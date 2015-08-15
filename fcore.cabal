@@ -61,6 +61,7 @@ library
                         ParseCMD
                         Parser
                         PartialEvaluator
+                        Paths_fcore
                         Predef
                         PrettyUtils
                         RuntimeProcessManager

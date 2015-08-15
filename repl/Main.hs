@@ -1,40 +1,23 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Main where
 
-import BackEnd
-import FileIO                           (TransMethod (Naive))
-import RuntimeProcessManager            (withRuntimeProcess)
+
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           FileIO (TransMethod (Naive))
+import           RuntimeProcessManager (withRuntimeProcess)
+import           System.Console.Haskeline (runInputT, defaultSettings)
+import           System.Directory (doesFileExist)
+import           System.IO
+import qualified Data.Map as Map
 
 -- REPL-specific modules
-import Loop
+import           BackEnd
+import           Loop
 import qualified Environment as Env
 import qualified History as Hist
 
-import Data.FileEmbed                   (embedFile)
-
-import System.Console.Haskeline         (runInputT, defaultSettings)
-import System.Directory                 (doesFileExist, getTemporaryDirectory)
-import System.FilePath                  ((</>))
-import System.IO
-
-import Control.Monad.Error
-
-import qualified Data.ByteString as B
-import qualified Data.Map as Map
-
-runtimeBytes :: B.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
-
-writeRuntimeToTemp :: IO ()
-writeRuntimeToTemp =
-  do tempdir <- getTemporaryDirectory
-     let tempFile = tempdir </> "runtime.jar"
-     B.writeFile tempFile runtimeBytes
-
 main :: IO ()
 main = do
-  writeRuntimeToTemp
   withRuntimeProcess "FileServer" LineBuffering
        (\(inP,outP) ->
         do liftIO printHelp
@@ -52,6 +35,3 @@ printFile = do
         f <- getLine
         contents <- readFile f
         putStr contents
-
-
-

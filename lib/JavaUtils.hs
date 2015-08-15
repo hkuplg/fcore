@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 {- |
 Module      :  JavaUtils
@@ -23,9 +22,11 @@ module JavaUtils
 import StringUtils (capitalize)
 
 import Control.Monad (when)
-import System.Directory (setCurrentDirectory, getCurrentDirectory, getTemporaryDirectory)
+import Paths_fcore
+import System.Directory (setCurrentDirectory, getCurrentDirectory)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, (</>), (<.>), dropExtension, searchPathSeparator)
 import System.Process (callCommand)
+
 
 type ClassName  = String
 type MethodName = String
@@ -33,9 +34,7 @@ type FieldName  = String
 type ModuleName = String
 
 getRuntimeJarPath :: IO FilePath
-getRuntimeJarPath =
-  do tempdir <- getTemporaryDirectory
-     return (tempdir </> "runtime.jar")
+getRuntimeJarPath = getDataFileName "runtime/runtime.jar"
 
 getClassPath :: IO FilePath
 getClassPath = do r <- getRuntimeJarPath

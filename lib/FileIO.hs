@@ -1,5 +1,5 @@
 {- |
-Module      :  FileLoad
+Module      :  FileIO
 Description :  Perform IO for the REPL
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
