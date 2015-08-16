@@ -11,9 +11,11 @@ import qualified SystemFI as FI
 import           TypeCheck (typeCheck)
 import qualified OptiUtils (Exp(Hide))
 import PrettyUtils
+import BackEnd (compileN)
 import Simplify  (simplify)
 
 import qualified Language.Java.Syntax as J (Op(..))
+import           Language.Java.Pretty (prettyPrint)
 import           Text.PrettyPrint.ANSI.Leijen
 import           Unsafe.Coerce (unsafeCoerce)
 
@@ -23,7 +25,9 @@ instance Show (Expr t e) where
 instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
-
+core2java core =
+  do let (cu,_) = compileN "M1" core
+     return $ prettyPrint cu
 
 src2test :: String -> IO (Expr t e)
 src2test source

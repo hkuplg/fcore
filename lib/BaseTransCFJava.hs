@@ -17,17 +17,18 @@ more information, please refer to the paper on wiki.
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 -- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
-import qualified Language.Java.Syntax as J
 
 import           ClosureF
+
+import           Data.Char (toLower)
+import           Data.List (zip4, elemIndex)
 import           Inheritance
 import           JavaEDSL
+import qualified Language.Java.Syntax as J
 import           MonadLib hiding (Alt)
 import           Panic
 import qualified Src as S
 import           StringPrefixes
-import           Data.Char (toLower)
-import           Data.List (elemIndex)
 
 instance (:<) (Translate m) (Translate m) where
    up = id
@@ -256,7 +257,6 @@ trans self =
                    newvars <- liftM (pairUp bindings) vars
                    let finalFuns = mfuns newvars
                    let appliedBody = body newvars
-                   let varnums = map fst newvars
                    (bindStmts,bindExprs,tbind) <- liftM unzip3 finalFuns
                    (bodyStmts,bodyExpr,t') <- translateM this appliedBody
                    bindtyps <- mapM (javaType this) tbind
@@ -267,7 +267,7 @@ trans self =
 
                    -- assign new created closures bindings to variables
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
-                                  (varnums `zip` map unwrap bindExprs)
+                                  (bindings `zip` map unwrap bindExprs)
                    let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap bodyExpr)]
                    let letClass =
                          [localClass (letTransName ++ show n)
@@ -659,6 +659,28 @@ trans self =
                           let anno = normalAnno fname x (show srcTyp)
                           let xDecl = localVarWithAnno anno typ (varDecl x $ unwrap e)
                           return (bs ++ [xDecl] ++ otherDefStmts)
+                     DefRec names types exprs body -> do
+                       (n :: Int) <- get
+                       let needed = length names
+                       put (n + needed)
+                       let mfuns defs = forM (exprs defs) (translateM this)
+                       let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] (map snd types)))
+                       let (bindings :: [Var]) = [n .. n + needed - 1]
+                       newvars <- liftM (pairUp bindings) vars
+                       let finalFuns = mfuns newvars
+                       let appliedBody = body newvars
+                       let varnums = map (((localvarstr ++) . show . fst)) newvars
+                       (bindStmts,bindExprs,tbind) <- liftM unzip3 finalFuns
+                       bodyStmts <- transDefs this appliedBody
+                       bindtyps <- mapM (javaType this) tbind
+                       let srcTypes = map fst types
+
+                       -- create annotations for each variable
+                       let annos = map (\(fname, x, srcTyp) -> normalAnno fname x (show srcTyp)) (zip3 names varnums srcTypes)
+                       -- assign new created closures bindings to variables
+                       let assm = map (\(anno,i,typ,jz) -> localVarWithAnno anno typ (varDecl i jz))
+                                      (zip4 annos varnums bindtyps (map unwrap bindExprs))
+                       return (concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts)
                      Null -> return []
 
        }
