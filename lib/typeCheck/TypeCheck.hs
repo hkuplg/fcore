@@ -422,7 +422,7 @@ checkExpr (L loc LetOut{}) = panic "TypeCheck.infer: LetOut"
 checkExpr (L loc (EModule (Module imps binds) _)) =
   do
     infoBinds <- collectModuleInfos imps
-    checkDupNames (map bindId binds)
+    checkDupNames (concatMap getBindId binds)
     binds' <- withLocalMVars infoBinds (normalizeBindAndAccum binds)
     return (Unit, L loc $ EModuleOut binds')
 
@@ -431,6 +431,8 @@ checkExpr (L loc (EModule (Module imps binds) _)) =
     collectModuleInfos (imp:imps) = do
       info <- checkModuleFunction imp
       fmap (++ info) (collectModuleInfos imps)
+    getBindId (BindNonRec b) = [bindId b]
+    getBindId (BindRec bs) = map bindId bs
 
 checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
 
@@ -841,17 +843,20 @@ collectBindIdSigs
 
 -- | Normalize later bindings with typing contexts augmented with
 -- previous bindings
-normalizeBindAndAccum :: [ReaderBind] -> Checker [(Name, Type, CheckedExpr)]
+normalizeBindAndAccum :: [ReaderModuleBind] -> Checker [(Name, Type, CheckedExpr)]
 normalizeBindAndAccum = normalize []
   where
     normalize :: [(Name, Type, CheckedExpr)]
-              -> [ReaderBind]
+              -> [ReaderModuleBind]
               -> Checker [(Name, Type, CheckedExpr)]
     normalize binds [] = return (reverse binds)
     normalize binds (b:bs) = do
       let env = map (\(a, b, c) -> (a, b)) binds
-      binds' <- withLocalVars env (normalizeBind b)
-      normalize (binds' : binds) bs
+      binds' <- case b of
+                  BindNonRec b -> withLocalVars env (fmap (: []) (normalizeBind b))
+                  BindRec bs -> do sigs <- collectBindIdSigs bs
+                                   withLocalVars sigs (mapM normalizeBind bs)
+      normalize (binds' ++ binds) bs
 
 
 -- | Check that a type has kind *.

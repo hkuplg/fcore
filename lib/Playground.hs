@@ -29,7 +29,6 @@ core2java core =
   do let (cu,_) = compileN "M1" core
      return $ prettyPrint cu
 
-src2test :: String -> IO (Expr t e)
 src2test source
   = case reader source of
       PError msg -> do putStrLn msg
@@ -39,17 +38,20 @@ src2test source
         case result of
           Left typeError -> do print (pretty typeError)
                                exitFailure
-          Right (_, checked) ->
-            do let fiExpr = desugar checked
-               return ((simplify (FI.HideF fiExpr)))
+          Right (_, checked) -> print (pretty checked)
 
-m1src = "module M1 { f1 (n : Int) = 1; num = 3; f2 (n : Int) = f1 num + 1}"
+m1src = "module { rec even (n : Int) : Bool = if n == 0 then True else odd (n - 1) and odd  (n : Int) : Bool = if n == 0 then False else even (n - 1);  rec fact (n:Int) : Int = if n == 0 then 1 else n * fact (n-1); add (n : Int) (m : Int) = n + m }"
 
 {-
 module M1 {
 
-even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1) and
+rec even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1)
+and
 odd  (n : Int) : Bool = if n == 0 then False else even (n - 1);
+
+rec fact (n : Int) : Int = ...;
+
+add (n : Int) (m : Int) = n + m
 
 }
 

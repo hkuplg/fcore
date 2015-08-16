@@ -407,9 +407,13 @@ and_databinds :: { [DataBind]}
 databind :: { DataBind }
     : UPPER_IDENT ty_param_list_or_empty "=" constrs_decl { DataBind (toString $1) (map unLoc $2) $4 }
 
-semi_binds :: { [ReaderBind] }
-    : bind                      { [$1]  }
-    | bind ";" semi_binds       { $1:$3 }
+semi_binds :: { [ReaderModuleBind] }
+    : modulebind                      { [$1]  }
+    | modulebind ";" semi_binds       { $1:$3 }
+
+modulebind :: { ReaderModuleBind }
+    : bind              { BindNonRec $1 }
+    | "rec" and_binds   { BindRec $2 }
 
 maybe_ty_ascription :: { Maybe ReaderType }
   : ":" type     { Just $2 }

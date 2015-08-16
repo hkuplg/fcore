@@ -15,7 +15,7 @@ Portability :  portable
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Src
-  ( Module(..), ReaderModule, Import(..), ReaderImport
+  ( Module(..), ReaderModule, Import(..), ReaderImport, ModuleBind(..), ReaderModuleBind
   , Kind(..)
   , Type(..), ReaderType
   , Expr(..), ReaderExpr, CheckedExpr, LExpr
@@ -76,8 +76,12 @@ type CheckedId = (ReaderId, Type)
 type Label      = Name
 
 -- Modules.
-data Module id ty = Module [Import id] [Bind id ty] deriving (Eq, Show)
+data ModuleBind id ty = BindNonRec (Bind id ty)
+                      | BindRec [Bind id ty] deriving (Eq, Show)
+data Module id ty = Module [Import id] [ModuleBind id ty] deriving (Eq, Show)
+
 type ReaderModule = Located (Module Name Type)
+type ReaderModuleBind = ModuleBind Name Type
 data Import id = Import id deriving (Eq, Show)
 type ReaderImport = Located (Import Name)
 
@@ -399,10 +403,15 @@ instance Pretty Kind where
   pretty Star           = char '*'
   pretty (KArrow k1 k2) = parens (pretty k1 <+> text "=>" <+> pretty k2)
 
+
+instance (Pretty id, Show id, Pretty ty, Show ty) => Pretty (ModuleBind id ty) where
+  pretty (BindRec bs) = vcat (intersperse (text "and") (map pretty bs))
+  pretty (BindNonRec bs) = pretty bs
+
 instance (Pretty id, Show id, Pretty ty, Show ty) => Pretty (Module id ty) where
   pretty (Module imps bs) = text "module" <+> text "{" <>
-                                              foldl (\v x -> v <$> pretty x) empty imps <>
-                                              foldl (\v x -> v <$> pretty x) empty bs <$> text "}"
+                                              vcat (map pretty imps) <$>
+                                              vcat (map pretty bs) <$> text "}"
 
 instance (Pretty id) => Pretty (Import id) where
     pretty (Import id) = text "import" <+> pretty id
