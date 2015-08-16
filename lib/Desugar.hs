@@ -17,21 +17,18 @@ stage.
 
 module Desugar (desugar) where
 
-import Src
-import SrcLoc
-import StringPrefixes
-
+import           Panic
+import           Src
+import           SrcLoc
+import           StringPrefixes
 import qualified SystemFI as F
 
-import Panic
-
-import Data.Maybe       (fromMaybe)
-import Data.List        (intercalate)
-
-import Text.PrettyPrint.ANSI.Leijen
-
+import           Control.Arrow (second)
+import           Data.List (intercalate)
 import qualified Data.Map as Map
+import           Data.Maybe (fromMaybe)
 import qualified Data.Set as Set (member)
+import           Text.PrettyPrint.ANSI.Leijen
 
 
 -- | Generate a fresh variable in the context. This is a very general API and
@@ -209,11 +206,19 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (L _ (EModuleOut binds)) = F.Module (desugarBindsToDefs (d, g) binds)
 
 
-desugarBindsToDefs :: (TVarMap t, VarMap t e) -> [(Name, Type, CheckedExpr)] -> F.Definition t e
+desugarBindsToDefs :: (TVarMap t, VarMap t e) -> [Definition] -> F.Definition t e
 desugarBindsToDefs _ [] = F.Null
-desugarBindsToDefs (d, g) ((n, t, e):bs) = F.Def n (t, transType d t) (desugarExpr (d, g) e)
-                                             (\f ->
-                                                desugarBindsToDefs (d, Map.insert n (F.Var n f) g) bs)
+desugarBindsToDefs (d, g) (b:bs) =
+  case b of
+    Def (n, t, e) -> F.Def n (t, transType d t) (desugarExpr (d, g) e)
+                       (\f -> desugarBindsToDefs (d, Map.insert n (F.Var n f) g) bs)
+    -- at least one element
+    DefRec binds -> F.DefRec names types exprs def
+      where (ids, sigs, defs) = unzip3 binds
+            names = ids
+            types = map (\t -> (t, transType d t)) sigs
+            exprs ids' = map (desugarExpr (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g)) defs
+            def ids' = desugarBindsToDefs (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g) bs
 
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
 desugarLetRecToFix (d,g) (L _ (LetOut Rec [(f,t,e)] body)) =

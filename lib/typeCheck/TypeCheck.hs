@@ -792,7 +792,7 @@ inferAgainstAnyJClass expr
         _ -> throwError $ TypeMismatch ty (JType $ JPrim "Java class") `withExpr` expr
 
 -- | Check "f [A1,...,An] (x1:t1) ... (xn:tn): t = e"
-normalizeBind :: ReaderBind -> Checker (Name, Type, CheckedExpr)
+normalizeBind :: ReaderBind -> Checker CheckedBind
 normalizeBind bind
   = do bind' <- checkBindLHS bind
        (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
@@ -843,20 +843,24 @@ collectBindIdSigs
 
 -- | Normalize later bindings with typing contexts augmented with
 -- previous bindings
-normalizeBindAndAccum :: [ReaderModuleBind] -> Checker [(Name, Type, CheckedExpr)]
+normalizeBindAndAccum :: [ReaderModuleBind] -> Checker [Definition]
 normalizeBindAndAccum = normalize []
   where
-    normalize :: [(Name, Type, CheckedExpr)]
+    normalize :: [Definition]
               -> [ReaderModuleBind]
-              -> Checker [(Name, Type, CheckedExpr)]
+              -> Checker [Definition]
     normalize binds [] = return (reverse binds)
     normalize binds (b:bs) = do
-      let env = map (\(a, b, c) -> (a, b)) binds
+      let env = concatMap getEnv binds
       binds' <- case b of
-                  BindNonRec b -> withLocalVars env (fmap (: []) (normalizeBind b))
-                  BindRec bs -> do sigs <- collectBindIdSigs bs
-                                   withLocalVars sigs (mapM normalizeBind bs)
-      normalize (binds' ++ binds) bs
+                  BindNonRec b -> withLocalVars env (fmap Def (normalizeBind b))
+                  BindRec bb -> do
+                    sigs <- collectBindIdSigs bb
+                    withLocalVars (env ++ sigs) (fmap DefRec (mapM normalizeBind bb))
+      normalize (binds' : binds) bs
+    getEnv :: Definition -> [(Name, Type)]
+    getEnv (Def (a, b, c)) = [(a, b)]
+    getEnv (DefRec bs) = map (\(a, b, c) -> (a, b)) bs
 
 
 -- | Check that a type has kind *.

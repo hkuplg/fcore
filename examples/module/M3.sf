@@ -1,3 +1,7 @@
 module {
-  sub (a: Int) (b: Int): Int = a - b
+  import M4; -- sub imported
+
+  multi (n : Int) (m : Int) = n * m;
+
+  rec fact (n:Int) : Int = if n == 0 then 1 else multi n (fact (sub n 1))
 }

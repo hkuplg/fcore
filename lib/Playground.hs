@@ -33,14 +33,15 @@ src2test source
   = case reader source of
       PError msg -> do putStrLn msg
                        exitFailure
-      POk parsed -> do
-        result <- typeCheck parsed
-        case result of
-          Left typeError -> do print (pretty typeError)
-                               exitFailure
-          Right (_, checked) -> print (pretty checked)
+      POk parsed -> -- print (pretty parsed)
+        do
+          result <- typeCheck parsed
+          case result of
+            Left typeError -> do print (pretty typeError)
+                                 exitFailure
+            Right (_, checked) -> print (pretty checked)
 
-m1src = "module { rec even (n : Int) : Bool = if n == 0 then True else odd (n - 1) and odd  (n : Int) : Bool = if n == 0 then False else even (n - 1);  rec fact (n:Int) : Int = if n == 0 then 1 else n * fact (n-1); add (n : Int) (m : Int) = n + m }"
+m1src = "module { multi (n : Int) (m : Int) = n * m; rec fact (n:Int) : Int = if n == 0 then 1 else multi n (fact (n - 1))} "
 
 {-
 module M1 {

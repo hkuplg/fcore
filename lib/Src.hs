@@ -15,7 +15,7 @@ Portability :  portable
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Src
-  ( Module(..), ReaderModule, Import(..), ReaderImport, ModuleBind(..), ReaderModuleBind
+  ( Module(..), ReaderModule, Import(..), ReaderImport, ModuleBind(..), ReaderModuleBind, Definition(..), CheckedBind
   , Kind(..)
   , Type(..), ReaderType
   , Expr(..), ReaderExpr, CheckedExpr, LExpr
@@ -133,7 +133,7 @@ data Expr id ty
   | Let RecFlag [Bind id ty] (LExpr id ty)     -- Let (rec) ... (and) ... in ...
   | LetOut                                    -- Post typecheck only
       RecFlag
-      [(Name, Type, LExpr (Name,Type) Type)]
+      [(Name, Type, CheckedExpr)]
       (LExpr (Name,Type) Type)
 
   | Dot (LExpr id ty) Name (Maybe ([LExpr id ty], UnitPossibility))
@@ -152,7 +152,7 @@ data Expr id ty
   | RecordProj (LExpr id ty) Label
   | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
   | EModule (Module id ty) (Expr id ty)
-  | EModuleOut [(Name, Type, LExpr (Name,Type) Type)]  -- Post typecheck only
+  | EModuleOut [Definition]  -- Post typecheck only
   | EImport (Import id) (LExpr id ty)
   -- | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
@@ -168,6 +168,9 @@ data Expr id ty
                                      -- the last type in Constructor will always be the real type
   | Error Type (LExpr id ty)
   deriving (Eq, Show)
+
+type CheckedBind = (Name, Type, CheckedExpr)
+data Definition = Def CheckedBind | DefRec [CheckedBind] deriving (Eq, Show)
 
 data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}

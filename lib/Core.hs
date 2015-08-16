@@ -153,7 +153,7 @@ mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
 mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (mapVar g h e)
     where mapDatabind (DataBind name params ctrs) = DataBind name params (map mapCtr. ctrs)
-          mapCtr (Constructor n ts) = Constructor n (map h ts)
+          mapCtr (Constructor n ts)  = Constructor n (map h ts)
 mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
@@ -170,14 +170,15 @@ mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f (h c)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Error ty str)            = Error (h ty) (mapVar g h str)
-mapVar g h (Module defs)           = Module (mapVarDef g h defs)
+mapVar g h (Module defs)             = Module (mapVarDef defs)
+  where
+    -- Necessary?
+    mapVarDef (Def name typ expr def) = Def name typ (mapVar g h expr) (mapVarDef . def)
+    mapVarDef (DefRec names types exprs def) =
+      DefRec names (map (second h) types) (map (mapVar g h) . exprs) (mapVarDef . def)
+    mapVarDef Null = Null
 
--- Necessary?
-mapVarDef :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Definition t e -> Definition t e
-mapVarDef g h (Def name typ expr def) = Def name typ (mapVar g h expr) (mapVarDef g h . def)
-mapVarDef g h (DefRec names types exprs def) =
-  DefRec names (map (second h) types) (map (mapVar g h) . exprs) (mapVarDef g h . def)
-mapVarDef _ _ Null = Null
+
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
 fsubstTT x r = mapTVar (\n a -> if a == x then r else TVar n a)
@@ -331,7 +332,7 @@ prettyExpr' p i (Proj n e) =
   parensIf p 5
     (prettyExpr' (5,PrecMinus) i e <> dot <> char '_' <> int n)
 
-prettyExpr' p t (Module defs) = text "Module" <> semi <$> prettyDef p t defs
+prettyExpr' p i (Module defs) = text "Module" <> semi <$> prettyDef p i defs
 
 prettyExpr' _ (i,j) (JNew c args) =
   parens (text "new" <+> text c <> tupled (map (prettyExpr' basePrec (i,j)) args))

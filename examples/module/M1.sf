@@ -1,4 +1,5 @@
-import M3;
-import M2;
-import M4;
-sub (add 4 5) (id [Int] 3)
+
+import M3; -- fact impoted
+import M2; -- even and odd imported
+
+even (fact 3)

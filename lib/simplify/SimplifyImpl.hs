@@ -24,19 +24,18 @@ module SimplifyImpl
   , dedeBruE
   ) where
 
-import Core
-import Panic
-import qualified SystemFI             as FI
-import qualified Src                  as S
+import           Core
+import           Panic
+import qualified Src as S
+import qualified SystemFI as FI
 
-import Text.PrettyPrint.ANSI.Leijen
-
-import Debug.Trace   (trace)
-import Data.Maybe    (fromMaybe)
-import Control.Monad (zipWithM)
-import Unsafe.Coerce (unsafeCoerce)
-
-import Prelude hiding ((<$>))
+import           Control.Arrow (second)
+import           Control.Monad (zipWithM)
+import           Data.Maybe (fromMaybe)
+import           Debug.Trace (trace)
+import           Prelude hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen
+import           Unsafe.Coerce (unsafeCoerce)
 
 simplify :: FI.FExp -> Expr t e
 simplify = dedeBruE 0 [] 0 [] . transExpr 0 0 . FI.revealF
@@ -121,6 +120,13 @@ transExpr i j (FI.Module defs) = Module $ transDefs i j defs
   where
     transDefs i j (FI.Def n (t, t') expr def) = Def n t (transExpr i j expr)
                                             (\x -> transDefs i (j + 1) $ def (x, t'))
+    transDefs i j (FI.DefRec names types exprs def) = DefRec names types' exprs' def'
+      where types' = map (second (transType i)) types
+            exprs' args = map (transExpr i (j + n)) . exprs $ zip args ts
+            def' args = transDefs i (j + n) . def $ zip args ts
+            ts = map snd types
+            n = length types
+
     transDefs _ _ FI.Null = Null
 transExpr i j (FI.JNew c es)               = JNew c . map (transExpr i j) $ es
 transExpr i j (FI.JMethod c m arg ret)     = JMethod (fmap (transExpr i j) c) m (map (transExpr i j) arg) ret
@@ -292,6 +298,13 @@ dedeBruE i as j xs (Module defs) = Module (dedeBruDefs i as j xs defs)
   where
     dedeBruDefs i as j xs (Def n t expr def) = Def n t (dedeBruE i as j xs expr)
                                                  (\f -> dedeBruDefs i as (j + 1) (f : xs) (def j))
+    dedeBruDefs i as j xs (DefRec names types exprs def) = DefRec names types' exprs' def'
+      where
+        ts = map snd types
+        types' = map (second (dedeBruT i as)) types
+        exprs' args = map (dedeBruE i as (j + n) ((reverse args) ++ xs)) (exprs [j .. j + n - 1])
+        def' args = dedeBruDefs i as (j + n) ((reverse args) ++ xs) (def [j .. j + n - 1])
+        n = length types
     dedeBruDefs _ _ _ _ Null = Null
 dedeBruE i as j xs (Proj index e)                 = Proj index (dedeBruE i as j xs e)
 dedeBruE i as j xs (JNew c args)                  = JNew c (map (dedeBruE i as j xs) args)

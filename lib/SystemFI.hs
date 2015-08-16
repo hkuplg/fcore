@@ -33,19 +33,17 @@ module SystemFI
   , prettyExpr
   ) where
 
+import           JavaUtils
+import           PrettyUtils
 import qualified Src
 
-import JavaUtils
-import PrettyUtils
-
-import Text.PrettyPrint.ANSI.Leijen
-import qualified Language.Java.Pretty      (prettyPrint)
-
+import           Control.Arrow (second)
 import           Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-
-import Prelude hiding ((<$>))
+import qualified Language.Java.Pretty (prettyPrint)
+import           Prelude hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen
 
 data Type t
   = TVar Src.ReaderId t                 -- a
@@ -64,6 +62,7 @@ data Type t
     -- George if you're not sure.
 
 data Definition t e = Def Src.Name (Src.Type, Type t) (Expr t e) (e -> Definition t e)
+                    | DefRec [Src.Name] [(Src.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
                     | Null
 
 data Expr t e
@@ -187,10 +186,13 @@ mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
 mapVar g h (RecordCon (l, e))        = RecordCon (l, mapVar g h e)
 mapVar g h (RecordProj e l)          = RecordProj (mapVar g h e) l
 mapVar g h (RecordUpdate e (l1,e1))  = RecordUpdate (mapVar g h e) (l1, mapVar g h e1)
-mapVar g h (Module defs) = Module (mapDefs defs)
-  -- necessary?
-  where mapDefs Null = Null
-        mapDefs (Def n t expr def) = Def n t (mapVar g h expr) (mapDefs . def)
+mapVar g h (Module defs) = Module (mapVarDefs defs)
+  where
+    -- necessary?
+    mapVarDefs Null = Null
+    mapVarDefs (Def n t expr def) = Def n t (mapVar g h expr) (mapVarDefs . def)
+    mapVarDefs (DefRec names types exprs def) =
+      DefRec names (map (second h) types) (map (mapVar g h) . exprs) (mapVarDefs . def)
 
 
 
@@ -263,11 +265,27 @@ prettyType' _ i (RecordType (l,t)) = lbrace <+> text l <+> colon <+> prettyType'
 -- instance Pretty (Expr Index Index) where
 --   pretty = prettyExpr
 
-prettyDef :: Definition Index Index -> Doc
-prettyDef (Def fname (typ, _) e def) =
-  text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr e <> semi <$>
-  prettyDef (def 0) -- crappy pretty printer
-prettyDef Null = text ""
+prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
+prettyDef _ (i, j) (Def fname typ e def) =
+  text fname <+> colon <+> pretty (fst typ) <+> equals <+> prettyExpr' basePrec (i, j + 1) e <> semi <$>
+  prettyDef basePrec (i, j+1) (def j) -- crappy pretty printer
+
+prettyDef p (i, j) (DefRec names sigs binds def) = vcat (intersperse (text "and") pretty_binds) <> semi <$> pretty_body
+  where
+    n = length sigs
+    ids = [i .. (i + n) - 1]
+    pretty_ids = map text names
+    pretty_sigs = map (pretty . fst) sigs
+    pretty_defs = map (prettyExpr' p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3
+                     (\pretty_id pretty_sig pretty_def ->
+                        pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
+                     pretty_ids
+                     pretty_sigs
+                     pretty_defs
+    pretty_body = prettyDef p (i, j + n) (def ids)
+
+prettyDef _ _ Null = text ""
 
 prettyExpr :: Expr Index Index -> Doc
 prettyExpr = prettyExpr' basePrec (0, 0)
@@ -322,7 +340,7 @@ prettyExpr' p i (Proj n e) =
   parensIf p 5
     (prettyExpr' (5,PrecMinus) i e <> dot <> char '_' <> int n)
 
-prettyExpr' _ _ (Module defs) = text "Module" <> semi <$> prettyDef defs
+prettyExpr' p i (Module defs) = text "Module" <> semi <$> prettyDef p i defs
 
 prettyExpr' _ (i,j) (JNew c args) =
   parens (text "new" <+> text c <> tupled (map (prettyExpr' basePrec (i,j)) args))
