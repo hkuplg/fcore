@@ -70,7 +70,7 @@ getModuleInfo
   -> IO (Maybe [ModuleInfo])
 -- Also automatically compile imported modules
 getModuleInfo h m
-  = do callCommand $ "f2j -r -k " ++ m ++ ".sf" -- FIXME: hackish
+  = do callCommand $ "f2j -c -k " ++ m ++ ".sf" -- FIXME: hackish
        s <- sendRecv h ["qModuleInfo", m] >>= fixRet
        case s of
         Nothing -> return Nothing

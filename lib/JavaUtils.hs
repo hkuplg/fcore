@@ -56,7 +56,6 @@ compileJava :: FilePath -> IO ()
 compileJava srcPath
   = do cp <- getClassPath
        callCommand ("javac -cp " ++ cp ++ " " ++ srcPath)
-       return ()
 
 runJava :: Bool -> FilePath -> IO ()
 runJava keepClass srcPath = do
@@ -65,5 +64,5 @@ runJava keepClass srcPath = do
     setCurrentDirectory workDir
     cp <- getClassPath
     callCommand $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
-    when (not keepClass) $ callCommand "rm *.class" >> return ()
+    when (not keepClass) $ callCommand "rm *.class"
     setCurrentDirectory currDir

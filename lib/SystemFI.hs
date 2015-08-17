@@ -52,7 +52,7 @@ data Type t
   | Forall Src.ReaderId (t -> Type t)   -- forall a. t
   | Product [Type t]                    -- (t1, ..., tn)
   | Unit
-
+  -- Extensions
   | And (Type t) (Type t)               -- t1 & t2
   | RecordType (Src.Label, Type t)
   | Datatype Src.ReaderId [Type t] [Src.ReaderId]
