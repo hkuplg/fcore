@@ -1,9 +1,9 @@
 
 module Predef (injectPredef) where
 
-import Data.ByteString       (ByteString, unpack)
-import Data.Char             (chr)
-import Data.List             (intercalate)
+-- import Data.ByteString       (ByteString, unpack)
+-- import Data.Char             (chr)
+-- import Data.List             (intercalate)
 
 injectPredef :: String -> String
 injectPredef s = s -- predef ++ s

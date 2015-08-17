@@ -23,7 +23,6 @@ import           SrcLoc
 import           StringPrefixes
 import qualified SystemFI as F
 
-import           Control.Arrow (second)
 import           Data.List (intercalate)
 import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe)
