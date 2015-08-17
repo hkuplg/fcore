@@ -18,7 +18,7 @@ Stability   :  experimental
 Portability :  non-portable (MPTC)
 -}
 
-module Main (main, TransMethod) where
+module Main where
 
 -- import           Assertions () -- Import this just to run static assertions at compile time.
 
