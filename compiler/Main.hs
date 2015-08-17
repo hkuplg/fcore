@@ -22,12 +22,12 @@ module Main where
 
 -- import           Assertions () -- Import this just to run static assertions at compile time.
 
-import           FrontEnd (source2core)
 import           BackEnd
+import           FrontEnd (source2core)
 import           JavaUtils
 import           MonadLib
 
-import           Data.List (sort, group)
+import qualified Data.Set as Set
 import           System.Console.CmdArgs -- Neil Mitchell's CmdArgs library
 import           System.Environment (getArgs, withArgs)
 import           System.FilePath (takeBaseName)
@@ -41,7 +41,7 @@ data Options = Options
     , optKeepClass     :: Bool
     , optSourceFiles   :: [String]
     , optDump          :: DumpOption
-    , optTransMethod   :: [TransMethod]
+    , optTransMethod   :: Set.Set TransMethod
     , optVerbose       :: Bool
     , optInline        :: Bool
     } deriving (Eq, Show, Data, Typeable)
@@ -93,7 +93,7 @@ optionsSpec =
              [] &= args &=
              typ "SOURCE FILES"
           ,optTransMethod =
-             [] &= explicit &=
+             Set.empty &= explicit &=
              name "m" &=
              name "method" &=
              typ "METHOD" &=
@@ -121,10 +121,10 @@ main = do
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod
-           sort_and_rmdups  = map head . group . sort . (++) [Naive]
-       opts <- getOpt (sort_and_rmdups translate_method)
+           method = Set.insert Naive translate_method
+       let opts = getOpt method
 
-       putStrLn (takeBaseName source_path ++ " using " ++ show (sort_and_rmdups translate_method))
+       putStrLn (takeBaseName source_path ++ " using " ++ (show . Set.toList $ method))
        putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
 
        source     <- readFile source_path
@@ -139,20 +139,9 @@ main = do
          do when optVerbose $ do { putStr "  Running Java\n  Output: "; hFlush stdout }
             runJava optKeepClass output_path)
 
-getOpt :: [TransMethod] -> IO Compilation
-getOpt translate_method = case translate_method of
-  [Apply, Naive]               -> return compileAO
-  -- [Apply, Naive, Unbox]        -> return (0, compileAoptUnbox)
-  [Apply, Naive, Stack]        -> return compileS
-  -- [Apply, Naive, Stack, Unbox] -> return (0, compileSAU)
-  -- [Naive, StackAU1]            -> return (1, compileSAU)
-  -- [Naive, StackAU2]            -> return (2, compileSAU)
-  [Naive, Stack]               -> return compileSN
-  -- [Naive, Stack, Unbox]        -> return (0, compileSU)
-  -- [Naive, Unbox]               -> return (0, compileUnbox)
-  -- [BenchS]                     -> return (0, compileBS False)
-  -- [BenchNA]                    -> return (0, compileBN True)
-  -- [BenchSA]                    -> return (0, compileBS True)
-  -- [BenchSAI1]                  -> return (1, compileBS True)
-  -- [BenchSAI2]                  -> return (2, compileBS True)
-  _                            -> return compileN -- Naive is the default
+getOpt :: Set.Set TransMethod -> Compilation
+getOpt translate_method
+       | translate_method == Set.fromList [Apply, Naive] = compileAO
+       | translate_method == Set.fromList [Apply, Naive, Stack] = compileS
+       | translate_method == Set.fromList [Naive, Stack] = compileSN
+       | otherwise = compileN
