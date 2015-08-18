@@ -1,10 +1,7 @@
-{-# LANGUAGE DeriveDataTypeable
-           , FlexibleContexts
-           , TemplateHaskell
+{-# LANGUAGE FlexibleContexts
            , FlexibleInstances
            , MultiParamTypeClasses
            , RankNTypes
-           , TypeOperators
            , RecordWildCards
            #-}
 {- |
@@ -13,7 +10,7 @@ Description :  Main module for f2j.
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
-Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>, Jeremy <bixuanxbi@gmail.com>
 Stability   :  experimental
 Portability :  non-portable (MPTC)
 -}
@@ -27,90 +24,89 @@ import           FrontEnd (source2core)
 import           JavaUtils
 import           MonadLib
 
+import           Data.Char (toLower)
+import           Data.List (intersperse)
+import qualified Data.Map.Lazy as Map
 import qualified Data.Set as Set
-import           System.Console.CmdArgs -- Neil Mitchell's CmdArgs library
+import           Options.Applicative
 import           System.Environment (getArgs, withArgs)
 import           System.FilePath (takeBaseName)
 import           System.IO
 
--- type CompileOpt = (Int, Compilation)
 
 data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
     , optKeepClass     :: Bool
-    , optSourceFiles   :: [String]
     , optDump          :: DumpOption
-    , optTransMethod   :: Set.Set TransMethod
     , optVerbose       :: Bool
     , optInline        :: Bool
-    } deriving (Eq, Show, Data, Typeable)
+    , optTransMethod   :: [TransMethod]
+    , optSourceFiles   :: [String]
+    } deriving (Eq, Show)
 
 data TransMethod = Apply
                  | Naive
                  | Stack
-                 | Unbox
-                 | StackAU1
-                 | StackAU2
-                 | BenchN
-                 | BenchS
-                 | BenchNA
-                 | BenchSA
-                 | BenchSAI1
-                 | BenchSAI2
-                 deriving (Eq, Show, Data, Typeable, Ord)
+                 -- | Unbox
+                 -- | StackAU1
+                 -- | StackAU2
+                 -- | BenchN
+                 -- | BenchS
+                 -- | BenchNA
+                 -- | BenchSA
+                 -- | BenchSAI1
+                 -- | BenchSAI2
+                 deriving (Eq, Show, Ord)
 
-optionsSpec :: Options
-optionsSpec =
-  Options {optCompile =
-             False &= explicit &=
-             name "c" &=
-             name "compile" &=
-             help "Compile Java source"
-          ,optInline =
-             False &= explicit &=
-             name "i" &=
-             name "inline" &=
-             help "Inline your program"
-          ,optCompileAndRun =
-             False &= explicit &=
-             name "r" &=
-             name "run" &=
-             help "Compile & run Java source"
-          ,optKeepClass =
-             False &= explicit &=
-             name "k" &=
-             name "keep" &=
-             help "Keep generated .class files"
-          ,optDump =
-             NoDump &= explicit &=
-             name "d" &=
-             name "dump" &=
-             typ "TYPE" &=
-             help ("Dump intermediate representations; " ++
-                   "options: `core`, `simplecore`, `closuref`")
-          ,optSourceFiles =
-             [] &= args &=
-             typ "SOURCE FILES"
-          ,optTransMethod =
-             Set.empty &= explicit &=
-             name "m" &=
-             name "method" &=
-             typ "METHOD" &=
-             help ("Translations method." ++ "Can be either 'naive', 'apply', 'stack', and/or 'unbox'" ++
-                                             "(use without quotes)." ++
-                                             "The default is 'naive'.")
-          ,optVerbose =
-             False &= explicit &=
-             name "v" &=
-             name "verbose" &=
-             help "Verbose"} &=
-  helpArg [explicit,name "help",name "h"] &=
-  program "f2j" &=
-  summary "SystemF to Java compiler"
+transOpts = Map.fromList [("apply", Apply), ("naive", Naive), ("stack", Stack)]
+
+dumpOpts = Map.fromList
+             [ ("parsed", Parsed)
+             , ("tchecked", TChecked)
+             , ("systemfi", SystemFI)
+             , ("core", SimpleCore)
+             , ("closuref", ClosureF)
+             ]
+
+intersperseComma :: Map.Map String a -> String
+intersperseComma m = concat (intersperse ", " (Map.keys m))
+
+parseOpts :: Map.Map String a -> String -> ReadM a
+parseOpts opts str =
+  let parsed = Map.lookup (map (toLower) str) opts
+  in case parsed of
+    Just p  -> return p
+    Nothing -> readerError $ "expected one of: " ++ intersperseComma opts
+
+options :: Parser Options
+options = Options <$> switch (long "compile" <> short 'c' <> help "Compile Java source")
+                  <*> switch (long "run" <> short 'r' <> help "Compile & run Java source")
+                  <*> switch (long "keep" <> short 'k' <> help "Keep generated .class files")
+                  <*> option (str >>= parseOpts dumpOpts)
+                        (long "dump" <>
+                         value NoDump <>
+                         short 'd' <>
+                         metavar "TYPE" <>
+                         completeWith (Map.keys dumpOpts) <>
+                         help ("Dump option. Can be either " ++ intersperseComma dumpOpts))
+                  <*> switch (long "verbose" <> short 'v' <> help "Whether to be verbose")
+                  <*> switch (long "inline" <> short 'i' <> help "Inline your program")
+                  <*> many
+                        (option (str >>= parseOpts transOpts)
+                           (long "method" <>
+                            short 'm' <>
+                            metavar "METHOD" <>
+                            completeWith (Map.keys transOpts) <>
+                            help
+                              ("Translation method. Can be either " ++ intersperseComma transOpts)))
+                  <*> some (argument str (metavar "FILES..." <> action "file"))
 
 getOpts :: IO Options
-getOpts = cmdArgs optionsSpec -- cmdArgs :: Data a => a -> IO a
+getOpts = execParser opts
+  where
+    opts = info (helper <*> options) (fullDesc <> header "f2j - SystemF to Java compiler")
+
 
 main :: IO ()
 main = do
@@ -121,7 +117,7 @@ main = do
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod
-           method = Set.insert Naive translate_method
+           method = Set.insert Naive (Set.fromList translate_method)
        let opts = getOpt method
 
        putStrLn (takeBaseName source_path ++ " using " ++ (show . Set.toList $ method))

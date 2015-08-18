@@ -1,10 +1,8 @@
-{-# LANGUAGE DeriveDataTypeable
-           , FlexibleContexts
+{-# LANGUAGE FlexibleContexts
            , FlexibleInstances
            , KindSignatures
            , MultiParamTypeClasses
            , RankNTypes
-           , TypeOperators
            #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-binds -fwarn-incomplete-patterns -fno-warn-orphans #-}
@@ -39,7 +37,6 @@ import           PrettyUtils
 import           StackTransCFJava
 -- import           UnboxTransCFJava
 
-import           Data.Data
 import           Language.Java.Pretty
 import qualified Language.Java.Syntax as J
 import           Prelude hiding (exp)
@@ -55,7 +52,7 @@ data DumpOption
   | SystemFI
   | SimpleCore
   | ClosureF
-    deriving (Eq, Show, Data, Typeable)
+    deriving (Eq, Show)
 
 -- Naive translation
 

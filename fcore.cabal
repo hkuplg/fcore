@@ -89,6 +89,7 @@ executable f2j
   main-is:              Main.hs
   build-depends:        fcore
                       , ansi-wl-pprint == 0.6.*
+                      , optparse-applicative
                       , array == 0.5.*
                       , base == 4.*
                       , bytestring == 0.10.*
