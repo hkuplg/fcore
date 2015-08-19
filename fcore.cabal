@@ -23,6 +23,7 @@ library
                       , cmdargs == 0.10.*
                       , containers == 0.5.*
                       , directory == 1.2.*
+                      , extra == 1.4.*
                       , filepath == 1.4.*
                       , haskeline == 0.7.*
                       , language-java == 0.2.*

@@ -25,7 +25,7 @@ import Control.Monad (unless)
 import Paths_fcore
 import System.Directory (setCurrentDirectory, getCurrentDirectory)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, (</>), (<.>), dropExtension, searchPathSeparator)
-import System.Process (callCommand)
+import System.Process.Extra (system_)
 
 
 type ClassName  = String
@@ -55,7 +55,7 @@ inferClassName outputPath = capitalize $ takeBaseName outputPath
 compileJava :: FilePath -> IO ()
 compileJava srcPath
   = do cp <- getClassPath
-       callCommand ("javac -cp " ++ cp ++ " " ++ srcPath)
+       system_ ("javac -cp " ++ cp ++ " " ++ srcPath)
 
 runJava :: Bool -> FilePath -> IO ()
 runJava keepClass srcPath = do
@@ -63,6 +63,6 @@ runJava keepClass srcPath = do
     let workDir = takeDirectory srcPath
     setCurrentDirectory workDir
     cp <- getClassPath
-    callCommand $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
-    unless keepClass $ callCommand "rm *.class"
+    system_ $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
+    unless keepClass $ system_ "rm *.class"
     setCurrentDirectory currDir
