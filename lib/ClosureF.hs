@@ -299,7 +299,7 @@ prettyType p i (Datatype n tvars _) = hsep $ text n : map (prettyType p i) tvars
 
 prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
 prettyDef p (i, j) (Def fname typ e def) =
-  (prettyVar j) <+> colon <+> pretty typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
+  prettyVar j <+> colon <+> pretty typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
   prettyDef p (i, succ j) (def j)
 
 prettyDef p (i, j) (DefRec names sigs binds defs) = vcat (intersperse (text "and") pretty_binds) <> semi <$> pretty_body
@@ -419,11 +419,11 @@ prettyExpr p (i,j) (Data recflag databinds e) =
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
                    (equals <+> intersperseBar (map (prettyCtr (i+ length tvars))$ cons [i..(i-1+length tvars)]) <$$> semi)
 
-prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
+prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> hsep (map (prettyExpr p i) es))
 
 prettyExpr p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))
     where pretty_alt (ConstrAlt c e1) =
-               (text (constrName c) <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))
+               text (constrName c) <+> arrow <+> align (prettyExpr p (i, j) e1)
           pretty_alt (Default e1) =
-               (text "_" <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))
+               text "_" <+> arrow <+> align (prettyExpr p (i, j) e1)

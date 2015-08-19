@@ -16,9 +16,9 @@ import System.IO (hPutStrLn, hGetLine, Handle)
 import System.Process (callCommand)
 
 data ModuleInfo = ModuleInfo {
-  minfo_name :: String,
-  minfo_gname :: String,
-  minfo_signature :: Type } deriving (Show)
+  minfoName :: String,
+  minfoGname :: String,
+  minfoSignature :: Type } deriving (Show)
 
 sendRecv :: (Handle, Handle) -> [String] -> IO String
 sendRecv (to, from) args =

@@ -492,7 +492,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty (Data recFlag datatypes e ) =
     text "data" <+> pretty recFlag <+>
-    (vsep $ map pretty datatypes) <$>
+    vsep (map pretty datatypes) <$>
     pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
@@ -523,15 +523,15 @@ instance Pretty DataBind where
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
     -- pretty (Default e) = text "_" <+> arrow <+> pretty e
-    pretty (ConstrAlt p e2)    = (pretty p) <+> arrow <+> pretty e2
+    pretty (ConstrAlt p e2)    = pretty p <+> arrow <+> pretty e2
 
 instance Pretty Pattern where
     pretty (PVar nam _)     = text nam
     pretty (PWildcard)      = text "_"
     pretty (PConstr ctr []) = text (constrName ctr)
-    pretty (PConstr ctr ps) = text (constrName ctr) <+> (hsep $ map pretty2 ps)
+    pretty (PConstr ctr ps) = text (constrName ctr) <+> hsep (map pretty2 ps)
       where pretty2 (PConstr ctr' [])  = text (constrName ctr')
-            pretty2 (PConstr ctr' ps') = parens $ text (constrName ctr') <+> (hsep $ map pretty ps')
+            pretty2 (PConstr ctr' ps') = parens $ text (constrName ctr') <+> hsep (map pretty ps')
             pretty2 (PVar nam _)       = text nam
             pretty2 (PWildcard)        = text "_"
 
@@ -568,7 +568,7 @@ constrInfo :: [Pattern] -> ([Constructor],[Name])
 constrInfo patshead =
     if all isWildcardOrVar patshead then ([],[])
     else
-        let (PConstr (Constructor _ types) _) = patshead !! (fromJust $ findIndex (not. isWildcardOrVar) patshead)
+        let (PConstr (Constructor _ types) _) = patshead !! fromJust (findIndex (not. isWildcardOrVar) patshead)
             (Datatype _ _ allcontructor') = last types
             allcontructor = Set.fromList allcontructor'
             appearconstructor' = nub [ ctr | PConstr ctr@(Constructor _ _ ) _ <- patshead ]
@@ -597,10 +597,10 @@ specializedMatrix :: Constructor -> [[Pattern]] -> [[Pattern]]
 specializedMatrix ctr pats =
     let (Constructor name types) = ctr
         num = length types - 1
-    in  [ res ++ (tail list1) | list1 <- pats,
-                                let curPattern = head list1,
-                                (isWildcardOrVar curPattern) || (centainPConstr name curPattern),
-                                let res = extractorsubpattern name num curPattern ]
+    in  [ res ++ tail list1 | list1 <- pats,
+                              let curPattern = head list1,
+                              isWildcardOrVar curPattern || centainPConstr name curPattern,
+                              let res = extractorsubpattern name num curPattern ]
 
 -- default matrix D(P)
 --           pi1               |        D(P)

@@ -31,29 +31,28 @@ fetchResult outP = do
 
 -- java compilation + run
 compileAndRun inP outP name compileF exp =
-  do let source = prettyPrint (fst $ (compileF name exp))
+  do let source = prettyPrint (fst (compileF name exp))
      let jname = name ++ ".java"
      hPutStrLn inP jname
      hPutStrLn inP (source ++ "\n" ++ "//end of file")
-     result <- fetchResult outP
-     return result
+     fetchResult outP
 
 esf2sf source =
-  do case source of
-      PError msg -> error $ show msg
-      POk parsed -> do
-        result <- typeCheck parsed
-        case result of
-          Left typeError -> error $ show typeError
-          Right (_, checked) ->
-            let fiExpr = desugar checked
-            in return (rewriteAndEval (OptiUtils.Hide (simplify (FI.HideF fiExpr))))
+  case source of
+   PError msg -> error $ show msg
+   POk parsed -> do
+     result <- typeCheck parsed
+     case result of
+       Left typeError -> error $ show typeError
+       Right (_, checked) ->
+         let fiExpr = desugar checked
+         in return (rewriteAndEval (OptiUtils.Hide (simplify (FI.HideF fiExpr))))
 
 testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput) = do
   let className = capitalize $ dropExtension (takeFileName filePath)
   output <- runIO (compileAndRun inP outP className compilation ast)
   it ("should compile and run " ++ name ++ " and get \"" ++ expectedOutput ++ "\"") $
-     (return output) `shouldReturn` expectedOutput
+     return output `shouldReturn` expectedOutput
 
 testConcreteSyn inP outP compilation (name, filePath) =
   do source <- runIO (readFile filePath)
@@ -86,7 +85,7 @@ transSpec =
        (\(name, compilation) ->
          describe name $
            do cp <- runIO getClassPath
-              let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
+              let p = (proc "java" ["-cp", cp, namespace ++ "FileServer", cp])
                           {std_in = CreatePipe, std_out = CreatePipe}
               (Just inP, Just outP, _, proch) <- runIO $ createProcess p
               runIO $ hSetBuffering inP NoBuffering

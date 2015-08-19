@@ -638,7 +638,7 @@ checkExpr (L loc (Data recflag databinds e)) =
                let names = map constrName cs
                    dt = Datatype name (map TVar params) names
                    constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt | Constructor _ ts <- cs]
-                   cs' = [ Constructor ctrname ((map (expandType type_ctxt) ts) ++ [dt]) | (Constructor ctrname ts) <- cs]
+                   cs' = [ Constructor ctrname (map (expandType type_ctxt) ts ++ [dt]) | (Constructor ctrname ts) <- cs]
                    constr_binds = zip names constr_types
                return (cs', constr_binds)
 
@@ -689,13 +689,13 @@ checkExpr expr@(L loc (Case e alts)) =
             throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
 
      -- exhaustive test
-     let exhaustivity = exhaustiveTest value_ctxt (map (\x -> [x]) pats') 1
+     let exhaustivity = exhaustiveTest value_ctxt (map (: []) pats') 1
      unless (null exhaustivity) $
          throwError $ General (text "patterns are not exhausive, missing patterns:" <$>
                                vcat (map (hcat . map pretty) exhaustivity)) `withExpr` expr
 
      -- overlap test
-     let patmatrix = map (\x -> [x]) pats'
+     let patmatrix = map (: []) pats'
          overlapcases = foldr (\num acc ->
                              if usefulClause (take num patmatrix) (patmatrix !! num)
                              then acc
@@ -717,7 +717,7 @@ checkExpr expr@(L loc (Case e alts)) =
 
         getLocalVars PWildcard  = []
         getLocalVars (PVar nam ty) = [(nam, ty)]
-        getLocalVars (PConstr _ pats) = concat $ map getLocalVars pats
+        getLocalVars (PConstr _ pats) = concatMap getLocalVars pats
 
         -- ty is the expected type
         typecheckPattern ty (PVar nam _) = return (PVar nam ty)
@@ -733,7 +733,7 @@ checkExpr expr@(L loc (Case e alts)) =
                 Just t_constr ->
                     let ts = unwrapFun $ feedToForall t_constr ts_feed
                     in do unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch t_constr ty `withExpr` expr
-                          unless ((length ts -1) == (length pats)) $ throwError $ General (text "Constructor" <+> bquotes (text nam)
+                          unless ((length ts -1) == length pats) $ throwError $ General (text "Constructor" <+> bquotes (text nam)
                                           <+> text "should have" <+> int (length ts -1) <+> text "arguments, but has been given"
                                           <+> int (length pats) <+> text "in pattern" <+> pretty pctr ) `withExpr` expr
                           pat' <- zipWithM typecheckPattern ts pats
@@ -994,7 +994,7 @@ usefulClause _ [] = False
 ---- U (P, q) = U (S(c,P), S(c,q))
 usefulClause pats clause@(PConstr ctr _:_) =
     usefulClause (specializedMatrix ctr pats)
-                 (specializedMatrix ctr [clause] !! 0)
+                 (head (specializedMatrix ctr [clause]))
 
 ---- q begins with a wildcard(or a variable)
 usefulClause pats clause =
@@ -1005,7 +1005,7 @@ usefulClause pats clause =
     -- P has all constructors appeared
     -- U (P, q) = whether exists a constructor c that U (S(c,P), S(c,q)) is true
     else any (\ctr -> usefulClause (specializedMatrix ctr pats)
-                                   (specializedMatrix ctr [clause] !!0))
+                                   (head (specializedMatrix ctr [clause])))
              appearconstrs
     where patshead = map head pats
           (appearconstrs, missingconstrs) = constrInfo patshead
@@ -1023,7 +1023,7 @@ exhaustiveTest value_ctxt pats n
     -- if I(D(p), n-1) returns (p2,...,pn)
     -- I(P, n) = (_, p2,...,pn)
     | all isWildcardOrVar patshead = map (PWildcard :) $ exhaustiveTest value_ctxt (map tail pats) (n-1)
-    | missingconstrs == []         = exhaustivityForCtr
+    | null missingconstrs          = exhaustivityForCtr
     | otherwise                    = exhaustivityForCtr ++ exhaustivityForWildcard
     -- if I(S(c, P), a+n-1) returns (r1,...,ra, p2,...,pn)
     -- I(P, n) = (c(r1,...ra), p2,...,pn)

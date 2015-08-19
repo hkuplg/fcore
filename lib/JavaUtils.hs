@@ -21,7 +21,7 @@ module JavaUtils
 
 import StringUtils (capitalize)
 
-import Control.Monad (when)
+import Control.Monad (unless)
 import Paths_fcore
 import System.Directory (setCurrentDirectory, getCurrentDirectory)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, (</>), (<.>), dropExtension, searchPathSeparator)
@@ -47,7 +47,7 @@ inferOutputPath :: FilePath -> FilePath
 inferOutputPath source_path =
   let fileName = (dropExtension . takeFileName $ source_path) ++ "$" -- avoid name clash
   in takeDirectory source_path </>
-     (capitalize fileName) <.> "java"
+     capitalize fileName <.> "java"
 
 inferClassName :: FilePath -> String
 inferClassName outputPath = capitalize $ takeBaseName outputPath
@@ -64,5 +64,5 @@ runJava keepClass srcPath = do
     setCurrentDirectory workDir
     cp <- getClassPath
     callCommand $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
-    when (not keepClass) $ callCommand "rm *.class"
+    unless keepClass $ callCommand "rm *.class"
     setCurrentDirectory currDir

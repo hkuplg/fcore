@@ -327,7 +327,7 @@ trans self =
                    let J.ExpStmt errormsg = classMethodCall (stringExp "Error: ") "concat" [unwrap oexpr]
                    let erro = bStmt $ methodCall ["System","err","println"] [errormsg]
                    let exit = bStmt $ methodCall ["System", "exit"] [integerExp 0]
-                   return (stmt ++ [erro, exit], Right $ J.Null, ty)
+                   return (stmt ++ [erro, exit], Right J.Null, ty)
               JMethod c m args r ->
                 do args' <- mapM (translateM this) args
                    let (statements,exprs,types) = concatFirst $ unzip3 args'
@@ -383,16 +383,16 @@ trans self =
                                               _ -> sorry "Constr.nam: no idea how to do"
                    let ctrName = nam ++ ctrName'
                    case realType of
-                       Datatype _ _ _ | null es -> do
+                       Datatype{} | null es -> do
                           let inst = localVar (classTy nam) (varDecl newVar $ methodCallExp [map toLower nam,ctrName] [])
                           return ([inst], var newVar, realType)
                        _ -> do
                           let st1 = localVar closureType (varDecl newVar $ methodCallExp [map toLower nam,ctrName] [])
                           let functiontype = case realType of
-                                Datatype _ _ _ -> Forall $ foldr (\a b -> Type a (\()->b)) (Body realType) (init ctrParams)
+                                Datatype{} -> Forall $ foldr (\a b -> Type a (\()->b)) (Body realType) (init ctrParams)
                                 Forall ts -> Forall $ foldr (\a b -> Type a (\()->b)) ts (init ctrParams)
                                 _ -> sorry "Constr.functiontype: no idea how to do"
-                          foldl (\acc es' -> translateApply this False acc es')
+                          foldl (translateApply this False)
                                 (return ([st1], var newVar, functiontype))
                                 (map (translateM this) es)
               Case scrut alts ->
@@ -503,7 +503,7 @@ trans self =
                        proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
                    return (classdef,proxy)
        ,translateCtr =
-            \nam (Constructor ctrname' types') tagnum -> do
+            \nam (Constructor ctrname' types') tagnum ->
                case types' of
                  [_] -> do
                           let ctrname = nam ++ ctrname'
@@ -526,10 +526,10 @@ trans self =
 
                          (stmts, oexpr) <- translateCtrParams this ctrname types []
                          let methodbody = Just . block $ stmts ++ [returnExpS (unwrap oexpr)]
-                         let methoddecl = memberDecl $ methodDecl [] (Just $ closureType) ctrname [] methodbody
+                         let methoddecl = memberDecl $ methodDecl [] (Just closureType) ctrname [] methodbody
                          return [ctrclass, methoddecl]
        ,translateCtrParams =
-           \classnam types params -> do
+           \classnam types params ->
              case types of
                 [] -> do
                     newVarName <- getNewVarName this
@@ -542,7 +542,7 @@ trans self =
                     let accessField = fieldAccess (left $ var (localvarstr ++ show (n+1))) closureInput
                     let initVar = localFinalVar typ (varDecl (localvarstr ++ show (n+2))
                                                              (if typ == objClassTy then accessField else cast typ accessField))
-                    let classbody = closureBodyGen [memberDecl $ fieldDecl (closureType) (varDecl (localvarstr ++ show (n+1)) J.This)]
+                    let classbody = closureBodyGen [memberDecl $ fieldDecl closureType (varDecl (localvarstr ++ show (n+1)) J.This)]
                                                    (initVar:stmt ++ [assign (name [closureOutput]) (unwrap oexpr)])
                                                    n
                                                    False
@@ -669,7 +669,7 @@ trans self =
                        newvars <- liftM (pairUp bindings) vars
                        let finalFuns = mfuns newvars
                        let appliedBody = body newvars
-                       let varnums = map (((localvarstr ++) . show . fst)) newvars
+                       let varnums = map ((localvarstr ++) . show . fst) newvars
                        (bindStmts,bindExprs,tbind) <- liftM unzip3 finalFuns
                        bodyStmts <- transDefs this appliedBody
                        bindtyps <- mapM (javaType this) tbind

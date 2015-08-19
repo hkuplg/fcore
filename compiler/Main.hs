@@ -25,7 +25,7 @@ import           JavaUtils
 import           MonadLib
 
 import           Data.Char (toLower)
-import           Data.List (intersperse)
+import           Data.List (intercalate)
 import qualified Data.Map.Lazy as Map
 import qualified Data.Set as Set
 import           Options.Applicative
@@ -70,11 +70,11 @@ dumpOpts = Map.fromList
              ]
 
 intersperseComma :: Map.Map String a -> String
-intersperseComma m = concat (intersperse ", " (Map.keys m))
+intersperseComma m = intercalate ", " (Map.keys m)
 
 parseOpts :: Map.Map String a -> String -> ReadM a
 parseOpts opts str =
-  let parsed = Map.lookup (map (toLower) str) opts
+  let parsed = Map.lookup (map toLower str) opts
   in case parsed of
     Just p  -> return p
     Nothing -> readerError $ "expected one of: " ++ intersperseComma opts

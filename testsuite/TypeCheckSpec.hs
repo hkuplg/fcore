@@ -20,4 +20,4 @@ tcSpec =
     forM_ failingCases
       (\(name, source) -> it ("should reject " ++ name) $
          let POk parsed = reader source
-         in typeCheck parsed >>= (\checked -> checked `shouldSatisfy` hasError))
+         in typeCheck parsed >>= ((`shouldSatisfy` hasError)))

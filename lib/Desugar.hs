@@ -12,7 +12,7 @@ including the removal of type synonyms. No desugaring should happen before this
 stage.
 -}
 
-{-# LANGUAGE RecordWildCards #-}
+
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Desugar (desugar) where
@@ -317,12 +317,12 @@ decisionTree (d,g) = go
                go (tail exprs)
                   (map tail pats)
                   branches
-                  (zipWith (\pat bind -> case (head pat) of
+                  (zipWith (\pat bind -> case head pat of
                                PVar nam ty -> (nam, ty, curExp'):bind
                                _ -> bind )
                            pats
                            binds)
-          | missingconstrs == [] = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs)
+          | null missingconstrs = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs)
           | otherwise            = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs ++ makeDefault)
           where patshead = map head pats
                 curExp' = head exprs
@@ -336,10 +336,10 @@ decisionTree (d,g) = go
                            javafieldexprs = zipWith (\num pam -> noLoc $ JField (NonStatic curExp) (fieldtag ++ show num) pam)
                                                     [1..len]
                                                     params
-                           exprs' = javafieldexprs ++ (tail exprs)
+                           exprs' = javafieldexprs ++ tail exprs
                            (pats', branches', binds') =
                                unzip3 $ foldr (\(curPattern:rest, branch, bind) acc ->
-                                                  let nextPats = (extractorsubpattern name len curPattern)++rest
+                                                  let nextPats = extractorsubpattern name len curPattern ++ rest
                                                   in  case curPattern of
                                                        PWildcard -> ( nextPats, branch, bind) :acc
                                                        PVar nam ty -> (nextPats, branch, (nam, ty, curExp): bind) :acc
