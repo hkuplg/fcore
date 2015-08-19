@@ -71,10 +71,10 @@ data Expr t e
 
   -- Binders we have: λ, fix, letrec, and Λ
   | Lam Src.ReaderId (Type t) (e -> Expr t e)
-  -- | Fix Src.ReaderId Src.ReaderId
-  --       (e -> e -> Expr t e)
-  --       (Type t)  -- t1
-  --       (Type t)  -- t
+  | Fix Src.ReaderId Src.ReaderId
+        (e -> e -> Expr t e)
+        (Type t)  -- t1
+        (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
@@ -160,7 +160,7 @@ mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)
 mapVar g h (BLam n f)                = BLam n (mapVar g h . f)
--- mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
+mapVar g h (Fix n1 n2 f t1 t)        = Fix n1 n2 (\x x1 -> mapVar g h (f x x1)) (h t1) (h t)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
 mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (mapVar g h e)
@@ -365,12 +365,12 @@ prettyExpr' p (i,j) (Data recflag databinds e) =
 
 prettyExpr' p i (Error _ str) = text "error:" <+> prettyExpr' p i str
 
--- prettyExpr' p (i,j) (Fix n1 n2 f t1 t)
---   = parens $ group $ hang 2 $
---       text "fix" <+> text n1 <+>
---       parens (text n2 <+> colon <+> prettyType' p i t1) <+>
---       colon <+> prettyType' p i t <> dot <$>
---       prettyExpr' p (i, j + 2) (f j (j + 1))
+prettyExpr' p (i,j) (Fix n1 n2 f t1 t)
+  = parens $ group $ hang 2 $
+      text "fix" <+> text n1 <+>
+      parens (text n2 <+> colon <+> prettyType' p i t1) <+>
+      colon <+> prettyType' p i t <> dot <$>
+      prettyExpr' p (i, j + 2) (f j (j + 1))
 
 prettyExpr' p (i,j) (Let n b e) =
   parensIf p 2 (text "let" <+> text n <+> equals <+> prettyExpr' basePrec (i, j + 1) b <$> text "in" <$>

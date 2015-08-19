@@ -69,7 +69,7 @@ data Expr t e =
    | Let S.ReaderId (Expr t e) (e -> Expr t e)
    -- fixpoints
    | LetRec [S.ReaderId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
-   -- | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
+   | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
    -- Module
    | Module (Definition t e)
    -- Java
@@ -150,9 +150,9 @@ fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
 fexp2cexp (C.Let n bind body)        = Let n (fexp2cexp bind) (fexp2cexp . body)
 fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (map fexp2cexp . f) (fexp2cexp . g)
--- fexp2cexp (C.Fix n1 n2 f t1 t2) =
---   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
---   in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
+fexp2cexp (C.Fix n1 n2 f t1 t2) =
+  let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
+  in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
 fexp2cexp (C.Module defs) = Module (fdef2cdef defs)
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
@@ -389,11 +389,11 @@ prettyExpr p (i, j) (Let _ x f) =
   text "in" <$$>
   indent 2 (prettyExpr basePrec (i, succ j) (f j))
 
--- prettyExpr p (i, j) (Fix _ _ t f) =
---   nest 2 (text "Fix(" <$>
---   backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$>
---   prettyEScope p (i, succ j) (f j)) <$>
---   text ")"
+prettyExpr p (i, j) (Fix _ _ t f) =
+  nest 2 (text "Fix(" <$>
+  backslash <+> parens (prettyVar j <+> colon <+> prettyType p i t) <> dot <$>
+  prettyEScope p (i, succ j) (f j)) <$>
+  text ")"
 
 prettyExpr p i (Module defs) = text "Module" <> semi <$> prettyDef p i defs
 

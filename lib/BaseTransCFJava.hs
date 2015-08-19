@@ -251,11 +251,11 @@ trans self =
                 do (s,je,t) <- translateScopeM this se Nothing
                    return (s,je,Forall t)
               -- TODO: propagate names
-              -- Fix _ _ t s ->
-              --   do (n :: Int) <- get
-              --      put (n + 1)
-              --      (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
-              --      return (expr,je,Forall t')
+              Fix _ _ t s ->
+                do (n :: Int) <- get
+                   put (n + 1)
+                   (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
+                   return (expr,je,Forall t')
               -- TODO: propagate names
               Let _ expr body ->
                 do (s1, j1, t1) <- translateM this expr

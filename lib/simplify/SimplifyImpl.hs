@@ -51,7 +51,7 @@ infer i j (FI.Lit (S.Bool   _))   = FI.JClass "java.lang.Boolean"
 infer i j (FI.Lit (S.Char   _))   = FI.JClass "java.lang.Character"
 infer i j (FI.Lit  S.UnitLit)     = FI.Unit
 infer i j (FI.Lam n t f)          = FI.Fun t . infer i (j + 1) $ f (j, t)
--- infer i j (FI.Fix _ _ _ t1 t)     = FI.Fun t1 t
+infer i j (FI.Fix _ _ _ t1 t)     = FI.Fun t1 t
 infer i j (FI.Let _ b f)          = infer i (j + 1) $ f (j, infer i j b)
 infer i j (FI.LetRec _ ts _ e)    = infer i (j + n) $ e (zip [j..j+n-1] ts)      where n = length ts
 infer i j (FI.BLam n f)           = FI.Forall n (\a -> infer (i + 1) j $ f a)
@@ -85,10 +85,10 @@ transExpr :: Index -> Index -> FI.Expr Index (Index, FI.Type Index) -> Expr Inde
 transExpr i j (FI.Var n (x, _))          = Var n x
 transExpr i j (FI.Lit l)                 = Lit l
 transExpr i j (FI.Lam n t f)             = Lam n (transType i t) (\x -> transExpr i (j + 1) $ f (x, t))
--- transExpr i j this@(FI.Fix fn pn e t1 t) = Fix fn pn e' t1' t'
---   where
---     e'        = \x x1 -> transExpr i (j + 2) $ e (x, infer i j this) (x1, t1)
---     (t1', t') = (transType i t1, transType i t)
+transExpr i j this@(FI.Fix fn pn e t1 t) = Fix fn pn e' t1' t'
+  where
+    e'        = \x x1 -> transExpr i (j + 2) $ e (x, infer i j this) (x1, t1)
+    (t1', t') = (transType i t1, transType i t)
 transExpr i j (FI.Let n b f)             = Let n (transExpr i j b) (\x -> transExpr i (j + 1) $ f (x, infer i j b))
 transExpr i j (FI.LetRec ns ts bs e)     = LetRec ns ts' bs' e'
   where
@@ -270,10 +270,10 @@ dedeBruE _ _  _ _  (Lit l)                        = Lit l
 dedeBruE i as j xs (Lam n t f)                    = Lam n
                                                       (dedeBruT i as t)
                                                       (\x -> dedeBruE i as (j + 1) (x:xs) (f j))
--- dedeBruE i as j xs (Fix fn pn f t1 t)             = Fix fn pn
---                                                       (\x x1 -> dedeBruE i as (j + 2) (x1:x:xs) $ f j (j + 1))
---                                                       (dedeBruT i as t1)
---                                                       (dedeBruT i as t)
+dedeBruE i as j xs (Fix fn pn f t1 t)             = Fix fn pn
+                                                      (\x x1 -> dedeBruE i as (j + 2) (x1:x:xs) $ f j (j + 1))
+                                                      (dedeBruT i as t1)
+                                                      (dedeBruT i as t)
 dedeBruE i as j xs (Let n e f)                    = Let n
                                                       (dedeBruE i as j xs e)
                                                       (\x -> dedeBruE i as (j + 1) (x:xs) (f j))
