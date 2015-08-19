@@ -129,6 +129,20 @@ genIfBody this m2 m3 (s1,j1) n =
 
      return (s1 ++ [ifresdecl,ifstmt],var ifvarname ,t2) -- need to check t2 == t3
 
+initializeRec this types binds = do
+  (n :: Int) <- get
+  let needed = length types
+  put (n + 1 + needed)
+  let mfuns xs = forM (binds xs) (translateM this)
+  -- let (bindings :: [Var]) = [n + 1.. n + needed]
+  let newvars = zip [n + 1 ..] types
+  let finalFuns = mfuns newvars
+  -- let appliedBody = body newvars
+  rBinds <- liftM unzip3 finalFuns
+  -- rBody <- translateM this appliedBody
+  return (n, newvars, rBinds)
+
+
 -- needed
 assignVar :: Monad m => Translate m -> Type Int -> String -> J.Exp -> m J.BlockStmt
 assignVar this t varId e = do aType <- javaType this t
@@ -237,49 +251,44 @@ trans self =
                 do (s,je,t) <- translateScopeM this se Nothing
                    return (s,je,Forall t)
               -- TODO: propagate names
-              Fix _ _ t s ->
-                do (n :: Int) <- get
-                   put (n + 1)
-                   (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
-                   return (expr,je,Forall t')
+              -- Fix _ _ t s ->
+              --   do (n :: Int) <- get
+              --      put (n + 1)
+              --      (expr,je,t') <- translateScopeM this (s (n,t)) (Just (n,t)) -- weird!
+              --      return (expr,je,Forall t')
               -- TODO: propagate names
               Let _ expr body ->
                 do (s1, j1, t1) <- translateM this expr
                    translateLet this (s1,j1,t1) body
               -- TODO: propagate names
-              LetRec _ t xs body ->
-                do (n :: Int) <- get
-                   let needed = length t
-                   put (n + 2 + needed)
-                   let mfuns defs = forM (xs defs) (translateM this)
-                   let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
-                   let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
-                   newvars <- liftM (pairUp bindings) vars
-                   let finalFuns = mfuns newvars
-                   let appliedBody = body newvars
-                   (bindStmts,bindExprs,tbind) <- liftM unzip3 finalFuns
-                   (bodyStmts,bodyExpr,t') <- translateM this appliedBody
-                   bindtyps <- mapM (javaType this) tbind
-                   typ <- javaType this t'
+              LetRec _ types xs body ->
+                do (n, newvars, (bindStmts,bindExprs,tBinds)) <- initializeRec this types xs
+                   (bodyStmts,bodyExpr,tBody) <- translateM this (body newvars)
+                   bindtyps <- mapM (javaType this) tBinds
+                   typ <- javaType this tBody
 
                    -- initialize declarations
-                   let mDecls = map (\(x, btyp) -> memberDecl (fieldDecl btyp (varDeclNoInit (localvarstr ++ show x)))) (zip bindings bindtyps)
+                   let bindings = map fst newvars
+                   let mDecls = map (\(x, btyp) -> memberDecl (fieldDecl btyp (varDeclNoInit (localvarstr ++ show x))))
+                                                              (zip bindings bindtyps)
 
                    -- assign new created closures bindings to variables
+                   let letClassName = letTransName ++ show n
+                   let letVarName = localvarstr ++ show n
                    let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
                                   (bindings `zip` map unwrap bindExprs)
-                   let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap bodyExpr)]
-                   let letClass =
-                         [localClass (letTransName ++ show n)
-                                     (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
-                                                 mDecls ++ [J.InitDecl False (J.Block stasm)]))
+                   let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm)
 
-                         ,localVar (classTy (letTransName ++ show n))
-                                   (varDecl (localvarstr ++ show n)
-                                            (instCreat (classTyp (letTransName ++ show n)) []))
-                         ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
-                                                     (cast typ (J.ExpName (name [localvarstr ++ show n, tempvarstr]))))]
-                   return (letClass,var (localvarstr ++ show (n + 1)),t')
+                   let letClass = localClass letClassName (classBody (mDecls ++ [J.InitDecl False (J.Block stasm)]))
+
+                   -- after let class, some variable initialization
+                   let letVarInit = localVar (classTy (letTransName ++ show n))
+                                    (varDecl letVarName (instCreat (classTyp letClassName) []))
+                   let mVarsInit = map (\(x, btyp) -> (localVar btyp (varDecl x (fieldAccess (varExp letVarName) x))))
+                                       (zip (map ((localvarstr ++) . show) bindings) bindtyps)
+
+
+                   return (letClass : letVarInit : mVarsInit ++ bodyStmts, bodyExpr, tBody)
 {-
     Γ |- E1 : ∀(x:T2)∆.T1 ~> J1 in S1
     Γ |- E2 : T2 ~> J2 in S2
@@ -660,23 +669,15 @@ trans self =
                           let xDecl = localVarWithAnno anno typ (varDecl x $ unwrap e)
                           return (bs ++ [xDecl] ++ otherDefStmts)
                      DefRec names types exprs body -> do
-                       (n :: Int) <- get
-                       let needed = length names
-                       put (n + needed)
-                       let mfuns defs = forM (exprs defs) (translateM this)
-                       let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] (map snd types)))
-                       let (bindings :: [Var]) = [n .. n + needed - 1]
-                       newvars <- liftM (pairUp bindings) vars
-                       let finalFuns = mfuns newvars
-                       let appliedBody = body newvars
-                       let varnums = map ((localvarstr ++) . show . fst) newvars
-                       (bindStmts,bindExprs,tbind) <- liftM unzip3 finalFuns
-                       bodyStmts <- transDefs this appliedBody
-                       bindtyps <- mapM (javaType this) tbind
+                       (n, newvars, (bindStmts, bindExprs, tBinds)) <- initializeRec this (map snd types) exprs
+                       bodyStmts <- transDefs this (body newvars)
+                       bindtyps <- mapM (javaType this) tBinds
                        let srcTypes = map fst types
 
                        -- create annotations for each variable
+                       let varnums = map ((localvarstr ++) . show . fst) newvars
                        let annos = map (\(fname, x, srcTyp) -> normalAnno fname x (show srcTyp)) (zip3 names varnums srcTypes)
+
                        -- assign new created closures bindings to variables
                        let assm = map (\(anno,i,typ,jz) -> localVarWithAnno anno typ (varDecl i jz))
                                       (zip4 annos varnums bindtyps (map unwrap bindExprs))

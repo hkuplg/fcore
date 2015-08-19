@@ -36,24 +36,24 @@ rewrite1 (Let _ (Var _ n) f) = rewrite1 (f n)
 rewrite1 e = mapExpr rewrite1 e
 
 -- transform single self recursion to fix (TODO: workaround)
-rewrite0 :: Expr t Int -> Expr t e
-rewrite0 = swap1_3 rewrite0' 0 Map.empty
+-- rewrite0 :: Expr t Int -> Expr t e
+-- rewrite0 = swap1_3 rewrite0' 0 Map.empty
 
-rewrite0' :: Map.Map Int e -> Expr t Int -> Int -> Expr t e
-rewrite0' env e@(LetRec names [Fun t1 t2] binds expr) num =
-  case head (binds [num]) of
-    Lam _ _ body ->
-      Let
-        (head names)
-        (fix
-           (\f arg ->
-              rewrite0' (Map.insert (num + 1) arg (Map.insert num f env)) (body (num + 1)) (num + 2))
-           t1
-           t2)
-        (\es -> rewrite0' (Map.insert num es env) (expr [num]) (num + 1))
-    _ ->
-      rewriteExpr (swap1_3 rewrite0') num env e
-rewrite0' env t num = rewriteExpr (swap1_3 rewrite0') num env t
+-- rewrite0' :: Map.Map Int e -> Expr t Int -> Int -> Expr t e
+-- rewrite0' env e@(LetRec names [Fun t1 t2] binds expr) num =
+--   case head (binds [num]) of
+--     Lam _ _ body ->
+--       Let
+--         (head names)
+--         (fix
+--            (\f arg ->
+--               rewrite0' (Map.insert (num + 1) arg (Map.insert num f env)) (body (num + 1)) (num + 2))
+--            t1
+--            t2)
+--         (\es -> rewrite0' (Map.insert num es env) (expr [num]) (num + 1))
+--     _ ->
+--       rewriteExpr (swap1_3 rewrite0') num env e
+-- rewrite0' env t num = rewriteExpr (swap1_3 rewrite0') num env t
 
 -- Rule 2: let x = e in x                 =>  e
 rewrite2 :: Expr t Int -> Expr t e
@@ -84,7 +84,7 @@ partialEval :: Exp -> Exp
 partialEval e = Hide (peval (reveal e))
 
 rewriteCombined :: Exp -> Exp
-rewriteCombined e = Hide (rewrite3 . rewrite2 . rewrite0 . reveal $ e)
+rewriteCombined e = Hide (rewrite3 . rewrite2 . reveal $ e)
 
 rewriteForever :: Exp -> [Exp]
 rewriteForever e = e : rewriteForever (rewriteCombined e)
