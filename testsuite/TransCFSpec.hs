@@ -65,13 +65,11 @@ testConcreteSyn inP outP compilation (name, filePath) =
             testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput)
 
 abstractCases =
-  [("factorial 10", "main_1", factApp, "3628800")
-  ,("fibonacci 10", "main_2", fiboApp, "55")
-  ,("idF Int 10", "main_3", idfNum, "10")
-  ,("const Int 10 20", "main_4", constNum, "10")
-  ,("program1 Int 5", "main_5", program1Num, "5")
-  ,("program2", "main_6", program2, "5")
-  ,("program4", "main_7", program4, "11")
+  [ ("idF Int 10", "main_3", idfNum, "10")
+  , ("const Int 10 20", "main_4", constNum, "10")
+  , ("program1 Int 5", "main_5", program1Num, "5")
+  , ("program2", "main_6", program2, "5")
+  , ("program4", "main_7", program4, "11")
   ]
 
 -- intappCase = \c -> it "Should infer type of intapp" $ "(forall (_ : java.lang.Integer) . java.lang.Integer)" `shouldBe` ( let (cu, t) = (c "Main" intapp) in show t)

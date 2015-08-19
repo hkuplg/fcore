@@ -7,35 +7,37 @@ import Language.Java.Syntax as J (Op(..))
 
 import Prelude hiding (const)
 
+
+
 -- mu loop. \x -> loop x
-loopStr = "fix loop. \\(x : Int). loop x : Int -> Int"
-loop = fix (\loop x -> App (var loop) (var x)) (JClass "java.lang.Integer") (JClass "java.lang.Integer")
+-- loopStr = "fix loop. \\(x : Int). loop x : Int -> Int"
+-- loop = LetRec (\loop x -> App (var loop) (var x)) (JClass "java.lang.Integer") (JClass "java.lang.Integer")
 
-factStr = "fix fact. \\(n : Int). if n == 0 then 1 else n * fact (n-1) : Int"
-fact = fix (\fact n ->
-    If (PrimOp (var n) (S.Compare J.Equal) (Lit (S.Int 0)))
-        (Lit (S.Int 1))
-        (PrimOp (var n) (S.Arith J.Mult) (App (var fact) (PrimOp (var n) (S.Arith J.Sub) (Lit (S.Int 1))))))
-    (JClass "java.lang.Integer") (JClass "java.lang.Integer")
+-- factStr = "fix fact. \\(n : Int). if n == 0 then 1 else n * fact (n-1) : Int"
+-- fact = fix (\fact n ->
+--     If (PrimOp (var n) (S.Compare J.Equal) (Lit (S.Int 0)))
+--         (Lit (S.Int 1))
+--         (PrimOp (var n) (S.Arith J.Mult) (App (var fact) (PrimOp (var n) (S.Arith J.Sub) (Lit (S.Int 1))))))
+--     (JClass "java.lang.Integer") (JClass "java.lang.Integer")
 
-tfact = fix (\fact n -> lam (JClass "java.lang.Integer") (\acc ->
-    If (PrimOp (var n) (S.Compare J.Equal) (Lit (S.Int 0)))
-        (var acc)
-        (App (App (var fact) (PrimOp (var n) (S.Arith J.Sub) (Lit (S.Int 1)))) (PrimOp (var n) (S.Arith J.Mult) (var acc)))))
-    (JClass "java.lang.Integer") (Fun (JClass "java.lang.Integer") (JClass "java.lang.Integer"))
+-- tfact = fix (\fact n -> lam (JClass "java.lang.Integer") (\acc ->
+--     If (PrimOp (var n) (S.Compare J.Equal) (Lit (S.Int 0)))
+--         (var acc)
+--         (App (App (var fact) (PrimOp (var n) (S.Arith J.Sub) (Lit (S.Int 1)))) (PrimOp (var n) (S.Arith J.Mult) (var acc)))))
+--     (JClass "java.lang.Integer") (Fun (JClass "java.lang.Integer") (JClass "java.lang.Integer"))
 
-fiboStr = "fix fibo. \\(n : Int). if0 n then 1 else (fibo (n-1)) + (fibo (n-2)) : Int"
-fibo = fix (\fibo n ->
-    If (PrimOp (var n) (S.Compare J.Equal) (Lit (S.Int 2)))
-        (Lit (S.Int 1))
-        (If (PrimOp (var n) (S.Compare J.Equal) (Lit (S.Int 1)))
-             (Lit (S.Int 1))
-             (PrimOp (App (var fibo) (PrimOp (var n) (S.Arith J.Sub) (Lit (S.Int 1)))) (S.Arith J.Add) (App (var fibo) (PrimOp (var n) (S.Arith J.Sub) (Lit (S.Int 2)))))))
-    (JClass "java.lang.Integer") (JClass "java.lang.Integer")
+-- fiboStr = "fix fibo. \\(n : Int). if0 n then 1 else (fibo (n-1)) + (fibo (n-2)) : Int"
+-- fibo = fix (\fibo n ->
+--     If (PrimOp (var n) (S.Compare J.Equal) (Lit (S.Int 2)))
+--         (Lit (S.Int 1))
+--         (If (PrimOp (var n) (S.Compare J.Equal) (Lit (S.Int 1)))
+--              (Lit (S.Int 1))
+--              (PrimOp (App (var fibo) (PrimOp (var n) (S.Arith J.Sub) (Lit (S.Int 1)))) (S.Arith J.Add) (App (var fibo) (PrimOp (var n) (S.Arith J.Sub) (Lit (S.Int 2)))))))
+--     (JClass "java.lang.Integer") (JClass "java.lang.Integer")
 
-factApp = App fact (Lit (S.Int 10))
+-- factApp = App fact (Lit (S.Int 10))
 
-fiboApp = App fibo (Lit (S.Int 10))
+-- fiboApp = App fibo (Lit (S.Int 10))
 -- /\A. \(x:A) . x
 
 idF1Str = "/\\A. \\(x:A). x"

@@ -152,7 +152,7 @@ transS this super =
              case e of
                -- count abstraction as in tail position
                Lam _ _ -> local (True ||) $ translateM super e
-               Fix{} -> local (True ||) $ translateM super e
+               -- Fix{} -> local (True ||) $ translateM super e
                -- type application just inherits existing flag
                TApp _ _ -> translateM super e
                -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherits flag

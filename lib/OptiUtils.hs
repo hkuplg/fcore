@@ -34,7 +34,7 @@ joinExpr (Case e alts) = Case (joinExpr e) (map joinAlt alts)
   where joinAlt (ConstrAlt ctr e1) = ConstrAlt ctr (joinExpr e1)
         joinAlt (Default e1) = Default (joinExpr e1)
 joinExpr (Proj i e) = Proj i (joinExpr e)
-joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
+-- joinExpr (Fix n1 n2 f t1 t2) = Fix n1 n2 (\e1 e2 -> joinExpr (f (Var n1 e1) (Var n2 e2))) t1 t2
 joinExpr (Let n bind body) = Let n (joinExpr bind) (joinExpr . body . Var n)
 joinExpr (LetRec n s b1 b2) =
   LetRec n s
@@ -59,7 +59,7 @@ mapExpr f e =
       Var _ _ -> e
       Lit _ -> e
       Lam n t g -> Lam n t (\x -> f . g $ x)
-      Fix n1 n2 g t1 t -> Fix n1 n2 (\e1 e2 -> f $ g e1 e2) t1 t
+      -- Fix n1 n2 g t1 t -> Fix n1 n2 (\e1 e2 -> f $ g e1 e2) t1 t
       Let n bind body -> Let n (f bind) (\x -> f . body $ x)
       LetRec names sigs binds body ->
           LetRec names sigs
@@ -94,7 +94,7 @@ rewriteExpr f num env expr =
    Var n v -> Var n (fromJust $ Map.lookup v env)
    Lit n ->  Lit n
    Lam n t f' -> Lam n t (\e -> f (num + 1) (Map.insert num e env) (f' num))
-   Fix n1 n2 f' t1 t2 -> Fix n1 n2 (\a b -> f (num + 2) (Map.insert (num + 1) b (Map.insert num a env)) (f' num (num + 1))) t1 t2
+   -- Fix n1 n2 f' t1 t2 -> Fix n1 n2 (\a b -> f (num + 2) (Map.insert (num + 1) b (Map.insert num a env)) (f' num (num + 1))) t1 t2
    Let n e f' -> Let n (f num env e) (\b -> f (num + 1) (Map.insert num b env) (f' num))
    LetRec n t b f' ->
      let len = length n
@@ -146,7 +146,7 @@ peq :: Int -> Expr Int Int -> Expr Int Int -> Bool
 peq _ (Var _ a) (Var _ b) = a == b
 peq _ (Lit a) (Lit b) = a == b
 peq n (Lam _ _ f1) (Lam _ _ f2) = peq (n + 1) (f1 n) (f2 n)
-peq n (Fix _ _ f1 _ _) (Fix _ _ f2 _ _) = peq (n + 2) (f1 n (n + 1)) (f2 n (n + 1))
+-- peq n (Fix _ _ f1 _ _) (Fix _ _ f2 _ _) = peq (n + 2) (f1 n (n + 1)) (f2 n (n + 1))
 peq n (Let _ x f1) (Let _ y f2) = peq n x y && peq (n + 1) (f1 n) (f2 n)
 peq n (LetRec _ _ f1 g1) (LetRec _ _ f2 g2) =
   let bind1 = f1 [n ..]

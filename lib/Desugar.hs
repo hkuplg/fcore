@@ -219,23 +219,23 @@ desugarBindsToDefs (d, g) (b:bs) =
             exprs ids' = map (desugarExpr (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g)) defs
             def ids' = desugarBindsToDefs (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g) bs
 
-desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
-desugarLetRecToFix (d,g) (L _ (LetOut Rec [(f,t,e)] body)) =
-  F.App
-      (F.Lam f
-          (transType d t)
-          (\f' -> desugarExpr (d, addToEnv [(f, F.Var f f')] g) body))
-      (F.Fix f x1
-          (\f' x1' -> desugarExpr (d, addToEnv [(f, F.Var f f'), (x1, F.Var x1 x1')] g) peeled_e)
-          (transType d t1)
-          (transType d t2))
-          where
-            addToEnv binds g0 = foldr (\(x,x') acc -> Map.insert x x' acc) g0 binds -- TODO: subsumed
-            (Just (x1, t1), t2, peeled_e) = peel Nothing (unLoc e,t)
-              where
-                peel Nothing (Lam param b, Fun _ ret_ty) = (Just param, ret_ty, b)
-                peel _ (e,t) = prettyPanic "desugarLetRecToFix: not a function" (text (show e))
-desugarLetRecToFix _ _ = panic "desugarLetRecToFix"
+-- desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
+-- desugarLetRecToFix (d,g) (L _ (LetOut Rec [(f,t,e)] body)) =
+--   F.App
+--       (F.Lam f
+--           (transType d t)
+--           (\f' -> desugarExpr (d, addToEnv [(f, F.Var f f')] g) body))
+--       (F.Fix f x1
+--           (\f' x1' -> desugarExpr (d, addToEnv [(f, F.Var f f'), (x1, F.Var x1 x1')] g) peeled_e)
+--           (transType d t1)
+--           (transType d t2))
+--           where
+--             addToEnv binds g0 = foldr (\(x,x') acc -> Map.insert x x' acc) g0 binds -- TODO: subsumed
+--             (Just (x1, t1), t2, peeled_e) = peel Nothing (unLoc e,t)
+--               where
+--                 peel Nothing (Lam param b, Fun _ ret_ty) = (Just param, ret_ty, b)
+--                 peel _ (e,t) = prettyPanic "desugarLetRecToFix: not a function" (text (show e))
+-- desugarLetRecToFix _ _ = panic "desugarLetRecToFix"
 
 {-
     let rec f1 = e1, ..., fn = en in e
@@ -243,33 +243,33 @@ desugarLetRecToFix _ _ = panic "desugarLetRecToFix"
 ~>  (\(y : Int -> (t1, ..., tn)). e[*])
       (fix y (dummy : Int) : (t1, ..., tn). (e1, ..., en)[*])
 -}
-desugarLetRecToFixEncoded :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
-desugarLetRecToFixEncoded (d,g) = go
-  where
-    go (L _ (LetOut Rec bs@(_:_) e)) =
-      F.App
-          (F.Lam "_"
-              (F.Fun (F.JClass "java.lang.Integer") (transType d tupled_ts))
-              (\y -> desugarExpr (d, g' y `Map.union` g) e))
-          (F.Fix "_" "_"
-              -- Names ignored. Unused.
-              (\y _dummy -> desugarExpr (d, g' y `Map.union` g) tupled_es)
-              (F.JClass "java.lang.Integer")
-              (transType d tupled_ts))
-              where
-                (fs, ts, es) = unzip3 bs
+-- desugarLetRecToFixEncoded :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
+-- desugarLetRecToFixEncoded (d,g) = go
+--   where
+--     go (L _ (LetOut Rec bs@(_:_) e)) =
+--       F.App
+--           (F.Lam "_"
+--               (F.Fun (F.JClass "java.lang.Integer") (transType d tupled_ts))
+--               (\y -> desugarExpr (d, g' y `Map.union` g) e))
+--           (F.Fix "_" "_"
+--               -- Names ignored. Unused.
+--               (\y _dummy -> desugarExpr (d, g' y `Map.union` g) tupled_es)
+--               (F.JClass "java.lang.Integer")
+--               (transType d tupled_ts))
+--               where
+--                 (fs, ts, es) = unzip3 bs
 
-                tupled_es = noLoc $ Tuple es
-                tupled_ts = Product ts
+--                 tupled_es = noLoc $ Tuple es
+--                 tupled_ts = Product ts
 
-                -- Substitution: fi -> (y 0)._(i-1)
-                g' y = Map.fromList $ -- `Map.fromList` is right-biased.
-                         zipWith
-                             -- TODO: better var name
-                           (\f i -> (f, F.Proj i (F.App (F.Var f y) (F.Lit (Int 0)))))
-                           fs
-                           [1..length bs]
-    go _ = panic "desugarLetRecEncode"
+--                 -- Substitution: fi -> (y 0)._(i-1)
+--                 g' y = Map.fromList $ -- `Map.fromList` is right-biased.
+--                          zipWith
+--                              -- TODO: better var name
+--                            (\f i -> (f, F.Proj i (F.App (F.Var f y) (F.Lit (Int 0)))))
+--                            fs
+--                            [1..length bs]
+--     go _ = panic "desugarLetRecEncode"
 
 -- Convert from: LetOut RecFlag [(Name, Type, CheckedExpr)] (CheckedExpr)
 -- To:           LetRec [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
