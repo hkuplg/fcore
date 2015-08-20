@@ -46,7 +46,7 @@ localVar :: Type -> VarDecl -> BlockStmt
 localVar typ vard = LocalVars [] typ [vard]
 
 localVarWithAnno :: Annotation -> Type -> VarDecl -> BlockStmt
-localVarWithAnno anno typ vard = LocalVars [Annotation anno] typ [vard]
+localVarWithAnno anno typ vard = LocalVars [Annotation anno, Public] typ [vard]
 
 localFinalVar :: Type -> VarDecl -> BlockStmt
 localFinalVar typ vard = LocalVars [Final] typ [vard]

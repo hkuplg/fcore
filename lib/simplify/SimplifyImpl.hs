@@ -116,7 +116,7 @@ transExpr i j (FI.If e1 e2 e3)             = If e1' e2' e3'
 transExpr i j (FI.PrimOp e1 op e2)         = PrimOp (transExpr i j e1) op (transExpr i j e2)
 transExpr i j (FI.Tuple es)                = Tuple . map (transExpr i j) $ es
 transExpr i j (FI.Proj index e)            = Proj index $ transExpr i j e
-transExpr i j (FI.Module defs) = Module $ transDefs i j defs
+transExpr i j (FI.Module pname defs) = Module pname $ transDefs i j defs
   where
     transDefs i j (FI.Def n (t, t') expr def) = Def n t (transExpr i j expr)
                                             (\x -> transDefs i (j + 1) $ def (x, t'))
@@ -294,7 +294,7 @@ dedeBruE i as j xs (PrimOp e1 op e2)              = PrimOp
                                                       (dedeBruE i as j xs e1) op
                                                       (dedeBruE i as j xs e2)
 dedeBruE i as j xs (Tuple es)                     = Tuple (map (dedeBruE i as j xs) es)
-dedeBruE i as j xs (Module defs) = Module (dedeBruDefs i as j xs defs)
+dedeBruE i as j xs (Module pname defs) = Module pname (dedeBruDefs i as j xs defs)
   where
     dedeBruDefs i as j xs (Def n t expr def) = Def n t (dedeBruE i as j xs expr)
                                                  (\f -> dedeBruDefs i as (j + 1) (f : xs) (def j))

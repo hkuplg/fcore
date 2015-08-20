@@ -98,7 +98,7 @@ data Expr t e
   | Proj Int (Expr t e)  -- Tuple elimination
 
   -- Module
-  | Module (Definition t e)
+  | Module (Maybe Src.PackageName) (Definition t e)
 
   -- Java
   | JNew ClassName [Expr t e]
@@ -170,7 +170,7 @@ mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f (h c)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Error ty str)            = Error (h ty) (mapVar g h str)
-mapVar g h (Module defs)             = Module (mapVarDef defs)
+mapVar g h (Module pname defs)       = Module pname (mapVarDef defs)
   where
     -- Necessary?
     mapVarDef (Def name typ expr def) = Def name typ (mapVar g h expr) (mapVarDef . def)
@@ -332,7 +332,8 @@ prettyExpr' p i (Proj n e) =
   parensIf p 5
     (prettyExpr' (5,PrecMinus) i e <> dot <> char '_' <> int n)
 
-prettyExpr' p i (Module defs) = text "Module" <> semi <$> prettyDef p i defs
+prettyExpr' p i (Module pname defs) =
+  maybe empty ((text "package" <+>) . pretty) pname <$> text "module" <> semi <$> prettyDef p i defs
 
 prettyExpr' _ (i,j) (JNew c args) =
   parens (text "new" <+> text c <> tupled (map (prettyExpr' basePrec (i,j)) args))

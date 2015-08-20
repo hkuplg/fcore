@@ -33,15 +33,17 @@ src2test source
   = case reader source of
       PError msg -> do putStrLn msg
                        exitFailure
-      POk parsed -> -- print (pretty parsed)
-        do
-          result <- typeCheck parsed
-          case result of
-            Left typeError -> do print (pretty typeError)
-                                 exitFailure
-            Right (_, checked) -> print (pretty checked)
+      POk parsed -> print (pretty parsed)
+        -- do
+        --   result <- typeCheck parsed
+        --   case result of
+        --     Left typeError -> do print (pretty typeError)
+        --                          exitFailure
+        --     Right (_, checked) -> print (pretty checked)
 
-m1src = "module { multi (n : Int) (m : Int) = n * m; rec fact (n:Int) : Int = if n == 0 then 1 else multi n (fact (n - 1))} "
+m1src = "package P.k module {rec even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1) and odd  (n : Int) : Bool = if n == 0 then False else even (n - 1)} "
+
+m2src = "import a.m; println \"hello\""
 
 {-
 module M1 {
@@ -58,27 +60,27 @@ add (n : Int) (m : Int) = n + m
 
 -}
 
-m1 :: Expr t e
-m1 = Module
-       (DefRec
-          ["even", "odd"]
-          [ (S.Fun javaIntS javaBoolS, javaInt `Fun` javaBool)
-          , (S.Fun javaIntS javaBoolS, javaInt `Fun` javaBool)
-          ]
-          (\ids ->
-             [ lam javaInt
-                 (\n -> If (var n `eq` zero) true (App (var (ids !! 1)) (var n `sub` one)))
-             , lam javaInt
-                 (\n -> If (var n `eq` zero) false (App (var (ids !! 0)) (var n `sub` one)))
-             ])
-          (\ids ->
-             (Def "f1" (javaIntS `S.Fun` javaIntS) fact
-                (\f1 ->
-                   Def
-                     "f2"
-                     (javaIntS `S.Fun` javaIntS)
-                     (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
-                     (\f2 -> Null)))))
+-- m1 :: Expr t e
+-- m1 = Module "_"
+--        (DefRec
+--           ["even", "odd"]
+--           [ (S.Fun javaIntS javaBoolS, javaInt `Fun` javaBool)
+--           , (S.Fun javaIntS javaBoolS, javaInt `Fun` javaBool)
+--           ]
+--           (\ids ->
+--              [ lam javaInt
+--                  (\n -> If (var n `eq` zero) true (App (var (ids !! 1)) (var n `sub` one)))
+--              , lam javaInt
+--                  (\n -> If (var n `eq` zero) false (App (var (ids !! 0)) (var n `sub` one)))
+--              ])
+--           (\ids ->
+--              (Def "f1" (javaIntS `S.Fun` javaIntS) fact
+--                 (\f1 ->
+--                    Def
+--                      "f2"
+--                      (javaIntS `S.Fun` javaIntS)
+--                      (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
+--                      (\f2 -> Null)))))
 
 
 javaIntS = (S.JType (S.JClass "java.lang.Integer"))

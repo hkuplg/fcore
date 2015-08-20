@@ -202,7 +202,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
             in
             go (noLoc $ If emptytest b1 b2'')
 
-    go (L _ (EModuleOut binds)) = F.Module (desugarBindsToDefs (d, g) binds)
+    go (L _ (EModuleOut pname binds)) = F.Module pname (desugarBindsToDefs (d, g) binds)
 
 
 desugarBindsToDefs :: (TVarMap t, VarMap t e) -> [Definition] -> F.Definition t e

@@ -20,6 +20,7 @@ import Src
 import Lexer
 import SrcLoc
 import Predef (injectPredef)
+import StringUtils
 
 import JavaUtils
 import Control.Monad.State
@@ -81,6 +82,7 @@ import Control.Monad.State
 
   "module"  { L _ Tmodule }
   "import"  { L _ Timport }
+  "package"  { L _ TPackage }
 
   INT      { L _ (Tint _) }
   SCHAR    { L _ (Tschar _) }
@@ -138,18 +140,27 @@ import Control.Monad.State
 -- Modules
 ------------------------------------------------------------------------
 
+package :: { Maybe PackageName }
+  : "package" packageIdent       { Just $2 }
+  |                              { Nothing }
+
+packageIdent :: { String }
+  : ident    { unLoc $1 }
+  | ident "." packageIdent { unLoc $1 ++ "." ++ $3 }
+
 module :: { ReaderModule }
   : "module" "{" imports semi_binds "}"  { Module (map unLoc $3) $4 `withLoc` $1 }
 
-module_name :: { LReaderId }
-  : UPPER_IDENT  { toString $1 `withLoc` $1 }
+-- module_name :: { LReaderId }
+--   : UPPER_IDENT  { toString $1 `withLoc` $1 }
 
 imports :: { [ReaderImport] }
   :                    { [] }
   | import ";" imports { $1:$3 }
 
 import :: { ReaderImport }
-  : "import" module_name  { Import (unLoc $2) `withLoc` $1 }
+  : "import" packageIdent  { Import $2 `withLoc` $1 }
+
 
 ------------------------------------------------------------------------
 -- Types
@@ -246,7 +257,7 @@ expr :: { ReaderExpr }
     | "data" recflag and_databinds ";" expr        { Data $2 $3 $5 `withLoc` $1 }
     | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
-    | module                              { EModule (unLoc $1) (Lit UnitLit) `withLoc` $1 }
+    | package module                      { EModule $1 (unLoc $2) (Lit UnitLit) `withLoc` $2 }
     | import ";" expr                     { EImport (unLoc $1) $3 `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
 

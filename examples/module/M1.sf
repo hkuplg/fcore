@@ -1,5 +1,0 @@
-
-import M3; -- fact impoted
-import M2; -- even and odd imported
-
-even (fact 3)

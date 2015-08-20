@@ -13,7 +13,7 @@ smt : runtime dependencies
 
 .PHONY : test
 test : whitespace_test runtime parsers
-	stack build --test --copy-bins
+	stack build --test
 
 .PHONY : whitespace_test
 whitespace_test :

@@ -8,16 +8,21 @@ module JvmTypeQuery
   ) where
 
 import JavaUtils (ClassName, MethodName, FieldName, ModuleName)
-import Src (Type)
+import Src (Type, PackageName)
+import StringUtils
 
 import Data.Char (isSpace, toLower)
+import Data.List
+import Data.List.Split
 import Data.Maybe (listToMaybe)
+import System.Directory
+import System.FilePath
 import System.IO (hPutStrLn, hGetLine, Handle)
 import System.Process.Extra (system_)
 
 data ModuleInfo = ModuleInfo {
-  minfoName :: String,
-  minfoGname :: String,
+  minfoName :: String,  -- | source name
+  minfoGname :: String, -- | java variable name
   minfoSignature :: Type } deriving (Show)
 
 sendRecv :: (Handle, Handle) -> [String] -> IO String
@@ -66,12 +71,15 @@ fieldTypeOf h c (f, is_static)
 
 getModuleInfo
   :: (Handle, Handle)
-  -> ModuleName
+  -> (Maybe Src.PackageName, ModuleName)
   -> IO (Maybe [ModuleInfo])
 -- Also automatically compile imported modules
-getModuleInfo h m
-  = do system_ $ "f2j --compile --keep " ++ m ++ ".sf" -- FIXME: hackish
-       s <- sendRecv h ["qModuleInfo", m] >>= fixRet
+-- FIXME: cause error if a module has import and package declaration
+getModuleInfo h (p, m)
+  = do currDir <- getCurrentDirectory
+       let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
+       system_ $ "f2j --compile --keep " ++ moduleDir </> m ++ ".sf"
+       s <- sendRecv h ["qModuleInfo", ((maybe "" (++ ".") p) ++ capitalize m)] >>= fixRet
        case s of
         Nothing -> return Nothing
         Just xs -> return $ listToModuleInfo (wordsWhen (== '$') xs)

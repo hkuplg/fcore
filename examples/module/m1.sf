@@ -1,0 +1,6 @@
+
+import util.m3;        -- fact impoted
+import util.m2;        -- even and odd imported
+import util.simple.m4; -- sub imported
+
+even (fact (sub 3 1))

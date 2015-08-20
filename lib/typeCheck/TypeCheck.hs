@@ -31,27 +31,25 @@ module TypeCheck
   , TypeError
   ) where
 
-import Src
-import SrcLoc
-
 import IOEnv
 import JavaUtils
-import PrettyUtils
-import RuntimeProcessManager (withRuntimeProcess)
 import JvmTypeQuery
 import Panic
+import PrettyUtils
+import RuntimeProcessManager (withRuntimeProcess)
+import Src
+import SrcLoc
+import StringUtils
 
-import Text.PrettyPrint.ANSI.Leijen
-
-import System.IO
 import Control.Monad.Except
-
-import Data.Maybe (fromMaybe, isJust, fromJust)
+import Data.List (findIndex, intercalate)
+import Data.List.Split
 import qualified Data.Map  as Map
+import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Set  as Set
-import Data.List (findIndex)
-
 import Prelude hiding (pred, (<$>))
+import System.IO
+import Text.PrettyPrint.ANSI.Leijen
 
 type Connection = (Handle, Handle)
 
@@ -229,7 +227,7 @@ withLocalVars vars do_this
        setTcEnv TcEnv { tceValueContext = gamma, ..}
        return r
 
-withLocalMVars :: [(ReaderId, (Type, ReaderId, ReaderId))]-> Checker a -> Checker a
+withLocalMVars :: [(ReaderId, ModuleMapInfo)]-> Checker a -> Checker a
 withLocalMVars vars do_this
   = do sigma <- getModuleContext
        let sigma' = Map.fromList vars `Map.union` sigma
@@ -298,14 +296,16 @@ hasKindStar d t
 
 -- | Typing.
 checkExpr :: ReaderExpr -> Checker (Type, CheckedExpr)
-checkExpr e@(L loc (Var name))
-  = do value_ctxt <- getValueContext
-       module_ctxt <- getModuleContext
-       case Map.lookup name value_ctxt of
-         Just t  -> return (t, L loc $ Var (name,t))
-         Nothing -> case Map.lookup name module_ctxt of
-                     Just (t, g, m) -> return (t, L loc $ JField (Static $ m ++ "$") g t)
-                     Nothing -> throwError (NotInScope name `withExpr` e)
+checkExpr e@(L loc (Var name)) = do
+  value_ctxt <- getValueContext
+  module_ctxt <- getModuleContext
+  case Map.lookup name value_ctxt of
+    Just t -> return (t, L loc $ Var (name, t))
+    Nothing ->
+      case Map.lookup name module_ctxt of
+        Just (p, t, g, m) -> return
+                               (t, L loc $ JField (Static $ (maybe "" (++ ".") p) ++ m ++ "$") g t)
+        Nothing -> throwError (NotInScope name `withExpr` e)
 
 checkExpr (L loc (Lit lit)) = return (srcLitType lit, L loc $ Lit lit)
 
@@ -419,12 +419,12 @@ checkExpr (L loc (Let rec_flag binds e)) =
 checkExpr (L loc LetOut{}) = panic "TypeCheck.infer: LetOut"
 
 
-checkExpr (L loc (EModule (Module imps binds) _)) =
+checkExpr (L loc (EModule pname (Module imps binds) _)) =
   do
     infoBinds <- collectModuleInfos imps
     checkDupNames (concatMap getBindId binds)
     binds' <- withLocalMVars infoBinds (normalizeBindAndAccum binds)
-    return (Unit, L loc $ EModuleOut binds')
+    return (Unit, L loc $ EModuleOut pname binds')
 
   where
     collectModuleInfos [] = return []
@@ -920,17 +920,21 @@ checkFieldAccess callee f
     where
        (static_flag, c) = unwrapJCallee callee
 
-checkModuleFunction :: Import ModuleName -> Checker [(ReaderId, (Type, ReaderId, ModuleName))]
+checkModuleFunction :: Import ModuleName -> Checker [(ReaderId, ModuleMapInfo)]
 checkModuleFunction (Import m) =
   do
     typeserver <- getTypeServer
-    res <- liftIO (getModuleInfo typeserver m)
+    res <- liftIO (getModuleInfo typeserver (pName, moduleName))
     case res of
       Nothing  -> throwError (noExpr $ ImportFail m)
       Just ret -> return (map flatInfo ret)
 
   where
-    flatInfo (ModuleInfo f g t) = (f, (t, g, m))
+    (packageName, moduleName) =
+      let w = (splitOn "." m)
+      in (intercalate "." (init w), last w)
+    pName = if null packageName then Nothing else Just packageName
+    flatInfo (ModuleInfo f g t) = (f, (pName, t, g, capitalize moduleName))
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)

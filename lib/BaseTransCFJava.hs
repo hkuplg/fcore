@@ -37,9 +37,9 @@ type InitVars = [J.BlockStmt]
 
 -- Closure F to Java
 
-createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
-createCUB _ compDef = cu
-  where cu = J.CompilationUnit Nothing [] compDef
+createCUB :: Maybe J.PackageDecl -> [J.TypeDecl] -> J.CompilationUnit
+createCUB package compDef = cu
+  where cu = J.CompilationUnit package [] compDef
 
 
 initClass :: String -> String -> J.Exp -> J.BlockStmt
@@ -164,9 +164,9 @@ getNewVarName _ = do (n :: Int) <- get
                      put (n + 1)
                      return $ localvarstr ++ show n
 
-isModule :: Expr t e -> Bool
-isModule (Module{}) = True
-isModule _ = False
+isModule :: Expr t e -> (Maybe S.PackageName, Bool)
+isModule (Module pname _) = (pname, True)
+isModule _ = (Nothing, False)
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self =
@@ -303,8 +303,8 @@ trans self =
                                   (translateM this e2)
 
               -- Module
-              Module defs -> do defStmts <- transDefs this defs
-                                return (defStmts, var tempvarstr, Unit)
+              Module _ defs -> do defStmts <- transDefs this defs
+                                  return (defStmts, var tempvarstr, Unit)
 
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
               JNew c args ->
@@ -649,12 +649,13 @@ trans self =
           \nam expr ->
               do (bs,e,t) <- translateM this expr
                  returnType <- applyRetType this t
-                 let flag = isModule expr
-                 let javaCode = if isModule expr
+                 let (package, flag) = isModule expr
+                 let javaCode = if flag
                                 then wrapperClass flag nam bs returnType moduleMainBody
                                 else let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
                                      in wrapperClass flag nam (bs ++ returnStmt) returnType mainBody
-                 return (createCUB this [javaCode], t)
+                 return (maybe (createCUB Nothing [javaCode])
+                               (\pname -> createCUB  (Just (J.PackageDecl (name [pname]))) [javaCode]) package, t)
 
        ,transDefs =
          \ defs -> case defs of

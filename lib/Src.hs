@@ -22,8 +22,8 @@ module Src
   , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
-  , Name, ReaderId, CheckedId, LReaderId
-  , TypeValue(..), TypeContext, ValueContext, ModuleContext
+  , Name, ReaderId, CheckedId, LReaderId, PackageName
+  , TypeValue(..), TypeContext, ValueContext, ModuleContext, ModuleMapInfo
   , DataBind(..)
   , groupForall
   , expandType
@@ -151,8 +151,8 @@ data Expr id ty
   | RecordCon [(Label, LExpr id ty)]
   | RecordProj (LExpr id ty) Label
   | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
-  | EModule (Module id ty) (Expr id ty)
-  | EModuleOut [Definition]  -- Post typecheck only
+  | EModule (Maybe PackageName) (Module id ty) (Expr id ty)
+  | EModuleOut (Maybe PackageName) [Definition]  -- Post typecheck only
   | EImport (Import id) (LExpr id ty)
   -- | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
@@ -169,6 +169,7 @@ data Expr id ty
   | Error Type (LExpr id ty)
   deriving (Eq, Show)
 
+type PackageName = Name
 type CheckedBind = (Name, Type, CheckedExpr)
 data Definition = Def CheckedBind | DefRec [CheckedBind] deriving (Eq, Show)
 
@@ -233,7 +234,9 @@ data TypeValue
 
 type TypeContext  = Map.Map ReaderId (Kind, TypeValue) -- Delta
 type ValueContext = Map.Map ReaderId Type              -- Gamma
-type ModuleContext = Map.Map ReaderId (Type, ReaderId, ReaderId) -- Sigma
+type ModuleMapInfo = (Maybe PackageName, Type, ReaderId, ReaderId)
+type ModuleContext = Map.Map ReaderId ModuleMapInfo -- Sigma
+
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
 -- Used in `compatible` and `subtype`.
@@ -498,7 +501,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
-  pretty (EModule modu e) = pretty modu <$> pretty e
+  pretty (EModule pname modu e) = maybe empty ((text "package" <+>) . pretty) pname <$> pretty modu <$> pretty e
   pretty (EImport imp e) = pretty imp <$> pretty e
   pretty e = text (show e)
 
