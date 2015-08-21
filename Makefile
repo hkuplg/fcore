@@ -23,7 +23,7 @@ mkprelude : $(SF_FILES)
 	make runtime
 
 .PHONY : compiler
-compiler : runtime parsers
+compiler : runtime
 	stack build --copy-bins
 
 # .PHONY : smt
@@ -31,7 +31,7 @@ compiler : runtime parsers
 # 	$${CABAL=cabal}  install -f Z3
 
 .PHONY : test
-test : whitespace_test runtime parsers
+test : whitespace_test runtime
 	stack build --test
 
 .PHONY : whitespace_test

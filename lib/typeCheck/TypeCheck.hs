@@ -55,11 +55,13 @@ import Text.PrettyPrint.ANSI.Leijen
 
 type Connection = (Handle, Handle)
 
-typeCheck :: ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
+typeCheck :: ReaderExpr
+          -> Bool -- ^ True for testing
+          -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
-typeCheck e = withTypeServer (\type_server -> do
-  module_ctxt <- initializePrelude type_server
-  (evalIOEnv (mkInitTcEnv module_ctxt type_server) . runExceptT . checkExpr) e)
+typeCheck e isTest = withTypeServer (\type_server -> do
+           module_ctxt <- if isTest then return Map.empty else  (initializePrelude type_server)
+           (evalIOEnv (mkInitTcEnv module_ctxt type_server) . runExceptT . checkExpr) e)
 
 initializePrelude :: Connection -> IO ModuleContext
 initializePrelude type_server = do

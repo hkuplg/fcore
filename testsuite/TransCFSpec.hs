@@ -41,7 +41,7 @@ esf2sf source =
   case source of
    PError msg -> error $ show msg
    POk parsed -> do
-     result <- typeCheck parsed
+     result <- typeCheck parsed True
      case result of
        Left typeError -> error $ show typeError
        Right (_, checked) ->
