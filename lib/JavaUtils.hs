@@ -15,24 +15,29 @@ module JavaUtils
   ( getRuntimeJarPath
   , getClassPath
   , compileJava, runJava
-  , inferOutputPath, inferClassName
+  , inferOutputPath, inferClassName, predefList
   , ClassName, MethodName, FieldName
+  , ModuleName
   ) where
 
+import Data.List (isSuffixOf)
 import StringUtils (capitalize)
+import System.IO.Unsafe (unsafePerformIO)
 
-import System.Directory (setCurrentDirectory, getCurrentDirectory, getTemporaryDirectory)
+import Language.Haskell.TH.Syntax
+import Paths_fcore
+import System.Directory (setCurrentDirectory, getCurrentDirectory, getDirectoryContents)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, (</>), (<.>), dropExtension, searchPathSeparator)
-import System.Process (system)
+import System.Process.Extra (system_)
+
 
 type ClassName  = String
 type MethodName = String
 type FieldName  = String
+type ModuleName = String
 
 getRuntimeJarPath :: IO FilePath
-getRuntimeJarPath =
-  do tempdir <- getTemporaryDirectory
-     return (tempdir </> "runtime.jar")
+getRuntimeJarPath = getDataFileName "runtime/runtime.jar"
 
 getClassPath :: IO FilePath
 getClassPath = do r <- getRuntimeJarPath
@@ -45,7 +50,7 @@ inferOutputPath :: FilePath -> FilePath
 inferOutputPath source_path =
   let fileName = (dropExtension . takeFileName $ source_path) ++ "$" -- avoid name clash
   in takeDirectory source_path </>
-     (capitalize fileName) <.> "java"
+     capitalize fileName <.> "java"
 
 inferClassName :: FilePath -> String
 inferClassName outputPath = capitalize $ takeBaseName outputPath
@@ -53,8 +58,7 @@ inferClassName outputPath = capitalize $ takeBaseName outputPath
 compileJava :: FilePath -> IO ()
 compileJava srcPath
   = do cp <- getClassPath
-       system ("javac -cp " ++ cp ++ " " ++ srcPath)
-       return ()
+       system_ ("javac -cp " ++ cp ++ " " ++ srcPath)
 
 runJava :: FilePath -> IO ()
 runJava srcPath = do
@@ -62,6 +66,15 @@ runJava srcPath = do
     let workDir = takeDirectory srcPath
     setCurrentDirectory workDir
     cp <- getClassPath
-    system $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
-    system "rm *.class"
+    system_ $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
+    system_ "rm *.class"
     setCurrentDirectory currDir
+
+-- Here we want to do "safe" compile-time computation to get the list
+-- of pre-defined functions
+getPredef :: [(Maybe String, String)]
+getPredef =
+  let filePaths = unsafePerformIO $ getDirectoryContents "lib/predef"
+  in ((map (\path -> (Just "f2j.prelude", takeBaseName path)) (filter (isSuffixOf "sf") filePaths)))
+
+predefList = [| $(lift getPredef) |]

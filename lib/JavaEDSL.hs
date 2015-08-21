@@ -20,7 +20,7 @@ intTy :: Type
 intTy = PrimType IntT
 
 closureType :: Type
-closureType = classTy (namespace ++ "Closure")
+closureType = classTy ifoClass
 
 objClassTy :: Type
 objClassTy = classTy "Object"
@@ -44,6 +44,9 @@ varDeclNoInit nam = VarDecl (VarId $ Ident nam) Nothing
 
 localVar :: Type -> VarDecl -> BlockStmt
 localVar typ vard = LocalVars [] typ [vard]
+
+localVarWithAnno :: Annotation -> Type -> VarDecl -> BlockStmt
+localVarWithAnno anno typ vard = LocalVars [Annotation anno, Public] typ [vard]
 
 localFinalVar :: Type -> VarDecl -> BlockStmt
 localFinalVar typ vard = LocalVars [Final] typ [vard]
@@ -78,9 +81,16 @@ unwrap x = case x of
             Left (Name xs) -> ExpName . Name $ xs
             Right e -> Lit e
 
-localToMemberClass :: BlockStmt -> MemberDecl
-localToMemberClass (LocalClass t) = MemberClassDecl t
-localToMemberClass _ = error "parameter should be a local class"
+localToMember :: BlockStmt -> Decl
+localToMember (LocalClass t) = MemberDecl (MemberClassDecl t)
+localToMember (LocalVars modi typ decls) = MemberDecl (FieldDecl modi typ decls)
+localToMember b@(BlockStmt{}) = InitDecl True (Block [b])
+
+makeStatic :: Decl -> Decl
+makeStatic (MemberDecl (MemberClassDecl (ClassDecl modi i t r rs body)))
+  = MemberDecl (MemberClassDecl (ClassDecl (Static : modi) i t r rs body))
+makeStatic (MemberDecl (FieldDecl modi typ decls)) = MemberDecl (FieldDecl (Static : modi) typ decls)
+makeStatic e = e
 
 -- method
 
@@ -104,31 +114,31 @@ classMethodCall e s argus = ExpStmt (MethodInv (PrimaryMethodCall e [] (Ident s)
 
 -- class construction
 
--- -- field member
+-- field member
 fieldDecl :: Type -> VarDecl -> MemberDecl
 fieldDecl typ vdecl = FieldDecl [] typ [vdecl]
 
 finalFieldDecl :: Type -> VarDecl -> MemberDecl
 finalFieldDecl typ vdecl = FieldDecl [Final] typ [vdecl]
 
--- -- class member
+-- class member
 memberClassDecl :: String -> String -> ClassBody -> MemberDecl
 memberClassDecl nam super body = MemberClassDecl (ClassDecl [] (Ident nam) [] (Just $ ClassRefType $ ClassType [(Ident super, [])]) [] body)
 
--- -- method member
+-- method member
 methodDecl :: [Modifier] -> Maybe Type -> String -> [FormalParam] -> Maybe Block -> MemberDecl
 methodDecl modi ty nam params body = MethodDecl modi [] ty (Ident nam) params [] (MethodBody body)
 
--- -- constructor
+-- constructor
 constructorDecl :: String -> [FormalParam] -> Maybe ExplConstrInv -> [BlockStmt] -> MemberDecl
 constructorDecl nam params constrinv stmts = ConstructorDecl [] [] (Ident nam) params [] (ConstructorBody constrinv stmts)
 
--- -- -- for constructor: this.name = name
+-- for constructor: this.name = name
 initField :: String -> BlockStmt
 initField fieldname = let fieldaccess' = fieldAccExp This fieldname
                       in   assignField fieldaccess' (ExpName (name [fieldname]))
 
--- -- classbody
+-- classbody
 memberDecl :: MemberDecl -> Decl
 memberDecl = MemberDecl
 
@@ -148,7 +158,7 @@ closureBodyGen initDecls body idCF generateClone className = classBody $ initDec
                   bStmt (Return (Just (cast className (left $ var "c"))))
                   ]
 
--- -- class decl
+-- class decl
 localClassDecl :: String -> String -> ClassBody -> BlockStmt
 localClassDecl nam super body = LocalClass (ClassDecl [] (Ident nam) [] (Just $ ClassRefType $ ClassType [(Ident super, [])]) [] body)
 
@@ -161,7 +171,7 @@ classDecl modi ident =
 
 -- expression
 
--- -- lit
+-- lit
 integerExp :: Integer -> Exp
 integerExp = Lit . Int
 
@@ -171,22 +181,22 @@ stringExp = Lit . String
 nullExp :: Exp
 nullExp = Lit Null
 
--- -- op
+-- op
 eq :: Exp -> Exp -> Exp
 eq e1 = BinOp e1 Equal
 
--- -- type cast
+-- type cast
 cast :: Type -> Exp -> Exp
 cast = Cast
 
--- -- class field access
+-- class field access
 fieldAccess :: Exp -> String -> Exp
 fieldAccess expr str = FieldAccess $ PrimaryFieldAccess expr (Ident str)
 
 fieldAccExp :: Exp -> String -> FieldAccess
 fieldAccExp expr str = PrimaryFieldAccess expr (Ident str)
 
--- -- class instantiation
+-- class instantiation
 instCreat :: ClassType -> [Argument] -> Exp
 instCreat cls args = InstanceCreation [] cls args Nothing
 
@@ -194,7 +204,7 @@ funInstCreate :: Int -> Exp
 funInstCreate i = instCreat fun []
   where fun = ClassType [(Ident (closureTransName ++ show i),[])]
 
--- -- assignment
+-- assignment
 assign :: Name -> Exp -> BlockStmt
 assign lhs rhs = BlockStmt $ ExpStmt $ Assign (NameLhs lhs) EqualA rhs
 
@@ -204,11 +214,11 @@ assignE lhs rhs = ExpStmt $ Assign (NameLhs lhs) EqualA rhs
 assignField :: FieldAccess -> Exp -> BlockStmt
 assignField access rhs = BlockStmt $ ExpStmt $ Assign (FieldLhs access) EqualA rhs
 
--- -- if
+-- if
 ifthen :: Exp -> Stmt -> Stmt
 ifthen = IfThen
 
--- -- switch
+-- switch
 switchStmt:: Exp -> [SwitchBlock] ->Stmt
 switchStmt = Switch
 
@@ -216,7 +226,7 @@ switchBlock :: Maybe Exp -> [BlockStmt] -> SwitchBlock
 switchBlock (Just e) bs = SwitchBlock (SwitchCase e) $ bs ++ [bStmt (Break Nothing)]
 switchBlock Nothing  bs = SwitchBlock Default bs
 
--- -- return
+-- return
 returnNull :: Maybe Block
 returnNull = Just (Block [BlockStmt (Return (Just (Lit Null)))])
 
@@ -226,7 +236,7 @@ returnExp e= Just (Block [BlockStmt (Return (Just e))])
 returnExpS :: Exp -> BlockStmt
 returnExpS e= BlockStmt (Return (Just e))
 
--- -- exception
+-- exception
 throwRuntimeException :: String -> Stmt
 throwRuntimeException s = Throw $ instCreat (classTyp "RuntimeException") [Lit. String $ s]
 
@@ -240,16 +250,33 @@ mainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
                                                 "println"
                                                 [left $ var "apply()"]])
 
-wrapperClass :: String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
-wrapperClass className stmts returnType mainbodyDef  =
+moduleMainBody :: Maybe Block
+moduleMainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
+                                                "println"
+                                                [Lit (String "Module generated")]])
+
+wrapperClass :: Bool -> String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
+wrapperClass isModule className stmts returnType mainbodyDef =
   ClassTypeDecl
-    (classDecl [Public]
-               className
-               (classBody (applyMethod : [mainMethod])))
-  where body = Just (block stmts)
-        applyMethod = memberDecl $ methodDecl [Static] returnType "apply" [] body
-        -- testMethod = memberDecl $ methodDecl [Public,Static] returnType "test" testArgType testBodyDef
-        mainMethod  = memberDecl $ methodDecl [Public,Static] Nothing "main" mainArgType mainbodyDef
+    (classDecl [Public] className
+       (classBody
+          (if isModule
+             then defClasses ++ [mainMethod]
+             else applyMethod : [mainMethod])))
+  where
+    body = Just (block stmts)
+    applyMethod = memberDecl $ methodDecl [Static] returnType "apply" [] body
+    defClasses = map (makeStatic . localToMember) stmts
+    -- testMethod = memberDecl $ methodDecl [Public,Static] returnType "test" testArgType testBodyDef
+    mainMethod = memberDecl $ methodDecl [Public, Static] Nothing "main" mainArgType mainbodyDef
 
 annotation :: String -> Modifier
 annotation ann = Annotation MarkerAnnotation {annName = Name [Ident ann]}
+
+normalAnno :: String -> String -> String -> Annotation
+normalAnno srcName genName sig =
+  NormalAnnotation
+    (name [annoName])
+    [(Ident annoSrcName,EVVal (InitExp (Lit (String srcName))))
+    ,(Ident annoGenName,EVVal (InitExp (Lit (String genName))))
+    ,(Ident annoSig,EVVal (InitExp (Lit (String sig))))]

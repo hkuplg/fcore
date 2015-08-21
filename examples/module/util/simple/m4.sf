@@ -1,3 +1,5 @@
-module M3 {
+package util.simple
+
+module {
   sub (a: Int) (b: Int): Int = a - b
 }

@@ -1,10 +1,8 @@
-{-# LANGUAGE DeriveDataTypeable
-           , FlexibleContexts
+{-# LANGUAGE FlexibleContexts
            , FlexibleInstances
            , KindSignatures
            , MultiParamTypeClasses
            , RankNTypes
-           , TypeOperators
            #-}
 
 {-# OPTIONS_GHC -fno-warn-unused-binds -fwarn-incomplete-patterns -fno-warn-orphans #-}
@@ -20,14 +18,13 @@ module BackEnd
     -- , compileAoptUnbox
     -- , compileSU
     , core2java
-    -- , sf2java2
     , DumpOption(..)
     ) where
 
 import           ApplyTransCFJava
 import           BaseTransCFJava
-import           BenchGenCF2J
-import           BenchGenStack
+-- import           BenchGenCF2J
+-- import           BenchGenStack
 import           ClosureF
 import qualified Core
 import           Inheritance
@@ -40,7 +37,6 @@ import           PrettyUtils
 import           StackTransCFJava
 -- import           UnboxTransCFJava
 
-import           Data.Data
 import           Language.Java.Pretty
 import qualified Language.Java.Syntax as J
 import           Prelude hiding (exp)
@@ -51,12 +47,12 @@ import           Prelude hiding (exp)
 
 data DumpOption
   = NoDump
-  | DumpParsed
-  | DumpTChecked
-  | DumpCore
-  | DumpSimpleCore
-  | DumpClosureF
-    deriving (Eq, Show, Data, Typeable)
+  | Parsed
+  | TChecked
+  | SystemFI
+  | SimpleCore
+  | ClosureF
+    deriving (Eq, Show)
 
 -- Naive translation
 
@@ -128,17 +124,17 @@ instance (:<)  (ApplyOptTranslate m) (TranslateStack m) where
 -- instance (:<) (ApplyOptTranslate m) (UnboxTranslate m) where
 --   up = UT . toT
 
-instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
-  up = NT . toTBA
+-- instance (:<) (BenchGenTranslateOpt m) (ApplyOptTranslate m) where
+--   up = NT . toTBA
 
-instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
-  up = TS . toTBS
+-- instance (:<) (BenchGenTranslateStack m) (TranslateStack m) where
+--   up = TS . toTBS
 
-instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
-  up = NT . toTBSA
+-- instance (:<) (BenchGenTranslateStackOpt m) (ApplyOptTranslate m) where
+--   up = NT . toTBSA
 
-instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
-  up = TS . toTBSA
+-- instance (:<) (BenchGenTranslateStackOpt m) (TranslateStack m) where
+--   up = TS . toTBSA
 
 -- instance (:<) (BenchGenTranslateStackOpt m) (UnboxTranslate m) where
 --   up = UT . toTBSA
@@ -163,9 +159,9 @@ core2java supernaive optInline optDump compilation className closedCoreExpr =
              1 -> inliner rewrittenCore
              2 -> inliner . inliner $ rewrittenCore
              _ -> rewrittenCore
-     when (optDump == DumpSimpleCore) $
+     when (optDump == SimpleCore) $
        print (Core.prettyExpr rewrittenCore)
-     when (optDump == DumpClosureF) $
+     when (optDump == ClosureF) $
        print (ClosureF.prettyExpr basePrec
                                   (0,0)
                                   (fexp2cexp inlinedCore))
@@ -176,11 +172,9 @@ core2java supernaive optInline optDump compilation className closedCoreExpr =
               else compilation className inlinedCore
      return $ prettyPrint cu
 
-
-type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)--PFExp Int (Var, Type Int) -> (J.Block, J.Exp, Type Int)
+type Compilation = String -> Core.Expr Int (Var, Type Int) -> (J.CompilationUnit, Type Int)
 
 -- | setting for various combination of optimization
-
 -- Setting for naive
 type NType = State Int
 ninst :: Translate NType  -- instantiation; all coinstraints resolved

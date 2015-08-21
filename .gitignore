@@ -6,7 +6,7 @@ Lexer.hs
 Parser.hs
 Parser.info
 
-runtime/
+runtime/build
 runtime.jar
 
 # Ignore generated Java source files
@@ -70,3 +70,5 @@ Main.java
 
 # IntelliJ IDEA
 .idea/
+/runtime/src/f2j/prelude/*.java
+lib/predef/*.java

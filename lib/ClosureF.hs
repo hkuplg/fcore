@@ -13,18 +13,19 @@ Portability :  non-portable (MPTC)
 -}
 module ClosureF where
 
-import qualified Src  as S
+import qualified Src as S
 import qualified Core as C
 
-import JavaUtils
-import Panic
-import StringPrefixes
+import           JavaUtils
+import           Panic
+import           StringPrefixes
 
-import PrettyUtils
-import Text.PrettyPrint.ANSI.Leijen
+import           Control.Arrow (second)
+import           Data.List (intersperse)
 import qualified Language.Java.Pretty (prettyPrint)
-import Data.List (intersperse)
-import Prelude hiding ((<$>))
+import           Prelude hiding ((<$>))
+import           PrettyUtils
+import           Text.PrettyPrint.ANSI.Leijen
 
 -- Closure F syntax
 
@@ -50,6 +51,10 @@ data Type t =
     | ListType (Type t)
     | Datatype S.ReaderId [Type t] [S.ReaderId]
 
+data Definition t e = Def S.Name S.Type (Expr t e) (e -> Definition t e)
+                    | DefRec [S.Name] [(S.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
+                    | Null
+
 data Expr t e =
      Var S.ReaderId e
    | FVar Int
@@ -65,6 +70,8 @@ data Expr t e =
    -- fixpoints
    | LetRec [S.ReaderId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
    | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
+   -- Module
+   | Module (Maybe S.PackageName) (Definition t e)
    -- Java
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
@@ -125,6 +132,12 @@ CTApp (fexp2cexp e) (ftyp2ctyp t)
 -}
 
 
+fdef2cdef :: C.Definition t e -> Definition t e
+fdef2cdef (C.Def fname typ e def) = Def fname typ (fexp2cexp e) (fdef2cdef . def)
+fdef2cdef (C.DefRec names types exprs def) =
+          DefRec names (map (second ftyp2ctyp) types) (map fexp2cexp . exprs) (fdef2cdef . def)
+fdef2cdef C.Null = Null
+
 fexp2cexp :: C.Expr t e -> Expr t e
 fexp2cexp (C.Var rid x)                = Var rid x
 fexp2cexp (C.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
@@ -136,10 +149,11 @@ fexp2cexp (C.If e1 e2 e3)            = If (fexp2cexp e1) (fexp2cexp e2) (fexp2ce
 fexp2cexp (C.Tuple tuple)            = Tuple (map fexp2cexp tuple)
 fexp2cexp (C.Proj i e)               = Proj i (fexp2cexp e)
 fexp2cexp (C.Let n bind body)        = Let n (fexp2cexp bind) (fexp2cexp . body)
-fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (map fexp2cexp . f ) (fexp2cexp . g)
+fexp2cexp (C.LetRec n ts f g) = LetRec n (map ftyp2ctyp ts) (map fexp2cexp . f) (fexp2cexp . g)
 fexp2cexp (C.Fix n1 n2 f t1 t2) =
   let  g e = groupLambda (C.Lam "_" t1 (f e)) -- is this right???? (BUG)
   in   Fix n1 n2 (Forall (adjust (C.Fun t1 t2) (g undefined))) g
+fexp2cexp (C.Module pname defs) = Module pname (fdef2cdef defs)
 fexp2cexp (C.JNew cName args)     = JNew cName (map fexp2cexp args)
 fexp2cexp (C.JMethod c mName args r) =
   case c of (S.NonStatic ce) -> JMethod (Right $ fexp2cexp ce) mName (map fexp2cexp args) r
@@ -283,6 +297,25 @@ prettyType _ _ CFCharacter = text "Character"
 prettyType p i (TupleType l) = tupled (map (prettyType p i) l)
 prettyType p i (Datatype n tvars _) = hsep $ text n : map (prettyType p i) tvars
 
+prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
+prettyDef p (i, j) (Def fname typ e def) =
+  prettyVar j <+> colon <+> pretty typ <+> equals <$> prettyExpr p (i, succ j) e <> semi <$>
+  prettyDef p (i, succ j) (def j)
+
+prettyDef p (i, j) (DefRec names sigs binds defs) = vcat (intersperse (text "and") pretty_binds) <> semi <$> pretty_body
+  where
+    n   = length sigs
+    ids = [i..(i+n-1)]
+    pretty_ids   = map prettyVar ids
+    pretty_sigs  = map (pretty . fst) sigs
+    pretty_defs  = map (prettyExpr p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3 (\pretty_id pretty_sig pretty_def ->
+                  pretty_id <+> colon <+> pretty_sig <+> equals <$> pretty_def)
+                  pretty_ids pretty_sigs pretty_defs
+    pretty_body  = prettyDef p (i, j + n) (defs ids)
+
+prettyDef _ _ Null = text ""
+
 prettyExpr :: Prec -> (Index, Index) -> Expr Index Index -> Doc
 
 prettyExpr _ _ (Var _ x) = prettyVar x
@@ -362,6 +395,9 @@ prettyExpr p (i, j) (Fix _ _ t f) =
   prettyEScope p (i, succ j) (f j)) <$>
   text ")"
 
+prettyExpr p i (Module pname defs) =
+  maybe empty ((text "package" <+>) . pretty) pname <$> text "module" <> semi <$> prettyDef p i defs
+
 prettyExpr p i (JNew name l) = parens (text "new" <+> text name <> tupled (map (prettyExpr p i) l))
 
 prettyExpr p i (JMethod name m args r) = methodStr name <> dot <> text m <> tupled (map (prettyExpr basePrec i) args)
@@ -384,11 +420,11 @@ prettyExpr p (i,j) (Data recflag databinds e) =
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
                    (equals <+> intersperseBar (map (prettyCtr (i+ length tvars))$ cons [i..(i-1+length tvars)]) <$$> semi)
 
-prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
+prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> hsep (map (prettyExpr p i) es))
 
 prettyExpr p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))
     where pretty_alt (ConstrAlt c e1) =
-               (text (constrName c) <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))
+               text (constrName c) <+> arrow <+> align (prettyExpr p (i, j) e1)
           pretty_alt (Default e1) =
-               (text "_" <+> arrow <+> (align $ prettyExpr p (i, j) e1 ))
+               text "_" <+> arrow <+> align (prettyExpr p (i, j) e1)

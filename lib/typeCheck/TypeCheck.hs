@@ -1,7 +1,8 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+
 {- |
 Module      :  TypeCheck
 Description :  Type checker for the source language.
@@ -28,35 +29,44 @@ module TypeCheck
   , typeCheckWithEnv
   , mkInitTcEnvWithEnv
   , TypeError
+  , Connection
   ) where
-
-import Src
-import SrcLoc
 
 import IOEnv
 import JavaUtils
-import PrettyUtils
-import RuntimeProcessManager (withRuntimeProcess)
 import JvmTypeQuery
 import Panic
+import PrettyUtils
+import RuntimeProcessManager (withRuntimeProcess)
+import Src
+import SrcLoc
+import StringUtils
+import Predef
 
-import Text.PrettyPrint.ANSI.Leijen
-import System.IO
 import Control.Monad.Except
-
-import Data.Maybe (fromMaybe, isJust, fromJust)
+import Data.List (findIndex, intercalate)
+import Data.List.Split
 import qualified Data.Map  as Map
+import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Set  as Set
-import Data.List (intersperse, findIndex)
-
 import Prelude hiding (pred, (<$>))
+import System.IO
+import Text.PrettyPrint.ANSI.Leijen
 
 type Connection = (Handle, Handle)
 
-typeCheck :: ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
+typeCheck :: ReaderExpr
+          -> Bool -- ^ True for testing
+          -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
-typeCheck e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnv type_server) . runExceptT . checkExpr) e)
+typeCheck e isTest = withTypeServer (\type_server -> do
+           module_ctxt <- if isTest then return Map.empty else  (initializePrelude type_server)
+           (evalIOEnv (mkInitTcEnv module_ctxt type_server) . runExceptT . checkExpr) e)
+
+initializePrelude :: Connection -> IO ModuleContext
+initializePrelude type_server = do
+  moduleInfo <- processPredef type_server
+  return $ Map.fromList moduleInfo
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
@@ -71,15 +81,17 @@ data TcEnv
   = TcEnv
   { tceTypeContext     :: TypeContext
   , tceValueContext    :: ValueContext
+  , tceModuleContext   :: ModuleContext
   , tceTypeserver   :: Connection
   , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
 
-mkInitTcEnv :: Connection -> TcEnv
-mkInitTcEnv type_server
+mkInitTcEnv :: ModuleContext -> Connection -> TcEnv
+mkInitTcEnv module_ctxt type_server
   = TcEnv
   { tceTypeContext     = Map.empty
   , tceValueContext    = Map.empty
+  , tceModuleContext   = module_ctxt
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -90,6 +102,7 @@ mkInitTcEnvWithEnv value_ctxt type_server
   = TcEnv
   { tceTypeContext     = Map.empty
   , tceValueContext    = value_ctxt
+  , tceModuleContext   = Map.empty
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -113,6 +126,7 @@ data TypeError
   | NoSuchConstructor ClassName [ClassName]
   | NoSuchMethod      (JCallee ClassName) MethodName [ClassName]
   | NoSuchField       (JCallee ClassName) FieldName
+  | ImportFail        ModuleName
   deriving (Show)
 
 type LTypeErrorExpr = Located (TypeError, Maybe ReaderExpr)
@@ -184,6 +198,9 @@ getTypeContext = liftM tceTypeContext getTcEnv
 getValueContext :: Checker ValueContext
 getValueContext = liftM tceValueContext getTcEnv
 
+getModuleContext :: Checker ModuleContext
+getModuleContext = liftM tceModuleContext getTcEnv
+
 getTypeServer :: Checker (Handle, Handle)
 getTypeServer = liftM tceTypeserver getTcEnv
 
@@ -218,6 +235,18 @@ withLocalVars vars do_this
        r <- do_this
        TcEnv {..} <- getTcEnv
        setTcEnv TcEnv { tceValueContext = gamma, ..}
+       return r
+
+withLocalMVars :: [(ReaderId, ModuleMapInfo)]-> Checker a -> Checker a
+withLocalMVars vars do_this
+  = do sigma <- getModuleContext
+       let sigma' = Map.fromList vars `Map.union` sigma
+                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
+       TcEnv {..} <- getTcEnv
+       setTcEnv TcEnv { tceModuleContext = sigma', ..}
+       r <- do_this
+       TcEnv {..} <- getTcEnv
+       setTcEnv TcEnv { tceModuleContext = sigma, ..}
        return r
 
 type TypeSubstitution = Map.Map Name Type
@@ -277,11 +306,16 @@ hasKindStar d t
 
 -- | Typing.
 checkExpr :: ReaderExpr -> Checker (Type, CheckedExpr)
-checkExpr e@(L loc (Var name))
-  = do value_ctxt <- getValueContext
-       case Map.lookup name value_ctxt of
-         Just t  -> return (t, L loc $ Var (name,t))
-         Nothing -> throwError (NotInScope name `withExpr` e)
+checkExpr e@(L loc (Var name)) = do
+  value_ctxt <- getValueContext
+  module_ctxt <- getModuleContext
+  case Map.lookup name value_ctxt of
+    Just t -> return (t, L loc $ Var (name, t))
+    Nothing ->
+      case Map.lookup name module_ctxt of
+        Just (p, t, g, m) -> return
+                               (t, L loc $ JField (Static $ (maybe "" (++ ".") p) ++ m ++ "$") g t)
+        Nothing -> throwError (NotInScope name `withExpr` e)
 
 checkExpr (L loc (Lit lit)) = return (srcLitType lit, L loc $ Lit lit)
 
@@ -393,6 +427,28 @@ checkExpr (L loc (Let rec_flag binds e)) =
      return (t, L loc $ LetOut rec_flag binds' e')
 
 checkExpr (L loc LetOut{}) = panic "TypeCheck.infer: LetOut"
+
+
+checkExpr (L loc (EModule pname (Module imps binds) _)) =
+  do
+    infoBinds <- collectModuleInfos imps
+    checkDupNames (concatMap getBindId binds)
+    binds' <- withLocalMVars infoBinds (normalizeBindAndAccum binds)
+    return (Unit, L loc $ EModuleOut pname binds')
+
+  where
+    collectModuleInfos [] = return []
+    collectModuleInfos (imp:imps) = do
+      info <- checkModuleFunction imp
+      fmap (++ info) (collectModuleInfos imps)
+    getBindId (BindNonRec b) = [bindId b]
+    getBindId (BindRec bs) = map bindId bs
+
+checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
+
+checkExpr (L loc (EImport imp e)) =
+  do infoBinds <- checkModuleFunction imp
+     withLocalMVars infoBinds (checkExpr e)
 
 --  Case           Possible interpretations
 --  ---------------------------------------
@@ -522,11 +578,11 @@ checkExpr (L loc (RecordUpdate e fs)) =
      return (t, L loc $ RecordUpdate e' (zip (map fst fs) es'))
 
 -- Well, I know the desugaring is too early to happen here...
-checkExpr (L loc (LetModule (Module m binds) e)) =
-  do let fs = map bindId binds
-     let letrec = L loc $ Let Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
-     checkExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
-checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
+-- checkExpr (L loc (LetModule (Module m binds) e)) =
+--   do let fs = map bindId binds
+--      let letrec = L loc $ Let Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
+--      checkExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
+-- checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
 
 -- Type synonyms: type T A1 ... An = t in e
 -- First make sure that A1 ... An are distinct.
@@ -592,7 +648,7 @@ checkExpr (L loc (Data recflag databinds e)) =
                let names = map constrName cs
                    dt = Datatype name (map TVar params) names
                    constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt | Constructor _ ts <- cs]
-                   cs' = [ Constructor ctrname ((map (expandType type_ctxt) ts) ++ [dt]) | (Constructor ctrname ts) <- cs]
+                   cs' = [ Constructor ctrname (map (expandType type_ctxt) ts ++ [dt]) | (Constructor ctrname ts) <- cs]
                    constr_binds = zip names constr_types
                return (cs', constr_binds)
 
@@ -643,13 +699,13 @@ checkExpr expr@(L loc (Case e alts)) =
             throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
 
      -- exhaustive test
-     let exhaustivity = exhaustiveTest value_ctxt (map (\x -> [x]) pats') 1
+     let exhaustivity = exhaustiveTest value_ctxt (map (: []) pats') 1
      unless (null exhaustivity) $
          throwError $ General (text "patterns are not exhausive, missing patterns:" <$>
                                vcat (map (hcat . map pretty) exhaustivity)) `withExpr` expr
 
      -- overlap test
-     let patmatrix = map (\x -> [x]) pats'
+     let patmatrix = map (: []) pats'
          overlapcases = foldr (\num acc ->
                              if usefulClause (take num patmatrix) (patmatrix !! num)
                              then acc
@@ -671,7 +727,7 @@ checkExpr expr@(L loc (Case e alts)) =
 
         getLocalVars PWildcard  = []
         getLocalVars (PVar nam ty) = [(nam, ty)]
-        getLocalVars (PConstr _ pats) = concat $ map getLocalVars pats
+        getLocalVars (PConstr _ pats) = concatMap getLocalVars pats
 
         -- ty is the expected type
         typecheckPattern ty (PVar nam _) = return (PVar nam ty)
@@ -687,7 +743,7 @@ checkExpr expr@(L loc (Case e alts)) =
                 Just t_constr ->
                     let ts = unwrapFun $ feedToForall t_constr ts_feed
                     in do unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch t_constr ty `withExpr` expr
-                          unless ((length ts -1) == (length pats)) $ throwError $ General (text "Constructor" <+> bquotes (text nam)
+                          unless ((length ts -1) == length pats) $ throwError $ General (text "Constructor" <+> bquotes (text nam)
                                           <+> text "should have" <+> int (length ts -1) <+> text "arguments, but has been given"
                                           <+> int (length pats) <+> text "in pattern" <+> pretty pctr ) `withExpr` expr
                           pat' <- zipWithM typecheckPattern ts pats
@@ -746,7 +802,7 @@ inferAgainstAnyJClass expr
         _ -> throwError $ TypeMismatch ty (JType $ JPrim "Java class") `withExpr` expr
 
 -- | Check "f [A1,...,An] (x1:t1) ... (xn:tn): t = e"
-normalizeBind :: ReaderBind -> Checker (Name, Type, CheckedExpr)
+normalizeBind :: ReaderBind -> Checker CheckedBind
 normalizeBind bind
   = do bind' <- checkBindLHS bind
        (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
@@ -794,6 +850,28 @@ collectBindIdSigs
                            wrap Forall bindTyParams $
                            wrap Fun [expandType d' ty |  (_,ty) <- bindParams] $
                            expandType d' tyAscription))
+
+-- | Normalize later bindings with typing contexts augmented with
+-- previous bindings
+normalizeBindAndAccum :: [ReaderModuleBind] -> Checker [Definition]
+normalizeBindAndAccum = normalize []
+  where
+    normalize :: [Definition]
+              -> [ReaderModuleBind]
+              -> Checker [Definition]
+    normalize binds [] = return (reverse binds)
+    normalize binds (b:bs) = do
+      let env = concatMap getEnv binds
+      binds' <- case b of
+                  BindNonRec b -> withLocalVars env (fmap Def (normalizeBind b))
+                  BindRec bb -> do
+                    sigs <- collectBindIdSigs bb
+                    withLocalVars (env ++ sigs) (fmap DefRec (mapM normalizeBind bb))
+      normalize (binds' : binds) bs
+    getEnv :: Definition -> [(Name, Type)]
+    getEnv (Def (a, b, c)) = [(a, b)]
+    getEnv (DefRec bs) = map (\(a, b, c) -> (a, b)) bs
+
 
 -- | Check that a type has kind *.
 checkType :: Type -> Checker ()
@@ -851,6 +929,22 @@ checkFieldAccess callee f
          Just return_class -> return return_class
     where
        (static_flag, c) = unwrapJCallee callee
+
+checkModuleFunction :: Import ModuleName -> Checker [(ReaderId, ModuleMapInfo)]
+checkModuleFunction (Import m) =
+  do
+    typeserver <- getTypeServer
+    res <- liftIO (getModuleInfo typeserver (pName, moduleName) False)
+    case res of
+      Nothing  -> throwError (noExpr $ ImportFail m)
+      Just ret -> return (map flatInfo (fst ret))
+
+  where
+    (packageName, moduleName) =
+      let w = (splitOn "." m)
+      in (intercalate "." (init w), last w)
+    pName = if null packageName then Nothing else Just packageName
+    flatInfo (ModuleInfo f g t) = (f, (pName, t, g, capitalize moduleName))
 
 unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
 unwrapJCallee (NonStatic c) = (False, c)
@@ -914,7 +1008,7 @@ usefulClause _ [] = False
 ---- U (P, q) = U (S(c,P), S(c,q))
 usefulClause pats clause@(PConstr ctr _:_) =
     usefulClause (specializedMatrix ctr pats)
-                 (specializedMatrix ctr [clause] !! 0)
+                 (head (specializedMatrix ctr [clause]))
 
 ---- q begins with a wildcard(or a variable)
 usefulClause pats clause =
@@ -925,7 +1019,7 @@ usefulClause pats clause =
     -- P has all constructors appeared
     -- U (P, q) = whether exists a constructor c that U (S(c,P), S(c,q)) is true
     else any (\ctr -> usefulClause (specializedMatrix ctr pats)
-                                   (specializedMatrix ctr [clause] !!0))
+                                   (head (specializedMatrix ctr [clause])))
              appearconstrs
     where patshead = map head pats
           (appearconstrs, missingconstrs) = constrInfo patshead
@@ -943,7 +1037,7 @@ exhaustiveTest value_ctxt pats n
     -- if I(D(p), n-1) returns (p2,...,pn)
     -- I(P, n) = (_, p2,...,pn)
     | all isWildcardOrVar patshead = map (PWildcard :) $ exhaustiveTest value_ctxt (map tail pats) (n-1)
-    | missingconstrs == []         = exhaustivityForCtr
+    | null missingconstrs          = exhaustivityForCtr
     | otherwise                    = exhaustivityForCtr ++ exhaustivityForWildcard
     -- if I(S(c, P), a+n-1) returns (r1,...,ra, p2,...,pn)
     -- I(P, n) = (c(r1,...ra), p2,...,pn)

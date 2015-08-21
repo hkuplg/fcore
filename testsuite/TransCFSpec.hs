@@ -1,73 +1,58 @@
-{-# OPTIONS_GHC -fwarn-unused-imports #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module TransCFSpec where
 
-import Test.Tasty.Hspec
-import SpecHelper
-import TestTerms
-
-import Parser    (reader, P(..))
-import TypeCheck    (typeCheck)
-import Desugar      (desugar)
-import Simplify     (simplify)
+import           BackEnd (compileN, compileAO, compileS)
+import           Desugar (desugar)
+import           JavaUtils (getClassPath)
+import           MonadLib
 import qualified OptiUtils (Exp(Hide))
-import PartialEvaluator
-import BackEnd (compileN, compileAO, compileS)
-
+import           Parser (reader, P(..))
+import           PartialEvaluator (rewriteAndEval)
+import           Simplify (simplify)
+import           SpecHelper
+import           StringPrefixes (namespace)
+import           StringUtils (capitalize)
 import qualified SystemFI as FI
+import           TestTerms
+import           TypeCheck (typeCheck)
 
-import MonadLib
+import           Language.Java.Pretty (prettyPrint)
+import           System.FilePath (dropExtension, takeFileName)
+import           System.IO
+import           System.Process
+import           Test.Tasty.Hspec
 
-import Language.Java.Pretty
-
-import System.Directory
-import System.Process
-import System.FilePath  ((</>), dropExtension, takeFileName)
-import System.IO
-
-import Data.FileEmbed   (embedFile)
-import qualified Data.ByteString as B
-import JavaUtils
-import FileIO
-import StringPrefixes   (namespace)
-
-runtimeBytes :: B.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
-
-writeRuntimeToTemp :: IO ()
-writeRuntimeToTemp =
-  do tempdir <- getTemporaryDirectory
-     let tempFile = tempdir </> "runtime.jar"
-     B.writeFile tempFile runtimeBytes
 
 testCasesPath = "testsuite/tests/shouldRun"
 
+fetchResult :: Handle -> IO String
+fetchResult outP = do
+  msg <- hGetLine outP
+  if msg == "exit" then fetchResult outP else return msg
+
 -- java compilation + run
 compileAndRun inP outP name compileF exp =
-  do let source = prettyPrint (fst $ (compileF name exp))
+  do let source = prettyPrint (fst (compileF name exp))
      let jname = name ++ ".java"
-     sendMsg inP jname
-     sendFile inP (source ++ "\n" ++ "//end of file")
-     result <- receiveMsg3 outP
-     return result
+     hPutStrLn inP jname
+     hPutStrLn inP (source ++ "\n" ++ "//end of file")
+     fetchResult outP
 
 esf2sf source =
-  do case source of
-      PError msg -> error $ show msg
-      POk parsed -> do
-        result <- typeCheck parsed
-        case result of
-          Left typeError -> error $ show typeError
-          Right (_, checked) ->
-            let fiExpr = desugar checked
-            in return (rewriteAndEval (OptiUtils.Hide (simplify (FI.HideF fiExpr))))
+  case source of
+   PError msg -> error $ show msg
+   POk parsed -> do
+     result <- typeCheck parsed True
+     case result of
+       Left typeError -> error $ show typeError
+       Right (_, checked) ->
+         let fiExpr = desugar checked
+         in return (rewriteAndEval (OptiUtils.Hide (simplify (FI.HideF fiExpr))))
 
 testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput) = do
-  let className = getClassName $ dropExtension (takeFileName filePath)
+  let className = capitalize $ dropExtension (takeFileName filePath)
   output <- runIO (compileAndRun inP outP className compilation ast)
   it ("should compile and run " ++ name ++ " and get \"" ++ expectedOutput ++ "\"") $
-     (return output) `shouldReturn` expectedOutput
+     return output `shouldReturn` expectedOutput
 
 testConcreteSyn inP outP compilation (name, filePath) =
   do source <- runIO (readFile filePath)
@@ -100,7 +85,7 @@ transSpec =
        (\(name, compilation) ->
          describe name $
            do cp <- runIO getClassPath
-              let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
+              let p = (proc "java" ["-cp", cp, namespace ++ "FileServer", cp])
                           {std_in = CreatePipe, std_out = CreatePipe}
               (Just inP, Just outP, _, proch) <- runIO $ createProcess p
               runIO $ hSetBuffering inP NoBuffering

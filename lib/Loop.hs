@@ -14,35 +14,34 @@ Portability :  portable
 
 module Loop where
 
-import System.Console.Haskeline
--- import System.TimeIt
-import System.CPUTime
-import System.Directory                 (removeFile, doesFileExist)
-import System.FilePath                  (dropExtension)
-
-import Control.Monad.Except             (liftIO)
-import Control.Concurrent               (threadDelay)
+import           Control.Concurrent (threadDelay)
 import qualified Control.Exception as E
-
-import Data.List                        (stripPrefix, group, sort)
+import           Control.Monad (liftM)
+import           Control.Monad.Except (liftIO)
+import           Data.List (stripPrefix, group, sort)
 import qualified Data.Map as Map
+import           System.CPUTime
+import           System.Console.Haskeline
+import           System.Directory
 
-import TypeCheck
-import Src hiding (wrap)
-import Text.PrettyPrint.ANSI.Leijen
-import BackEnd
-import qualified OptiUtils              (src2core, src2fi)
-import qualified Core                   (prettyExpr)
-import Parser
-import ParseCMD
-import FileIO
+
+import           BackEnd
+import qualified Core
+import           Desugar (desugar)
 import qualified Environment as Env
+import           FileIO
 import qualified History as Hist
-import Link
+import           ParseCMD
+import           Parser
+import           Simplify (simplify')
+import           Src hiding (wrap)
+import qualified SystemFI as FI
+import           Text.PrettyPrint.ANSI.Leijen
+import           TypeCheck hiding (Connection)
 
 #ifdef Z3
 -- #if MIN_VERSION_z3(0,3,2)
-import Z3Backend
+import           Z3Backend
 #endif
 
 loop :: Connection -> CompileOpt -> ValueContext -> Env.Env -> Hist.Hist -> Hist.Hist -> Int -> Bool -> Bool -> Bool -> Bool -> Int -> InputT IO ()
@@ -125,20 +124,20 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                   Just filename -> liftIO (wrapFlag handle opt flagC flagT flagS filename)
                   Nothing       ->  outputStrLn "Invalid input"
                 loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
-          ":link" -> do
-                let (list1,modList) = splitAt 2 xs
-                let file = head list1
-                content <- liftIO (Link.linkModule modList)
-                outputStrLn "Linking..."
-                liftIO (Link.link file content)
-                let newFile = (dropExtension file) ++ "c.sf"
-                outputStrLn (newFile ++ " generated!")
-                loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
+          -- ":link" -> do
+          --       let (list1,modList) = splitAt 2 xs
+          --       let file = head list1
+          --       content <- liftIO (Link.linkModule modList)
+          --       outputStrLn "Linking..."
+          --       liftIO (Link.link file content)
+          --       let newFile = (dropExtension file) ++ "c.sf"
+          --       outputStrLn (newFile ++ " generated!")
+          --       loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
 
 #ifdef Z3
           ":se" -> do
                 case getCMD xs of
-                  Just filename -> do expr <- liftIO (OptiUtils.src2fi filename)
+                  Just filename -> do expr <- liftIO (src2fi filename)
                                       case getCMD (tail xs) of
                                         Just n -> liftIO $ explore (read n) expr
                                         Nothing -> liftIO $ explore 20 expr
@@ -146,7 +145,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                 loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
           ":sc" -> do
                 case getCMD xs of
-                  Just filename -> do expr <- liftIO (OptiUtils.src2fi filename)
+                  Just filename -> do expr <- liftIO (src2fi filename)
                                       case getCMD (tail xs) of
                                         Just n -> liftIO $ counter (read n) expr
                                         Nothing -> liftIO $ counter 20 expr
@@ -156,7 +155,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
           ":expr" -> do
                 case getCMD xs of
                   Just filename -> do
-                    expr <- liftIO (OptiUtils.src2core filename)
+                    expr <- liftIO (src2core filename)
                     outputStrLn (show (Core.prettyExpr expr))
                   Nothing       -> outputStrLn "Invalid input"
                 loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
@@ -292,6 +291,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
           input   -> do
             outputStrLn $ "Command not recognized: " ++ input
             loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
+processCMD _ _ _ _ _ _ _ _ _ _ _ _ [] = outputStrLn "Parse error!"
 
 getCMD :: [String] -> Maybe String
 getCMD xs = case xs of
@@ -348,8 +348,8 @@ printHelp = do
         putStrLn "Commands:"
         putStrLn ":help                 Display help manual"
         putStrLn ":run <sourceFile>     Compile and run sourceFile"
-        putStrLn ":link <sourceFile> -m <module1> <module2> ..."
-        putStrLn "                      Link sourceFile with modules"
+        -- putStrLn ":link <sourceFile> -m <module1> <module2> ..."
+        -- putStrLn "                      Link sourceFile with modules"
         putStrLn ":expr <sourceFile>    Show core expression of the file"
 #ifdef Z3
         putStrLn ":se <sourceFile> n    Symbolically evaluate the file"
@@ -373,3 +373,22 @@ printHelp = do
         putStrLn ":show env             Show current bindings"
         putStrLn ":show method          Show available compilation options"
         putStrLn "-----------------------------------------"
+
+src2core :: String -> IO (Core.Expr t e)
+src2core fname = liftM simplify' $ src2fi fname
+
+-- fCore :: (Expr t e -> b) -> String -> IO b
+-- fCore f fname = liftM f $ src2core fname
+
+src2fi :: String -> IO (FI.Expr t e)
+src2fi fname = do
+     path <- getCurrentDirectory
+     string <- readFile (path ++ "/" ++ fname)
+     case reader string of
+       POk expr -> do
+         result <- typeCheck expr False
+         case result of
+           Left typeError -> error $ show typeError
+           Right (_, tcheckedSrc) ->
+                 return . desugar $ tcheckedSrc
+       PError msg -> error msg

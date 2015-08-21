@@ -19,7 +19,7 @@ import qualified Language.Java.Syntax as J (Op (..))
 import Src
 import Lexer
 import SrcLoc
-import Predef (injectPredef)
+import StringUtils
 
 import JavaUtils
 import Control.Monad.State
@@ -37,7 +37,7 @@ import Control.Monad.State
   ")"      { L _ Tcparen }
   "["      { L _ Tobrack }
   "]"      { L _ Tcbrack }
-  "::"     { L _ Tdcolon }
+  -- "::"     { L _ Tdcolon }
   "{"      { L _ Tocurly }
   "}"      { L _ Tccurly }
   "/\\"    { L _ Ttlam }
@@ -80,6 +80,8 @@ import Control.Monad.State
   "new"     { L _ Tnew }
 
   "module"  { L _ Tmodule }
+  "import"  { L _ Timport }
+  "package"  { L _ TPackage }
 
   INT      { L _ (Tint _) }
   SCHAR    { L _ (Tschar _) }
@@ -137,11 +139,27 @@ import Control.Monad.State
 -- Modules
 ------------------------------------------------------------------------
 
-module :: { ReaderModule }
-  : "module" module_name "{" semi_binds "}"  { Module (unLoc $2) $4 `withLoc` $1 }
+package :: { Maybe PackageName }
+  : "package" packageIdent       { Just $2 }
+  |                              { Nothing }
 
-module_name :: { LReaderId }
-  : UPPER_IDENT  { toString $1 `withLoc` $1 }
+packageIdent :: { String }
+  : ident    { unLoc $1 }
+  | ident "." packageIdent { unLoc $1 ++ "." ++ $3 }
+
+module :: { ReaderModule }
+  : "module" "{" imports semi_binds "}"  { Module (map unLoc $3) $4 `withLoc` $1 }
+
+-- module_name :: { LReaderId }
+--   : UPPER_IDENT  { toString $1 `withLoc` $1 }
+
+imports :: { [ReaderImport] }
+  :                    { [] }
+  | import ";" imports { $1:$3 }
+
+import :: { ReaderImport }
+  : "import" packageIdent  { Import $2 `withLoc` $1 }
+
 
 ------------------------------------------------------------------------
 -- Types
@@ -238,7 +256,8 @@ expr :: { ReaderExpr }
     | "data" recflag and_databinds ";" expr        { Data $2 $3 $5 `withLoc` $1 }
     | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
-    | module expr                         { LetModule (unLoc $1) $2 `withLoc` $1 }
+    | package module                      { EModule $1 (unLoc $2) (Lit UnitLit) `withLoc` $2 }
+    | import ";" expr                     { EImport (unLoc $1) $3 `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
 
 semi_exprs :: { [ReaderExpr] }
@@ -300,7 +319,7 @@ aexpr :: { ReaderExpr }
     | lit                       { $1 }
     | "(" comma_exprs2 ")"      { Tuple $2 `withLoc` $1 }
     | aexpr "." UNDER_IDENT     { Proj $1 $3 `withLoc` $1 }
-    | module_name "." ident     { ModuleAccess (unLoc $1) (unLoc $3) `withLoc` $1 }
+    -- | module_name "." ident     { ModuleAccess (unLoc $1) (unLoc $3) `withLoc` $1 }
     | javaexpr                  { $1 }
     | "{" semi_exprs "}"        { Seq $2 `withLoc` $1 }
     | record_construct                { $1 }
@@ -398,9 +417,13 @@ and_databinds :: { [DataBind]}
 databind :: { DataBind }
     : UPPER_IDENT ty_param_list_or_empty "=" constrs_decl { DataBind (toString $1) (map unLoc $2) $4 }
 
-semi_binds :: { [ReaderBind] }
-    : bind                      { [$1]  }
-    | bind ";" and_binds      { $1:$3 }
+semi_binds :: { [ReaderModuleBind] }
+    : modulebind                      { [$1]  }
+    | modulebind ";" semi_binds       { $1:$3 }
+
+modulebind :: { ReaderModuleBind }
+    : bind              { BindNonRec $1 }
+    | "rec" and_binds   { BindRec $2 }
 
 maybe_ty_ascription :: { Maybe ReaderType }
   : ":" type     { Just $2 }
@@ -487,7 +510,7 @@ parseError :: Located Token -> Alex a
 parseError (L loc _) = alexError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))
 
 reader :: String -> P ReaderExpr
-reader src = case (runAlex (injectPredef src) parseExpr) of
+reader src = case (runAlex src parseExpr) of
                Left msg -> PError msg
                Right x  -> return x
 

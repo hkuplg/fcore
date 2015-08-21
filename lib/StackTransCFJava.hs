@@ -213,12 +213,13 @@ transS this super =
                       mainbody <- stackMainBody (up this) t
                       let stackDecl =
                             wrapperClass
+                              False
                               nam
                               (bs ++
                                -- (if containsNext bs then [] else [empyClosure']) ++
                                returnStmt)
                               returnType (Just $ J.Block mainbody)
-                      return (createCUB (up this :: Translate m) [stackDecl]
+                      return (createCUB Nothing [stackDecl]
                              ,t)}}
 
 -- Alternative version of transS that interacts with the Apply translation

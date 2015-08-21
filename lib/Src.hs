@@ -12,18 +12,18 @@ Portability :  portable
 {-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Src
-  ( Module(..), ReaderModule
+  ( Module(..), ReaderModule, Import(..), ReaderImport, ModuleBind(..), ReaderModuleBind, Definition(..), CheckedBind
   , Kind(..)
   , Type(..), ReaderType
   , Expr(..), ReaderExpr, CheckedExpr, LExpr
   , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReaderBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
-  , Name, ReaderId, CheckedId, LReaderId
-  , TypeValue(..), TypeContext, ValueContext
+  , Name, ReaderId, CheckedId, LReaderId, PackageName
+  , TypeValue(..), TypeContext, ValueContext, ModuleContext, ModuleMapInfo
   , DataBind(..)
   , groupForall
   , expandType
@@ -76,8 +76,14 @@ type CheckedId = (ReaderId, Type)
 type Label      = Name
 
 -- Modules.
-data Module id ty = Module id [Bind id ty] deriving (Eq, Show)
+data ModuleBind id ty = BindNonRec (Bind id ty)
+                      | BindRec [Bind id ty] deriving (Eq, Show)
+data Module id ty = Module [Import id] [ModuleBind id ty] deriving (Eq, Show)
+
 type ReaderModule = Located (Module Name Type)
+type ReaderModuleBind = ModuleBind Name Type
+data Import id = Import id deriving (Eq, Show)
+type ReaderImport = Located (Import Name)
 
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
@@ -104,11 +110,11 @@ data Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `compatible` and `subtype` below.
-  deriving (Eq, Show, Data, Typeable)
+  deriving (Eq, Show, Data, Typeable, Read)
 
 type ReaderType = Type
 
-data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
+data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable, Read)
 
 type LExpr id ty = Located (Expr id ty)
 
@@ -127,7 +133,7 @@ data Expr id ty
   | Let RecFlag [Bind id ty] (LExpr id ty)     -- Let (rec) ... (and) ... in ...
   | LetOut                                    -- Post typecheck only
       RecFlag
-      [(Name, Type, LExpr (Name,Type) Type)]
+      [(Name, Type, CheckedExpr)]
       (LExpr (Name,Type) Type)
 
   | Dot (LExpr id ty) Name (Maybe ([LExpr id ty], UnitPossibility))
@@ -137,7 +143,7 @@ data Expr id ty
   -- elim), while the former cannot.
 
   | JNew ClassName [LExpr id ty]
-  | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName
+  | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName -- `ClassName` is the return (Java) type
   | JField  (JCallee (LExpr id ty)) FieldName            Type
   | Seq [LExpr id ty]
   | PolyList [LExpr id ty]
@@ -145,8 +151,10 @@ data Expr id ty
   | RecordCon [(Label, LExpr id ty)]
   | RecordProj (LExpr id ty) Label
   | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
-  | LetModule (Module id ty) (LExpr id ty)
-  | ModuleAccess Name Name
+  | EModule (Maybe PackageName) (Module id ty) (Expr id ty)
+  | EModuleOut (Maybe PackageName) [Definition]  -- Post typecheck only
+  | EImport (Import id) (LExpr id ty)
+  -- | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
       Name         -- T         -- Name of type constructor
       [Name]       -- A1 ... An -- Type parameters
@@ -160,6 +168,10 @@ data Expr id ty
                                      -- the last type in Constructor will always be the real type
   | Error Type (LExpr id ty)
   deriving (Eq, Show)
+
+type PackageName = Name
+type CheckedBind = (Name, Type, CheckedExpr)
+data Definition = Def CheckedBind | DefRec [CheckedBind] deriving (Eq, Show)
 
 data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
@@ -222,6 +234,8 @@ data TypeValue
 
 type TypeContext  = Map.Map ReaderId (Kind, TypeValue) -- Delta
 type ValueContext = Map.Map ReaderId Type              -- Gamma
+type ModuleMapInfo = (Maybe PackageName, Type, ReaderId, ReaderId)
+type ModuleContext = Map.Map ReaderId ModuleMapInfo -- Sigma
 
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
@@ -373,7 +387,7 @@ fsubstTT (x,r) (OpApp t1 t2)   = OpApp (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (Datatype n ts ns) = Datatype n (map (fsubstTT (x,r)) ts) ns
 
 freshName :: Name -> Set.Set Name -> Name
-freshName name existedNames = head $ dropWhile (`Set.member` existedNames) [name ++ show i | i <- [1..]]
+freshName name existedNames = head $ dropWhile (`Set.member` existedNames) [name ++ show i | i <- [1 :: Int ..]]
 
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x
@@ -394,6 +408,19 @@ freeTVars (Datatype _ ts _) = Set.unions (map freeTVars ts)
 instance Pretty Kind where
   pretty Star           = char '*'
   pretty (KArrow k1 k2) = parens (pretty k1 <+> text "=>" <+> pretty k2)
+
+
+instance (Pretty id, Show id, Pretty ty, Show ty) => Pretty (ModuleBind id ty) where
+  pretty (BindRec bs) = vcat (intersperse (text "and") (map pretty bs))
+  pretty (BindNonRec bs) = pretty bs
+
+instance (Pretty id, Show id, Pretty ty, Show ty) => Pretty (Module id ty) where
+  pretty (Module imps bs) = text "module" <+> text "{" <>
+                                              vcat (map pretty imps) <$>
+                                              vcat (map pretty bs) <$> text "}"
+
+instance (Pretty id) => Pretty (Import id) where
+    pretty (Import id) = text "import" <+> pretty id
 
 instance Pretty Type where
   pretty (TVar a)     = text a
@@ -468,12 +495,14 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (RecordCon fs) = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> equals <> pretty t) fs)) <> rbrace
   pretty (Data recFlag datatypes e ) =
     text "data" <+> pretty recFlag <+>
-    (vsep $ map pretty datatypes) <$>
+    vsep (map pretty datatypes) <$>
     pretty e
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
+  pretty (EModule pname modu e) = maybe empty ((text "package" <+>) . pretty) pname <$> pretty modu <$> pretty e
+  pretty (EImport imp e) = pretty imp <$> pretty e
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
@@ -497,15 +526,15 @@ instance Pretty DataBind where
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Alt id ty) where
     -- pretty (Default e) = text "_" <+> arrow <+> pretty e
-    pretty (ConstrAlt p e2)    = (pretty p) <+> arrow <+> pretty e2
+    pretty (ConstrAlt p e2)    = pretty p <+> arrow <+> pretty e2
 
 instance Pretty Pattern where
     pretty (PVar nam _)     = text nam
     pretty (PWildcard)      = text "_"
     pretty (PConstr ctr []) = text (constrName ctr)
-    pretty (PConstr ctr ps) = text (constrName ctr) <+> (hsep $ map pretty2 ps)
+    pretty (PConstr ctr ps) = text (constrName ctr) <+> hsep (map pretty2 ps)
       where pretty2 (PConstr ctr' [])  = text (constrName ctr')
-            pretty2 (PConstr ctr' ps') = parens $ text (constrName ctr') <+> (hsep $ map pretty ps')
+            pretty2 (PConstr ctr' ps') = parens $ text (constrName ctr') <+> hsep (map pretty ps')
             pretty2 (PVar nam _)       = text nam
             pretty2 (PWildcard)        = text "_"
 
@@ -542,7 +571,7 @@ constrInfo :: [Pattern] -> ([Constructor],[Name])
 constrInfo patshead =
     if all isWildcardOrVar patshead then ([],[])
     else
-        let (PConstr (Constructor _ types) _) = patshead !! (fromJust $ findIndex (not. isWildcardOrVar) patshead)
+        let (PConstr (Constructor _ types) _) = patshead !! fromJust (findIndex (not. isWildcardOrVar) patshead)
             (Datatype _ _ allcontructor') = last types
             allcontructor = Set.fromList allcontructor'
             appearconstructor' = nub [ ctr | PConstr ctr@(Constructor _ _ ) _ <- patshead ]
@@ -571,10 +600,10 @@ specializedMatrix :: Constructor -> [[Pattern]] -> [[Pattern]]
 specializedMatrix ctr pats =
     let (Constructor name types) = ctr
         num = length types - 1
-    in  [ res ++ (tail list1) | list1 <- pats,
-                                let curPattern = head list1,
-                                (isWildcardOrVar curPattern) || (centainPConstr name curPattern),
-                                let res = extractorsubpattern name num curPattern ]
+    in  [ res ++ tail list1 | list1 <- pats,
+                              let curPattern = head list1,
+                              isWildcardOrVar curPattern || centainPConstr name curPattern,
+                              let res = extractorsubpattern name num curPattern ]
 
 -- default matrix D(P)
 --           pi1               |        D(P)

@@ -3,12 +3,11 @@ import Test.Tasty
 import Test.Tasty.Hspec
 
 import TypeCheckSpec (tcSpec)
-import TransCFSpec (transSpec, writeRuntimeToTemp)
+import TransCFSpec (transSpec)
 
 main :: IO ()
 main = do
-  writeRuntimeToTemp
   tcTests <- testSpec "Typecheck" tcSpec
   transTests <- testSpec "Translations" transSpec
-  tests <- return $ testGroup "fcore tests" [tcTests, transTests]
+  let tests = testGroup "fcore tests" [tcTests, transTests]
   defaultMain tests
