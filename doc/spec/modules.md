@@ -146,7 +146,7 @@ The current module system lacks some important features:
 
 1. No datatypes and type synonyms are supported in a module file. (We
    are working hard to bring them back.)
-2. Due to same murky parsing issues, the name of a module file must be
+2. Due to some murky parsing issues, the name of a module file must be
    in all lower case.
 3. No information hiding. We are investigating an `exporting`
    mechanism.
