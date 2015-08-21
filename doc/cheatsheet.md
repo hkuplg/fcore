@@ -120,4 +120,4 @@ The value of the sequence takes the last item, in the above case, `3`.
 
 ## Modules
 
-TODO
+Refer to [here](spec/modules.md).
