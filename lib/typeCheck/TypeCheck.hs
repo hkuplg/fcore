@@ -36,12 +36,12 @@ import IOEnv
 import JavaUtils
 import JvmTypeQuery
 import Panic
+import Predef
 import PrettyUtils
 import RuntimeProcessManager (withRuntimeProcess)
 import Src
 import SrcLoc
 import StringUtils
-import Predef
 
 import Control.Monad.Except
 import Data.List (findIndex, intercalate)

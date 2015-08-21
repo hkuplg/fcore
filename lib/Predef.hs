@@ -2,7 +2,6 @@
 module Predef (processPredef) where
 
 
-import Panic
 import JvmTypeQuery
 import StringUtils
 import JavaUtils
@@ -13,7 +12,7 @@ processPredef h = do
   res <- fmap sequence (mapM (\info -> getModuleInfo h info True) lists)
   let info =
         case res of
-          Nothing  -> panic "Failed to load prelude"
+          Nothing  -> [] -- we cannot panic here, as this will leave the Java process hanging around
           Just ret -> (concatMap flatInfo ret)
   return info
 
