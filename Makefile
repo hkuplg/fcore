@@ -1,15 +1,26 @@
 # General project-wide tasks
 
-srcdir=lib
-testdir=testsuite
+SRC_DIR := lib
+TEST_DIR := testsuite
+PREDEF_DIR := lib/predef
+PRELUDE_DIR := runtime/src/f2j/prelude
+OBJ_FILE := $(wildcard $(PREDEF_DIR)/*.java)
+SF_FILES := $(wildcard $(PREDEF_DIR)/*.sf)
+FLAGS := -m naive
+
+
+all : compiler prerequisite runtime
+
+prerequisite : $(SF_FILES)
+	f2j $(FLAGS) $^ && rm -f $(PRELUDE_DIR)/*.java && cp $(PREDEF_DIR)/*.java $(PRELUDE_DIR) && rm -f $(PREDEF_DIR)/*.java
 
 .PHONY : compiler
 compiler : runtime parsers
 	stack build --copy-bins
 
-.PHONY : smt
-smt : runtime dependencies
-	$${CABAL=cabal}  install -f Z3
+# .PHONY : smt
+# smt : runtime dependencies
+# 	$${CABAL=cabal}  install -f Z3
 
 .PHONY : test
 test : whitespace_test runtime parsers
@@ -17,11 +28,11 @@ test : whitespace_test runtime parsers
 
 .PHONY : whitespace_test
 whitespace_test :
-	ruby $(testdir)/whitespace_check.rb
+	ruby $(TEST_DIR)/whitespace_check.rb
 
-.PHONY : dependencies
-dependencies :
-	stack --no-terminal build --only-snapshot
+# .PHONY : dependencies
+# dependencies :
+# 	stack --no-terminal build --only-snapshot
 
 .PHONY : runtime
 runtime :
@@ -29,17 +40,17 @@ runtime :
 
 .PHONY : parsers
 parsers :
-	cd $(srcdir) && make && cd ..
+	cd $(SRC_DIR) && make && cd ..
 
-.PHONY : guard
-guard :
-	cabal install hspec
-	gem install guard-haskell
+# .PHONY : guard
+# guard :
+# 	cabal install hspec
+# 	gem install guard-haskell
 
 .PHONY : clean
 clean :
 	rm -rf dist
 	rm -f *.class *.jar Main.java
-	rm -f $(testdir)/tests/run-pass/*.java
+	rm -f $(TEST_DIR)/tests/run-pass/*.java
 	cd lib; make clean
 	cd runtime; ant clean

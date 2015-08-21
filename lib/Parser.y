@@ -19,7 +19,6 @@ import qualified Language.Java.Syntax as J (Op (..))
 import Src
 import Lexer
 import SrcLoc
-import Predef (injectPredef)
 import StringUtils
 
 import JavaUtils
@@ -511,7 +510,7 @@ parseError :: Located Token -> Alex a
 parseError (L loc _) = alexError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))
 
 reader :: String -> P ReaderExpr
-reader src = case (runAlex (injectPredef src) parseExpr) of
+reader src = case (runAlex src parseExpr) of
                Left msg -> PError msg
                Right x  -> return x
 

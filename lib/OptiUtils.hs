@@ -4,17 +4,11 @@
 module OptiUtils where
 
 import Core
-import System.Directory
-import Parser (reader, P(..))
-import TypeCheck (typeCheck)
-import Desugar (desugar)
-import Simplify (simplify')
-import Control.Monad (liftM)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 import Data.List (foldl')
 import qualified Src
-import qualified SystemFI as FI
+
 
 
 joinExpr :: Expr t (Expr t e) -> Expr t e
@@ -183,28 +177,6 @@ checkCall :: Int -> Src.JCallee (Expr Int Int) -> Src.JCallee (Expr Int Int) -> 
 checkCall _ (Src.Static s1) (Src.Static s2) = s1 == s2
 checkCall n (Src.NonStatic e1) (Src.NonStatic e2) = peq n e1 e2
 checkCall _ _ _ = False
-
-src2core :: String -> IO (Expr t e)
-src2core fname = liftM simplify' $ src2fi fname
-
-fCore :: (Expr t e -> b) -> String -> IO b
-fCore f fname = liftM f $ src2core fname
-
-src2fi :: String -> IO (FI.Expr t e)
-src2fi fname = do
-     path <- getCurrentDirectory
-     string <- readFile (path ++ "/" ++ fname)
-     case reader string of
-       POk expr -> do
-         result <- typeCheck expr
-         case result of
-           Left typeError -> error $ show typeError
-           Right (_, tcheckedSrc) ->
-                 return . desugar $ tcheckedSrc
-       PError msg -> error msg
-
-applyFi :: (FI.Expr t e -> r) -> String -> IO r
-applyFi f fname = liftM f $ src2fi fname
 
 multInsert :: Map.Map Int e -> (Int, e) -> Map.Map Int e
 multInsert m (key, value) = Map.insert key value m

@@ -2,7 +2,9 @@ package util
 
 module {
 
+  import util.simple.m4;
+
   multi (n : Int) (m : Int) = n * m;
 
-  rec fact (n:Int) : Int = if n == 0 then 1 else multi n (fact (n - 1))
+  rec fact (n:Int) : Int = if n == 0 then 1 else multi n (fact (sub n 1))
 }

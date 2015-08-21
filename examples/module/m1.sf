@@ -1,6 +1,9 @@
+-- even and odd are from prelude
 
 import util.m3;        -- fact impoted
-import util.m2;        -- even and odd imported
 import util.simple.m4; -- sub imported
 
+{
+print "The Fibonacci number of 3 - 1 is even? ";
 even (fact (sub 3 1))
+}

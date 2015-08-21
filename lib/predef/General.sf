@@ -1,0 +1,11 @@
+package f2j.prelude
+
+module {
+
+id [A] (a : A) = a;
+
+const [A, B] (a : A) (b : B) = a
+
+
+
+}

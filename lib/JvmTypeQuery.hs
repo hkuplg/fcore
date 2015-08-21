@@ -11,6 +11,7 @@ import JavaUtils (ClassName, MethodName, FieldName, ModuleName)
 import Src (Type, PackageName)
 import StringUtils
 
+import Control.Monad (unless)
 import Data.Char (isSpace, toLower)
 import Data.List
 import Data.List.Split
@@ -72,17 +73,18 @@ fieldTypeOf h c (f, is_static)
 getModuleInfo
   :: (Handle, Handle)
   -> (Maybe Src.PackageName, ModuleName)
-  -> IO (Maybe [ModuleInfo])
+  -> Bool -- ^ True for loading prelude
+  -> IO (Maybe ([ModuleInfo], ModuleName))
 -- Also automatically compile imported modules
 -- FIXME: cause error if a module has import and package declaration
-getModuleInfo h (p, m)
+getModuleInfo h (p, m) loadPrelude
   = do currDir <- getCurrentDirectory
        let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
-       system_ $ "f2j --compile --keep " ++ moduleDir </> m ++ ".sf"
+       unless loadPrelude $ system_ $ "f2j --compile " ++ moduleDir </> m ++ ".sf"
        s <- sendRecv h ["qModuleInfo", ((maybe "" (++ ".") p) ++ capitalize m)] >>= fixRet
        case s of
         Nothing -> return Nothing
-        Just xs -> return $ listToModuleInfo (wordsWhen (== '$') xs)
+        Just xs -> return $ (maybe Nothing (\info -> Just (info, m)) (listToModuleInfo (wordsWhen (== '$') xs)))
     where wordsWhen p s =  case dropWhile p s of
                             "" -> []
                             s' -> w : wordsWhen p s''

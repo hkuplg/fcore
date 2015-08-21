@@ -37,7 +37,6 @@ import           System.IO
 data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
-    , optKeepClass     :: Bool
     , optDump          :: DumpOption
     , optVerbose       :: Bool
     , optInline        :: Bool
@@ -82,7 +81,6 @@ parseOpts opts str =
 options :: Parser Options
 options = Options <$> switch (long "compile" <> short 'c' <> help "Compile Java source")
                   <*> switch (long "run" <> short 'r' <> help "Compile & run Java source")
-                  <*> switch (long "keep" <> short 'k' <> help "Keep generated .class files")
                   <*> option (str >>= parseOpts dumpOpts)
                         (long "dump" <>
                          value NoDump <>
@@ -133,7 +131,7 @@ main = do
             compileJava output_path
        when optCompileAndRun $
          do when optVerbose $ do { putStr "  Running Java\n  Output: "; hFlush stdout }
-            runJava optKeepClass output_path)
+            runJava output_path)
 
 getOpt :: Set.Set TransMethod -> Compilation
 getOpt translate_method

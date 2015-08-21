@@ -70,3 +70,5 @@ Main.java
 
 # IntelliJ IDEA
 .idea/
+/runtime/src/f2j/prelude/*.java
+lib/predef/*.java

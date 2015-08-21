@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 {- |
 Module      :  JavaUtils
@@ -14,16 +15,18 @@ module JavaUtils
   ( getRuntimeJarPath
   , getClassPath
   , compileJava, runJava
-  , inferOutputPath, inferClassName
+  , inferOutputPath, inferClassName, predefList
   , ClassName, MethodName, FieldName
   , ModuleName
   ) where
 
+import Data.List (isSuffixOf)
 import StringUtils (capitalize)
+import System.IO.Unsafe (unsafePerformIO)
 
-import Control.Monad (unless)
+import Language.Haskell.TH.Syntax
 import Paths_fcore
-import System.Directory (setCurrentDirectory, getCurrentDirectory)
+import System.Directory (setCurrentDirectory, getCurrentDirectory, getDirectoryContents)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, (</>), (<.>), dropExtension, searchPathSeparator)
 import System.Process.Extra (system_)
 
@@ -57,12 +60,21 @@ compileJava srcPath
   = do cp <- getClassPath
        system_ ("javac -cp " ++ cp ++ " " ++ srcPath)
 
-runJava :: Bool -> FilePath -> IO ()
-runJava keepClass srcPath = do
+runJava :: FilePath -> IO ()
+runJava srcPath = do
     currDir <- getCurrentDirectory
     let workDir = takeDirectory srcPath
     setCurrentDirectory workDir
     cp <- getClassPath
     system_ $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
-    unless keepClass $ system_ "rm *.class"
+    system_ "rm *.class"
     setCurrentDirectory currDir
+
+-- Here we want to do "safe" compile-time computation to get the list
+-- of pre-defined functions
+getPredef :: [(Maybe String, String)]
+getPredef =
+  let filePaths = unsafePerformIO $ getDirectoryContents "lib/predef"
+  in ((map (\path -> (Just "f2j.prelude", takeBaseName path)) (filter (isSuffixOf "sf") filePaths)))
+
+predefList = [| $(lift getPredef) |]

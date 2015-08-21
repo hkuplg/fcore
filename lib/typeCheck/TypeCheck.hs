@@ -29,6 +29,7 @@ module TypeCheck
   , typeCheckWithEnv
   , mkInitTcEnvWithEnv
   , TypeError
+  , Connection
   ) where
 
 import IOEnv
@@ -40,6 +41,7 @@ import RuntimeProcessManager (withRuntimeProcess)
 import Src
 import SrcLoc
 import StringUtils
+import Predef
 
 import Control.Monad.Except
 import Data.List (findIndex, intercalate)
@@ -55,8 +57,14 @@ type Connection = (Handle, Handle)
 
 typeCheck :: ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
-typeCheck e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnv type_server) . runExceptT . checkExpr) e)
+typeCheck e = withTypeServer (\type_server -> do
+  module_ctxt <- initializePrelude type_server
+  (evalIOEnv (mkInitTcEnv module_ctxt type_server) . runExceptT . checkExpr) e)
+
+initializePrelude :: Connection -> IO ModuleContext
+initializePrelude type_server = do
+  moduleInfo <- processPredef type_server
+  return $ Map.fromList moduleInfo
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
@@ -76,12 +84,12 @@ data TcEnv
   , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
 
-mkInitTcEnv :: Connection -> TcEnv
-mkInitTcEnv type_server
+mkInitTcEnv :: ModuleContext -> Connection -> TcEnv
+mkInitTcEnv module_ctxt type_server
   = TcEnv
   { tceTypeContext     = Map.empty
   , tceValueContext    = Map.empty
-  , tceModuleContext   = Map.empty
+  , tceModuleContext   = module_ctxt
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
@@ -924,10 +932,10 @@ checkModuleFunction :: Import ModuleName -> Checker [(ReaderId, ModuleMapInfo)]
 checkModuleFunction (Import m) =
   do
     typeserver <- getTypeServer
-    res <- liftIO (getModuleInfo typeserver (pName, moduleName))
+    res <- liftIO (getModuleInfo typeserver (pName, moduleName) False)
     case res of
       Nothing  -> throwError (noExpr $ ImportFail m)
-      Just ret -> return (map flatInfo ret)
+      Just ret -> return (map flatInfo (fst ret))
 
   where
     (packageName, moduleName) =

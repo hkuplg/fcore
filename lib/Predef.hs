@@ -1,21 +1,21 @@
+{-# LANGUAGE TemplateHaskell #-}
+module Predef (processPredef) where
 
-module Predef (injectPredef) where
 
--- import Data.ByteString       (ByteString, unpack)
--- import Data.Char             (chr)
--- import Data.List             (intercalate)
+import Panic
+import JvmTypeQuery
+import StringUtils
+import JavaUtils
 
-injectPredef :: String -> String
-injectPredef s = s -- predef ++ s
 
--- predef :: String
--- predef = intercalate "\n" (map toString [predefIO, predefList])
+processPredef h = do
+  let lists = $(predefList)
+  res <- fmap sequence (mapM (\info -> getModuleInfo h info True) lists)
+  let info =
+        case res of
+          Nothing  -> panic "Failed to load prelude"
+          Just ret -> (concatMap flatInfo ret)
+  return info
 
--- predefIO :: ByteString
--- predefIO = $(embedFile "lib/predef/IO.sf")
-
--- predefList :: ByteString
--- predefList = $(embedFile "lib/predef/List.sf")
-
--- toString :: ByteString -> String
--- toString = map (chr . fromEnum) . unpack
+  where
+    flatInfo (p, mname) = map (\(ModuleInfo f g t) -> (f, (Just "f2j.prelude", t, g, capitalize mname))) p
