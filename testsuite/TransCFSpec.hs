@@ -1,25 +1,21 @@
 module TransCFSpec where
 
-import           BackEnd (compileN, compileAO, compileS)
-import           Desugar (desugar)
-import           JavaUtils (getClassPath)
-import           MonadLib
-import qualified OptiUtils (Exp(Hide))
-import           Parser (reader, P(..))
-import           PartialEvaluator (rewriteAndEval)
-import           Simplify (simplify)
-import           SpecHelper
-import           StringPrefixes (namespace)
-import           StringUtils (capitalize)
-import qualified SystemFI as FI
-import           TestTerms
-import           TypeCheck (typeCheck)
+import BackEnd
+import FrontEnd (source2core)
+import JavaUtils (getClassPath)
+import MonadLib
+import OptiUtils (Exp(Hide))
+import PartialEvaluator (rewriteAndEval)
+import SpecHelper
+import StringPrefixes (namespace)
+import StringUtils (capitalize)
+import TestTerms
 
-import           Language.Java.Pretty (prettyPrint)
-import           System.FilePath (dropExtension, takeFileName)
-import           System.IO
-import           System.Process
-import           Test.Tasty.Hspec
+import Language.Java.Pretty (prettyPrint)
+import System.FilePath (dropExtension, takeFileName)
+import System.IO
+import System.Process
+import Test.Tasty.Hspec
 
 
 testCasesPath = "testsuite/tests/shouldRun"
@@ -31,22 +27,11 @@ fetchResult outP = do
 
 -- java compilation + run
 compileAndRun inP outP name compileF exp =
-  do let source = prettyPrint (fst (compileF name exp))
+  do let source = prettyPrint (fst (compileF name (rewriteAndEval exp)))
      let jname = name ++ ".java"
      hPutStrLn inP jname
      hPutStrLn inP (source ++ "\n" ++ "//end of file")
      fetchResult outP
-
-esf2sf source =
-  case source of
-   PError msg -> error $ show msg
-   POk parsed -> do
-     result <- typeCheck parsed True
-     case result of
-       Left typeError -> error $ show typeError
-       Right (_, checked) ->
-         let fiExpr = desugar checked
-         in return (rewriteAndEval (OptiUtils.Hide (simplify (FI.HideF fiExpr))))
 
 testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput) = do
   let className = capitalize $ dropExtension (takeFileName filePath)
@@ -61,20 +46,18 @@ testConcreteSyn inP outP compilation (name, filePath) =
                          "The integration test file should start with '-->', \
                          \followed by the expected output")
        Just expectedOutput ->
-         do ast <- runIO (esf2sf (Parser.reader source))
+         do ast <- runIO (source2core NoDump source)
             testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput)
 
 abstractCases =
-  [("factorial 10", "main_1", factApp, "3628800")
-  ,("fibonacci 10", "main_2", fiboApp, "55")
-  ,("idF Int 10", "main_3", idfNum, "10")
-  ,("const Int 10 20", "main_4", constNum, "10")
-  ,("program1 Int 5", "main_5", program1Num, "5")
-  ,("program2", "main_6", program2, "5")
-  ,("program4", "main_7", program4, "11")
+  [ ("factorial 10", "main_1", Hide factApp, "3628800")
+  , ("fibonacci 10", "main_2", Hide fiboApp, "55")
+  , ("idF Int 10", "main_3", Hide idfNum, "10")
+  , ("const Int 10 20", "main_4", Hide constNum, "10")
+  , ("program1 Int 5", "main_5", Hide program1Num, "5")
+  , ("program2", "main_6", Hide program2, "5")
+  , ("program4", "main_7", Hide program4, "11")
   ]
-
--- intappCase = \c -> it "Should infer type of intapp" $ "(forall (_ : java.lang.Integer) . java.lang.Integer)" `shouldBe` ( let (cu, t) = (c "Main" intapp) in show t)
 
 transSpec =
   do concreteCases <- runIO (discoverTestCases testCasesPath)

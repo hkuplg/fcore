@@ -1,9 +1,12 @@
+{-# LANGUAGE TemplateHaskell #-}
+
 module JvmTypeQuery
   ( isJvmType
   , hasConstructor
   , methodTypeOf
   , fieldTypeOf
   , getModuleInfo
+  , extractModuleInfo
   , ModuleInfo(..)
   ) where
 
@@ -11,7 +14,6 @@ import JavaUtils (ClassName, MethodName, FieldName, ModuleName)
 import Src (Type, PackageName)
 import StringUtils
 
-import Control.Monad (unless)
 import Data.Char (isSpace, toLower)
 import Data.List
 import Data.List.Split
@@ -73,14 +75,8 @@ fieldTypeOf h c (f, is_static)
 getModuleInfo
   :: (Handle, Handle)
   -> (Maybe Src.PackageName, ModuleName)
-  -> Bool -- ^ True for loading prelude
   -> IO (Maybe ([ModuleInfo], ModuleName))
--- Also automatically compile imported modules
--- FIXME: cause error if a module has import and package declaration
-getModuleInfo h (p, m) loadPrelude
-  = do currDir <- getCurrentDirectory
-       let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
-       unless loadPrelude $ system_ $ "f2j --compile " ++ moduleDir </> m ++ ".sf"
+getModuleInfo h (p, m) = do
        s <- sendRecv h ["qModuleInfo", ((maybe "" (++ ".") p) ++ capitalize m)] >>= fixRet
        case s of
         Nothing -> return Nothing
@@ -95,3 +91,13 @@ getModuleInfo h (p, m) loadPrelude
                                            ty' <- maybeRead z :: Maybe Type
                                            return $ ModuleInfo x y ty' : xs'
           listToModuleInfo _ = Nothing
+
+extractModuleInfo :: (Handle, Handle)
+                  -> (Maybe Src.PackageName, ModuleName)
+                  -> IO (Maybe ([ModuleInfo], ModuleName))
+-- Also automatically compile imported modules
+extractModuleInfo h (p, m) = do
+  currDir <- getCurrentDirectory
+  let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
+  system_ $ "f2j --compile " ++ moduleDir </> m ++ ".sf"
+  getModuleInfo h (p, m)

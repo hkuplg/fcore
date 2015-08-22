@@ -1,14 +1,14 @@
-module RuntimeProcessManager (withRuntimeProcess) where
+module RuntimeProcessManager (withRuntimeProcess, withTypeServer) where
 
 import JavaUtils      (getClassPath)
 import StringPrefixes (namespace)
 
-import System.IO      (Handle, hSetBuffering, BufferMode)
+import System.IO      (Handle, hSetBuffering, BufferMode(..))
 import System.Process
 
-withRuntimeProcess :: String -> BufferMode -> ((Handle,Handle) -> IO a) -> IO a
-withRuntimeProcess class_name buffer_mode do_this
-  = do cp <- getClassPath
+withRuntimeProcess :: String -> BufferMode -> ((Handle,Handle) -> IO a) -> Bool -> IO a
+withRuntimeProcess class_name buffer_mode do_this loadPrelude
+  = do cp <- if loadPrelude then return "runtime/runtime.jar" else getClassPath
        let p = (proc "java" ["-cp", cp, namespace ++ class_name, cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
        (Just inP, Just outP, _, proch) <- createProcess p
@@ -17,3 +17,8 @@ withRuntimeProcess class_name buffer_mode do_this
        result <- do_this (inP, outP)
        terminateProcess proch
        return result
+
+withTypeServer :: ((Handle, Handle) -> IO a)
+               -> Bool -- ^ True for loading prelude
+               -> IO a
+withTypeServer = withRuntimeProcess "TypeServer" NoBuffering

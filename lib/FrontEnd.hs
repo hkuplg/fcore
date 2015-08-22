@@ -20,7 +20,7 @@ source2core optDump source
                        exitFailure
       POk parsed -> do
         when (optDump == Parsed) $ print (pretty parsed)
-        result <- typeCheck parsed False
+        result <- typeCheck parsed
         case result of
           Left typeError -> do print (pretty typeError)
                                exitFailure

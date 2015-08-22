@@ -9,18 +9,28 @@ SF_FILES := $(wildcard $(PREDEF_DIR)/*.sf)
 FLAGS := -m naive
 
 
-all : prerequisite compiler mkprelude
+all : compiler
+
+# Hack for first time install
+.PHONY : new
+new : compiler prelude
+	make compiler
+
+# for rebuild prelude module
+.PHONY : prelude
+prelude : prerequisite mkprelude runtime compiler
 
 .PHONY : prerequisite
 prerequisite :
 	mkdir -p $(PRELUDE_DIR)
 	rm -f $(PRELUDE_DIR)/*.java
+	cd runtime; ant clean
 
+.PHONY : mkprelude
 mkprelude : $(SF_FILES)
 	f2j $(FLAGS) $^
 	cp $(PREDEF_DIR)/*.java $(PRELUDE_DIR)
 	rm -f $(PREDEF_DIR)/*.java
-	make runtime
 
 .PHONY : compiler
 compiler : runtime
@@ -44,11 +54,11 @@ whitespace_test :
 
 .PHONY : runtime
 runtime :
-	cd runtime && ant && cd ..
+	cd runtime ; ant
 
 .PHONY : parsers
 parsers :
-	cd $(SRC_DIR) && make && cd ..
+	cd $(SRC_DIR) ; make
 
 # .PHONY : guard
 # guard :

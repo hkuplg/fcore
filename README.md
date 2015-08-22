@@ -26,8 +26,7 @@ Ubuntu. It builds the compiler from source, thus may take some time.
 3. Quick install with stack:
 
    ```bash
-   make runtime
-   stack install
+   make
    ```
 
    You may be prompted to run `stack setup`, which will automatically
