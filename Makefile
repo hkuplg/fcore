@@ -46,11 +46,11 @@ whitespace_test :
 
 .PHONY : runtime
 runtime :
-	cd runtime && ant && cd ..
+	cd runtime ; ant
 
 .PHONY : parsers
 parsers :
-	cd $(SRC_DIR) && make && cd ..
+	cd $(SRC_DIR) ; make
 
 # .PHONY : guard
 # guard :
