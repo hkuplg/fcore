@@ -9,7 +9,9 @@ SF_FILES := $(wildcard $(PREDEF_DIR)/*.sf)
 FLAGS := -m naive
 
 
-all : prerequisite compiler mkprelude compiler
+all : compiler
+
+prelude : prerequisite mkprelude runtime compiler
 
 .PHONY : prerequisite
 prerequisite :
@@ -17,12 +19,11 @@ prerequisite :
 	rm -f $(PRELUDE_DIR)/*.java
 	cd runtime; ant clean
 
-
+.PHONY : mkprelude
 mkprelude : $(SF_FILES)
 	f2j $(FLAGS) $^
 	cp $(PREDEF_DIR)/*.java $(PRELUDE_DIR)
 	rm -f $(PREDEF_DIR)/*.java
-	make runtime
 
 .PHONY : compiler
 compiler : runtime

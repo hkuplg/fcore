@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -38,7 +39,7 @@ import JvmTypeQuery
 import Panic
 import Predef
 import PrettyUtils
-import RuntimeProcessManager (withRuntimeProcess)
+import RuntimeProcessManager (withTypeServer)
 import Src
 import SrcLoc
 import StringUtils
@@ -56,26 +57,17 @@ import Text.PrettyPrint.ANSI.Leijen
 type Connection = (Handle, Handle)
 
 typeCheck :: ReaderExpr
-          -> Bool -- ^ True for testing
           -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
-typeCheck e isTest = withTypeServer (\type_server -> do
-           module_ctxt <- if isTest then return Map.empty else  (initializePrelude type_server)
-           (evalIOEnv (mkInitTcEnv module_ctxt type_server) . runExceptT . checkExpr) e)
-
-initializePrelude :: Connection -> IO ModuleContext
-initializePrelude type_server = do
-  moduleInfo <- processPredef type_server
-  return $ Map.fromList moduleInfo
+typeCheck e = withTypeServer (\type_server -> do
+           let module_ctxt = Map.fromList $(getPredefInfoTH)
+           (evalIOEnv (mkInitTcEnv module_ctxt type_server) . runExceptT . checkExpr) e) False
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runExceptT . checkExpr) e)
-
-withTypeServer :: (Connection -> IO a) -> IO a
-withTypeServer = withRuntimeProcess "TypeServer" NoBuffering
+  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runExceptT . checkExpr) e) False
 
 data TcEnv
   = TcEnv
@@ -934,7 +926,7 @@ checkModuleFunction :: Import ModuleName -> Checker [(ReaderId, ModuleMapInfo)]
 checkModuleFunction (Import m) =
   do
     typeserver <- getTypeServer
-    res <- liftIO (getModuleInfo typeserver (pName, moduleName) False)
+    res <- liftIO (extractModuleInfo typeserver (pName, moduleName))
     case res of
       Nothing  -> throwError (noExpr $ ImportFail m)
       Just ret -> return (map flatInfo (fst ret))

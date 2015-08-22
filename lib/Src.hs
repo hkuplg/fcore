@@ -9,7 +9,7 @@ Portability :  portable
 -}
 
 
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
+{-# LANGUAGE DeriveDataTypeable, RecordWildCards, TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
@@ -48,25 +48,22 @@ module Src
   , defaultMatrix
   ) where
 
-import Config
-import JavaUtils
-import PrettyUtils
-import Panic
-import SrcLoc
+import           Config
+import           JavaUtils
+import           Panic
+import           PrettyUtils
+import           SrcLoc
 
-import qualified Language.Java.Syntax as J (Op(..))
--- import qualified Language.Java.Pretty as P
-import Text.PrettyPrint.ANSI.Leijen
-
-import Control.Arrow (second)
-
-import Data.Maybe (fromJust)
-import Data.Data
-import Data.List (intersperse, findIndex, nub)
+import           Control.Arrow (second)
+import           Data.Data
+import           Data.List (intersperse, findIndex, nub)
 import qualified Data.Map as Map
+import           Data.Maybe (fromJust)
 import qualified Data.Set as Set
-
-import Prelude hiding ((<$>))
+import           Language.Haskell.TH.Lift
+import qualified Language.Java.Syntax as J (Op(..))
+import           Prelude hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen
 
 -- Names and identifiers.
 type Name      = String
@@ -612,3 +609,7 @@ specializedMatrix ctr pats =
 defaultMatrix :: [[Pattern]] -> [[Pattern]]
 defaultMatrix pats =
     [tail list1 | list1 <- pats, isWildcardOrVar . head $ list1]
+
+-- Make some instances of TH
+$(deriveLift ''Type)
+$(deriveLift ''JVMType)

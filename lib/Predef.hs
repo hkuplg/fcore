@@ -1,15 +1,27 @@
 {-# LANGUAGE TemplateHaskell #-}
-module Predef (processPredef) where
+module Predef (getPredefInfoTH) where
 
+import System.IO.Unsafe (unsafePerformIO)
+import System.Directory
+import System.FilePath
 
 import JvmTypeQuery
+import RuntimeProcessManager
 import StringUtils
-import JavaUtils
+import Data.List
+import Src
+import Language.Haskell.TH.Syntax (lift)
 
+-- Here I am doing crazy things ...
 
-processPredef h = do
-  let lists = $(predefList)
-  res <- fmap sequence (mapM (\info -> getModuleInfo h info True) lists)
+-- grab all the information of prelude modules, and inject it to
+-- the compiler itself
+getPredef h = do
+  filePaths <- getDirectoryContents "lib/predef"
+  let lists = ((map (\path -> (Just "f2j.prelude", takeBaseName path))
+                 (filter (isSuffixOf "sf") filePaths)))
+  -- return lists
+  res <- fmap sequence (mapM (\info -> getModuleInfo h info) lists)
   let info =
         case res of
           Nothing  -> [] -- we cannot panic here, as this will leave the Java process hanging around
@@ -18,3 +30,8 @@ processPredef h = do
 
   where
     flatInfo (p, mname) = map (\(ModuleInfo f g t) -> (f, (Just "f2j.prelude", t, g, capitalize mname))) p
+
+getPredefInfo :: [(String, ModuleMapInfo)]
+getPredefInfo = unsafePerformIO $ withTypeServer getPredef True
+
+getPredefInfoTH = [| $(lift (getPredefInfo)) |]
