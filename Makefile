@@ -11,6 +11,13 @@ FLAGS := -m naive
 
 all : compiler
 
+# Hack for first time install
+.PHONY : new
+new : compiler prelude
+	make compiler
+
+# for rebuild prelude module
+.PHONY : prelude
 prelude : prerequisite mkprelude runtime compiler
 
 .PHONY : prerequisite

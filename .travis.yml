@@ -44,7 +44,7 @@ before_install:
 
 install:
   - stack setup --no-terminal
-  - make
+  - make new
 
 script:
   - make test
