@@ -88,7 +88,7 @@ modifiedScopeTyp oexpr ostmts x1 f closureClass = completeClosure
         fc = f
         completeClosure = [localClassDecl (closureTransName ++ show fc) closureClass
                             (closureBodyGen
-                             [currentInitialDeclaration, J.InitDecl False (block (setApplyFlag : ostmts ++ [assign (name [closureOutput]) oexpr]))]
+                             [currentInitialDeclaration, J.InitDecl False (block (setApplyFlag : ostmts ++ [bsAssign (name [closureOutput]) oexpr]))]
                              []
                              fc
                              True
@@ -122,7 +122,7 @@ transAS this super = NT {toT = (up (transApply this super)) {
                       (varDecl tempOut (case outType of
                                          J.PrimType J.IntT -> J.Lit (J.Int 0)
                                          _ -> J.Lit J.Null))
-       let elseDecl = assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast z f) closureOutput)))
+       let elseDecl = bsAssign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast z f) closureOutput)))
 
        if length applyGen == 2
          then return applyGen

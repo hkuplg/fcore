@@ -1,3 +1,4 @@
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module JvmTypeQuery
@@ -14,7 +15,9 @@ import JavaUtils (ClassName, MethodName, FieldName, ModuleName)
 import Src (Type, PackageName)
 import StringUtils
 
+import Control.Exception
 import Data.Char (isSpace, toLower)
+import Data.Either
 import Data.List
 import Data.List.Split
 import Data.Maybe (listToMaybe)
@@ -72,25 +75,24 @@ fieldTypeOf h c (f, is_static)
              then "qStaticField"
              else "qField"
 
-getModuleInfo
-  :: (Handle, Handle)
-  -> (Maybe Src.PackageName, ModuleName)
-  -> IO (Maybe ([ModuleInfo], ModuleName))
+getModuleInfo :: (Handle, Handle)
+              -> (Maybe Src.PackageName, ModuleName)
+              -> IO (Maybe ([ModuleInfo], ModuleName))
 getModuleInfo h (p, m) = do
-       s <- sendRecv h ["qModuleInfo", ((maybe "" (++ ".") p) ++ capitalize m)] >>= fixRet
-       case s of
-        Nothing -> return Nothing
-        Just xs -> return $ (maybe Nothing (\info -> Just (info, m)) (listToModuleInfo (wordsWhen (== '$') xs)))
-    where wordsWhen p s =  case dropWhile p s of
-                            "" -> []
-                            s' -> w : wordsWhen p s''
-                              where (w, s'') = break p s'
-          maybeRead = fmap fst . listToMaybe . reads
-          listToModuleInfo [] = return []
-          listToModuleInfo (x:y:z:xs) = do xs' <- listToModuleInfo xs
-                                           ty' <- maybeRead z :: Maybe Type
-                                           return $ ModuleInfo x y ty' : xs'
-          listToModuleInfo _ = Nothing
+  s <- sendRecv h ["qModuleInfo", ((maybe "" (++ ".") p) ++ capitalize m)] >>= fixRet
+  case s of
+    Nothing -> return Nothing
+    Just xs -> return $ (maybe Nothing (Just . (,m)) (listToModuleInfo (splitOn "$" (init xs))))
+
+  where
+    maybeRead = fmap fst . listToMaybe . reads
+    listToModuleInfo [] = return []
+    listToModuleInfo (x:y:z:xs) = do
+      xs' <- listToModuleInfo xs
+      ty' <- maybeRead z :: Maybe Type
+      return $ ModuleInfo x y ty' : xs'
+    listToModuleInfo _ = Nothing
+
 
 extractModuleInfo :: (Handle, Handle)
                   -> (Maybe Src.PackageName, ModuleName)
@@ -99,5 +101,7 @@ extractModuleInfo :: (Handle, Handle)
 extractModuleInfo h (p, m) = do
   currDir <- getCurrentDirectory
   let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
-  system_ $ "f2j --compile " ++ moduleDir </> m ++ ".sf"
-  getModuleInfo h (p, m)
+  res <- (try . system_ $ "f2j --compile " ++ moduleDir </> m ++ ".sf") :: IO (Either SomeException ())
+  if (isLeft res)  -- should catch IO exception if any
+    then return Nothing
+    else getModuleInfo h (p, m)
