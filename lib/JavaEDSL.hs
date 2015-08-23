@@ -205,8 +205,8 @@ funInstCreate i = instCreat fun []
   where fun = ClassType [(Ident (closureTransName ++ show i),[])]
 
 -- assignment
-assign :: Name -> Exp -> BlockStmt
-assign lhs rhs = BlockStmt $ ExpStmt $ Assign (NameLhs lhs) EqualA rhs
+bsAssign :: Name -> Exp -> BlockStmt
+bsAssign lhs rhs = BlockStmt $ ExpStmt $ Assign (NameLhs lhs) EqualA rhs
 
 assignE :: Name -> Exp -> Stmt
 assignE lhs rhs = ExpStmt $ Assign (NameLhs lhs) EqualA rhs

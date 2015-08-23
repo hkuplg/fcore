@@ -4,7 +4,7 @@ module SpecHelper
   ) where
 
 import System.Directory (getDirectoryContents)
-import System.FilePath  (dropExtension, (</>))
+import System.FilePath  (dropExtension)
 
 import Data.Char (isSpace)
 import Data.List (isSuffixOf)
@@ -16,7 +16,7 @@ type ExpectedOutput = String
 discoverTestCases :: FilePath -> IO [(Name, FilePath)]
 discoverTestCases directory =
   do fileNames <- filter (isSuffixOf ".sf") <$> getDirectoryContents directory
-     return (map (\f -> (dropExtension f, directory </> f)) fileNames)
+     return (map (\f -> (dropExtension f, f)) fileNames)
 
 parseExpectedOutput :: Source -> Maybe ExpectedOutput
 parseExpectedOutput source =
