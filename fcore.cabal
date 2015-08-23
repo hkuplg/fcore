@@ -47,6 +47,7 @@ library
                         ClosureF
                         Config
                         Core
+                        CoreNew
                         Desugar
                         Environment
                         FileIO

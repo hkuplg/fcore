@@ -32,6 +32,7 @@ dcomma    = text ",,"
 unit      = text "()"
 bar       = text "|"
 evalTo    = text "==>"
+mu        = text "mu"
 
 bquote :: Doc
 bquote = char '`'
