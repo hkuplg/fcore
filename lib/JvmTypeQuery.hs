@@ -101,7 +101,7 @@ extractModuleInfo :: (Handle, Handle)
 extractModuleInfo h (p, m) = do
   currDir <- getCurrentDirectory
   let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
-  res <- (try . system_ $ "f2j --compile " ++ moduleDir </> m ++ ".sf") :: IO (Either SomeException ())
+  res <- (try . system_ $ "f2j --compile --silent " ++ moduleDir </> m ++ ".sf") :: IO (Either SomeException ())
   if (isLeft res)  -- should catch IO exception if any
     then return Nothing
     else getModuleInfo h (p, m)

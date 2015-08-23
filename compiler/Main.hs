@@ -39,6 +39,7 @@ data Options = Options
     , optCompileAndRun :: Bool
     , optDump          :: DumpOption
     , optVerbose       :: Bool
+    , optSilent        :: Bool
     , optInline        :: Bool
     , optTransMethod   :: [TransMethod]
     , optSourceFiles   :: [String]
@@ -89,6 +90,7 @@ options = Options <$> switch (long "compile" <> short 'c' <> help "Compile Java 
                          completeWith (Map.keys dumpOpts) <>
                          help ("Dump option. Can be either " ++ intersperseComma dumpOpts))
                   <*> switch (long "verbose" <> short 'v' <> help "Whether to be verbose")
+                  <*> switch (long "silent" <> help "Whether to keep silent")
                   <*> switch (long "inline" <> short 'i' <> help "Inline your program")
                   <*> many
                         (option (str >>= parseOpts transOpts)
@@ -118,8 +120,9 @@ main = do
            method = Set.insert Naive (Set.fromList translate_method)
        let opts = getOpt method
 
-       putStrLn (takeBaseName source_path ++ " using " ++ (show . Set.toList $ method))
-       putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
+       unless optSilent $
+         do putStrLn (takeBaseName source_path ++ " using " ++ (show . Set.toList $ method))
+            putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
 
        source     <- readFile source_path
        coreExpr   <- source2core optDump source

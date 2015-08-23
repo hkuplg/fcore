@@ -2,12 +2,14 @@
 import Test.Tasty
 import Test.Tasty.Hspec
 
-import TypeCheckSpec (tcSpec)
+import ModuleSpec
 import TransCFSpec (transSpec)
+import TypeCheckSpec (tcSpec)
 
 main :: IO ()
 main = do
   tcTests <- testSpec "Typecheck" tcSpec
+  moduleTests <- testSpec "Module" moduleSpec
   transTests <- testSpec "Translations" transSpec
-  let tests = testGroup "fcore tests" [tcTests, transTests]
+  let tests = testGroup "fcore tests" [tcTests, moduleTests, transTests]
   defaultMain tests

@@ -1,4 +1,4 @@
-module TransCFSpec where
+module TransCFSpec (transSpec, testConcreteSyn) where
 
 import BackEnd
 import FrontEnd (source2core)
@@ -12,7 +12,8 @@ import StringUtils (capitalize)
 import TestTerms
 
 import Language.Java.Pretty (prettyPrint)
-import System.FilePath (dropExtension, takeFileName)
+import System.Directory
+import System.FilePath
 import System.IO
 import System.Process
 import Test.Tasty.Hspec
@@ -61,6 +62,11 @@ abstractCases =
 
 transSpec =
   do concreteCases <- runIO (discoverTestCases testCasesPath)
+
+     -- change to testing directory for module testing
+     curr <- runIO (getCurrentDirectory)
+     runIO (setCurrentDirectory $ curr </> testCasesPath)
+
      forM_
        [("BaseTransCF" , compileN)
        ,("ApplyTransCF", compileAO)
@@ -75,4 +81,6 @@ transSpec =
               runIO $ hSetBuffering outP NoBuffering
               forM_ abstractCases (testAbstractSyn inP outP compilation)
               forM_ concreteCases (testConcreteSyn inP outP compilation))
-              --terminateProcess proch
+
+     runIO (setCurrentDirectory curr)
+

@@ -159,7 +159,7 @@ test-suite test
   type:                 exitcode-stdio-1.0
   hs-source-dirs:       testsuite,testsuite/tests
   main-is:              Test.hs
-  other-modules:        SpecHelper TestTerms TransCFSpec TypeCheckSpec
+  other-modules:        SpecHelper TestTerms TransCFSpec TypeCheckSpec ModuleSpec
   build-depends:        fcore
                       , base == 4.*
                       , bytestring == 0.10.*
