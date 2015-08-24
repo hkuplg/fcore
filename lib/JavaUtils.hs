@@ -22,7 +22,7 @@ module JavaUtils
 import StringUtils (capitalize)
 
 import Paths_fcore
-import System.Directory (setCurrentDirectory, getCurrentDirectory)
+import System.Directory (withCurrentDirectory)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, (</>), (<.>), dropExtension, searchPathSeparator)
 import System.Process.Extra (system_)
 
@@ -58,10 +58,7 @@ compileJava srcPath
 
 runJava :: FilePath -> IO ()
 runJava srcPath = do
-    currDir <- getCurrentDirectory
-    let workDir = takeDirectory srcPath
-    setCurrentDirectory workDir
+  withCurrentDirectory (takeDirectory srcPath) $ do
     cp <- getClassPath
     system_ $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
     system_ "rm *.class"
-    setCurrentDirectory currDir
