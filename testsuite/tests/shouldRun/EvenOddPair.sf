@@ -1,4 +1,4 @@
---> True
+--> true
 
 let rec
 evenOdd : (Int -> Bool, Int -> Bool)

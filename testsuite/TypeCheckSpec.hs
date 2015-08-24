@@ -18,16 +18,18 @@ hasError (Right _) = False
 testCasesPath = "testsuite/tests/shouldntTypecheck"
 
 tcSpec :: Spec
-tcSpec =
-  describe "Should fail to typecheck" $ do
-    failingCases <- runIO (discoverTestCases testCasesPath)
+tcSpec = do
+  failingCases <- runIO (discoverTestCases testCasesPath)
 
-    curr <- runIO (getCurrentDirectory)
-    runIO (setCurrentDirectory $ curr </> testCasesPath)
+  curr <- runIO (getCurrentDirectory)
+  runIO (setCurrentDirectory $ curr </> testCasesPath)
 
+  describe "Should fail to typecheck" $
     forM_ failingCases
-      (\(name, source) -> it ("should reject " ++ name) $
-         let POk parsed = reader source
-         in typeCheck parsed >>= ((`shouldSatisfy` hasError)))
+      (\(name, filePath) -> do
+         do source <- runIO (readFile filePath)
+            it ("should reject " ++ name) $
+              let POk parsed = reader source
+              in typeCheck parsed >>= ((`shouldSatisfy` hasError)))
 
-    runIO (setCurrentDirectory curr)
+  runIO (setCurrentDirectory curr)
