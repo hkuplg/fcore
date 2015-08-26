@@ -33,7 +33,6 @@ module Src
   , compatible
   , leastUpperBound
 
-  , deThunkOnce
   , recordFields
   , freeTVars
   , fsubstTT
@@ -91,7 +90,6 @@ data Type
   -- Extensions
   | And Type Type
   | RecordType [(Label, Type)]
-  | Thunk Type
 
   -- Type synonyms
   | OpAbs Name Type -- Type-level abstraction: "type T A = t" becomes "type T = \A. t", and "\A. t" is the abstraction.
@@ -248,13 +246,7 @@ expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalTy
 expandType d (Product ts) = Product (map (expandType d) ts)
 expandType d (RecordType fs)  = RecordType (map (second (expandType d)) fs)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
-expandType d (Thunk t)    = Thunk (expandType d t)
 expandType d (Datatype n ts ns) = Datatype n (map (expandType d) ts) ns
-
-
-deThunkOnce :: Type -> Type
-deThunkOnce (Thunk t) = t
-deThunkOnce t         = t
 
 
 -- Relations between types
@@ -265,8 +257,6 @@ subtype d t1 t2 = subtypeS (expandType d t1) (expandType d t2)
 
 -- | Subtyping of two *expanded* types.
 subtypeS :: Type -> Type -> Bool
-subtypeS t1             (Thunk t2)             = subtypeS t1 t2
-subtypeS (Thunk t1)     t2                     = subtypeS t1 t2
 subtypeS (TVar a)       (TVar b)               = a == b
 subtypeS (JType c)      (JType d)              = c == d
 -- The subtypeS here shouldn't be aware of the subtyping relations in the Java world.
@@ -340,7 +330,6 @@ recordFields (And t1 t2) =
     --   fromList [(1,"one")]
     LeftBiased  -> recordFields t1 `Map.union` recordFields t2
     RightBiased -> recordFields t2 `Map.union` recordFields t1
-recordFields (Thunk t) = recordFields t
 recordFields _         = Map.empty
 
 -- Free variable substitution
@@ -361,7 +350,6 @@ fsubstTT (x,r) (Forall a t)
 fsubstTT (_,_) Unit            = Unit
 fsubstTT (x,r) (RecordType fs)     = RecordType (map (second (fsubstTT (x,r))) fs)
 fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
-fsubstTT (x,r) (Thunk t1)      = Thunk (fsubstTT (x,r) t1)
 fsubstTT (x,r) (OpAbs a t)
     | a == x || a `Set.member` freeTVars r = -- The freshness condition, crucial!
         let fresh = freshName a (freeTVars t `Set.union` freeTVars r)
@@ -383,7 +371,6 @@ freeTVars (Forall a t) = Set.delete a (freeTVars t)
 freeTVars (Product ts) = Set.unions (map freeTVars ts)
 freeTVars (RecordType fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
-freeTVars (Thunk t)    = freeTVars t
 freeTVars (OpAbs _ t)  = freeTVars t
 freeTVars (OpApp t1 t2) = Set.union (freeTVars t1) (freeTVars t2)
 freeTVars (Datatype _ ts _) = Set.unions (map freeTVars ts)
@@ -407,7 +394,6 @@ instance Pretty Type where
   pretty (Product ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
   pretty (And t1 t2)  = pretty t1 <> text "&" <> pretty t2
   pretty (RecordType fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
-  pretty (Thunk t)    = squote <> parens (pretty t)
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (Datatype n ts _) = hsep (text n : map pretty ts)

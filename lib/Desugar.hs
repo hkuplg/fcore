@@ -86,7 +86,6 @@ transType d (RecordType fs)  =
                   [(l,t)]  -> F.RecordType (l, transType d t)
                   _        -> transType d (RecordType (take (length fs - 1) fs)) `F.And` F.RecordType (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = F.Unit
-transType i (Thunk t)    = F.Fun F.Unit (transType i t)
 transType i (Datatype n ts ns) = F.Datatype n (map (transType i) ts) ns
 transType _ t            = prettySorry "transType" (pretty t)
 

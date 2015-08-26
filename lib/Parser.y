@@ -179,7 +179,6 @@ atype :: { ReaderType }
   | "Unit"                   { Unit }
   | "(" product_body ")"     { Product $2 }
   | record_type              { $1 }
-  | "'" atype                { Thunk $2 }
   | "(" type ")"             { $2 }
 
 product_body :: { [ReaderType] }

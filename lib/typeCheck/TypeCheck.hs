@@ -244,7 +244,6 @@ kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, TerminalType) d
 kind d (Product ts) = justStarIffAllHaveKindStar d ts
 kind d (RecordType fs)  = justStarIffAllHaveKindStar d (map snd fs)
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
-kind d (Thunk t)    = kind d t
 
 -- Δ,x::* ⊢ t :: k
 -- -------------------- (K-Abs) Restriction compared to F_omega: x can only have kind *
@@ -317,20 +316,7 @@ checkExpr (L _ (App e1 e2)) =
           Fun t11 t12 ->
             do d <- getTypeContext
                unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2 `withExpr` e2)
-               case (t11, t2) of
-                 (Thunk _, Thunk _) -> return (t12, App e1' e2' `withLoc` e1')
-                 (Thunk _, _)       -> return (t12, App e1' (Lam ("_", Unit) e2' `withLoc` e2') `withLoc` e1')
-                 (_, Thunk _)       -> return (t12, App e1' (App e2' (noLoc $ Lit UnitLit) `withLoc` e2') `withLoc` e1')
-                 (_, _)             -> return (t12, App e1' e2' `withLoc` e1')
-
-          Thunk (Fun t11 t12) ->
-            do d <- getTypeContext
-               unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2 `withExpr` e2)
-               case (t11, t2) of
-                 (Thunk _, Thunk _) -> return (t12, App e1' e2' `withLoc` e1')
-                 (Thunk _, _)       -> return (t12, App e1' (Lam ("_", Unit) e2' `withLoc` e2') `withLoc` e1')
-                 (_, Thunk _)       -> return (t12, App e1' (App e2' (noLoc $ Lit UnitLit) `withLoc` e2') `withLoc` e1')
-                 (_, _)             -> return (t12, App e1' e2' `withLoc` e1')
+               return (t12, App e1' e2' `withLoc` e1')
 
           _ -> throwError (NotAFunction t1 `withExpr` e1)
 
@@ -414,7 +400,7 @@ checkExpr (L loc LetOut{..}) = panic "TypeCheck.infer: LetOut"
 -- e.x
 checkExpr (L loc (Dot e x Nothing)) =
   do (t, _) <- checkExpr e
-     case deThunkOnce t of
+     case t of
        JType (JClass _) -> checkExpr (L loc $ JField (NonStatic e) x undefined)
        RecordType _     -> checkExpr (L loc $ RecordProj e x)
        And _ _          -> checkExpr (L loc $ RecordProj e x)
@@ -423,14 +409,14 @@ checkExpr (L loc (Dot e x Nothing)) =
 -- e.x ( )
 checkExpr (L loc (Dot e x (Just ([], UnitImpossible)))) =
   do (t, _) <- checkExpr e
-     case deThunkOnce t of
+     case t of
        JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x [] undefined)
        _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
 
 -- e.x ()
 checkExpr (L loc (Dot e x (Just ([], UnitPossible)))) =
   do (t, _) <- checkExpr e
-     case deThunkOnce t of
+     case t of
        JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x [] undefined)
        RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
        And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
@@ -439,7 +425,7 @@ checkExpr (L loc (Dot e x (Just ([], UnitPossible)))) =
 -- e.x (a)
 checkExpr (L loc (Dot e x (Just ([arg], _)))) =
   do (t, _) <- checkExpr e
-     case deThunkOnce t of
+     case t of
        JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x [arg] undefined)
        RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) arg)
        And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) arg)
@@ -448,7 +434,7 @@ checkExpr (L loc (Dot e x (Just ([arg], _)))) =
 -- e.x (a,...)
 checkExpr (L loc (Dot e x (Just (args, _)))) =
   do (t, _) <- checkExpr e
-     case deThunkOnce t of
+     case t of
        JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x args undefined)
        RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
        And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
@@ -744,7 +730,7 @@ inferAgainst expr expected_ty
 inferAgainstAnyJClass :: ReaderExpr -> Checker (ClassName, CheckedExpr)
 inferAgainstAnyJClass expr
   = do (ty, expr') <- checkExpr expr
-       case deThunkOnce ty of
+       case ty of
         -- JType (JPrim "char") -> return ("java.lang.Character", expr')
         JType (JClass c) -> return (c, expr')
         _ -> throwError $ TypeMismatch ty (JType $ JPrim "Java class") `withExpr` expr
