@@ -38,7 +38,7 @@ import qualified SystemFI as FI
 -- simplify2 (FI.JField jc fn cn) = JField (fmap simplify2 jc) fn cn
 -- simplify2 (FI.Seq es) = Seq (map simplify2 es)
 -- simplify2 (FI.Data name params ctrs e) = Data name params (map simplify2Ctr ctrs) (simplify2 e)
--- simplify2 (FI.Constr ctr es) = Constr (simplify2Ctr ctr) (map simplify2 es)
+-- simplify2 (FI.ConstrOut ctr es) = ConstrOut (simplify2Ctr ctr) (map simplify2 es)
 -- simplify2 (FI.Case e alts) = Case (simplify2 e) (map simplify2Alt alts)
 --  where simplify2Alt (FI.ConstrAlt ctr vars f) = ConstrAlt (simplify2Ctr ctr) vars (simplify2 . f)
 -- simplify2 _ = sorry "No"
@@ -70,7 +70,7 @@ joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (Error ty str)         = Error ty (joinExpr str)
 joinExpr (Data recflag databinds e) = Data recflag databinds (joinExpr e)
-joinExpr (Constr ctr es) = Constr ctr (map joinExpr es)
+joinExpr (ConstrOut ctr es) = ConstrOut ctr (map joinExpr es)
 joinExpr (Case e alts) = Case (joinExpr e) (map joinAlt alts)
   where joinAlt (ConstrAlt ctr e1) = ConstrAlt ctr (joinExpr e1)
         joinAlt (Default e1) = Default (joinExpr e1)
@@ -112,7 +112,7 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Error ty str -> Error ty (f str)
       Data recflag databinds e -> Data recflag databinds (f e)
-      Constr ctr es -> Constr ctr (map f es)
+      ConstrOut ctr es -> ConstrOut ctr (map f es)
       Case e' alts -> Case (f e') (map mapAlt alts)
          where mapAlt (ConstrAlt ctr e1) = ConstrAlt ctr (f e1)
                mapAlt (Default e1) = Default (f e1)
@@ -148,7 +148,7 @@ rewriteExpr f num env expr =
    Error ty str -> Error ty (f num env str)
    Seq es -> Seq (map (f num env) es)
    Data recflag databinds e -> Data recflag databinds (f num env e)
-   Constr c es -> Constr c (map (f num env) es)
+   ConstrOut c es -> ConstrOut c (map (f num env) es)
    Case e alts -> Case (f num env e) (map rewriteAlt alts)
  where
    rewriteAlt (ConstrAlt ctr e) = ConstrAlt ctr (f num env e)

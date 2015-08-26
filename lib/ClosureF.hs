@@ -70,7 +70,7 @@ data Expr t e =
    | JField  (Either ClassName (Expr t e)) FieldName (Type t)
    | SeqExprs [Expr t e]
    | Data S.RecFlag [DataBind t] (Expr t e)
-   | Constr (Constructor t) [Expr t e]
+   | ConstrOut (Constructor t) [Expr t e]
    | Case (Expr t e) [Alt t e]
    | Error (Type t) (Expr t e)
 
@@ -150,7 +150,7 @@ fexp2cexp (C.Error ty str)         = Error (ftyp2ctyp ty) (fexp2cexp str)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp (C.Data recflag binds e) = Data recflag (map fdatabind2cdatabind binds) (fexp2cexp e)
     where fdatabind2cdatabind (C.DataBind name params ctrs) = DataBind ('$':name) params (map fctr2cctr . ctrs)
-fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
+fexp2cexp (C.ConstrOut ctr es) = ConstrOut (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr e1) = ConstrAlt (fctr2cctr ctr) (fexp2cexp e1)
         falt2calt (C.Default e1)       = Default (fexp2cexp e1)
@@ -383,7 +383,7 @@ prettyExpr p (i,j) (Data recflag databinds e) =
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
                    (equals <+> intersperseBar (map (prettyCtr (i+ (length tvars)))$ cons [i..(i-1+(length tvars))]) <$$> semi)
 
-prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
+prettyExpr p i (ConstrOut (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
 
 prettyExpr p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))

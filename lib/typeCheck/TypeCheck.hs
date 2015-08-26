@@ -300,12 +300,12 @@ checkExpr (L _ (App e1 e2)) =
      (t2, e2') <- checkExpr e2
 
      case e1' of
-       L loc (Constr (Constructor n ts) es) ->
+       L loc (ConstrOut (Constructor n ts) es) ->
            case t1 of
              Fun t11 t12 ->
                  do d <- getTypeContext
                     unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2 `withExpr` e2)
-                    return (t12, L loc $ Constr (Constructor n (init ts ++ [t11,t12])) (es ++ [e2']))
+                    return (t12, L loc $ ConstrOut (Constructor n (init ts ++ [t11,t12])) (es ++ [e2']))
              _ -> throwError (NotAFunction t1 `withExpr` e1)
        _ ->
         case t1 of
@@ -332,7 +332,7 @@ checkExpr (L loc (TApp e arg))
        case t of
          Forall a t1 -> let t' = fsubstTT (a, arg') t1
                         in case e' of
-                             L loc' (Constr (Constructor n _) es) -> return (t', L loc' $ Constr (Constructor n [t']) es)
+                             L loc' (ConstrOut (Constructor n _) es) -> return (t', L loc' $ ConstrOut (Constructor n [t']) es)
                              _ -> return (t', L loc $ TApp e' arg')
          _           -> sorry "TypeCheck.infer: TApp"
 
@@ -373,7 +373,7 @@ checkExpr (L loc (If e1 e2 e3))
   where
     message = "infer: least upper bound of types of two branches does not exist"
 
-checkExpr (L loc (Let rec_flag binds e)) =
+checkExpr (L loc (LetIn rec_flag binds e)) =
   do checkDupNames (map bindId binds)
      binds' <- case rec_flag of
                  NonRec -> mapM normalizeBind binds
@@ -514,8 +514,8 @@ checkExpr (L loc (RecordUpdate e fs)) =
 -- Well, I know the desugaring is too early to happen here...
 checkExpr (L loc (LetModule (Module m binds) e)) =
   do let fs = map bindId binds
-     let letrec = L loc $ Let Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
-     checkExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
+     let letrec = L loc $ LetIn Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
+     checkExpr (L loc $ LetIn NonRec [Bind m [] [] letrec Nothing] e)
 checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
 
 -- Type synonyms: type T A1 ... An = t in e
@@ -586,10 +586,10 @@ checkExpr (L loc (Data recflag databinds e)) =
                    constr_binds = zip names constr_types
                return (cs', constr_binds)
 
-checkExpr e@(L loc (ConstrTemp name)) =
+checkExpr e@(L loc (ConstrIn name)) =
     do g <- getValueContext
        case Map.lookup name g of
-         Just t  -> return (t, L loc $ Constr (Constructor name [t]) []) -- the last type will always be the real type
+         Just t  -> return (t, L loc $ ConstrOut (Constructor name [t]) []) -- the last type will always be the real type
          Nothing -> throwError (NotInScope name `withExpr` e)
 
 checkExpr (L loc (PolyList es)) =
@@ -598,8 +598,8 @@ checkExpr (L loc (PolyList es)) =
     let t = head ts
     case findIndex (not . compatible d t) ts of
         Just i -> throwError $ TypeMismatch t (ts !! i) `withExpr` (es !! i)
-        Nothing -> let es' = map (L loc . App (L loc $ TApp (L loc . ConstrTemp $ "Cons") t)) es
-                       desugares = foldr (\e acc -> L loc $ App e acc) (L loc $ TApp (L loc $ ConstrTemp "Nil") t) es'
+        Nothing -> let es' = map (L loc . App (L loc $ TApp (L loc . ConstrIn $ "Cons") t)) es
+                       desugares = foldr (\e acc -> L loc $ App e acc) (L loc $ TApp (L loc $ ConstrIn "Nil") t) es'
                    in checkExpr desugares
 
 checkExpr expr@(L loc (Case e alts)) =

@@ -120,7 +120,7 @@ data Expr id ty
   | TupleProj (LExpr id ty) Int                     -- Tuple projection
   | PrimOp (LExpr id ty) Operator (LExpr id ty) -- Primitive operation
   | If (LExpr id ty) (LExpr id ty) (LExpr id ty) -- If expression
-  | Let RecFlag [Bind id ty] (LExpr id ty)     -- Let (rec) ... (and) ... in ...
+  | LetIn RecFlag [Bind id ty] (LExpr id ty)     -- Let (rec) ... (and) ... in ...
   | LetOut                                    -- Post typecheck only
       RecFlag
       [(Name, Type, LExpr (Name,Type) Type)]
@@ -151,8 +151,8 @@ data Expr id ty
   | Data RecFlag [DataBind] (LExpr id ty)
   | Case (LExpr id ty) [Alt id ty]
   | CaseString (LExpr id ty) [Alt id ty] --pattern match on string
-  | ConstrTemp Name
-  | Constr Constructor [LExpr id ty] -- post typecheck only
+  | ConstrIn Name
+  | ConstrOut Constructor [LExpr id ty] -- post typecheck only
                                      -- the last type in Constructor will always be the real type
   | Error Type (LExpr id ty)
   deriving (Eq, Show)
@@ -430,7 +430,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
                             text "if" <+> pretty e1 <+>
                             text "then" <+> pretty e2 <+>
                             text "else" <+> pretty e3
-  pretty (Let recFlag bs e) =
+  pretty (LetIn recFlag bs e) =
     text "let" <+> pretty recFlag <+>
     encloseSep empty empty (softline <> text "and" <> space) (map pretty bs) <+>
     text "in" <+>
@@ -457,7 +457,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
+  pretty (ConstrOut c es) = parens $ hsep $ text (constrName c) : map pretty es
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where

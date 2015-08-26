@@ -73,7 +73,7 @@ infer i j (FI.RecordCon (l, e))   = FI.RecordType (l, infer i j e)
 infer i j (FI.RecordProj e l1)    = t1                                           where Just (t1, _) = getter i j (infer i j e) l1
 infer i j (FI.RecordUpdate e _)   = infer i j e
 infer _ _ (FI.Error ty _)         = ty
-infer i j (FI.Constr c _)         = last . FI.constrParams $ c
+infer i j (FI.ConstrOut c _)         = last . FI.constrParams $ c
 infer i j (FI.Case _ alts)        = inferAlt . head $ alts
   where inferAlt (FI.ConstrAlt _ e) = infer i j e
         inferAlt (FI.Default e)       = infer i j e
@@ -125,7 +125,7 @@ transExpr i j (FI.RecordProj e l1)         = App c $ transExpr i j e
   where Just (_, c) = getter i j (infer i j e) l1
 transExpr i j (FI.RecordUpdate e (l1, e1)) = App c $ transExpr i j e
   where Just (_, c) = putter i j (infer i j e) l1 (transExpr i j e1)
-transExpr i j (FI.Constr (FI.Constructor n ts) es) = Constr (Constructor n . map (transType i) $ ts) . map (transExpr i j) $ es
+transExpr i j (FI.ConstrOut (FI.Constructor n ts) es) = ConstrOut (Constructor n . map (transType i) $ ts) . map (transExpr i j) $ es
 transExpr i j (FI.Case e alts)             = Case e' . map transAlt $ alts
   where
     e' = transExpr i j e
@@ -288,7 +288,7 @@ dedeBruE i as j xs (JMethod callee m args r)      = JMethod
                                                       (map (dedeBruE i as j xs) args) r
 dedeBruE i as j xs (JField callee f r)            = JField (fmap (dedeBruE i as j xs) callee) f (dedeBruT i as r)
 dedeBruE i as j xs (Seq es)                       = Seq (map (dedeBruE i as j xs) es)
-dedeBruE i as j xs (Constr (Constructor n ts) es) = Constr
+dedeBruE i as j xs (ConstrOut (Constructor n ts) es) = ConstrOut
                                                       (Constructor n (map (dedeBruT i as) ts))
                                                       (map (dedeBruE i as j xs) es)
 dedeBruE i as j xs (Case e alts)                  = Case (dedeBruE i as j xs e) (map dedeBruijnAlt alts)

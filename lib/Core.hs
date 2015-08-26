@@ -99,7 +99,7 @@ data Expr t e
   | Seq [Expr t e]
 
   | Data Src.RecFlag [DataBind t] (Expr t e)
-  | Constr (Constructor t) [Expr t e]
+  | ConstrOut (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
 
   | Error (Type t) (Expr t e)
@@ -145,7 +145,7 @@ mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . 
 mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (mapVar g h e)
     where mapDatabind (DataBind name params ctrs) = DataBind name params (map mapCtr. ctrs)
           mapCtr (Constructor n ts) = Constructor n (map h ts)
-mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
+mapVar g h (ConstrOut (Constructor n ts) es) = ConstrOut c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
     where mapAlt (ConstrAlt (Constructor n ts) e1) = ConstrAlt (Constructor n (map h ts)) (mapVar g h e1)
@@ -342,7 +342,7 @@ prettyExpr' p (i,j) (Data recflag databinds e) =
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
                    (equals <+> intersperseBar (map (prettyCtr (i+ (length tvars)))$ cons [i..(i-1+(length tvars))]) <$$> semi)
 
-prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (ConstrOut c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))

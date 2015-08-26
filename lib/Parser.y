@@ -229,7 +229,7 @@ comma_typarams1 :: { [LReadId] }
 expr :: { ReadExpr }
     : "/\\" typarams1 "->" expr          { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "\\" params1 "->" expr             { foldr (\x acc -> Lam (unLoc x) acc `withLoc` x) (Lam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
-    | "let" recflag and_binds ";"  expr  { Let $2 $3 $5 `withLoc` $1 }
+    | "let" recflag and_binds ";"  expr  { LetIn $2 $3 $5 `withLoc` $1 }
     | "type" UPPER_IDENT typaram_list_or_empty "=" type ";"  expr  { Type (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "type" UPPER_IDENT typaram_list_or_empty "=" type expr       { Type (toString $2) (map unLoc $3) $5 $6 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
@@ -303,7 +303,7 @@ aexpr :: { ReadExpr }
     | "{" semi_exprs "}"        { Seq $2 `withLoc` $1 }
     | record_construct                { $1 }
     | aexpr "with" "{" record_construct_fields_rev "}"  { RecordUpdate $1 (reverse $4) `withLoc` $1 }
-    | constr_name               { ConstrTemp (unLoc $1) `withLoc` $1 }
+    | constr_name               { ConstrIn (unLoc $1) `withLoc` $1 }
     | "(" expr ")"              { $2 }
     | "L[" comma_exprs1 "]"     { PolyList $2 `withLoc` $1}
 

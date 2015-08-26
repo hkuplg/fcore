@@ -84,7 +84,7 @@ eval (PrimOp e1 op e2) =
 eval g@(Fix _ _ f _ _) = VFun $ eval . f (eval g)
 eval (LetRec _ _ binds body) = eval . body . fix $ map eval . binds
 eval (Data _ _ e) = eval e
-eval (Constr c es) = VConstr (constrName c) (map eval es)
+eval (ConstrOut c es) = VConstr (constrName c) (map eval es)
 eval (Case e alts) =
     case eval e of
       VConstr n vs -> eval $ fromJust (lookup n table) vs
@@ -180,7 +180,7 @@ seval (TApp e _) = seval e
 seval g@(Fix _ n f t _) = Exp $ SFun n (seval . f (seval g)) (transType t)
 seval (LetRec _ _ binds body) = seval . body . fix $ map seval . binds
 seval (Data _ _ e) = seval e
-seval (Constr c es) = mergeList (SConstr $ transConstructor c) (map seval es)
+seval (ConstrOut c es) = mergeList (SConstr $ transConstructor c) (map seval es)
 seval (Case e alts) = propagate (seval e) (Right (map (\(ConstrAlt c ns f) -> (transConstructor c, ns, seval . f)) alts))
 seval e = panic $ "seval: " ++ show e
 

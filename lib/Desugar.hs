@@ -105,7 +105,7 @@ desugarExpr (d, g) = go
                                  (transType d t)
                                  (\x' -> desugarExpr (d, Map.insert x (F.Var x x') g) e)
     go (L _ (BLam a e))        = F.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
-    go (L _ Let{..})           = panic "desugarExpr: Let"
+    go (L _ LetIn{..})         = panic "desugarExpr: LetIn"
     go (L _ (LetOut _ [] e))   = go e
     go (L _ (Merge e1 e2))     = F.Merge (go e1) (go e2)
     go (L _ (RecordCon fs))    =
@@ -186,7 +186,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (L _ (Seq es)) = F.Seq (map go es)
     go (L _ (Data recflag databinds e)) = F.Data recflag (map (desugarDatabind d) databinds) (go e)
 
-    go (L _ (Constr c es)) = F.Constr (desugarConstructor d c) (map go es)
+    go (L _ (ConstrOut c es)) = F.ConstrOut (desugarConstructor d c) (map go es)
     go (L _ (Case e alts)) = decisionTree (d,g) [e] pats exprs (replicate (length alts) [])
                      where pats = [ [pat] | ConstrAlt pat _ <- alts]
                            exprs = [ expr | ConstrAlt _ expr <- alts]
