@@ -213,7 +213,7 @@ putter i j this@(FI.And t1 t2) l e =
                      Nothing     -> Nothing
 putter _ _ _ _ _ = Nothing
 
-subst :: (S.ReaderId -> Index -> FI.Type Index) -> [FI.Type Index] -> FI.Type Index
+subst :: (S.ReadId -> Index -> FI.Type Index) -> [FI.Type Index] -> FI.Type Index
 subst g ts@((FI.TVar n a):_)      = if const then g n a else FI.TVar n a
   where const = all (== a) . map (\x -> let FI.TVar _ y = x in y) $ ts
 subst g ((FI.JClass c):_)         = FI.JClass c

@@ -51,33 +51,33 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 data Type t
-  = TVar Src.ReaderId t                -- a
+  = TVar Src.ReadId t                -- a
   | JClass ClassName                   -- C
   | Fun (Type t) (Type t)              -- t1 -> t2
-  | Forall Src.ReaderId (t -> Type t)  -- forall a. t
+  | Forall Src.ReadId (t -> Type t)  -- forall a. t
   | Product [Type t]                   -- (t1, ..., tn)
   | Unit
-  | Datatype Src.ReaderId [Type t] [Src.ReaderId]
+  | Datatype Src.ReadId [Type t] [Src.ReadId]
 
 data Expr t e
-  = Var Src.ReaderId e
+  = Var Src.ReadId e
   | Lit Src.Lit
 
   -- Binders we have: λ, fix, letrec, and Λ
-  | Lam Src.ReaderId (Type t) (e -> Expr t e)
-  | Fix Src.ReaderId Src.ReaderId
+  | Lam Src.ReadId (Type t) (e -> Expr t e)
+  | Fix Src.ReadId Src.ReadId
         (e -> e -> Expr t e)
         (Type t)  -- t1
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
-  | Let Src.ReaderId (Expr t e) (e -> Expr t e)
-  | LetRec [Src.ReaderId]       -- Names
+  | Let Src.ReadId (Expr t e) (e -> Expr t e)
+  | LetRec [Src.ReadId]       -- Names
            [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
-  | BLam Src.ReaderId (t -> Expr t e)
+  | BLam Src.ReadId (t -> Expr t e)
 
   | App  (Expr t e) (Expr t e)
   | TApp (Expr t e) (Type t)
@@ -93,8 +93,8 @@ data Expr t e
 
   -- Java
   | JNew ClassName [Expr t e]
-  | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
-  | JField  (Src.JCallee (Expr t e)) FieldName (Type t)
+  | JMethod (Src.JReceiver (Expr t e)) MethodName [Expr t e] ClassName
+  | JField  (Src.JReceiver (Expr t e)) FieldName (Type t)
 
   | Seq [Expr t e]
 
@@ -104,12 +104,12 @@ data Expr t e
 
   | Error (Type t) (Expr t e)
 
-data DataBind t = DataBind Src.ReaderId [Src.ReaderId] ([t] -> [Constructor t])
+data DataBind t = DataBind Src.ReadId [Src.ReadId] ([t] -> [Constructor t])
 
 data Alt t e = ConstrAlt (Constructor t) (Expr t e)
              | Default (Expr t e)
 
-data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
+data Constructor t = Constructor {constrName :: Src.ReadId, constrParams :: [Type t]}
 
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
@@ -125,7 +125,7 @@ alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq
 alphaEq _  Unit         Unit        = True
 alphaEq _  _            _           = False
 
-mapTVar :: (Src.ReaderId -> t -> Type t) -> Type t -> Type t
+mapTVar :: (Src.ReadId -> t -> Type t) -> Type t -> Type t
 mapTVar g (TVar n a)     = g n a
 mapTVar _ (JClass c)     = JClass c
 mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
@@ -134,7 +134,7 @@ mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
 mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
 
-mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
+mapVar :: (Src.ReadId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)

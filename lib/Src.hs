@@ -15,14 +15,14 @@ Portability :  portable
 {-# OPTIONS_GHC -Wall #-}
 
 module Src
-  ( Module(..), ReaderModule
+  ( Module(..), ReadModule
   , Kind(..)
-  , Type(..), ReaderType
-  , Expr(..), ReaderExpr, CheckedExpr, LExpr
+  , Type(..), ReadType
+  , Expr(..), ReadExpr, CheckedExpr, LExpr
   , Constructor(..), Alt(..), Pattern(..)
-  , Bind(..), ReaderBind
-  , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
-  , Name, ReaderId, CheckedId, LReaderId
+  , Bind(..), ReadBind
+  , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JReceiver(..), JVMType(..), Label
+  , Name, ReadId, CheckedId, LReadId
   , TypeValue(..), TypeContext, ValueContext
   , DataBind(..)
   , groupForall
@@ -67,14 +67,14 @@ import qualified Data.Set as Set
 
 -- Names and identifiers.
 type Name      = String
-type ReaderId  = Name
-type LReaderId = Located ReaderId
-type CheckedId = (ReaderId, Type)
+type ReadId  = Name
+type LReadId = Located ReadId
+type CheckedId = (ReadId, Type)
 type Label      = Name
 
 -- Modules.
 data Module id ty = Module id [Bind id ty] deriving (Eq, Show)
-type ReaderModule = Located (Module Name Type)
+type ReadModule = Located (Module Name Type)
 
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
@@ -86,7 +86,7 @@ data Type
   | Unit
   | Fun Type Type
   | Forall Name Type
-  | Product [Type]
+  | TupleType [Type]
   -- Extensions
   | And Type Type
   | RecordType [(Label, Type)]
@@ -102,7 +102,7 @@ data Type
   -- `compatible` and `subtype` below.
   deriving (Eq, Show, Data, Typeable)
 
-type ReaderType = Type
+type ReadType = Type
 
 data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
 
@@ -116,8 +116,8 @@ data Expr id ty
   | App (LExpr id ty) (LExpr id ty)            -- Application
   | BLam Name (LExpr id ty)                    -- Big lambda
   | TApp (LExpr id ty) ty                    -- Type application
-  | Tuple [LExpr id ty]                        -- Tuples
-  | Proj (LExpr id ty) Int                     -- Tuple projection
+  | TupleCon [LExpr id ty]                        -- Tuples
+  | TupleProj (LExpr id ty) Int                     -- Tuple projection
   | PrimOp (LExpr id ty) Operator (LExpr id ty) -- Primitive operation
   | If (LExpr id ty) (LExpr id ty) (LExpr id ty) -- If expression
   | Let RecFlag [Bind id ty] (LExpr id ty)     -- Let (rec) ... (and) ... in ...
@@ -133,8 +133,8 @@ data Expr id ty
   -- elim), while the former cannot.
 
   | JNew ClassName [LExpr id ty]
-  | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName
-  | JField  (JCallee (LExpr id ty)) FieldName            Type
+  | JMethod (JReceiver (LExpr id ty)) MethodName [LExpr id ty] ClassName
+  | JField  (JReceiver (LExpr id ty)) FieldName            Type
   | Seq [LExpr id ty]
   | PolyList [LExpr id ty]
   | Merge (LExpr id ty) (LExpr id ty)
@@ -171,7 +171,7 @@ data Pattern = PConstr Constructor [Pattern]
              deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
-type ReaderExpr  = LExpr Name Type
+type ReadExpr  = LExpr Name Type
 type CheckedExpr = LExpr CheckedId Type
 -- type TcExpr  = Expr TcId
 -- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
@@ -195,14 +195,14 @@ data Bind id ty = Bind
   , bindRhsTyAscription :: Maybe Type  -- Type annotation for the RHS
   } deriving (Eq, Show)
 
-type ReaderBind = Bind Name Type
+type ReadBind = Bind Name Type
 
 data RecFlag = Rec | NonRec deriving (Eq, Show)
 data UnitPossibility = UnitPossible | UnitImpossible deriving (Eq, Show)
 
-data JCallee e = Static ClassName | NonStatic e deriving (Eq, Show)
+data JReceiver e = Static ClassName | NonStatic e deriving (Eq, Show)
 
-instance Functor JCallee where
+instance Functor JReceiver where
   fmap _ (Static c)    = Static c
   fmap f (NonStatic e) = NonStatic (f e)
 
@@ -216,8 +216,8 @@ data TypeValue
     -- Non-terminal types, i.e. type synoyms. `Type` holds the RHS to the
     -- equal sign of type synonym definitions.
 
-type TypeContext  = Map.Map ReaderId (Kind, TypeValue) -- Delta
-type ValueContext = Map.Map ReaderId Type              -- Gamma
+type TypeContext  = Map.Map ReadId (Kind, TypeValue) -- Delta
+type ValueContext = Map.Map ReadId Type              -- Gamma
 
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
@@ -243,7 +243,7 @@ expandType _ (JType t)    = JType t
 expandType _ Unit         = Unit
 expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
 expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalType) d) t)
-expandType d (Product ts) = Product (map (expandType d) ts)
+expandType d (TupleType ts) = TupleType (map (expandType d) ts)
 expandType d (RecordType fs)  = RecordType (map (second (expandType d)) fs)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
 expandType d (Datatype n ts ns) = Datatype n (map (expandType d) ts) ns
@@ -262,7 +262,7 @@ subtypeS (JType c)      (JType d)              = c == d
 -- The subtypeS here shouldn't be aware of the subtyping relations in the Java world.
 subtypeS (Fun t1 t2)    (Fun t3 t4)            = subtypeS t3 t1 && subtypeS t2 t4
 subtypeS (Forall a1 t1) (Forall a2 t2)         = subtypeS (fsubstTT (a1,TVar a2) t1) t2
-subtypeS (Product ts1)  (Product ts2)          = length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
+subtypeS (TupleType ts1) (TupleType ts2)       = length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
 subtypeS (RecordType [(l1,t1)]) (RecordType [(l2,t2)]) = l1 == l2 && subtypeS t1 t2
 subtypeS (RecordType fs1)   (RecordType fs2)           = subtypeS (desugarMultiRecordType fs1) (desugarMultiRecordType fs2)
 -- The order is significant for the two `And` cases below.
@@ -341,7 +341,7 @@ fsubstTT (x,r) (TVar a)
 -- fsubstTT (_,_) (JClass c )     = JClass c
 fsubstTT (_,_) (JType c)       = JType c
 fsubstTT (x,r) (Fun t1 t2)     = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
-fsubstTT (x,r) (Product ts)    = Product (map (fsubstTT (x,r)) ts)
+fsubstTT (x,r) (TupleType ts)  = TupleType (map (fsubstTT (x,r)) ts)
 fsubstTT (x,r) (Forall a t)
     | a == x || a `Set.member` freeTVars r = -- The freshness condition, crucial!
         let fresh = freshName a (freeTVars t `Set.union` freeTVars r)
@@ -368,7 +368,7 @@ freeTVars (JType _)    = Set.empty
 freeTVars Unit         = Set.empty
 freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
 freeTVars (Forall a t) = Set.delete a (freeTVars t)
-freeTVars (Product ts) = Set.unions (map freeTVars ts)
+freeTVars (TupleType ts) = Set.unions (map freeTVars ts)
 freeTVars (RecordType fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
 freeTVars (OpAbs _ t)  = freeTVars t
@@ -391,7 +391,7 @@ instance Pretty Type where
   pretty Unit         = text "Unit"
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
   pretty (Forall a t) = parens $ forall <+> hsep (map text as) <> dot <+> pretty t' where (as, t') = groupForall (Forall a t)
-  pretty (Product ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
+  pretty (TupleType ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
   pretty (And t1 t2)  = pretty t1 <> text "&" <> pretty t2
   pretty (RecordType fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
@@ -419,8 +419,8 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
       pretty e
   pretty (TApp e t) = parens $ pretty e <+> pretty t
   pretty (App e1 e2) = parens $ pretty e1 <+> pretty e2
-  pretty (Tuple es) = lparen <> (hcat . intersperse comma $ map pretty es) <> rparen
-  pretty (Proj e i) = parens (pretty e) <> text "._" <> int i
+  pretty (TupleCon es) = lparen <> (hcat . intersperse comma $ map pretty es) <> rparen
+  pretty (TupleProj e i) = parens (pretty e) <> text "._" <> int i
   pretty (PrimOp e1 op e2) = parens $
                                parens (pretty e1) <+>
                                text (show op) <+>

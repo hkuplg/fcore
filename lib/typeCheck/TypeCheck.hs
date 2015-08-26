@@ -57,13 +57,13 @@ import Prelude hiding (pred)
 
 type Connection = (Handle, Handle)
 
-typeCheck :: ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
+typeCheck :: ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnv type_server) . runErrorT . checkExpr) e)
 
 -- Temporary hack for REPL
-typeCheckWithEnv :: ValueContext -> ReaderExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
+typeCheckWithEnv :: ValueContext -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
   (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . checkExpr) e)
@@ -115,11 +115,11 @@ data TypeError
   -- Java-specific type errors
   | NoSuchClass       ClassName
   | NoSuchConstructor ClassName [ClassName]
-  | NoSuchMethod      (JCallee ClassName) MethodName [ClassName]
-  | NoSuchField       (JCallee ClassName) FieldName
+  | NoSuchMethod      (JReceiver ClassName) MethodName [ClassName]
+  | NoSuchField       (JReceiver ClassName) FieldName
   deriving (Show)
 
-type LTypeErrorExpr = Located (TypeError, Maybe ReaderExpr)
+type LTypeErrorExpr = Located (TypeError, Maybe ReadExpr)
 
 instance Error LTypeErrorExpr where
 
@@ -200,7 +200,7 @@ memoizeJavaClass c
        memoized_java_classes <- getMemoizedJavaClasses
        setTcEnv TcEnv{ tceMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
 
-withLocalTVars :: [(ReaderId, (Kind, TypeValue))] -> Checker a -> Checker a
+withLocalTVars :: [(ReadId, (Kind, TypeValue))] -> Checker a -> Checker a
 withLocalTVars tvars do_this
   = do delta <- getTypeContext
        let delta' = Map.fromList tvars `Map.union` delta
@@ -212,7 +212,7 @@ withLocalTVars tvars do_this
        setTcEnv TcEnv { tceTypeContext = delta, ..}
        return r
 
-withLocalVars :: [(ReaderId, Type)]-> Checker a -> Checker a
+withLocalVars :: [(ReadId, Type)]-> Checker a -> Checker a
 withLocalVars vars do_this
   = do gamma <- getValueContext
        let gamma' = Map.fromList vars `Map.union` gamma
@@ -241,8 +241,8 @@ kind d (TVar a)     = case Map.lookup a d of Nothing     -> return Nothing
 kind _  Unit        = return (Just Star)
 kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, TerminalType) d
-kind d (Product ts) = justStarIffAllHaveKindStar d ts
-kind d (RecordType fs)  = justStarIffAllHaveKindStar d (map snd fs)
+kind d (TupleType ts)  = justStarIffAllHaveKindStar d ts
+kind d (RecordType fs) = justStarIffAllHaveKindStar d (map snd fs)
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 
 -- Δ,x::* ⊢ t :: k
@@ -279,7 +279,7 @@ hasKindStar d t
        return (k == Just Star)
 
 -- | Typing.
-checkExpr :: ReaderExpr -> Checker (Type, CheckedExpr)
+checkExpr :: ReadExpr -> Checker (Type, CheckedExpr)
 checkExpr e@(L loc (Var name))
   = do value_ctxt <- getValueContext
        case Map.lookup name value_ctxt of
@@ -336,16 +336,16 @@ checkExpr (L loc (TApp e arg))
                              _ -> return (t', L loc $ TApp e' arg')
          _           -> sorry "TypeCheck.infer: TApp"
 
-checkExpr (L loc (Tuple es))
+checkExpr (L loc (TupleCon es))
   | length es < 2 = panic "Src.TypeCheck.infer: Tuple: fewer than two items"
   | otherwise     = do (ts, es') <- mapAndUnzipM checkExpr es
-                       return (Product ts, L loc $ Tuple es')
+                       return (TupleType ts, L loc $ TupleCon es')
 
-checkExpr expr@(L loc (Proj e i))
+checkExpr expr@(L loc (TupleProj e i))
   = do (t, e') <- checkExpr e
        case t of
-         Product ts
-           | 1 <= i && i <= length ts -> return (ts !! (i - 1), L loc $ Proj e' i)
+         TupleType ts
+           | 1 <= i && i <= length ts -> return (ts !! (i - 1), L loc $ TupleProj e' i)
            | otherwise -> throwError $ IndexTooLarge `withExpr` expr
          _ -> throwError $ ProjectionOfNonProduct `withExpr` e
 
@@ -439,7 +439,7 @@ checkExpr (L loc (Dot e x (Just (args, _)))) =
        RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
        And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
        _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
-    where tuple = Tuple args `withLocs` args
+    where tuple = TupleCon args `withLocs` args
 
 -- JNew, JMethod, and JField
 
@@ -683,7 +683,7 @@ checkExpr expr@(L loc (Case e alts)) =
                           pat' <- zipWithM typecheckPattern ts pats
                           return $ PConstr (Constructor nam ts) pat'
 
-        -- inferString :: ReaderExpr -> Checker (Type, CheckedExpr)
+        -- inferString :: ReadExpr -> Checker (Type, CheckedExpr)
         inferString =
           do
             (_, e') <- checkExpr e
@@ -719,7 +719,7 @@ pullRight params t = foldr OpAbs t params
 pullRightForall :: [Name] -> Type -> Type
 pullRightForall params t = foldr Forall t params
 
-inferAgainst :: ReaderExpr -> Type -> Checker (Type, CheckedExpr)
+inferAgainst :: ReadExpr -> Type -> Checker (Type, CheckedExpr)
 inferAgainst expr expected_ty
   = do (found_ty, expr') <- checkExpr expr
        d <- getTypeContext
@@ -727,7 +727,7 @@ inferAgainst expr expected_ty
           then return (found_ty, expr')
           else throwError $ TypeMismatch expected_ty found_ty `withExpr` expr
 
-inferAgainstAnyJClass :: ReaderExpr -> Checker (ClassName, CheckedExpr)
+inferAgainstAnyJClass :: ReadExpr -> Checker (ClassName, CheckedExpr)
 inferAgainstAnyJClass expr
   = do (ty, expr') <- checkExpr expr
        case ty of
@@ -736,7 +736,7 @@ inferAgainstAnyJClass expr
         _ -> throwError $ TypeMismatch ty (JType $ JPrim "Java class") `withExpr` expr
 
 -- | Check "f [A1,...,An] (x1:t1) ... (xn:tn): t = e"
-normalizeBind :: ReaderBind -> Checker (Name, Type, CheckedExpr)
+normalizeBind :: ReadBind -> Checker (Name, Type, CheckedExpr)
 normalizeBind bind
   = do bind' <- checkBindLHS bind
        (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
@@ -760,7 +760,7 @@ normalizeBind bind
 -- | Check the LHS to the "=" sign of a bind, i.e., "f A1 ... An (x1:t1) ... (xn:tn)".
 -- First make sure the names of type params and those of value params are distinct, respectively.
 -- Then check and expand the types of value params.
-checkBindLHS :: ReaderBind -> Checker ReaderBind
+checkBindLHS :: ReadBind -> Checker ReadBind
 checkBindLHS Bind{..}
   = do checkDupNames bindTyParams
        checkDupNames (map fst bindParams)
@@ -772,7 +772,7 @@ checkBindLHS Bind{..}
                             return (x, expandType d t))
        return Bind { bindParams = bindParams', .. }
 
-collectBindIdSigs :: [ReaderBind] -> Checker [(Name, Type)]
+collectBindIdSigs :: [ReadBind] -> Checker [(Name, Type)]
 collectBindIdSigs
   = mapM (\ Bind{..} ->
             case bindRhsTyAscription of
@@ -822,7 +822,7 @@ checkConstruction c args
        unlessIO (hasConstructor h c args) $
          throwError (noExpr $ NoSuchConstructor c args)
 
-checkMethodCall :: JCallee ClassName -> MethodName -> [ClassName] -> Checker ClassName
+checkMethodCall :: JReceiver ClassName -> MethodName -> [ClassName] -> Checker ClassName
 checkMethodCall callee m args
   = do typeserver <- getTypeServer
        res <- liftIO (methodTypeOf typeserver c (m, static_flag) args)
@@ -830,9 +830,9 @@ checkMethodCall callee m args
          Nothing           -> throwError (noExpr $ NoSuchMethod callee m args)
          Just return_class -> return return_class
     where
-       (static_flag, c) = unwrapJCallee callee
+       (static_flag, c) = unwrapJReceiver callee
 
-checkFieldAccess :: JCallee ClassName -> FieldName -> Checker ClassName
+checkFieldAccess :: JReceiver ClassName -> FieldName -> Checker ClassName
 checkFieldAccess callee f
   = do typeserver <- getTypeServer
        res <- liftIO (fieldTypeOf typeserver c (f, static_flag))
@@ -840,11 +840,11 @@ checkFieldAccess callee f
          Nothing           -> throwError (noExpr $ NoSuchField callee f)
          Just return_class -> return return_class
     where
-       (static_flag, c) = unwrapJCallee callee
+       (static_flag, c) = unwrapJReceiver callee
 
-unwrapJCallee :: JCallee ClassName -> (Bool, ClassName)
-unwrapJCallee (NonStatic c) = (False, c)
-unwrapJCallee (Static    c) = (True, c)
+unwrapJReceiver :: JReceiver ClassName -> (Bool, ClassName)
+unwrapJReceiver (NonStatic c) = (False, c)
+unwrapJReceiver (Static    c) = (True, c)
 
 srcLitType :: Lit -> Type
 srcLitType (Int _)    = JType (JClass "java.lang.Integer")
@@ -881,11 +881,11 @@ feedToForall =
 noExpr :: TypeError -> LTypeErrorExpr
 noExpr err = noLoc (err, Nothing)
 
-withExpr :: TypeError -> ReaderExpr -> LTypeErrorExpr
+withExpr :: TypeError -> ReadExpr -> LTypeErrorExpr
 withExpr err expr = (err, Just expr) `withLoc` expr
 
 ---- find the arity of a constructor
-ctrArity :: Map.Map Name Type -> ReaderId -> Int
+ctrArity :: Map.Map Name Type -> ReadId -> Int
 ctrArity value_ctxt name =
     length (removeForall t) - 1
     where Just t =  Map.lookup name value_ctxt

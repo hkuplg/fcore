@@ -70,15 +70,15 @@ generateFreshVar g0 = try g0 1
 desugar :: CheckedExpr -> F.Expr t e
 desugar = desugarExpr (Map.empty, Map.empty)
 
-type TVarMap t  = Map.Map ReaderId t
-type VarMap t e = Map.Map ReaderId (F.Expr t e)
+type TVarMap t  = Map.Map ReadId t
+type VarMap t e = Map.Map ReadId (F.Expr t e)
 
-transType :: TVarMap t -> ReaderType -> F.Type t
+transType :: TVarMap t -> ReadType -> F.Type t
 transType d (TVar a)     = F.TVar a (fromMaybe (panic ("transType: " ++ show (TVar a))) (Map.lookup a d))
 transType _ (JType (JClass c)) = F.JClass c
 transType _ (JType (JPrim c))  = F.JClass c
 transType d (Fun t1 t2)  = F.Fun (transType d t1) (transType d t2)
-transType d (Product ts) = F.Product (map (transType d) ts)
+transType d (TupleType ts) = F.Product (map (transType d) ts)
 transType d (Forall a t) = F.Forall a (\a' -> transType (Map.insert a a' d) t)
 transType d (And t1 t2)  = F.And (transType d t1) (transType d t2)
 transType d (RecordType fs)  =
@@ -97,8 +97,8 @@ desugarExpr (d, g) = go
     go (L _ (Lit lit))         = F.Lit lit
     go (L _ (App f x))         = F.App (go f) (go x)
     go (L _ (TApp e t))        = F.TApp (go e) (transType d t)
-    go (L _ (Tuple es))        = F.Tuple (map go es)
-    go (L _ (Proj e i))        = F.Proj i (go e)
+    go (L _ (TupleCon es))     = F.Tuple (map go es)
+    go (L _ (TupleProj e i))   = F.Proj i (go e)
     go (L _ (PrimOp e1 op e2)) = F.PrimOp (go e1) op (go e2)
     go (L _ (If e1 e2 e3))     = F.If (go e1) (go e2) (go e3)
     go (L _ (Lam (x, t) e))    = F.Lam x
@@ -145,7 +145,7 @@ variable renaming. An example:
         where
           (fs, _, es)  = unzip3 bs
 
-          tupled_es = noLoc $ Tuple es
+          tupled_es = noLoc $ TupleCon es
 
           -- Substitution: fi -> y._(i-1)
           g' y = Map.fromList $ -- `Map.fromList` is right-biased.
@@ -242,8 +242,8 @@ desugarLetRecToFixEncoded (d,g) = go
               where
                 (fs, ts, es) = unzip3 bs
 
-                tupled_es = noLoc $ Tuple es
-                tupled_ts = Product ts
+                tupled_es = noLoc $ TupleCon es
+                tupled_ts = TupleType ts
 
                 -- Substitution: fi -> (y 0)._(i-1)
                 g' y = Map.fromList $ -- `Map.fromList` is right-biased.
@@ -343,8 +343,8 @@ decisionTree (d,g) = go
                                              (zip3 pats branches binds)
                        in [F.Default $ go (tail exprs) pats' branches' binds']
 
-addToVarMap :: [(ReaderId, F.Expr t e)] -> VarMap t e -> VarMap t e
+addToVarMap :: [(ReadId, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
 
-addToTVarMap :: [(ReaderId, t)] -> TVarMap t -> TVarMap t
+addToTVarMap :: [(ReadId, t)] -> TVarMap t -> TVarMap t
 addToTVarMap xs tvar_map = foldr (\(x,x') acc -> Map.insert x x' acc) tvar_map xs

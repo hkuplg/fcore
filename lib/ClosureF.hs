@@ -47,12 +47,12 @@ data Type t =
     | CFCharacter
     | TupleType [Type t]
     | ListType (Type t)
-    | Datatype S.ReaderId [Type t] [S.ReaderId]
+    | Datatype S.ReadId [Type t] [S.ReadId]
 
 data Expr t e =
-     Var S.ReaderId e
+     Var S.ReadId e
    | FVar Int
-   | Lam S.ReaderId (EScope t e)
+   | Lam S.ReadId (EScope t e)
    | App (Expr t e) (Expr t e)
    | TApp (Expr t e) (Type t)
    | PrimOp (Expr t e) S.Operator (Expr t e)
@@ -60,10 +60,10 @@ data Expr t e =
    | If (Expr t e) (Expr t e) (Expr t e)
    | Tuple [Expr t e]
    | Proj Int (Expr t e)
-   | Let S.ReaderId (Expr t e) (e -> Expr t e)
+   | Let S.ReadId (Expr t e) (e -> Expr t e)
    -- fixpoints
-   | LetRec [S.ReaderId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
-   | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
+   | LetRec [S.ReadId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
+   | Fix S.ReadId S.ReadId (Type t) (e -> EScope t e)
    -- Java
    | JNew ClassName [Expr t e]
    | JMethod (Either ClassName (Expr t e)) MethodName [Expr t e] ClassName
@@ -74,8 +74,8 @@ data Expr t e =
    | Case (Expr t e) [Alt t e]
    | Error (Type t) (Expr t e)
 
-data DataBind t = DataBind S.ReaderId [S.ReaderId] ([t] -> [Constructor t])
-data Constructor t = Constructor {constrName :: S.ReaderId, constrParams :: [Type t]}
+data DataBind t = DataBind S.ReadId [S.ReadId] ([t] -> [Constructor t])
+data Constructor t = Constructor {constrName :: S.ReadId, constrParams :: [Type t]}
 data Alt t e = ConstrAlt (Constructor t) (Expr t e)
              | Default (Expr t e)
 

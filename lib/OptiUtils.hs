@@ -196,7 +196,7 @@ peq n (Error _ str1) (Error _ str2) = peq n str1 str2
 peq n (Seq es) (Seq gs) = and (zipWith (peq n) es gs)
 peq _ _ _ = False
 
-checkCall :: Int -> Src.JCallee (Expr Int Int) -> Src.JCallee (Expr Int Int) -> Bool
+checkCall :: Int -> Src.JReceiver (Expr Int Int) -> Src.JReceiver (Expr Int Int) -> Bool
 checkCall _ (Src.Static s1) (Src.Static s2) = s1 == s2
 checkCall n (Src.NonStatic e1) (Src.NonStatic e2) = peq n e1 e2
 checkCall _ _ _ = False
