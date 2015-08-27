@@ -477,7 +477,7 @@ instance Monad P where
     return x         = POk x
 
 parseError :: Located Token -> Alex a
-parseError (L loc _) = alexError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))
+parseError (L loc _) = alexError ("Parse error at " ++ show (line loc - 24) ++ ":" ++ show (column loc))
 
 reader :: String -> P ReadExpr
 reader src = case (runAlex (injectPredef src) parseExpr) of
