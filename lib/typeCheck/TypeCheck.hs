@@ -38,8 +38,7 @@ import SrcLoc
 import IOEnv
 import JavaUtils
 import PrettyUtils
-import RuntimeProcessManager (withRuntimeProcess)
-import JvmTypeQuery
+import qualified JvmTypeQuery
 import Panic
 
 import Text.PrettyPrint.ANSI.Leijen
@@ -56,18 +55,13 @@ import Data.List (findIndex)
 import Prelude hiding (pred)
 
 typeCheck :: ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
--- type_server is (Handle, Handle)
-typeCheck e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitCheckerState type_server) . runErrorT . checkExpr) e)
+typeCheck e = JvmTypeQuery.withConnection (\conn ->
+  (evalIOEnv (mkInitCheckerState conn) . runErrorT . checkExpr) e)
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
--- type_server is (Handle, Handle)
-typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitCheckerStateWithEnv value_ctxt type_server) . runErrorT . checkExpr) e)
-
-withTypeServer :: (Connection -> IO a) -> IO a
-withTypeServer = withRuntimeProcess "TypeServer" NoBuffering
+typeCheckWithEnv value_ctxt e = JvmTypeQuery.withConnection (\conn ->
+  (evalIOEnv (mkInitCheckerStateWithEnv value_ctxt conn) . runErrorT . checkExpr) e)
 
 -- | Kinding.
 kind :: TypeContext -> Type -> IO (Maybe Kind)
@@ -284,8 +278,8 @@ checkExpr (L loc (JNew c args))
        checkConstruction c arg_cs
        return (JClass c, L loc $ JNew c args')
 
-checkExpr (L loc (JMethod callee m args _)) =
-  case callee of
+checkExpr (L loc (JMethod receiver m args _)) =
+  case receiver of
     Static c ->
       do (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
          ret_c <- checkMethodCall (Static c) m arg_cs
@@ -302,8 +296,8 @@ checkExpr (L loc (JMethod callee m args _)) =
                                       _ -> JClass ret_c
          return (ret_type, L loc $ JMethod (NonStatic e') m args' ret_c)
 
-checkExpr (L loc (JField callee f _)) =
-  case callee of
+checkExpr (L loc (JField receiver f _)) =
+  case receiver of
     Static c ->
       do ret_c <- checkFieldAccess (Static c) f
          return (JClass ret_c, L loc $ JField (Static c) f (JClass ret_c))
@@ -644,37 +638,37 @@ checkClassName :: ClassName -> Checker ()
 checkClassName c
   = do memoized_java_classes <- getMemoizedJavaClasses
        unless (c `Set.member` memoized_java_classes) $
-         do h  <- getTypeServer
-            res <- liftIO (isJvmType h c)
+         do conn <- getTypeServer
+            res <- liftIO (JvmTypeQuery.definedClass conn c)
             if res
                then memoizeJavaClass c
                else throwError (noExpr $ NoSuchClass c)
 
 checkConstruction :: ClassName -> [ClassName] -> Checker ()
 checkConstruction c args
-  = do h <- getTypeServer
-       unlessIO (hasConstructor h c args) $
+  = do conn <- getTypeServer
+       unlessIO (JvmTypeQuery.definedConstructor conn c args) $
          throwError (noExpr $ NoSuchConstructor c args)
 
 checkMethodCall :: JReceiver ClassName -> MethodName -> [ClassName] -> Checker ClassName
-checkMethodCall callee m args
-  = do typeserver <- getTypeServer
-       res <- liftIO (methodTypeOf typeserver c (m, static_flag) args)
+checkMethodCall receiver m args
+  = do conn <- getTypeServer
+       res <- liftIO (JvmTypeQuery.findMethodReturnType conn c (is_static, m) args)
        case res of
-         Nothing           -> throwError (noExpr $ NoSuchMethod callee m args)
+         Nothing           -> throwError (noExpr $ NoSuchMethod receiver m args)
          Just return_class -> return return_class
     where
-       (static_flag, c) = unwrapJReceiver callee
+       (is_static, c) = unwrapJReceiver receiver
 
 checkFieldAccess :: JReceiver ClassName -> FieldName -> Checker ClassName
-checkFieldAccess callee f
-  = do typeserver <- getTypeServer
-       res <- liftIO (fieldTypeOf typeserver c (f, static_flag))
+checkFieldAccess receiver f
+  = do conn <- getTypeServer
+       res <- liftIO (JvmTypeQuery.findFieldType conn c (is_static, f))
        case res of
-         Nothing           -> throwError (noExpr $ NoSuchField callee f)
+         Nothing           -> throwError (noExpr $ NoSuchField receiver f)
          Just return_class -> return return_class
     where
-       (static_flag, c) = unwrapJReceiver callee
+       (is_static, c) = unwrapJReceiver receiver
 
 unwrapJReceiver :: JReceiver ClassName -> (Bool, ClassName)
 unwrapJReceiver (NonStatic c) = (False, c)

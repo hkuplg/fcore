@@ -6,10 +6,10 @@ module Checker where
 
 import TypeErrors
 import Src
+import qualified JvmTypeQuery
 import JavaUtils
 import IOEnv
 
-import System.IO
 import Control.Monad.Error
 import qualified Data.Map  as Map
 import qualified Data.Set  as Set
@@ -28,7 +28,7 @@ getTypeContext = liftM checkerTypeContext getCheckerState
 getValueContext :: Checker ValueContext
 getValueContext = liftM checkerValueContext getCheckerState
 
-getTypeServer :: Checker (Handle, Handle)
+getTypeServer :: Checker JvmTypeQuery.Connection
 getTypeServer = liftM checkerTypeServer getCheckerState
 
 getMemoizedJavaClasses :: Checker (Set.Set ClassName)
@@ -64,17 +64,15 @@ withLocalVars vars do_this
        setCheckerState CheckerState { checkerValueContext = gamma, ..}
        return r
 
-type Connection = (Handle, Handle)
-
 data CheckerState
   = CheckerState
   { checkerTypeContext  :: TypeContext
   , checkerValueContext :: ValueContext
-  , checkerTypeServer   :: Connection
+  , checkerTypeServer   :: JvmTypeQuery.Connection
   , checkerMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
 
-mkInitCheckerState :: Connection -> CheckerState
+mkInitCheckerState :: JvmTypeQuery.Connection -> CheckerState
 mkInitCheckerState type_server
   = CheckerState
   { checkerTypeContext     = Map.empty
@@ -84,7 +82,7 @@ mkInitCheckerState type_server
   }
 
 -- Temporary hack for REPL
-mkInitCheckerStateWithEnv :: ValueContext -> Connection -> CheckerState
+mkInitCheckerStateWithEnv :: ValueContext -> JvmTypeQuery.Connection -> CheckerState
 mkInitCheckerStateWithEnv value_ctxt type_server
   = CheckerState
   { checkerTypeContext     = Map.empty
