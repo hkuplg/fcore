@@ -30,6 +30,8 @@ module TypeCheck
   , TypeError
   ) where
 
+import Checker
+import TypeErrors
 import Src
 import SrcLoc
 
@@ -55,8 +57,6 @@ import Data.List (intersperse, findIndex)
 
 import Prelude hiding (pred)
 
-type Connection = (Handle, Handle)
-
 typeCheck :: ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
@@ -70,159 +70,6 @@ typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
 
 withTypeServer :: (Connection -> IO a) -> IO a
 withTypeServer = withRuntimeProcess "TypeServer" NoBuffering
-
-data TcEnv
-  = TcEnv
-  { tceTypeContext     :: TypeContext
-  , tceValueContext    :: ValueContext
-  , tceTypeserver   :: Connection
-  , tceMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
-  }
-
-mkInitTcEnv :: Connection -> TcEnv
-mkInitTcEnv type_server
-  = TcEnv
-  { tceTypeContext     = Map.empty
-  , tceValueContext    = Map.empty
-  , tceTypeserver   = type_server
-  , tceMemoizedJavaClasses = Set.empty
-  }
-
--- Temporary hack for REPL
-mkInitTcEnvWithEnv :: ValueContext -> Connection -> TcEnv
-mkInitTcEnvWithEnv value_ctxt type_server
-  = TcEnv
-  { tceTypeContext     = Map.empty
-  , tceValueContext    = value_ctxt
-  , tceTypeserver   = type_server
-  , tceMemoizedJavaClasses = Set.empty
-  }
-
-data TypeError
-  = General Doc
-  | DuplicateParam Name
-  | ExpectJClass
-  | IndexTooLarge
-  | TypeMismatch Type Type
-  | KindMismatch Kind Kind Type
-  | MissingTyAscription Name
-  | NotInScope Name
-  | ProjectionOfNonProduct
-  | NotWellKinded Type
-  | NotMember Name Type
-  | NotAFunction Type
-
-  -- Java-specific type errors
-  | NoSuchClass       ClassName
-  | NoSuchConstructor ClassName [ClassName]
-  | NoSuchMethod      (JReceiver ClassName) MethodName [ClassName]
-  | NoSuchField       (JReceiver ClassName) FieldName
-  deriving (Show)
-
-type LTypeErrorExpr = Located (TypeError, Maybe ReadExpr)
-
-instance Error LTypeErrorExpr where
-
-instance Pretty LTypeErrorExpr where
-    pretty (L loc (err, expr)) =
-        case expr of
-          Nothing -> pretty loc <> pretty err
-          Just expr -> pretty loc <$> pretty err <$> text "In the expression" <> colon <+> pretty expr
-
-instance Pretty TypeError where
-  pretty (General doc)      = prettyError <+> doc
-  pretty (NotInScope x)  = prettyError <+> code (text x) <+> text "is not in scope"
-  pretty (DuplicateParam ident) = prettyError <+> text "duplicate parameter" <+> code (text ident)
-  pretty (NotWellKinded t)  = prettyError <+> code (pretty t) <+> text "is not well-kinded"
-  pretty (KindMismatch expected found t) =
-    prettyError <+> text "kind mismatch" <> colon <$>
-    indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
-              text "   found" <+> code (pretty found)) <$>
-    text "in the type" <> colon <+> pretty t
-
-  pretty (TypeMismatch expected found) =
-    prettyError <+> text "type mismatch" <> colon <$>
-    indent 2 (text "expected" <+> code (pretty expected) <> comma <$>
-              text "   found" <+> code (pretty found))
-  pretty (NoSuchClass c)  = prettyError <+> text "no such class:" <+> code (text c)
-  pretty (NotMember x t)  = prettyError <+> code (text x) <+> text "is not a member of the type" <+> code (pretty t)
-  pretty (NotAFunction t) = prettyError <+> code (pretty t) <+> text "is not a function; it cannot be applied"
-
-  -- Java-specific type errors
-  pretty (NoSuchMethod (NonStatic c) m cs) =
-    prettyError <+> text "no such method" <+> code (text m) <+>
-    text "on" <+> code (pretty (JType (JClass c))) <+>
-    text "with parameters of type" <+> commas (map (code . pretty . JType . JClass) cs)
-  pretty (NoSuchMethod (Static c) m cs) =
-    prettyError <+> text "no such static method" <+> code (text m) <+>
-    text "on" <+> code (pretty (JType (JClass c))) <+>
-    text "with parameters of type" <+> commas (map (code . pretty . JType . JClass) cs)
-
-  pretty (NoSuchField (NonStatic c) f) =
-    prettyError <+> text "no such field" <+> code (text f) <+>
-    text "on" <+> code (pretty (JType (JClass c)))
-  pretty (NoSuchField (Static c) f) =
-    prettyError <+> text "no such static field" <+> code (text f) <+>
-    text "on" <+> code (pretty (JType (JClass c)))
-
-  pretty (MissingTyAscription ident) =
-    prettyError <+> text "recursive definition" <+> code (text ident) <+>
-    text "needs type ascription for the right-hand side"
-
-  pretty e = prettyError <+> text (show e)
-
-instance Error TypeError where
-  -- strMsg
-
-type Checker a = ErrorT LTypeErrorExpr (IOEnv TcEnv) a
-
-getTcEnv :: Checker TcEnv
-getTcEnv = lift getEnv
-
-setTcEnv :: TcEnv -> Checker ()
-setTcEnv tc_env = lift $ setEnv tc_env
-
-getTypeContext :: Checker TypeContext
-getTypeContext = liftM tceTypeContext getTcEnv
-
-getValueContext :: Checker ValueContext
-getValueContext = liftM tceValueContext getTcEnv
-
-getTypeServer :: Checker (Handle, Handle)
-getTypeServer = liftM tceTypeserver getTcEnv
-
-getMemoizedJavaClasses :: Checker (Set.Set ClassName)
-getMemoizedJavaClasses = liftM tceMemoizedJavaClasses getTcEnv
-
-memoizeJavaClass :: ClassName -> Checker ()
-memoizeJavaClass c
-  = do TcEnv{..} <- getTcEnv
-       memoized_java_classes <- getMemoizedJavaClasses
-       setTcEnv TcEnv{ tceMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
-
-withLocalTVars :: [(ReadId, (Kind, TypeValue))] -> Checker a -> Checker a
-withLocalTVars tvars do_this
-  = do delta <- getTypeContext
-       let delta' = Map.fromList tvars `Map.union` delta
-                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
-       TcEnv {..} <- getTcEnv
-       setTcEnv TcEnv { tceTypeContext = delta', ..}
-       r <- do_this
-       TcEnv {..} <- getTcEnv
-       setTcEnv TcEnv { tceTypeContext = delta, ..}
-       return r
-
-withLocalVars :: [(ReadId, Type)]-> Checker a -> Checker a
-withLocalVars vars do_this
-  = do gamma <- getValueContext
-       let gamma' = Map.fromList vars `Map.union` gamma
-                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
-       TcEnv {..} <- getTcEnv
-       setTcEnv TcEnv { tceValueContext = gamma', ..}
-       r <- do_this
-       TcEnv {..} <- getTcEnv
-       setTcEnv TcEnv { tceValueContext = gamma, ..}
-       return r
 
 type TypeSubstitution = Map.Map Name Type
 

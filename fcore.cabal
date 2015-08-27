@@ -41,6 +41,7 @@ library
                         BaseTransCFJava
                         BenchGenCF2J
                         BenchGenStack
+                        Checker
                         ClosureF
                         Config
                         Core
@@ -78,6 +79,7 @@ library
                         SystemFI
                         TestInh
                         TypeCheck
+                        TypeErrors
   other-modules:        SimplifyImpl
   if flag(Z3)
                         exposed-modules: SymbolicEvaluator, Z3Backend, Z3ModelParser
