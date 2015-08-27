@@ -2,6 +2,7 @@ module FrontEnd (source2core) where
 
 import Parser    (reader, P(..))
 import TypeCheck (typeCheck)
+import TypeErrors (prettyTypeError)
 import Desugar   (desugar)
 import Simplify  (simplify)
 import qualified OptiUtils (Exp(Hide))
@@ -13,8 +14,8 @@ import System.Exit   (exitFailure)
 import Text.PrettyPrint.ANSI.Leijen
 import Control.Monad (when)
 
-source2core :: DumpOption -> String -> IO OptiUtils.Exp
-source2core optDump source
+source2core :: DumpOption -> (FilePath, String) -> IO OptiUtils.Exp
+source2core optDump (filePath, source)
   = case reader source of
       PError msg -> do putStrLn msg
                        exitFailure
@@ -22,7 +23,7 @@ source2core optDump source
         when (optDump == DumpParsed) $ print (pretty parsed)
         result <- typeCheck parsed
         case result of
-          Left typeError -> do print (pretty typeError)
+          Left typeError -> do print (prettyTypeError filePath typeError)
                                exitFailure
           Right (_, checked) ->
             do when (optDump == DumpTChecked) $ print (pretty checked)

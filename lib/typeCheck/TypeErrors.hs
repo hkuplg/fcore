@@ -34,11 +34,11 @@ type LTypeErrorExpr = Located (TypeError, Maybe ReadExpr)
 
 instance Error LTypeErrorExpr where
 
-instance Pretty LTypeErrorExpr where
-    pretty (L loc (err, expr)) =
-        case expr of
-          Nothing -> pretty loc <> pretty err
-          Just expr -> pretty loc <> pretty err <$> text "In the expression" <> colon <+> pretty expr
+prettyTypeError :: FilePath -> LTypeErrorExpr -> Doc
+prettyTypeError filePath (L loc (err, expr)) =
+    case expr of
+      Nothing -> pretty loc <> pretty err
+      Just expr -> text filePath <> colon <> pretty loc <> pretty err <$> text "In the expression" <> colon <+> pretty expr
 
 instance Pretty TypeError where
   pretty (General doc)      = prettyError <+> doc

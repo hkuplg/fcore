@@ -152,7 +152,7 @@ main = do
        putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
 
        source     <- readFile source_path_new
-       coreExpr   <- source2core optDump source
+       coreExpr   <- source2core optDump (source_path, source)
        javaSource <- core2java False optInline optDump opts (inferClassName output_path) coreExpr
        writeFile output_path javaSource
        --let closureClassDef = closureClass opts
