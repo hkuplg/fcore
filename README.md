@@ -37,7 +37,14 @@ Ubuntu. It builds the compiler from source, thus may take some time.
 
 ## Building on Windows ##
 
-TODO
+1. Software preparation
+    - [Java SDK (8 or newer)](http://www.oracle.com/technetwork/java/index.html)
+    - [Apache Ant (version 1.8 or above)](http://ant.apache.org/)
+    - [git](http://git-scm.com/)
+    - [minGHC](https://github.com/fpco/minghc), which includes GHC, Cabal, MSYS
+    - Have a make. There is a make in minghc\msys\bin. Or one can use [GNU Make](http://www.gnu.org/software/make/)
+
+2. Then the same as above.
 
 ## Documentation ##
 
