@@ -32,7 +32,7 @@ module TypeCheck
 
 import Checker
 import TypeErrors
-import Src
+import Src hiding (subtype)
 import SrcLoc
 
 import IOEnv
@@ -41,12 +41,10 @@ import PrettyUtils
 import RuntimeProcessManager (withRuntimeProcess)
 import JvmTypeQuery
 import Panic
-import StringPrefixes
 
 import Text.PrettyPrint.ANSI.Leijen
 
 import System.IO
-import System.Process
 
 import Control.Monad.Error
 
@@ -140,8 +138,8 @@ checkExpr (L _ (App e1 e2)) =
        L loc (ConstrOut (Constructor n ts) es) ->
            case t1 of
              Fun t11 t12 ->
-                 do d <- getTypeContext
-                    unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2 `withExpr` e2)
+                 do result <- subtype t2 t11
+                    unless result $ throwError (TypeMismatch t11 t2 `withExpr` e2)
                     return (t12, L loc $ ConstrOut (Constructor n (init ts ++ [t11,t12])) (es ++ [e2']))
              _ -> throwError (NotAFunction t1 `withExpr` e1)
        _ ->
@@ -151,8 +149,8 @@ checkExpr (L _ (App e1 e2)) =
           Forall _ _ -> checkExpr (App (TApp e1 t2 `withLoc` e1) e2 `withLoc` e1)
 
           Fun t11 t12 ->
-            do d <- getTypeContext
-               unless (subtype d t2 t11) $ throwError (TypeMismatch t11 t2 `withExpr` e2)
+            do result <- subtype t2 t11
+               unless result $ throwError (TypeMismatch t11 t2 `withExpr` e2)
                return (t12, App e1' e2' `withLoc` e1')
 
           _ -> throwError (NotAFunction t1 `withExpr` e1)
@@ -171,10 +169,10 @@ checkExpr (L loc (TApp e arg))
                         in case e' of
                              L loc' (ConstrOut (Constructor n _) es) -> return (t', L loc' $ ConstrOut (Constructor n [t']) es)
                              _ -> return (t', L loc $ TApp e' arg')
-         _           -> sorry "TypeCheck.infer: TApp"
+         _           -> sorry "TypeCheck.checkExpr: TApp"
 
 checkExpr (L loc (TupleCon es))
-  | length es < 2 = panic "Src.TypeCheck.infer: Tuple: fewer than two items"
+  | length es < 2 = panic "TypeCheck.checkExpr: Tuple: fewer than two items"
   | otherwise     = do (ts, es') <- mapAndUnzipM checkExpr es
                        return (TupleType ts, L loc $ TupleCon es')
 
@@ -208,7 +206,7 @@ checkExpr (L loc (If e1 e2 e3))
        d <- getTypeContext
        return (fromMaybe (panic message) (leastUpperBound d t2 t3), L loc $ If e1' e2' e3')
   where
-    message = "infer: least upper bound of types of two branches does not exist"
+    message = "checkExpr: least upper bound of types of two branches does not exist"
 
 checkExpr (L loc (LetIn rec_flag binds e)) =
   do checkDupNames (map bindId binds)
@@ -219,7 +217,7 @@ checkExpr (L loc (LetIn rec_flag binds e)) =
      (t, e') <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (checkExpr e)
      return (t, L loc $ LetOut rec_flag binds' e')
 
-checkExpr (L loc LetOut{..}) = panic "TypeCheck.infer: LetOut"
+checkExpr (L _ LetOut{..}) = panic "TypeCheck.checkExpr: LetOut"
 
 --  Case           Possible interpretations
 --  ---------------------------------------
@@ -419,7 +417,7 @@ checkExpr (L loc (Data recflag databinds e)) =
                let names = map constrName cs
                    dt = Datatype name (map TVar params) names
                    constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt | Constructor _ ts <- cs]
-                   cs' = [ Constructor ctrname ((map (expandType type_ctxt) ts) ++ [dt]) | (Constructor ctrname ts) <- cs]
+                   cs' = [ Constructor ctrname (map (expandType type_ctxt) ts ++ [dt]) | (Constructor ctrname ts) <- cs]
                    constr_binds = zip names constr_types
                return (cs', constr_binds)
 

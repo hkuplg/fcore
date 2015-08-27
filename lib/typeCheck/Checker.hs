@@ -99,3 +99,8 @@ lookupTVarKind :: Name -> Checker (Maybe Kind)
 lookupTVarKind a
  = do typeCtxt <- getTypeContext
       return (fmap fst (Map.lookup a typeCtxt))
+
+subtype :: Type -> Type -> Checker Bool
+subtype t1 t2
+  = do typeCtxt <- getTypeContext
+       return (Src.subtype typeCtxt t1 t2)
