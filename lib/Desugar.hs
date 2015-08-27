@@ -75,8 +75,7 @@ type VarMap t e = Map.Map ReadId (F.Expr t e)
 
 transType :: TVarMap t -> ReadType -> F.Type t
 transType d (TVar a)     = F.TVar a (fromMaybe (panic ("transType: " ++ show (TVar a))) (Map.lookup a d))
-transType _ (JType (JClass c)) = F.JClass c
-transType _ (JType (JPrim c))  = F.JClass c
+transType _ (JClass c)   = F.JClass c
 transType d (Fun t1 t2)  = F.Fun (transType d t1) (transType d t2)
 transType d (TupleType ts) = F.Product (map (transType d) ts)
 transType d (Forall a t) = F.Forall a (\a' -> transType (Map.insert a a' d) t)
@@ -195,9 +194,9 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                 [ConstrAlt _ b1, ConstrAlt (PConstr _ [sub1, sub2]) b2] = alts
                 headfetch = noLoc $ JMethod (NonStatic e) "charAt" [noLoc $ Lit (Int 0)] "java.lang.Character"
                 tailfetch = noLoc $ JMethod (NonStatic e) "substring" [noLoc $ Lit (Int 1)] "java.lang.String"
-                b2'  = case sub1 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, JType(JClass "java.lang.Character"), headfetch)] b2
+                b2'  = case sub1 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, (JClass "java.lang.Character"), headfetch)] b2
                                     _ -> b2
-                b2'' = case sub2 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, JType(JClass "java.lang.String"), tailfetch)] b2'
+                b2'' = case sub2 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, (JClass "java.lang.String"), tailfetch)] b2'
                                     _ -> b2'
             in
             go (noLoc $ If emptytest b1 b2'')
@@ -314,7 +313,7 @@ decisionTree (d,g) = go
                        let len = length params - 1
                            Datatype dtnam _ _ = last params
                            ctrclass = '$': dtnam ++ ".$" ++ dtnam ++ '$':name
-                           curExp = noLoc $ JMethod (NonStatic (noLoc $ JField (Static ctrclass) "class" (JType . JClass $ "Class<" ++ ctrclass++ ">")))
+                           curExp = noLoc $ JMethod (NonStatic (noLoc $ JField (Static ctrclass) "class" (JClass $ "Class<" ++ ctrclass++ ">")))
                                                     "cast" [curExp'] ctrclass
                            javafieldexprs = zipWith (\num pam -> noLoc $ JField (NonStatic curExp) (fieldtag ++ show num) pam)
                                                     [1..len]

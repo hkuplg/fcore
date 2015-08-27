@@ -187,20 +187,20 @@ checkExpr expr@(L loc (TupleProj e i))
 checkExpr (L loc (PrimOp e1 op e2)) =
   case op of
     Arith _ ->
-      do (_, e1') <- inferAgainst e1 (JType (JClass "java.lang.Integer"))
-         (_, e2') <- inferAgainst e2 (JType (JClass "java.lang.Integer"))
-         return (JType (JClass "java.lang.Integer"), L loc $ PrimOp e1' op e2')
+      do (_, e1') <- inferAgainst e1 (JClass "java.lang.Integer")
+         (_, e2') <- inferAgainst e2 (JClass "java.lang.Integer")
+         return (JClass "java.lang.Integer", L loc $ PrimOp e1' op e2')
     Compare _ ->
       do (t1, e1') <- checkExpr e1
          (_ , e2') <- inferAgainst e2 t1
-         return (JType (JClass "java.lang.Boolean"), L loc $ PrimOp e1' op e2')
+         return (JClass "java.lang.Boolean", L loc $ PrimOp e1' op e2')
     Logic _ ->
-      do (_, e1') <- inferAgainst e1 (JType (JClass "java.lang.Boolean"))
-         (_, e2') <- inferAgainst e2 (JType (JClass "java.lang.Boolean"))
-         return (JType (JClass "java.lang.Boolean"), L loc $ PrimOp e1' op e2')
+      do (_, e1') <- inferAgainst e1 (JClass "java.lang.Boolean")
+         (_, e2') <- inferAgainst e2 (JClass "java.lang.Boolean")
+         return (JClass "java.lang.Boolean", L loc $ PrimOp e1' op e2')
 
 checkExpr (L loc (If e1 e2 e3))
-  = do (_, e1')  <- inferAgainst e1 (JType (JClass "java.lang.Boolean"))
+  = do (_, e1')  <- inferAgainst e1 (JClass "java.lang.Boolean")
        (t2, e2') <- checkExpr e2
        (t3, e3') <- checkExpr e3
        d <- getTypeContext
@@ -236,44 +236,44 @@ checkExpr (L _ LetOut{..}) = panic "TypeCheck.checkExpr: LetOut"
 checkExpr (L loc (Dot e x Nothing)) =
   do (t, _) <- checkExpr e
      case t of
-       JType (JClass _) -> checkExpr (L loc $ JField (NonStatic e) x undefined)
-       RecordType _     -> checkExpr (L loc $ RecordProj e x)
-       And _ _          -> checkExpr (L loc $ RecordProj e x)
-       _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
+       JClass _     -> checkExpr (L loc $ JField (NonStatic e) x undefined)
+       RecordType _ -> checkExpr (L loc $ RecordProj e x)
+       And _ _      -> checkExpr (L loc $ RecordProj e x)
+       _            -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
 
 -- e.x ( )
 checkExpr (L loc (Dot e x (Just ([], UnitImpossible)))) =
   do (t, _) <- checkExpr e
      case t of
-       JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x [] undefined)
-       _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
+       JClass _ -> checkExpr (L loc $ JMethod (NonStatic e) x [] undefined)
+       _        -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
 
 -- e.x ()
 checkExpr (L loc (Dot e x (Just ([], UnitPossible)))) =
   do (t, _) <- checkExpr e
      case t of
-       JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x [] undefined)
-       RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
-       And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
-       _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
+       JClass _      -> checkExpr (L loc $ JMethod (NonStatic e) x [] undefined)
+       RecordType _  -> checkExpr (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
+       And _ _       -> checkExpr (L loc $ App (L loc $ RecordProj e x) (noLoc $ Lit UnitLit))
+       _             -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
 
 -- e.x (a)
 checkExpr (L loc (Dot e x (Just ([arg], _)))) =
   do (t, _) <- checkExpr e
      case t of
-       JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x [arg] undefined)
-       RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) arg)
-       And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) arg)
-       _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
+       JClass _     -> checkExpr (L loc $ JMethod (NonStatic e) x [arg] undefined)
+       RecordType _ -> checkExpr (L loc $ App (L loc $ RecordProj e x) arg)
+       And _ _      -> checkExpr (L loc $ App (L loc $ RecordProj e x) arg)
+       _            -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
 
 -- e.x (a,...)
 checkExpr (L loc (Dot e x (Just (args, _)))) =
   do (t, _) <- checkExpr e
      case t of
-       JType (JClass _) -> checkExpr (L loc $ JMethod (NonStatic e) x args undefined)
-       RecordType _     -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
-       And _ _          -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
-       _                -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
+       JClass _     -> checkExpr (L loc $ JMethod (NonStatic e) x args undefined)
+       RecordType _ -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
+       And _ _      -> checkExpr (L loc $ App (L loc $ RecordProj e x) tuple)
+       _            -> throwError (NotMember x t `withExpr` e) -- TODO: should be x's loc
     where tuple = TupleCon args `withLocs` args
 
 -- JNew, JMethod, and JField
@@ -282,7 +282,7 @@ checkExpr (L loc (JNew c args))
   = do checkClassName c
        (arg_cs, args') <- mapAndUnzipM inferAgainstAnyJClass args
        checkConstruction c arg_cs
-       return (JType (JClass c), L loc $ JNew c args')
+       return (JClass c, L loc $ JNew c args')
 
 checkExpr (L loc (JMethod callee m args _)) =
   case callee of
@@ -291,7 +291,7 @@ checkExpr (L loc (JMethod callee m args _)) =
          ret_c <- checkMethodCall (Static c) m arg_cs
          let ret_type = case ret_c of "java.lang.Void" -> Unit
                                       -- "char" -> JType (JPrim "char")
-                                      _ -> JType (JClass ret_c)
+                                      _ -> JClass ret_c
          return (ret_type, L loc $ JMethod (Static c) m args' ret_c)
     NonStatic e ->
       do (c, e')         <- inferAgainstAnyJClass e
@@ -299,23 +299,23 @@ checkExpr (L loc (JMethod callee m args _)) =
          ret_c <- checkMethodCall (NonStatic c) m arg_cs
          let ret_type = case ret_c of "java.lang.Void" -> Unit
                                       -- "char" -> JType (JPrim "char")
-                                      _ -> JType (JClass ret_c)
+                                      _ -> JClass ret_c
          return (ret_type, L loc $ JMethod (NonStatic e') m args' ret_c)
 
 checkExpr (L loc (JField callee f _)) =
   case callee of
     Static c ->
       do ret_c <- checkFieldAccess (Static c) f
-         return (JType (JClass ret_c), L loc $ JField (Static c) f (JType $ JClass ret_c))
+         return (JClass ret_c, L loc $ JField (Static c) f (JClass ret_c))
          -- if ret_c == "char"
          --    then return (JType (JPrim ret_c), JField (Static c) f ret_c)
          --    else return (JType (JClass ret_c), JField (Static c) f ret_c)
     NonStatic e ->
       do (t, e') <- checkExpr e
          case t of
-           JType (JClass c) ->
+           JClass c ->
              do ret_c   <- checkFieldAccess (NonStatic c) f
-                return (JType (JClass ret_c), JField (NonStatic e') f (JType $ JClass ret_c) `withLoc` e')
+                return (JClass ret_c, JField (NonStatic e') f (JClass ret_c) `withLoc` e')
                 -- if ret_c == "char"
                 --   then return (JType (JPrim "char"), JField (NonStatic e') f ret_c)
                 --   else return (JType (JClass ret_c), JField (NonStatic e') f ret_c)
@@ -369,7 +369,7 @@ checkExpr expr@(L _ (Type t params rhs e))
 checkExpr (L loc (Error ty str)) = do
        d <- getTypeContext
        let ty' = expandType d ty
-       (_, e) <- inferAgainst str (JType (JClass "java.lang.String"))
+       (_, e) <- inferAgainst str (JClass "java.lang.String")
        return (ty', L loc $ Error ty' e)
 
 -- data List A = Nil | Cons A (List A) and ...; e
@@ -491,7 +491,7 @@ checkExpr expr@(L loc (Case e alts)) =
         isDatatype (Datatype{}) = True
         isDatatype _ = False
 
-        isString (JType (JClass "java.lang.String")) = True
+        isString (JClass "java.lang.String") = True
         isString _ = False
 
         getLocalVars PWildcard  = []
@@ -532,9 +532,9 @@ checkExpr expr@(L loc (Case e alts)) =
             unless (isWildcardOrVar sub1 && isWildcardOrVar sub2) $
               throwError $ (General $ text "String should have two patterns [] and head:tail") `withExpr` e
 
-            let localvar  = case sub1 of PVar nam _ -> [(nam, JType(JClass "java.lang.Character"))]
+            let localvar  = case sub1 of PVar nam _ -> [(nam, JClass "java.lang.Character")]
                                          _          -> []
-                localvar' = case sub2 of PVar nam _ -> (nam, JType(JClass "java.lang.String")):localvar
+                localvar' = case sub2 of PVar nam _ -> (nam, JClass "java.lang.String"):localvar
                                          _          -> []
             (t1, emptyexpr) <- checkExpr b1
             (_,  nonemptyexpr) <- withLocalVars localvar' $ inferAgainst b2 t1
@@ -546,8 +546,8 @@ checkExpr expr@(L loc (Case e alts)) =
 -- A (high-level) example:
 --   A B t  ->  \A. \B. t
 -- Another concrete example:
---   ghci> pullRight ["A", "B"] (JType (JClass "java.lang.Integer"))
---   OpAbs "A" (OpAbs "B" (JType (JClass "java.lang.Integer")))
+--   ghci> pullRight ["A", "B"] (JClass "java.lang.Integer")
+--   OpAbs "A" (OpAbs "B" (JClass "java.lang.Integer"))
 pullRight :: [Name] -> Type -> Type
 pullRight params t = foldr OpAbs t params
 
@@ -567,8 +567,8 @@ inferAgainstAnyJClass expr
   = do (ty, expr') <- checkExpr expr
        case ty of
         -- JType (JPrim "char") -> return ("java.lang.Character", expr')
-        JType (JClass c) -> return (c, expr')
-        _ -> throwError $ TypeMismatch ty (JType $ JPrim "Java class") `withExpr` expr
+        JClass c -> return (c, expr')
+        _ -> throwError $ TypeMismatch ty (JClass "<any Java class>") `withExpr` expr -- FIXME
 
 -- | Check "f [A1,...,An] (x1:t1) ... (xn:tn): t = e"
 normalizeBind :: ReadBind -> Checker (Name, Type, CheckedExpr)
@@ -624,8 +624,7 @@ collectBindIdSigs
 checkType :: Type -> Checker ()
 checkType t =
   case t of
-    JType (JClass c) -> checkClassName c
-    JType (JPrim _)  -> prettySorry "TypeCheck.checkType" (pretty t)
+    JClass c -> checkClassName c
     _ -> do
       delta <- getTypeContext
       maybe_kind <- liftIO $ kind delta t
@@ -682,10 +681,10 @@ unwrapJReceiver (NonStatic c) = (False, c)
 unwrapJReceiver (Static    c) = (True, c)
 
 srcLitType :: Lit -> Type
-srcLitType (Int _)    = JType (JClass "java.lang.Integer")
-srcLitType (String _) = JType (JClass "java.lang.String")
-srcLitType (Bool _)   = JType (JClass "java.lang.Boolean")
-srcLitType (Char _)   = JType (JClass "java.lang.Character")
+srcLitType (Int _)    = JClass "java.lang.Integer"
+srcLitType (String _) = JClass "java.lang.String"
+srcLitType (Bool _)   = JClass "java.lang.Boolean"
+srcLitType (Char _)   = JClass "java.lang.Character"
 srcLitType UnitLit    = Unit
 
 checkDupNames :: [Name] -> Checker ()

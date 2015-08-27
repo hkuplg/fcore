@@ -179,7 +179,7 @@ ftype :: { ReadType }
 
 atype :: { ReadType }
   : UPPER_IDENT              { TVar $ toString $1 }
-  | JAVACLASS                { JType (JClass $ toString $1) }
+  | JAVACLASS                { JClass $ toString $1 }
   | "Unit"                   { Unit }
   | "(" comma_types2 ")"     { TupleType $2 }
   | record_type              { $1 }

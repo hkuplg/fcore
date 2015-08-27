@@ -62,19 +62,19 @@ instance Pretty TypeError where
   -- Java-specific type errors
   pretty (NoSuchMethod (NonStatic c) m cs) =
     text "no such method" <+> code (text m) <+>
-    text "on" <+> code (pretty (JType (JClass c))) <+>
-    text "with parameters of type" <+> commas (map (code . pretty . JType . JClass) cs)
+    text "on" <+> code (pretty (JClass c)) <+>
+    text "with parameters of type" <+> commas (map (code . pretty . JClass) cs)
   pretty (NoSuchMethod (Static c) m cs) =
     text "no such static method" <+> code (text m) <+>
-    text "on" <+> code (pretty (JType (JClass c))) <+>
-    text "with parameters of type" <+> commas (map (code . pretty . JType . JClass) cs)
+    text "on" <+> code (pretty (JClass c)) <+>
+    text "with parameters of type" <+> commas (map (code . pretty . JClass) cs)
 
   pretty (NoSuchField (NonStatic c) f) =
     text "no such field" <+> code (text f) <+>
-    text "on" <+> code (pretty (JType (JClass c)))
+    text "on" <+> code (pretty (JClass c))
   pretty (NoSuchField (Static c) f) =
     text "no such static field" <+> code (text f) <+>
-    text "on" <+> code (pretty (JType (JClass c)))
+    text "on" <+> code (pretty (JClass c))
 
   pretty (MissingTyAscription ident) =
     text "recursive definition" <+> code (text ident) <+>

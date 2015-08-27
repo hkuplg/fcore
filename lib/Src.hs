@@ -21,7 +21,7 @@ module Src
   , Expr(..), ReadExpr, CheckedExpr, LExpr
   , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReadBind
-  , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JReceiver(..), JVMType(..), Label
+  , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JReceiver(..), Label
   , Name, ReadId, CheckedId, LReadId
   , TypeValue(..), TypeContext, ValueContext
   , DataBind(..)
@@ -82,7 +82,7 @@ data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
 -- Types.
 data Type
   = TVar Name
-  | JType JVMType -- JClass ClassName
+  | JClass ClassName
   | Unit
   | Fun Type Type
   | Forall Name Type
@@ -103,8 +103,6 @@ data Type
   deriving (Eq, Show, Data, Typeable)
 
 type ReadType = Type
-
-data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable)
 
 type LExpr id ty = Located (Expr id ty)
 
@@ -239,7 +237,7 @@ expandType d (OpApp t1 t2)
       OpAbs x t -> fsubstTT (x,t2') t
 
 -- Uninteresting cases:
-expandType _ (JType t)    = JType t
+expandType _ (JClass c)   = JClass c
 expandType _ Unit         = Unit
 expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
 expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalType) d) t)
@@ -258,7 +256,7 @@ subtype d t1 t2 = subtypeS (expandType d t1) (expandType d t2)
 -- | Subtyping of two *expanded* types.
 subtypeS :: Type -> Type -> Bool
 subtypeS (TVar a)       (TVar b)               = a == b
-subtypeS (JType c)      (JType d)              = c == d
+subtypeS (JClass c)     (JClass d)             = c == d
 -- The subtypeS here shouldn't be aware of the subtyping relations in the Java world.
 subtypeS (Fun t1 t2)    (Fun t3 t4)            = subtypeS t3 t1 && subtypeS t2 t4
 subtypeS (Forall a1 t1) (Forall a2 t2)         = subtypeS (fsubstTT (a1,TVar a2) t1) t2
@@ -338,8 +336,7 @@ fsubstTT :: (Name, Type) -> Type -> Type
 fsubstTT (x,r) (TVar a)
   | a == x                     = r
   | otherwise                  = TVar a
--- fsubstTT (_,_) (JClass c )     = JClass c
-fsubstTT (_,_) (JType c)       = JType c
+fsubstTT (_,_) (JClass c)      = JClass c
 fsubstTT (x,r) (Fun t1 t2)     = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (TupleType ts)  = TupleType (map (fsubstTT (x,r)) ts)
 fsubstTT (x,r) (Forall a t)
@@ -363,8 +360,7 @@ freshName name existedNames = head $ dropWhile (`Set.member` existedNames) [name
 
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x
--- freeTVars (JClass _)    = Set.empty
-freeTVars (JType _)    = Set.empty
+freeTVars (JClass {})  = Set.empty
 freeTVars Unit         = Set.empty
 freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
 freeTVars (Forall a t) = Set.delete a (freeTVars t)
@@ -382,12 +378,11 @@ instance Pretty Kind where
 
 instance Pretty Type where
   pretty (TVar a)     = text a
-  pretty (JType (JClass "java.lang.Integer"))   = text "Int"
-  pretty (JType (JClass "java.lang.String"))    = text "String"
-  pretty (JType (JClass "java.lang.Boolean"))   = text "Bool"
-  pretty (JType (JClass "java.lang.Character")) = text "Char"
-  pretty (JType (JClass c))   = text c
-  pretty (JType (JPrim c))   = text c
+  pretty (JClass "java.lang.Integer")   = text "Int"
+  pretty (JClass "java.lang.String")    = text "String"
+  pretty (JClass "java.lang.Boolean")   = text "Bool"
+  pretty (JClass "java.lang.Character") = text "Char"
+  pretty (JClass c)   = text c
   pretty Unit         = text "Unit"
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
   pretty (Forall a t) = parens $ forall <+> hsep (map text as) <> dot <+> pretty t' where (as, t') = groupForall (Forall a t)
