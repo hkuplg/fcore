@@ -89,3 +89,13 @@ mkInitTcEnvWithEnv value_ctxt type_server
   , tceTypeserver   = type_server
   , tceMemoizedJavaClasses = Set.empty
   }
+
+lookupVar :: Name -> Checker (Maybe Type)
+lookupVar x
+  = do valueCtxt <- getValueContext
+       return (Map.lookup x valueCtxt)
+
+lookupTVarKind :: Name -> Checker (Maybe Kind)
+lookupTVarKind a
+ = do typeCtxt <- getTypeContext
+      return (fmap fst (Map.lookup a typeCtxt))

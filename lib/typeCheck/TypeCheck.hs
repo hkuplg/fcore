@@ -71,16 +71,6 @@ typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
 withTypeServer :: (Connection -> IO a) -> IO a
 withTypeServer = withRuntimeProcess "TypeServer" NoBuffering
 
-type TypeSubstitution = Map.Map Name Type
-
-applyTSubst :: TypeSubstitution -> Type -> Type
-applyTSubst s (TVar a)     = fromMaybe (TVar a) (Map.lookup a s)
--- applyTSubst _ (JClass c)   = JClass c
-applyTSubst _ (JType c)    = JType c
-applyTSubst s (Fun t1 t2)  = Fun (applyTSubst s t1) (applyTSubst s t2)
-applyTSubst s (Forall a t) = Forall a (applyTSubst s' t) where s' = Map.delete a s
-applyTSubst _ _            = sorry "TypeCheck.applyTSubst"
-
 -- | Kinding.
 kind :: TypeContext -> Type -> IO (Maybe Kind)
 kind d (TVar a)     = case Map.lookup a d of Nothing     -> return Nothing
@@ -128,8 +118,8 @@ hasKindStar d t
 -- | Typing.
 checkExpr :: ReadExpr -> Checker (Type, CheckedExpr)
 checkExpr e@(L loc (Var name))
-  = do value_ctxt <- getValueContext
-       case Map.lookup name value_ctxt of
+  = do result <- lookupVar name
+       case result of
          Just t  -> return (t, L loc $ Var (name,t))
          Nothing -> throwError (NotInScope name `withExpr` e)
 
@@ -434,8 +424,8 @@ checkExpr (L loc (Data recflag databinds e)) =
                return (cs', constr_binds)
 
 checkExpr e@(L loc (ConstrIn name)) =
-    do g <- getValueContext
-       case Map.lookup name g of
+    do result <- lookupVar name
+       case result of
          Just t  -> return (t, L loc $ ConstrOut (Constructor name [t]) []) -- the last type will always be the real type
          Nothing -> throwError (NotInScope name `withExpr` e)
 
@@ -508,7 +498,7 @@ checkExpr expr@(L loc (Case e alts)) =
 
         getLocalVars PWildcard  = []
         getLocalVars (PVar nam ty) = [(nam, ty)]
-        getLocalVars (PConstr _ pats) = concat $ map getLocalVars pats
+        getLocalVars (PConstr _ pats) = concatMap getLocalVars pats
 
         -- ty is the expected type
         typecheckPattern ty (PVar nam _) = return (PVar nam ty)
@@ -518,13 +508,13 @@ checkExpr expr@(L loc (Case e alts)) =
             let Datatype _ ts_feed _ = ty
                 nam = constrName ctr
             type_ctxt <- getTypeContext
-            value_ctxt <- getValueContext
-            case Map.lookup nam value_ctxt of
+            result <- lookupVar nam
+            case result of
                 Nothing -> throwError $ NotInScope nam `withExpr` expr
                 Just t_constr ->
                     let ts = unwrapFun $ feedToForall t_constr ts_feed
                     in do unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch t_constr ty `withExpr` expr
-                          unless ((length ts -1) == (length pats)) $ throwError $ General (text "Constructor" <+> bquotes (text nam)
+                          unless (length ts - 1 == length pats) $ throwError $ General (text "Constructor" <+> bquotes (text nam)
                                           <+> text "should have" <+> int (length ts -1) <+> text "arguments, but has been given"
                                           <+> int (length pats) <+> text "in pattern" <+> pretty pctr ) `withExpr` expr
                           pat' <- zipWithM typecheckPattern ts pats
