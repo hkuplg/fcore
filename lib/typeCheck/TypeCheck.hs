@@ -26,7 +26,7 @@ module TypeCheck
 
   -- For REPL
   , typeCheckWithEnv
-  , mkInitTcEnvWithEnv
+  , mkInitCheckerStateWithEnv
   , TypeError
   ) where
 
@@ -58,13 +58,13 @@ import Prelude hiding (pred)
 typeCheck :: ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheck e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnv type_server) . runErrorT . checkExpr) e)
+  (evalIOEnv (mkInitCheckerState type_server) . runErrorT . checkExpr) e)
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 -- type_server is (Handle, Handle)
 typeCheckWithEnv value_ctxt e = withTypeServer (\type_server ->
-  (evalIOEnv (mkInitTcEnvWithEnv value_ctxt type_server) . runErrorT . checkExpr) e)
+  (evalIOEnv (mkInitCheckerStateWithEnv value_ctxt type_server) . runErrorT . checkExpr) e)
 
 withTypeServer :: (Connection -> IO a) -> IO a
 withTypeServer = withRuntimeProcess "TypeServer" NoBuffering
