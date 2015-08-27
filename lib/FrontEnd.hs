@@ -1,5 +1,6 @@
 module FrontEnd (source2core) where
 
+import qualified Config
 import SrcLoc
 import Parser    (reader, P(..))
 import TypeCheck (typeCheck)
@@ -22,7 +23,7 @@ makeProblem (filePath, source) (L loc (err, _maybeExpr))
   = Problem
     { problemLevel    = Error
     , problemLocation = (filePath, line loc, column loc)
-    , problemLine     = splitOn "\n" source !! (line loc - 1 - 24)
+    , problemLine     = splitOn "\n" source !! (line loc - 1 - Config.lineNumberOffset)
     , problemDescription = pretty err
     }
 

@@ -16,6 +16,7 @@ module Parser where
 
 import qualified Language.Java.Syntax as J (Op (..))
 
+import qualified Config
 import Src
 import Lexer
 import SrcLoc
@@ -477,7 +478,7 @@ instance Monad P where
     return x         = POk x
 
 parseError :: Located Token -> Alex a
-parseError (L loc _) = alexError ("Parse error at " ++ show (line loc - 24) ++ ":" ++ show (column loc))
+parseError (L loc _) = alexError ("Parse error at " ++ show (line loc - Config.lineNumberOffset) ++ ":" ++ show (column loc))
 
 reader :: String -> P ReadExpr
 reader src = case (runAlex (injectPredef src) parseExpr) of
