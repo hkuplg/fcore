@@ -169,7 +169,7 @@ checkExpr (L loc (TApp e arg))
                         in case e' of
                              L loc' (ConstrOut (Constructor n _) es) -> return (t', L loc' $ ConstrOut (Constructor n [t']) es)
                              _ -> return (t', L loc $ TApp e' arg')
-         _           -> sorry "TypeCheck.checkExpr: TApp"
+         _ -> throwError $ General (code (pretty e) <+> text "does not take type parameters") `withExpr` e
 
 checkExpr (L loc (TupleCon es))
   | length es < 2 = panic "TypeCheck.checkExpr: Tuple: fewer than two items"
