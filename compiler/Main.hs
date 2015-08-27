@@ -145,11 +145,12 @@ main = do
        unless (null optModules) $
          do cont <- Link.linkModule modList
             let content = Link.namespace cont
-            putStrLn "Linking..."
+            when optVerbose $ putStrLn "Linking..."
             Link.link source_path content
-            putStrLn (source_path_new ++ " generated!")
-       putStrLn (takeBaseName source_path_new ++ " using " ++ show (sort_and_rmdups translate_method))
-       putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
+            when optVerbose $ putStrLn (source_path_new ++ " generated!")
+       when optVerbose $ do
+         putStrLn (takeBaseName source_path_new ++ " using " ++ show (sort_and_rmdups translate_method))
+         putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
 
        source     <- readFile source_path_new
        coreExpr   <- source2core optDump (source_path, source)
@@ -159,7 +160,7 @@ main = do
        --writeFile "Closure.java" (prettyPrint closureClassDef)
 
        when (optCompile || optCompileAndRun) $
-         do when optVerbose (putStrLn "  Compiling to Java bytecode")
+         do when optVerbose $ putStrLn "  Compiling to Java bytecode"
             compileJava output_path
        when optCompileAndRun $
          do when optVerbose $ do { putStr "  Running Java\n  Output: "; hFlush stdout }
