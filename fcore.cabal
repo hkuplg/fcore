@@ -80,7 +80,8 @@ library
                         SystemFI
                         TestInh
                         TypeCheck
-  other-modules:        SimplifyImpl Paths_fcore
+  other-modules:        Paths_fcore
+                        SimplifyImpl
   if flag(Z3)
                         exposed-modules: SymbolicEvaluator, Z3Backend, Z3ModelParser
                         build-depends: z3 > 0.3.2
