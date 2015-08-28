@@ -27,7 +27,7 @@ library
                       , filepath == 1.4.*
                       , haskeline == 0.7.*
                       , language-java == 0.2.*
-                      , lens == 4.12.*
+                      , microlens == 0.2.0.*
                       , mtl == 2.2.*
                       , network == 2.6.*
                       , parsec == 3.1.*

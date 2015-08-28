@@ -19,9 +19,9 @@ module BaseTransCFJava where
 -- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
 
 
-import           Control.Lens
 import           Data.Char (toLower)
 import           Data.List (zip4, elemIndex)
+import           Lens.Micro
 
 import           ClosureF
 import           Inheritance
