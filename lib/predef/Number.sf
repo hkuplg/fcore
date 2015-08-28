@@ -1,6 +1,6 @@
 package f2j.prelude
 
-module {
+module
 
 abs (n : Int) = if n < 0 then (- n) else n;
 
@@ -20,5 +20,3 @@ rec gcd (n : Int) (m : Int) : Int =
 (^) (n : Int) (m : Int) : Int =
   let rec help (acc : Int) (count : Int) : Int = if count == 0 then acc else help (acc * n) (count - 1);
   help 1 m
-
-}
