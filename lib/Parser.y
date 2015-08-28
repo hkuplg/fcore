@@ -148,7 +148,7 @@ packageIdent :: { String }
   | ident "." packageIdent { unLoc $1 ++ "." ++ $3 }
 
 module :: { ReaderModule }
-  : "module" "{" imports semi_binds "}"  { Module (map unLoc $3) $4 `withLoc` $1 }
+  : "module" imports semi_binds  { Module (map unLoc $2) $3 `withLoc` $1 }
 
 -- module_name :: { LReaderId }
 --   : UPPER_IDENT  { toString $1 `withLoc` $1 }
