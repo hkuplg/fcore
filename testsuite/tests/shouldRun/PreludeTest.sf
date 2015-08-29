@@ -1,0 +1,4 @@
+--> true
+
+-- Test if prelude module is loaded
+even (gcd (fact (2 ^ (id [Int] 2))) (rem 4 2))

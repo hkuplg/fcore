@@ -19,9 +19,6 @@ import qualified Config
 
 import Text.PrettyPrint.ANSI.Leijen
 
-import Data.Foldable ( Foldable )
-import Data.Traversable ( Traversable )
-
 type Located a = GenLocated Loc a
 
 data GenLocated l e = L l e

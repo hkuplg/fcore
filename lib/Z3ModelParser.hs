@@ -11,7 +11,6 @@ Portability :  portable
 
 module Z3ModelParser where
 
-import           Control.Applicative           ((<$>))
 import           Data.Char                     (toUpper)
 import qualified Data.IntMap                   as IntMap
 import           Text.ParserCombinators.Parsec

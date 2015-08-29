@@ -1,13 +1,13 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 module TypeErrors where
 
-import Src
-import SrcLoc
 import JavaUtils
 import PrettyUtils
+import Src
+import SrcLoc
 
+import Prelude hiding ((<$>))
 import Text.PrettyPrint.ANSI.Leijen
-import Control.Monad.Error
 
 data TypeError
   = General Doc
@@ -28,11 +28,12 @@ data TypeError
   | NoSuchConstructor ClassName [ClassName]
   | NoSuchMethod      (JReceiver ClassName) MethodName [ClassName]
   | NoSuchField       (JReceiver ClassName) FieldName
+  | ImportFail        ModuleName
   deriving (Show)
 
 type LTypeErrorExpr = Located (TypeError, Maybe ReadExpr)
 
-instance Error LTypeErrorExpr where
+-- instance Error LTypeErrorExpr where
 
 prettyTypeError :: FilePath -> LTypeErrorExpr -> Doc
 prettyTypeError filePath (L loc (err, expr)) =
@@ -82,5 +83,5 @@ instance Pretty TypeError where
 
   pretty e = text (show e)
 
-instance Error TypeError where
+-- instance Error TypeError where
   -- strMsg

@@ -12,26 +12,22 @@ including the removal of type synonyms. No desugaring should happen before this
 stage.
 -}
 
-{-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
+
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Desugar (desugar) where
 
-import Src
-import SrcLoc
-import StringPrefixes
-
+import           Panic
+import           Src
+import           SrcLoc
+import           StringPrefixes
 import qualified SystemFI as F
 
-import Panic
-
-import Data.Maybe       (fromMaybe)
-import Data.List        (intercalate)
-
-import Text.PrettyPrint.ANSI.Leijen
-
+import           Data.List (intercalate)
 import qualified Data.Map as Map
+import           Data.Maybe (fromMaybe)
 import qualified Data.Set as Set (member)
+import           Text.PrettyPrint.ANSI.Leijen
 
 
 -- | Generate a fresh variable in the context. This is a very general API and
@@ -104,7 +100,7 @@ desugarExpr (d, g) = go
                                  (transType d t)
                                  (\x' -> desugarExpr (d, Map.insert x (F.Var x x') g) e)
     go (L _ (BLam a e))        = F.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
-    go (L _ LetIn{..})         = panic "desugarExpr: LetIn"
+    go (L _ LetIn{})         = panic "desugarExpr: LetIn"
     go (L _ (LetOut _ [] e))   = go e
     go (L _ (Merge e1 e2))     = F.Merge (go e1) (go e2)
     go (L _ (RecordCon fs))    =
@@ -151,6 +147,9 @@ variable renaming. An example:
                    zipWith (\f i -> (f, F.Proj i (F.Var f y)))
                            fs
                            [1..length bs]
+
+    go (L _ EModule{})                 = panic "desugarExpr: Module"
+
 
 {-
    let f : forall A1...An. t1 -> t2 = e@(\(x : t1). peeled_e) in body
@@ -200,6 +199,23 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                                     _ -> b2'
             in
             go (noLoc $ If emptytest b1 b2'')
+
+    go (L _ (EModuleOut pname binds)) = F.Module pname (desugarBindsToDefs (d, g) binds)
+
+
+desugarBindsToDefs :: (TVarMap t, VarMap t e) -> [Definition] -> F.Definition t e
+desugarBindsToDefs _ [] = F.Null
+desugarBindsToDefs (d, g) (b:bs) =
+  case b of
+    Def (n, t, e) -> F.Def n (t, transType d t) (desugarExpr (d, g) e)
+                       (\f -> desugarBindsToDefs (d, Map.insert n (F.Var n f) g) bs)
+    -- at least one element
+    DefRec binds -> F.DefRec names types exprs def
+      where (ids, sigs, defs) = unzip3 binds
+            names = ids
+            types = map (\t -> (t, transType d t)) sigs
+            exprs ids' = map (desugarExpr (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g)) defs
+            def ids' = desugarBindsToDefs (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g) bs
 
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
 desugarLetRecToFix (d,g) (L _ (LetOut Rec [(f,t,e)] body)) =
@@ -299,12 +315,12 @@ decisionTree (d,g) = go
                go (tail exprs)
                   (map tail pats)
                   branches
-                  (zipWith (\pat bind -> case (head pat) of
+                  (zipWith (\pat bind -> case head pat of
                                PVar nam ty -> (nam, ty, curExp'):bind
                                _ -> bind )
                            pats
                            binds)
-          | missingconstrs == [] = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs)
+          | null missingconstrs = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs)
           | otherwise            = F.Case (desugarExpr (d,g) curExp') (map makeNewAltFromCtr appearconstrs ++ makeDefault)
           where patshead = map head pats
                 curExp' = head exprs
@@ -318,10 +334,10 @@ decisionTree (d,g) = go
                            javafieldexprs = zipWith (\num pam -> noLoc $ JField (NonStatic curExp) (fieldtag ++ show num) pam)
                                                     [1..len]
                                                     params
-                           exprs' = javafieldexprs ++ (tail exprs)
+                           exprs' = javafieldexprs ++ tail exprs
                            (pats', branches', binds') =
                                unzip3 $ foldr (\(curPattern:rest, branch, bind) acc ->
-                                                  let nextPats = (extractorsubpattern name len curPattern)++rest
+                                                  let nextPats = extractorsubpattern name len curPattern ++ rest
                                                   in  case curPattern of
                                                        PWildcard -> ( nextPats, branch, bind) :acc
                                                        PVar nam ty -> (nextPats, branch, (nam, ty, curExp): bind) :acc

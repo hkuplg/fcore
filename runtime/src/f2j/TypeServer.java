@@ -1,5 +1,6 @@
 package f2j;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -59,6 +60,9 @@ public class TypeServer {
         break;
       case "qStaticField":
         result = queryField(words[1], words[2], true);
+        break;
+      case "qModuleInfo":
+        result = queryModule(words[1]);
         break;
       default:
         System.err.println("######## BAD QUERY ########");
@@ -130,7 +134,23 @@ public class TypeServer {
     }
   }
 
-
+  public static String queryModule(String moduleName) {
+    try {
+      StringBuffer result = new StringBuffer();
+      ClassLoader classLoader = ClassLoader.getSystemClassLoader();
+      Class m = classLoader.loadClass(moduleName + "$");
+      Field[] fields = m.getDeclaredFields();
+      for (Field field : fields) {
+        ModuleFunction f = (ModuleFunction) field.getAnnotation(ModuleFunction.class);
+        if (f != null) {
+          result.append(f.name() + "$" + f.gname() + "$" + f.signature() + "$");
+        }
+      }
+      return result.toString();
+    } catch (Exception e) {
+      return "$";
+    }
+  }
 
   private static Class<?>[] getClassArray(String[] names) throws ClassNotFoundException {
 

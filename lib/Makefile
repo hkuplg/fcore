@@ -13,7 +13,7 @@ $(lexers) : %.hs : %.x
 	alex --ghc $<
 
 $(parsers) : %.hs : %.y
-	happy --info --ghc $<
+	happy --info -agc $<
 
 .PHONY : clean
 clean :

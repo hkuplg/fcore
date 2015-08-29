@@ -101,6 +101,7 @@ tokens :-
     new         { locate (\_ _ -> Tnew) }
     module      { locate (\_ _ -> Tmodule) }
     import      { locate (\_ _ -> Timport) }
+    package     { locate (\_ _ -> TPackage) }
     data        { locate (\_ _ -> Tdata) }
     \|          { locate (\_ _ -> Tbar) }
     case        { locate (\_ _ -> Tcase) }
@@ -160,7 +161,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tint Integer | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule | Timport
+           | Tmodule | Timport | TPackage
            | Temptytree | Tnonemptytree
            | Tlistbegin
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore

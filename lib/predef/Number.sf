@@ -1,0 +1,22 @@
+package f2j.prelude
+
+module
+
+abs (n : Int) = if n < 0 then (- n) else n;
+
+rec rem (n : Int) (m : Int) : Int = if n < m then n else rem (n - m) m;
+
+rec even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1)
+and odd  (n : Int) : Bool = if n == 0 then False else even (n - 1);
+
+rec fact (n:Int) : Int = if n == 0 then 1 else n * fact (n-1);
+
+rec gcd (n : Int) (m : Int) : Int =
+  let n' = abs n and
+      m' = abs m;
+  if m' == 0 then n'
+  else gcd m' (rem n' m');
+
+(^) (n : Int) (m : Int) : Int =
+  let rec help (acc : Int) (count : Int) : Int = if count == 0 then acc else help (acc * n) (count - 1);
+  help 1 m

@@ -20,6 +20,7 @@ module Core
   , Index
   , Constructor(..)
   , DataBind(..)
+  , Definition(..)
   , alphaEq
   , mapTVar
   , mapVar
@@ -40,15 +41,16 @@ module Core
 
 import qualified Src
 
-import JavaUtils
-import PrettyUtils
+import           JavaUtils
+import           PrettyUtils
 
-import Text.PrettyPrint.ANSI.Leijen
-import qualified Language.Java.Pretty      (prettyPrint)
-
+import           Control.Arrow (second)
 import           Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Language.Java.Pretty (prettyPrint)
+import           Prelude hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen
 
 data Type t
   = TVar Src.ReadId t                -- a
@@ -58,6 +60,10 @@ data Type t
   | Product [Type t]                   -- (t1, ..., tn)
   | Unit
   | Datatype Src.ReadId [Type t] [Src.ReadId]
+
+data Definition t e = Def Src.Name Src.Type (Expr t e) (e -> Definition t e)
+                    | DefRec [Src.Name] [(Src.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
+                    | Null
 
 data Expr t e
   = Var Src.ReadId e
@@ -90,6 +96,9 @@ data Expr t e
 
   | Tuple [Expr t e]     -- Tuple introduction
   | Proj Int (Expr t e)  -- Tuple elimination
+
+  -- Module
+  | Module (Maybe Src.PackageName) (Definition t e)
 
   -- Java
   | JNew ClassName [Expr t e]
@@ -144,7 +153,7 @@ mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
 mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (mapVar g h e)
     where mapDatabind (DataBind name params ctrs) = DataBind name params (map mapCtr. ctrs)
-          mapCtr (Constructor n ts) = Constructor n (map h ts)
+          mapCtr (Constructor n ts)  = Constructor n (map h ts)
 mapVar g h (ConstrOut (Constructor n ts) es) = ConstrOut c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
@@ -161,6 +170,15 @@ mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f (h c)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Error ty str)            = Error (h ty) (mapVar g h str)
+mapVar g h (Module pname defs)       = Module pname (mapVarDef defs)
+  where
+    -- Necessary?
+    mapVarDef (Def name typ expr def) = Def name typ (mapVar g h expr) (mapVarDef . def)
+    mapVarDef (DefRec names types exprs def) =
+      DefRec names (map (second h) types) (map (mapVar g h) . exprs) (mapVarDef . def)
+    mapVarDef Null = Null
+
+
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
 fsubstTT x r = mapTVar (\n a -> if a == x then r else TVar n a)
@@ -239,6 +257,28 @@ prettyType' _ _ (JClass c)                     = text c
 -- instance Pretty (Expr Index Index) where
 --   pretty = prettyExpr
 
+prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
+prettyDef _ (i, j) (Def fname typ e def) =
+  text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr' basePrec (i, j + 1) e <> semi <$>
+  prettyDef basePrec (i, j+1) (def j) -- crappy pretty printer
+
+prettyDef p (i, j) (DefRec names sigs binds def) = vcat (intersperse (text "and") pretty_binds) <> semi <$> pretty_body
+  where
+    n = length sigs
+    ids = [i .. (i + n) - 1]
+    pretty_ids = map text names
+    pretty_sigs = map (pretty . fst) sigs
+    pretty_defs = map (prettyExpr' p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3
+                     (\pretty_id pretty_sig pretty_def ->
+                        pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
+                     pretty_ids
+                     pretty_sigs
+                     pretty_defs
+    pretty_body = prettyDef p (i, j + n) (def ids)
+
+prettyDef _ _ Null = text ""
+
 prettyExpr :: Expr Index Index -> Doc
 prettyExpr = prettyExpr' basePrec (0, 0)
 
@@ -291,6 +331,9 @@ prettyExpr' _ (i,j) (Tuple es) = tupled (map (prettyExpr' basePrec (i,j)) es)
 prettyExpr' p i (Proj n e) =
   parensIf p 5
     (prettyExpr' (5,PrecMinus) i e <> dot <> char '_' <> int n)
+
+prettyExpr' p i (Module pname defs) =
+  maybe empty ((text "package" <+>) . pretty) pname <$> text "module" <> semi <$> prettyDef p i defs
 
 prettyExpr' _ (i,j) (JNew c args) =
   parens (text "new" <+> text c <> tupled (map (prettyExpr' basePrec (i,j)) args))

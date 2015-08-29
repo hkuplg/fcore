@@ -12,9 +12,9 @@ Portability :  portable
 
 module PrettyUtils where
 
-import Text.PrettyPrint.ANSI.Leijen
 import Data.Char (ord, chr)
 import Data.List (intersperse)
+import Text.PrettyPrint.ANSI.Leijen
 
 -- class Outputable a where
 --   pretty :: a -> Doc
