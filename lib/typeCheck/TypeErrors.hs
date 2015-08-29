@@ -1,13 +1,13 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 module TypeErrors where
 
-import Src
-import SrcLoc
 import JavaUtils
 import PrettyUtils
+import Src
+import SrcLoc
 
-import Text.PrettyPrint.ANSI.Leijen
 import Prelude hiding ((<$>))
+import Text.PrettyPrint.ANSI.Leijen
 
 data TypeError
   = General Doc

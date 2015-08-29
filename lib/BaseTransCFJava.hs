@@ -21,12 +21,12 @@ module BaseTransCFJava where
 
 import           Data.Char (toLower)
 import           Data.List (zip4, elemIndex)
+import qualified Language.Java.Syntax as J
 import           Lens.Micro
 
 import           ClosureF
 import           Inheritance
 import           JavaEDSL
-import qualified Language.Java.Syntax as J
 import           MonadLib hiding (Alt)
 import           Panic
 import qualified Src as S

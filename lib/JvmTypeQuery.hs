@@ -13,23 +13,21 @@ module JvmTypeQuery
   , ModuleInfo(..)
   ) where
 
-import RuntimeProcessManager (withRuntimeProcess)
 import JavaUtils (ClassName, MethodName, FieldName, ModuleName)
+import RuntimeProcessManager (withRuntimeProcess)
 import Src (Type, PackageName)
 import StringUtils
 
 import Control.Exception
-import System.IO
-import Control.Applicative ((<$>))
-import Data.Char           (isSpace, toLower)
-import Data.List.Split
-import Data.List
-import System.FilePath
-import System.IO (hPutStrLn, hGetLine, Handle)
-import System.Directory
-import System.Process.Extra (system_)
+import Data.Char (isSpace, toLower)
 import Data.Either
+import Data.List
+import Data.List.Split
 import Data.Maybe (listToMaybe)
+import System.Directory
+import System.FilePath
+import System.IO
+import System.Process.Extra (system_)
 
 data Connection = Connection
   { -- private

@@ -50,7 +50,6 @@ import Control.Monad.State
   "&"      { L _ Tandtype }
   ",,"     { L _ Tmerge }
   "with"   { L _ Twith }
-  "'"      { L _ Tquote }
   "type"   { L _ Ttype }
   "let"    { L _ Tlet }
   "rec"    { L _ Trec }
@@ -148,17 +147,17 @@ packageIdent :: { String }
   : ident    { unLoc $1 }
   | ident "." packageIdent { unLoc $1 ++ "." ++ $3 }
 
-module :: { ReaderModule }
+module :: { ReadModule }
   : "module" imports semi_binds  { Module (map unLoc $2) $3 `withLoc` $1 }
 
 -- module_name :: { LReaderId }
 --   : UPPER_IDENT  { toString $1 `withLoc` $1 }
 
-imports :: { [ReaderImport] }
+imports :: { [ReadImport] }
   :                    { [] }
   | import ";" imports { $1:$3 }
 
-import :: { ReaderImport }
+import :: { ReadImport }
   : "import" packageIdent  { Import $2 `withLoc` $1 }
 
 
@@ -418,11 +417,11 @@ and_databinds :: { [DataBind]}
 databind :: { DataBind }
     : UPPER_IDENT typaram_list_or_empty "=" constrs_decl { DataBind (toString $1) (map unLoc $2) $4 }
 
-semi_binds :: { [ReaderModuleBind] }
+semi_binds :: { [ReadModuleBind] }
     : modulebind                      { [$1]  }
     | modulebind ";" semi_binds       { $1:$3 }
 
-modulebind :: { ReaderModuleBind }
+modulebind :: { ReadModuleBind }
     : bind              { BindNonRec $1 }
     | "rec" and_binds   { BindRec $2 }
 

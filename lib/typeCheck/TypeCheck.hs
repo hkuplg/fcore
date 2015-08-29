@@ -32,17 +32,17 @@ module TypeCheck
   , TypeError
   ) where
 
+import Checker
 import IOEnv
 import JavaUtils
 import qualified JvmTypeQuery
 import Panic
 import Predef
 import PrettyUtils
-import TypeErrors
-import Checker
 import Src hiding (subtype)
 import SrcLoc
 import StringUtils
+import TypeErrors
 
 import Control.Monad.Except
 import Data.List (findIndex, intercalate)
@@ -51,15 +51,16 @@ import qualified Data.Map  as Map
 import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Data.Set  as Set
 import Prelude hiding (pred, (<$>))
-import System.IO
 import Text.PrettyPrint.ANSI.Leijen
 
 import Prelude hiding (pred, (<$>))
 
 typeCheck :: ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
-typeCheck e = JvmTypeQuery.withConnection (\conn -> do
-  let module_ctxt = Map.fromList $(getPredefInfoTH)
-  (evalIOEnv (mkInitCheckerState module_ctxt conn) . runExceptT . checkExpr) e) False
+typeCheck e = JvmTypeQuery.withConnection
+                (\conn -> do
+                   let module_ctxt = Map.fromList $(getPredefInfoTH)
+                   (evalIOEnv (mkInitCheckerState module_ctxt conn) . runExceptT . checkExpr) e)
+                False
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
@@ -113,12 +114,12 @@ hasKindStar d t
 -- | Typing.
 checkExpr :: ReadExpr -> Checker (Type, CheckedExpr)
 checkExpr e@(L loc (Var name)) = do
-  module_ctxt <- getModuleContext
-  result <- lookupVar name
-  case result of
+  resVar <- lookupVar name
+  case resVar of
     Just t -> return (t, L loc $ Var (name, t))
-    Nothing ->
-      case Map.lookup name module_ctxt of
+    Nothing -> do
+      resMVar <- lookupModuleVar name
+      case resMVar of
         Just (p, t, g, m) -> return
                                (t, L loc $ JField (Static $ (maybe "" (++ ".") p) ++ m ++ "$") g t)
         Nothing -> throwError (NotInScope name `withExpr` e)
@@ -646,11 +647,11 @@ collectBindIdSigs
 
 -- | Normalize later bindings with typing contexts augmented with
 -- previous bindings
-normalizeBindAndAccum :: [ReaderModuleBind] -> Checker [Definition]
+normalizeBindAndAccum :: [ReadModuleBind] -> Checker [Definition]
 normalizeBindAndAccum = normalize []
   where
     normalize :: [Definition]
-              -> [ReaderModuleBind]
+              -> [ReadModuleBind]
               -> Checker [Definition]
     normalize binds [] = return (reverse binds)
     normalize binds (b:bs) = do

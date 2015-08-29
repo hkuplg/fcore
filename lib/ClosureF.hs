@@ -13,18 +13,17 @@ Portability :  non-portable (MPTC)
 -}
 module ClosureF where
 
-import qualified Src as S
 import qualified Core as C
-
 import           JavaUtils
 import           Panic
+import           PrettyUtils
+import qualified Src as S
 import           StringPrefixes
 
 import           Control.Arrow (second)
 import           Data.List (intersperse)
 import qualified Language.Java.Pretty (prettyPrint)
 import           Prelude hiding ((<$>))
-import           PrettyUtils
 import           Text.PrettyPrint.ANSI.Leijen
 
 -- Closure F syntax

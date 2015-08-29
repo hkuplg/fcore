@@ -41,9 +41,6 @@ import           Language.Java.Pretty
 import qualified Language.Java.Syntax as J
 import           Prelude hiding (exp)
 
--- import Control.Monad.Trans.Error (runErrorT)
-
--- import Debug.Trace      (trace)
 
 data DumpOption
   = NoDump

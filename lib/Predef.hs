@@ -3,16 +3,15 @@
 
 module Predef (getPredefInfoTH) where
 
-import System.IO.Unsafe (unsafePerformIO)
+import Data.List
+import Language.Haskell.TH.Syntax (lift)
 import System.Directory
 import System.FilePath
+import System.IO.Unsafe (unsafePerformIO)
 
 import JvmTypeQuery
-import RuntimeProcessManager
-import StringUtils
-import Data.List
 import Src
-import Language.Haskell.TH.Syntax (lift)
+import StringUtils
 
 -- Here I am doing crazy things ...
 

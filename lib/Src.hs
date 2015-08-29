@@ -15,7 +15,7 @@ Portability :  portable
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Src
-  ( Module(..), ReaderModule, Import(..), ReaderImport, ModuleBind(..), ReaderModuleBind, Definition(..), CheckedBind
+  ( Module(..), ReadModule, Import(..), ReadImport, ModuleBind(..), ReadModuleBind, Definition(..), CheckedBind
   , Kind(..)
   , Type(..), ReadType
   , Expr(..), ReadExpr, CheckedExpr, LExpr
@@ -76,10 +76,10 @@ data ModuleBind id ty = BindNonRec (Bind id ty)
                       | BindRec [Bind id ty] deriving (Eq, Show)
 data Module id ty = Module [Import id] [ModuleBind id ty] deriving (Eq, Show)
 
-type ReaderModule = Located (Module Name Type)
-type ReaderModuleBind = ModuleBind Name Type
+type ReadModule = Located (Module Name Type)
+type ReadModuleBind = ModuleBind Name Type
 data Import id = Import id deriving (Eq, Show)
-type ReaderImport = Located (Import Name)
+type ReadImport = Located (Import Name)
 
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)

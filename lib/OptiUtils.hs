@@ -3,10 +3,11 @@
 
 module OptiUtils where
 
-import Core
+import           Data.List (foldl')
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust)
-import Data.List (foldl')
+import           Data.Maybe (fromJust)
+
+import           Core
 import qualified Src
 
 

@@ -37,7 +37,7 @@ import           Simplify (simplify')
 import           Src hiding (wrap)
 import qualified SystemFI as FI
 import           Text.PrettyPrint.ANSI.Leijen
-import           TypeCheck hiding (Connection)
+import           TypeCheck
 
 #ifdef Z3
 -- #if MIN_VERSION_z3(0,3,2)
