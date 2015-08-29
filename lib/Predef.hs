@@ -34,6 +34,6 @@ getPredef h = do
     flatInfo (p, mname) = map (\(ModuleInfo f g t) -> (f, (Just "f2j.prelude", t, g, capitalize mname))) p
 
 getPredefInfo :: [(String, ModuleMapInfo)]
-getPredefInfo = unsafePerformIO $ withTypeServer getPredef True
+getPredefInfo = unsafePerformIO $ withConnection getPredef True
 
 getPredefInfoTH = [| $(lift (getPredefInfo)) |]

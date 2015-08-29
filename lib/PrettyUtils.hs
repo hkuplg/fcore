@@ -42,9 +42,6 @@ bquotes = enclose bquote bquote
 commas :: [Doc] -> Doc
 commas docs = hcat $ intersperse (comma <> space) docs
 
-prettyError :: Doc
-prettyError = (bold . dullred) (text "error" <> colon)
-
 -- | Prettify a document as code.
 code :: Doc -> Doc
 code doc = char '‘' <> doc <> char '’'

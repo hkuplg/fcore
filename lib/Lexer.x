@@ -84,6 +84,7 @@ tokens :-
     type        { locate (\_ _ -> Ttype) }
     let         { locate (\_ _ -> Tlet) }
     rec         { locate (\_ _ -> Trec) }
+    in          { locate (\_ _ -> Tin) }
     \=          { locate (\_ _ -> Teq) }
     and         { locate (\_ _ -> Tand) }
     Int         { locate (\_ _ -> Tjavaclass "java.lang.Integer") }
@@ -151,7 +152,7 @@ tokens :-
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tbackquote
            -- | Tthis | Tsuper
-           | Ttype | Tlet | Trec | Teq | Tand
+           | Ttype | Tlet | Trec | Tin | Teq | Tand
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse

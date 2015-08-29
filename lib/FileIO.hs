@@ -55,9 +55,9 @@ wrap (inP, outP) receMsg opt flagC flagS name = do
               True  -> receMsg 0 outP
               False -> return 1
 
-source2java :: Bool -> Bool -> DumpOption -> Compilation -> String -> String -> IO String
-source2java supernaive optInline optDump compilation className source =
-  do coreExpr <- source2core optDump source
+source2java :: Bool -> Bool -> DumpOption -> Compilation -> String -> (FilePath, String) -> IO String
+source2java supernaive optInline optDump compilation className  (filePath, source) =
+  do coreExpr <- source2core optDump (filePath, source)
      core2java supernaive optInline optDump compilation className coreExpr
 
 send :: Handle -> CompileOpt -> Bool -> Bool -> FilePath -> IO Bool
@@ -66,8 +66,8 @@ send h (n, opt, method) flagC flagS f = do
   -- let path = dropFileName f
   let className = inferClassName . inferOutputPath $ f
   result <- E.try (if method == [SNaive]
-                   then source2java True False NoDump opt className contents
-                   else source2java False False NoDump opt className contents)
+                   then source2java True False NoDump opt className (f, contents)
+                   else source2java False False NoDump opt className (f, contents))
   case result of
     Left  (_ :: E.SomeException) ->
       do putStrLn ("\x1b[31m" ++ "invalid expression sf2Java")

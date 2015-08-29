@@ -378,16 +378,16 @@ trans self =
                    let statements = concatMap (\(x,_,_) -> x) es'
                    return (statements,lastExp,lastType)
               FVar _ -> sorry "BaseTransCFJava.trans.FVar: no idea how to do"
-              Constr (Constructor ctrName' ctrParams) es -> do
+              ConstrOut (Constructor ctrName' ctrParams) es -> do
                    newVar <- getNewVarName this
                    let realType = last ctrParams
                    let getdt ty = case ty of Kind f -> getdt (f 0)
                                              Type _ f -> getdt (f ())
                                              Body (Datatype nam _ _) -> nam
-                                             _ -> sorry "Constr.gentdt: no idea how to do"
+                                             _ -> sorry "ConstrOut.gentdt: no idea how to do"
                    let nam = case realType of Datatype nam' _ _ -> nam'
                                               Forall t -> getdt t
-                                              _ -> sorry "Constr.nam: no idea how to do"
+                                              _ -> sorry "ConstrOut.nam: no idea how to do"
                    let ctrName = nam ++ ctrName'
                    case realType of
                        Datatype{} | null es -> do
@@ -398,7 +398,7 @@ trans self =
                           let functiontype = case realType of
                                 Datatype{} -> Forall $ foldr (\a b -> Type a (\()->b)) (Body realType) (init ctrParams)
                                 Forall ts -> Forall $ foldr (\a b -> Type a (\()->b)) ts (init ctrParams)
-                                _ -> sorry "Constr.functiontype: no idea how to do"
+                                _ -> sorry "ConstrOut.functiontype: no idea how to do"
                           foldl (translateApply this False)
                                 (return ([st1], var newVar, functiontype))
                                 (map (translateM this) es)
