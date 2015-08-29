@@ -19,8 +19,6 @@ library
   build-depends:        ansi-wl-pprint == 0.6.*
                       , array == 0.5.*
                       , base == 4.*
-                      , bytestring == 0.10.*
-                      , cmdargs == 0.10.*
                       , containers == 0.5.*
                       , directory == 1.2.*
                       , extra == 1.4.*
@@ -29,7 +27,6 @@ library
                       , language-java == 0.2.*
                       , microlens == 0.2.0.*
                       , mtl == 2.2.*
-                      , network == 2.6.*
                       , parsec == 3.1.*
                       , pretty == 1.1.*
                       , th-lift == 0.7.*
@@ -97,9 +94,7 @@ executable f2j
   build-depends:        ansi-wl-pprint == 0.6.*
                       , array == 0.5.*
                       , base == 4.*
-                      , bytestring == 0.10.*
                       , clock == 0.5.*
-                      , cmdargs == 0.10.*
                       , containers == 0.5.*
                       , directory == 1.2.*
                       , fcore
@@ -107,7 +102,6 @@ executable f2j
                       , haskeline == 0.7.*
                       , language-java == 0.2.*
                       , mtl == 2.2.*
-                      , network == 2.6.*
                       , optparse-applicative
                       , parsec == 3.1.*
                       , pretty == 1.1.*
@@ -136,15 +130,12 @@ executable f2ji
                       , ansi-wl-pprint == 0.6.*
                       , array == 0.5.*
                       , base == 4.*
-                      , bytestring == 0.10.*
-                      , cmdargs == 0.10.*
                       , containers == 0.5.*
                       , directory == 1.2.*
                       , filepath == 1.4.*
                       , haskeline == 0.7.*
                       , language-java == 0.2.*
                       , mtl == 2.2.*
-                      , network == 2.6.*
                       , parsec == 3.1.*
                       , pretty == 1.1.*
                       , process == 1.2.*
@@ -166,7 +157,6 @@ test-suite test
   other-modules:        SpecHelper TestTerms TransCFSpec TypeCheckSpec ModuleSpec
   build-depends:        fcore
                       , base == 4.*
-                      , bytestring == 0.10.*
                       , containers == 0.5.*
                       , directory == 1.2.*
                       , filepath == 1.4.*
