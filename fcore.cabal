@@ -38,8 +38,8 @@ library
                       , template-haskell == 2.10.*
                       , time == 1.5.*
                       , transformers == 0.4.*
-  build-tools:          alex == 3.1.*,
-                        happy == 1.19.*
+  build-tools:          alex == 3.1.4,
+                        happy == 1.19.5
   hs-source-dirs:       lib,lib/services,lib/typeCheck,lib/simplify,repl
   exposed-modules:      ApplyTransCFJava
                         BackEnd
