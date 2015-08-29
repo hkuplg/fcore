@@ -27,7 +27,7 @@ addons:
     sources:
     - hvr-ghc
     packages:
-    - ghc-7.10.1
+    - ghc-7.10.2
 
 jdk:
   - oraclejdk8
