@@ -7,8 +7,6 @@ branches:
   only:
     - master
     - develop
-    - testsuite
-    - ghc-7.10
 
 language: java
 
@@ -27,7 +25,7 @@ addons:
     sources:
     - hvr-ghc
     packages:
-    - ghc-7.10.2
+    - ghc-7.10.1
 
 jdk:
   - oraclejdk8
@@ -40,10 +38,11 @@ before_install:
   - chmod a+x ~/.local/bin/stack
   # let stack download ghc
   - export PATH=/opt/ghc/$GHCVER/bin:$PATH
+  - stack setup --no-terminal
+  - stack install alex happy
 
 
 install:
-  - stack setup --no-terminal
   - make new
 
 script:
