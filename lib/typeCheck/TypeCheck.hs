@@ -1,7 +1,9 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+
 {- |
 Module      :  TypeCheck
 Description :  Type checker for the source language.
@@ -31,37 +33,39 @@ module TypeCheck
   ) where
 
 import Checker
-import TypeErrors
-import Src hiding (subtype)
-import SrcLoc
-
 import IOEnv
 import JavaUtils
-import PrettyUtils
 import qualified JvmTypeQuery
 import Panic
+import Predef
+import PrettyUtils
+import Src hiding (subtype)
+import SrcLoc
+import StringUtils
+import TypeErrors
 
+import Control.Monad.Except
+import Data.List (findIndex, intercalate)
+import Data.List.Split
+import qualified Data.Map  as Map
+import Data.Maybe (fromMaybe, isJust, fromJust)
+import qualified Data.Set  as Set
+import Prelude hiding (pred, (<$>))
 import Text.PrettyPrint.ANSI.Leijen
 
-import System.IO
-
-import Control.Monad.Error
-
-import Data.Maybe (fromMaybe, isJust, fromJust)
-import qualified Data.Map  as Map
-import qualified Data.Set  as Set
-import Data.List (findIndex)
-
-import Prelude hiding (pred)
+import Prelude hiding (pred, (<$>))
 
 typeCheck :: ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
-typeCheck e = JvmTypeQuery.withConnection (\conn ->
-  (evalIOEnv (mkInitCheckerState conn) . runErrorT . checkExpr) e)
+typeCheck e = JvmTypeQuery.withConnection
+                (\conn -> do
+                   let module_ctxt = Map.fromList $(getPredefInfoTH)
+                   (evalIOEnv (mkInitCheckerState module_ctxt conn) . runExceptT . checkExpr) e)
+                False
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 typeCheckWithEnv value_ctxt e = JvmTypeQuery.withConnection (\conn ->
-  (evalIOEnv (mkInitCheckerStateWithEnv value_ctxt conn) . runErrorT . checkExpr) e)
+  (evalIOEnv (mkInitCheckerStateWithEnv value_ctxt conn) . runExceptT . checkExpr) e) False
 
 -- | Kinding.
 kind :: TypeContext -> Type -> IO (Maybe Kind)
@@ -109,11 +113,16 @@ hasKindStar d t
 
 -- | Typing.
 checkExpr :: ReadExpr -> Checker (Type, CheckedExpr)
-checkExpr e@(L loc (Var name))
-  = do result <- lookupVar name
-       case result of
-         Just t  -> return (t, L loc $ Var (name,t))
-         Nothing -> throwError (NotInScope name `withExpr` e)
+checkExpr e@(L loc (Var name)) = do
+  resVar <- lookupVar name
+  case resVar of
+    Just t -> return (t, L loc $ Var (name, t))
+    Nothing -> do
+      resMVar <- lookupModuleVar name
+      case resMVar of
+        Just (p, t, g, m) -> return
+                               (t, L loc $ JField (Static $ (maybe "" (++ ".") p) ++ m ++ "$") g t)
+        Nothing -> throwError (NotInScope name `withExpr` e)
 
 checkExpr (L loc (Lit lit)) = return (srcLitType lit, L loc $ Lit lit)
 
@@ -211,7 +220,29 @@ checkExpr (L loc (LetIn rec_flag binds e)) =
      (t, e') <- withLocalVars (map (\ (f,t,_) -> (f,t)) binds') (checkExpr e)
      return (t, L loc $ LetOut rec_flag binds' e')
 
-checkExpr (L _ LetOut{..}) = panic "TypeCheck.checkExpr: LetOut"
+checkExpr (L _ LetOut{}) = panic "TypeCheck.checkExpr: LetOut"
+
+
+checkExpr (L loc (EModule pname (Module imps binds) _)) =
+  do
+    infoBinds <- collectModuleInfos imps
+    checkDupNames (concatMap getBindId binds)
+    binds' <- withLocalMVars infoBinds (normalizeBindAndAccum binds)
+    return (Unit, L loc $ EModuleOut pname binds')
+
+  where
+    collectModuleInfos [] = return []
+    collectModuleInfos (imp:imps) = do
+      info <- checkModuleFunction imp
+      fmap (++ info) (collectModuleInfos imps)
+    getBindId (BindNonRec b) = [bindId b]
+    getBindId (BindRec bs) = map bindId bs
+
+checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
+
+checkExpr (L loc (EImport imp e)) =
+  do infoBinds <- checkModuleFunction imp
+     withLocalMVars infoBinds (checkExpr e)
 
 --  Case           Possible interpretations
 --  ---------------------------------------
@@ -341,11 +372,11 @@ checkExpr (L loc (RecordUpdate e fs)) =
      return (t, L loc $ RecordUpdate e' (zip (map fst fs) es'))
 
 -- Well, I know the desugaring is too early to happen here...
-checkExpr (L loc (LetModule (Module m binds) e)) =
-  do let fs = map bindId binds
-     let letrec = L loc $ LetIn Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
-     checkExpr (L loc $ LetIn NonRec [Bind m [] [] letrec Nothing] e)
-checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
+-- checkExpr (L loc (LetModule (Module m binds) e)) =
+--   do let fs = map bindId binds
+--      let letrec = L loc $ Let Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
+--      checkExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
+-- checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
 
 -- Type synonyms: type T A1 ... An = t in e
 -- First make sure that A1 ... An are distinct.
@@ -462,13 +493,13 @@ checkExpr expr@(L loc (Case e alts)) =
             throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
 
      -- exhaustive test
-     let exhaustivity = exhaustiveTest value_ctxt (map (\x -> [x]) pats') 1
+     let exhaustivity = exhaustiveTest value_ctxt (map (: []) pats') 1
      unless (null exhaustivity) $
          throwError $ General (text "patterns are not exhausive, missing patterns:" <$>
                                vcat (map (hcat . map pretty) exhaustivity)) `withExpr` expr
 
      -- overlap test
-     let patmatrix = map (\x -> [x]) pats'
+     let patmatrix = map (: []) pats'
          overlapcases = foldr (\num acc ->
                              if usefulClause (take num patmatrix) (patmatrix !! num)
                              then acc
@@ -565,7 +596,7 @@ inferAgainstAnyJClass expr
         _ -> throwError $ TypeMismatch ty (JClass "<any Java class>") `withExpr` expr -- FIXME
 
 -- | Check "f [A1,...,An] (x1:t1) ... (xn:tn): t = e"
-normalizeBind :: ReadBind -> Checker (Name, Type, CheckedExpr)
+normalizeBind :: ReadBind -> Checker CheckedBind
 normalizeBind bind
   = do bind' <- checkBindLHS bind
        (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
@@ -613,6 +644,28 @@ collectBindIdSigs
                            wrap Forall bindTyParams $
                            wrap Fun [expandType d' ty |  (_,ty) <- bindParams] $
                            expandType d' tyAscription))
+
+-- | Normalize later bindings with typing contexts augmented with
+-- previous bindings
+normalizeBindAndAccum :: [ReadModuleBind] -> Checker [Definition]
+normalizeBindAndAccum = normalize []
+  where
+    normalize :: [Definition]
+              -> [ReadModuleBind]
+              -> Checker [Definition]
+    normalize binds [] = return (reverse binds)
+    normalize binds (b:bs) = do
+      let env = concatMap getEnv binds
+      binds' <- case b of
+                  BindNonRec b -> withLocalVars env (fmap Def (normalizeBind b))
+                  BindRec bb -> do
+                    sigs <- collectBindIdSigs bb
+                    withLocalVars (env ++ sigs) (fmap DefRec (mapM normalizeBind bb))
+      normalize (binds' : binds) bs
+    getEnv :: Definition -> [(Name, Type)]
+    getEnv (Def (a, b, c)) = [(a, b)]
+    getEnv (DefRec bs) = map (\(a, b, c) -> (a, b)) bs
+
 
 -- | Check that a type has kind *.
 checkType :: Type -> Checker ()
@@ -669,6 +722,22 @@ checkFieldAccess receiver f
          Just return_class -> return return_class
     where
        (is_static, c) = unwrapJReceiver receiver
+
+checkModuleFunction :: Import ModuleName -> Checker [(ReadId, ModuleMapInfo)]
+checkModuleFunction (Import m) =
+  do
+    typeserver <- getTypeServer
+    res <- liftIO (JvmTypeQuery.extractModuleInfo typeserver (pName, moduleName))
+    case res of
+      Nothing  -> throwError (noExpr $ ImportFail m)
+      Just ret -> return (map flatInfo (fst ret))
+
+  where
+    (packageName, moduleName) =
+      let w = (splitOn "." m)
+      in (intercalate "." (init w), last w)
+    pName = if null packageName then Nothing else Just packageName
+    flatInfo (JvmTypeQuery.ModuleInfo f g t) = (f, (pName, t, g, capitalize moduleName))
 
 unwrapJReceiver :: JReceiver ClassName -> (Bool, ClassName)
 unwrapJReceiver (NonStatic c) = (False, c)
@@ -732,7 +801,7 @@ usefulClause _ [] = False
 ---- U (P, q) = U (S(c,P), S(c,q))
 usefulClause pats clause@(PConstr ctr _:_) =
     usefulClause (specializedMatrix ctr pats)
-                 (specializedMatrix ctr [clause] !! 0)
+                 (head (specializedMatrix ctr [clause]))
 
 ---- q begins with a wildcard(or a variable)
 usefulClause pats clause =
@@ -743,7 +812,7 @@ usefulClause pats clause =
     -- P has all constructors appeared
     -- U (P, q) = whether exists a constructor c that U (S(c,P), S(c,q)) is true
     else any (\ctr -> usefulClause (specializedMatrix ctr pats)
-                                   (specializedMatrix ctr [clause] !!0))
+                                   (head (specializedMatrix ctr [clause])))
              appearconstrs
     where patshead = map head pats
           (appearconstrs, missingconstrs) = constrInfo patshead
@@ -761,7 +830,7 @@ exhaustiveTest value_ctxt pats n
     -- if I(D(p), n-1) returns (p2,...,pn)
     -- I(P, n) = (_, p2,...,pn)
     | all isWildcardOrVar patshead = map (PWildcard :) $ exhaustiveTest value_ctxt (map tail pats) (n-1)
-    | missingconstrs == []         = exhaustivityForCtr
+    | null missingconstrs          = exhaustivityForCtr
     | otherwise                    = exhaustivityForCtr ++ exhaustivityForWildcard
     -- if I(S(c, P), a+n-1) returns (r1,...,ra, p2,...,pn)
     -- I(P, n) = (c(r1,...ra), p2,...,pn)

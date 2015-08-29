@@ -1,11 +1,7 @@
-{-# LANGUAGE DeriveDataTypeable
-           , FlexibleContexts
-           , TemplateHaskell
+{-# LANGUAGE FlexibleContexts
            , FlexibleInstances
            , MultiParamTypeClasses
-           , OverlappingInstances
            , RankNTypes
-           , TypeOperators
            , RecordWildCards
            #-}
 {- |
@@ -14,118 +10,103 @@ Description :  Main module for f2j.
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
 
-Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>
+Maintainer  :  Zhiyuan Shi <zhiyuan.shi@gmail.com>, Jeremy <bixuanxbi@gmail.com>
 Stability   :  experimental
 Portability :  non-portable (MPTC)
 -}
 
-module Main (main, TransMethod) where
+module Main where
 
 -- import           Assertions () -- Import this just to run static assertions at compile time.
 
-import           FrontEnd (source2core)
 import           BackEnd
+import           FrontEnd (source2core)
 import           JavaUtils
 import           MonadLib
-import           Link
 
-import qualified Data.ByteString as B
-import           Data.FileEmbed (embedFile)
-import           Data.List (sort, group)
-import           System.Console.CmdArgs -- Neil Mitchell's CmdArgs library
-import           System.Directory (getTemporaryDirectory)
+import           Data.Char (toLower)
+import           Data.List (intercalate)
+import qualified Data.Map.Lazy as Map
+import qualified Data.Set as Set
+import           Options.Applicative
 import           System.Environment (getArgs, withArgs)
-import           System.FilePath (takeBaseName, (</>))
+import           System.FilePath (takeBaseName)
 import           System.IO
 
--- type CompileOpt = (Int, Compilation)
 
 data Options = Options
     { optCompile       :: Bool
     , optCompileAndRun :: Bool
-    , optSourceFiles   :: [String]
-    , optModules       :: [String]
     , optDump          :: DumpOption
-    , optTransMethod   :: [TransMethod]
     , optVerbose       :: Bool
+    , optSilent        :: Bool
     , optInline        :: Bool
-    } deriving (Eq, Show, Data, Typeable)
+    , optTransMethod   :: [TransMethod]
+    , optSourceFiles   :: [String]
+    } deriving (Eq, Show)
 
 data TransMethod = Apply
                  | Naive
                  | Stack
-                 | Unbox
-                 | StackAU1
-                 | StackAU2
-                 | BenchN
-                 | BenchS
-                 | BenchNA
-                 | BenchSA
-                 | BenchSAI1
-                 | BenchSAI2
-                 deriving (Eq, Show, Data, Typeable, Ord)
+                 -- | Unbox
+                 -- | StackAU1
+                 -- | StackAU2
+                 -- | BenchN
+                 -- | BenchS
+                 -- | BenchNA
+                 -- | BenchSA
+                 -- | BenchSAI1
+                 -- | BenchSAI2
+                 deriving (Eq, Show, Ord)
 
-runtimeBytes :: B.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
+transOpts = Map.fromList [("apply", Apply), ("naive", Naive), ("stack", Stack)]
 
-writeRuntimeToTemp :: IO ()
-writeRuntimeToTemp =
-  do tempdir <- getTemporaryDirectory
-     let tempFile = tempdir </> "runtime.jar"
-     B.writeFile tempFile runtimeBytes
+dumpOpts = Map.fromList
+             [ ("parsed", Parsed)
+             , ("tchecked", TChecked)
+             , ("systemfi", SystemFI)
+             , ("core", SimpleCore)
+             , ("closuref", ClosureF)
+             ]
 
-optionsSpec :: Options
-optionsSpec =
-  Options {optCompile =
-             False &= explicit &=
-             name "c" &=
-             name "compile" &=
-             help "Compile Java source"
-          ,optInline =
-             False &= explicit &=
-             name "i" &=
-             name "inline" &=
-             help "Inline your program"
-          ,optCompileAndRun =
-             False &= explicit &=
-             name "r" &=
-             name "run" &=
-             help "Compile & run Java source"
-          ,optDump =
-             NoDump &= explicit &=
-             name "d" &=
-             name "dump" &=
-             typ "TYPE" &=
-             help ("Dump intermediate representations; " ++
-                   "options: `core`, `simplecore`, `closuref`")
-          ,optSourceFiles =
-             [] &= args &=
-             typ "SOURCE FILES"
-          ,optModules =
-             [] &= explicit &=
-             name "l" &=
-             name "module" &=
-             typ "MODULE" &=
-             help "Link modules to the source file"
-          ,optTransMethod =
-             [] &= explicit &=
-             name "m" &=
-             name "method" &=
-             typ "METHOD" &=
-             help ("Translations method." ++ "Can be either 'naive', 'apply', 'stack', and/or 'unbox'" ++
-                                             "(use without quotes)." ++
-                                             "The default is 'naive'.")
-          ,optVerbose =
-             False &= explicit &=
-             name "v" &=
-             name "verbose" &=
-             help "Verbose"} &=
-  helpArg [explicit,name "help",name "h"] &=
-  program "f2j" &=
-  summary "SystemF to Java compiler"
+intersperseComma :: Map.Map String a -> String
+intersperseComma m = intercalate ", " (Map.keys m)
+
+parseOpts :: Map.Map String a -> String -> ReadM a
+parseOpts opts str =
+  let parsed = Map.lookup (map toLower str) opts
+  in case parsed of
+    Just p  -> return p
+    Nothing -> readerError $ "expected one of: " ++ intersperseComma opts
+
+options :: Parser Options
+options = Options <$> switch (long "compile" <> short 'c' <> help "Compile Java source")
+                  <*> switch (long "run" <> short 'r' <> help "Compile & run Java source")
+                  <*> option (str >>= parseOpts dumpOpts)
+                        (long "dump" <>
+                         value NoDump <>
+                         short 'd' <>
+                         metavar "TYPE" <>
+                         completeWith (Map.keys dumpOpts) <>
+                         help ("Dump option. Can be either " ++ intersperseComma dumpOpts))
+                  <*> switch (long "verbose" <> short 'v' <> help "Whether to be verbose")
+                  <*> switch (long "silent" <> help "Whether to keep silent")
+                  <*> switch (long "inline" <> short 'i' <> help "Inline your program")
+                  <*> many
+                        (option (str >>= parseOpts transOpts)
+                           (long "method" <>
+                            short 'm' <>
+                            metavar "METHOD" <>
+                            completeWith (Map.keys transOpts) <>
+                            help
+                              ("Translation method. Can be either " ++ intersperseComma transOpts)))
+                  <*> some (argument str (metavar "FILES..." <> action "file"))
 
 getOpts :: IO Options
-getOpts = cmdArgs optionsSpec -- cmdArgs :: Data a => a -> IO a
+getOpts = execParser opts
+  where
+    opts = info (helper <*> options) (fullDesc <> header "f2j - SystemF to Java compiler")
+
 
 main :: IO ()
 main = do
@@ -133,31 +114,20 @@ main = do
   -- If the user did not specify any arguments, pretend as "--help" was given
   Options{..} <- (if null rawArgs then withArgs ["--help"] else id) getOpts
 
-  -- Write the bytes of runtime.jar to temp directory
-  writeRuntimeToTemp
   forM_ optSourceFiles (\source_path ->
-    do let source_path_new = if null optModules then source_path else takeBaseName source_path ++ "c.sf"
-       let output_path      = inferOutputPath source_path_new
+    do let output_path      = inferOutputPath source_path
            translate_method = optTransMethod
-           modList          = optModules
-           sort_and_rmdups  = map head . group . sort . (++) [Naive]
-       opts <- getOpt (sort_and_rmdups translate_method)
-       unless (null optModules) $
-         do cont <- Link.linkModule modList
-            let content = Link.namespace cont
-            when optVerbose $ putStrLn "Linking..."
-            Link.link source_path content
-            when optVerbose $ putStrLn (source_path_new ++ " generated!")
-       when optVerbose $ do
-         putStrLn (takeBaseName source_path_new ++ " using " ++ show (sort_and_rmdups translate_method))
-         putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
+           method = Set.insert Naive (Set.fromList translate_method)
+       let opts = getOpt method
 
-       source     <- readFile source_path_new
+       unless optSilent $
+         do putStrLn (takeBaseName source_path ++ " using " ++ (show . Set.toList $ method))
+            putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
+
+       source     <- readFile source_path
        coreExpr   <- source2core optDump (source_path, source)
        javaSource <- core2java False optInline optDump opts (inferClassName output_path) coreExpr
        writeFile output_path javaSource
-       --let closureClassDef = closureClass opts
-       --writeFile "Closure.java" (prettyPrint closureClassDef)
 
        when (optCompile || optCompileAndRun) $
          do when optVerbose $ putStrLn "  Compiling to Java bytecode"
@@ -166,20 +136,9 @@ main = do
          do when optVerbose $ do { putStr "  Running Java\n  Output: "; hFlush stdout }
             runJava output_path)
 
-getOpt :: [TransMethod] -> IO Compilation
-getOpt translate_method = case translate_method of
-  [Apply, Naive]               -> return compileAO
-  -- [Apply, Naive, Unbox]        -> return (0, compileAoptUnbox)
-  [Apply, Naive, Stack]        -> return compileS
-  -- [Apply, Naive, Stack, Unbox] -> return (0, compileSAU)
-  -- [Naive, StackAU1]            -> return (1, compileSAU)
-  -- [Naive, StackAU2]            -> return (2, compileSAU)
-  [Naive, Stack]               -> return compileSN
-  -- [Naive, Stack, Unbox]        -> return (0, compileSU)
-  -- [Naive, Unbox]               -> return (0, compileUnbox)
-  -- [BenchS]                     -> return (0, compileBS False)
-  -- [BenchNA]                    -> return (0, compileBN True)
-  -- [BenchSA]                    -> return (0, compileBS True)
-  -- [BenchSAI1]                  -> return (1, compileBS True)
-  -- [BenchSAI2]                  -> return (2, compileBS True)
-  _                            -> return compileN -- Naive is the default
+getOpt :: Set.Set TransMethod -> Compilation
+getOpt translate_method
+       | translate_method == Set.fromList [Apply, Naive] = compileAO
+       | translate_method == Set.fromList [Apply, Naive, Stack] = compileS
+       | translate_method == Set.fromList [Naive, Stack] = compileSN
+       | otherwise = compileN

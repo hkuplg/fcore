@@ -1,27 +1,35 @@
 module TypeCheckSpec where
 
-import Test.Hspec
-import SpecHelper
+import Control.Monad (forM_)
+import System.Directory
+import System.FilePath
+import Test.Tasty.Hspec
 
-import Src
-import Parser    (reader)
+import Parser (reader, P(..))
+import SpecHelper
 import TypeCheck (typeCheck)
 
-import Control.Monad             (forM_)
-import Control.Monad.Trans.Error (runErrorT)
-
-main :: IO ()
-main = hspec spec
 
 hasError :: Either a b -> Bool
 hasError (Left _)  = True
 hasError (Right _) = False
 
-spec :: Spec
 
-spec =
-  describe "typeCheck" $ do
-    failingCases <- runIO (discoverTestCases "testsuite/tests/compile-fail")
-    forM_ failingCases (\(name, source) ->
-      it ("should reject " ++ name) $ do
-        (typeCheck . reader) source >>= (\either -> either `shouldSatisfy` hasError))
+testCasesPath = "testsuite/tests/shouldntTypecheck"
+
+tcSpec :: Spec
+tcSpec = do
+  failingCases <- runIO (discoverTestCases testCasesPath)
+
+  curr <- runIO (getCurrentDirectory)
+  runIO (setCurrentDirectory $ curr </> testCasesPath)
+
+  describe "Should fail to typecheck" $
+    forM_ failingCases
+      (\(name, filePath) -> do
+         do source <- runIO (readFile filePath)
+            it ("should reject " ++ name) $
+              let POk parsed = reader source
+              in typeCheck parsed >>= ((`shouldSatisfy` hasError)))
+
+  runIO (setCurrentDirectory curr)

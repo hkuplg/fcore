@@ -1,4 +1,6 @@
-{-# OPTIONS_GHC -fno-warn-unused-binds #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TemplateHaskell #-}
+
 module JvmTypeQuery
   ( Connection -- Hide data constructors
   , withConnection
@@ -6,14 +8,26 @@ module JvmTypeQuery
   , definedConstructor
   , findMethodReturnType
   , findFieldType
+  , getModuleInfo
+  , extractModuleInfo
+  , ModuleInfo(..)
   ) where
 
+import JavaUtils (ClassName, MethodName, FieldName, ModuleName)
 import RuntimeProcessManager (withRuntimeProcess)
-import JavaUtils (ClassName, MethodName, FieldName)
+import Src (Type, PackageName)
+import StringUtils
 
+import Control.Exception
+import Data.Char (isSpace, toLower)
+import Data.Either
+import Data.List
+import Data.List.Split
+import Data.Maybe (listToMaybe)
+import System.Directory
+import System.FilePath
 import System.IO
-import Control.Applicative ((<$>))
-import Data.Char           (isSpace, toLower)
+import System.Process.Extra (system_)
 
 data Connection = Connection
   { -- private
@@ -21,7 +35,14 @@ data Connection = Connection
   , _fromHandle :: Handle
   }
 
-withConnection :: (Connection -> IO a) -> IO a
+data ModuleInfo = ModuleInfo {
+  minfoName :: String,  -- | source name
+  minfoGname :: String, -- | java variable name
+  minfoSignature :: Type } deriving (Show)
+
+withConnection :: (Connection -> IO a)
+               -> Bool -- ^ True for loading prelude
+               -> IO a
 withConnection action
   = withRuntimeProcess "TypeServer" NoBuffering (\(toHandle, fromHandle) ->
       action Connection { _toHandle = toHandle, _fromHandle = fromHandle }
@@ -71,6 +92,37 @@ findFieldType conn c (is_static, f)
              then "qStaticField"
              else "qField"
 
+getModuleInfo :: Connection
+              -> (Maybe Src.PackageName, ModuleName)
+              -> IO (Maybe ([ModuleInfo], ModuleName))
+getModuleInfo h (p, m) = do
+  s <- sendRecv h ["qModuleInfo", ((maybe "" (++ ".") p) ++ capitalize m)] >>= fixRet
+  case s of
+    Nothing -> return Nothing
+    Just xs -> return $ (maybe Nothing (Just . (,m)) (listToModuleInfo (splitOn "$" (init xs))))
+
+  where
+    maybeRead = fmap fst . listToMaybe . reads
+    listToModuleInfo [] = return []
+    listToModuleInfo (x:y:z:xs) = do
+      xs' <- listToModuleInfo xs
+      ty' <- maybeRead z :: Maybe Type
+      return $ ModuleInfo x y ty' : xs'
+    listToModuleInfo _ = Nothing
+
+
+extractModuleInfo :: Connection
+                  -> (Maybe Src.PackageName, ModuleName)
+                  -> IO (Maybe ([ModuleInfo], ModuleName))
+-- Also automatically compile imported modules
+extractModuleInfo h (p, m) = do
+  currDir <- getCurrentDirectory
+  let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
+  res <- (try . system_ $ "f2j --compile --silent " ++ moduleDir </> m ++ ".sf") :: IO (Either SomeException ())
+  if (isLeft res)  -- should catch IO exception if any
+    then return Nothing
+    else getModuleInfo h (p, m)
+
 -- Tests inteneded to be run by `runhaskell`
 
 main :: IO ()
@@ -84,4 +136,4 @@ main = withConnection (\conn ->
      findMethodReturnType conn "java.lang.String" (False, "length") [] >>= print
      findMethodReturnType conn "java.lang.String" (True, "valueOf") ["java.lang.Integer"] >>= print
      findMethodReturnType conn "java.lang.String" (True, "valueOf") ["Foo"] >>= print
-  )
+  ) False

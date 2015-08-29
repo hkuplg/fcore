@@ -1,7 +1,6 @@
 {-# LANGUAGE FlexibleContexts
            , FlexibleInstances
            , MultiParamTypeClasses
-           , OverlappingInstances
            , RankNTypes
            , ScopedTypeVariables
            , TypeOperators
@@ -56,13 +55,13 @@ whileApplyLoop this flag ctemp tempOut outType ctempCastTyp = do
                       localVar outType (varDecl tempOut (case outType of
                                                           J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: could be bug
                                                           _ -> J.Lit J.Null)),
-                      bStmt (J.Do (J.StmtBlock (block [assign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
-                                                      ,assign (name [nextName, "next"]) (J.Lit J.Null)
+                      bStmt (J.Do (J.StmtBlock (block [bsAssign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
+                                                      ,bsAssign (name [nextName, "next"]) (J.Lit J.Null)
                                                       ,bStmt (methodCall [ctemp, "apply"] [])]))
                              (J.BinOp (J.ExpName $ name [nextName, "next"])
                               J.NotEq
                               (J.Lit J.Null))),
-                      assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) closureOutput)))]
+                      bsAssign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) closureOutput)))]
   if flag -- False means stack with apply
     then return doWhileStmts
     else return (let (l1,l2) = splitAt 2 doWhileStmts
@@ -76,13 +75,13 @@ whileApplyLoopMain this ctemp tempOut outType ctempCastTyp =
      let nextNEqNull = J.BinOp (J.ExpName $ name [nextName,"next"]) J.NotEq (J.Lit J.Null)
      let loop =
            [bStmt (J.Do (J.StmtBlock
-                           (block [assign (name [ctemp]) (J.ExpName $ name [nextName,"next"])
-                                  ,assign (name [nextName,"next"])
+                           (block [bsAssign (name [ctemp]) (J.ExpName $ name [nextName,"next"])
+                                  ,bsAssign (name [nextName,"next"])
                                           (J.Lit J.Null)
                                   ,bStmt (methodCall [ctemp,"apply"]
                                                      [])]))
                         nextNEqNull)
-           ,assign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) closureOutput)))]
+           ,bsAssign (name [tempOut]) (cast outType (J.FieldAccess (fieldAccExp (cast ctempCastTyp (left $ var ctemp)) closureOutput)))]
      return [localVar closureType' (varDeclNoInit ctemp)
             ,localVar outType (varDecl tempOut (J.MethodInv (J.MethodCall (name ["apply"]) [])))
             ,bStmt (J.IfThen nextNEqNull (J.StmtBlock (block loop)))]
@@ -101,7 +100,7 @@ empyClosure :: Monad m => Translate m -> J.Exp -> String -> m J.BlockStmt
 empyClosure this outExp box =
   do closureClass <- liftM (++ box) $ liftM2 (++) (getPrefix this) (return "Closure")
      nextName <- nextClass (up this)
-     return (assign (name [nextName,"next"])
+     return (bsAssign (name [nextName,"next"])
                     (J.InstanceCreation
                        []
                        (classTyp closureClass)
@@ -119,19 +118,19 @@ empyClosure this outExp box =
                                               Nothing
                                               "apply"
                                               []
-                                              (Just (block [assign (name [closureOutput]) outExp])))]))))
+                                              (Just (block [bsAssign (name [closureOutput]) outExp])))]))))
 
 whileApply :: (Monad m) => Translate m -> Bool -> J.Exp -> String -> String -> J.Type -> J.Type -> m [J.BlockStmt]
 whileApply this flag cl ctemp tempOut outType ctempCastTyp =
   do loop <- whileApplyLoop this flag ctemp tempOut outType ctempCastTyp
      nextName <- nextClass (up this)
-     return (assign (name [nextName,"next"]) cl : loop)
+     return (bsAssign (name [nextName,"next"]) cl : loop)
 
 --e.g. Next.next = x8;
 nextApply :: (Monad m) => Translate m -> J.Exp -> String -> J.Type -> m [J.BlockStmt]
 nextApply this cl tempOut outType =
   do nextName <- nextClass this
-     return [assign (name [nextName,"next"]) cl
+     return [bsAssign (name [nextName,"next"]) cl
              ,localVar outType
                        (varDecl tempOut
                                 (case outType of
@@ -153,13 +152,13 @@ transS this super =
              case e of
                -- count abstraction as in tail position
                Lam _ _ -> local (True ||) $ translateM super e
-               Fix _ _ _ _ -> local (True ||) $ translateM super e
+               Fix{} -> local (True ||) $ translateM super e
                -- type application just inherits existing flag
                TApp _ _ -> translateM super e
                -- if e1 e2 e3: e1 can't be in tail position, e2 and e3 inherits flag
                If e1 e2 e3 ->
                  translateIf (up this) (local (False &&) $ translateM (up this) e1) (translateM (up this) e2) (translateM (up this) e3)
-               App e1 e2 -> do
+               App e1 e2 ->
                  translateApply (up this) False (local (False &&) $ translateM (up this) e1) (local (False &&) $ translateM (up this) e2)
                -- let e1 e2: e1 can't be in tail position, e2 inherits flag
                Let _ expr body ->
@@ -214,12 +213,13 @@ transS this super =
                       mainbody <- stackMainBody (up this) t
                       let stackDecl =
                             wrapperClass
+                              False
                               nam
                               (bs ++
                                -- (if containsNext bs then [] else [empyClosure']) ++
                                returnStmt)
                               returnType (Just $ J.Block mainbody)
-                      return (createCUB (up this :: Translate m) [stackDecl]
+                      return (createCUB Nothing [stackDecl]
                              ,t)}}
 
 -- Alternative version of transS that interacts with the Apply translation

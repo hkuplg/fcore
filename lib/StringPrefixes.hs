@@ -5,6 +5,9 @@ namespace = "f2j."
 
 -- field and closures
 
+ifoClass :: String
+ifoClass = namespace ++ "Closure"
+
 closureTransName :: String
 closureTransName = "F"
 
@@ -35,3 +38,9 @@ datatypetag = "tag"
 
 fieldtag :: String
 fieldtag = "field"
+
+-- type annotation
+annoName = namespace ++ "ModuleFunction"
+annoSrcName = "name"
+annoGenName = "gname"
+annoSig = "signature"

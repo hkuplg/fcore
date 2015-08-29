@@ -4,17 +4,17 @@ Infrastructure for typechecking.
 {-# LANGUAGE RecordWildCards #-}
 module Checker where
 
-import TypeErrors
-import Src
+import           IOEnv
+import           JavaUtils
 import qualified JvmTypeQuery
-import JavaUtils
-import IOEnv
+import           Src
+import           TypeErrors
 
-import Control.Monad.Error
-import qualified Data.Map  as Map
-import qualified Data.Set  as Set
+import           Control.Monad.Except
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 
-type Checker a = ErrorT LTypeErrorExpr (IOEnv CheckerState) a
+type Checker a = ExceptT LTypeErrorExpr (IOEnv CheckerState) a
 
 getCheckerState :: Checker CheckerState
 getCheckerState = lift getEnv
@@ -27,6 +27,9 @@ getTypeContext = liftM checkerTypeContext getCheckerState
 
 getValueContext :: Checker ValueContext
 getValueContext = liftM checkerValueContext getCheckerState
+
+getModuleContext :: Checker ModuleContext
+getModuleContext = liftM checkerModuleContext getCheckerState
 
 getTypeServer :: Checker JvmTypeQuery.Connection
 getTypeServer = liftM checkerTypeServer getCheckerState
@@ -64,19 +67,34 @@ withLocalVars vars do_this
        setCheckerState CheckerState { checkerValueContext = gamma, ..}
        return r
 
+withLocalMVars :: [(ReadId, ModuleMapInfo)]-> Checker a -> Checker a
+withLocalMVars vars do_this
+  = do sigma <- getModuleContext
+       let sigma' = Map.fromList vars `Map.union` sigma
+                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
+       CheckerState {..} <- getCheckerState
+       setCheckerState CheckerState { checkerModuleContext = sigma', ..}
+       r <- do_this
+       CheckerState {..} <- getCheckerState
+       setCheckerState CheckerState { checkerModuleContext = sigma, ..}
+       return r
+
+
 data CheckerState
   = CheckerState
   { checkerTypeContext  :: TypeContext
   , checkerValueContext :: ValueContext
+  , checkerModuleContext :: ModuleContext
   , checkerTypeServer   :: JvmTypeQuery.Connection
   , checkerMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   }
 
-mkInitCheckerState :: JvmTypeQuery.Connection -> CheckerState
-mkInitCheckerState type_server
+mkInitCheckerState :: ModuleContext -> JvmTypeQuery.Connection -> CheckerState
+mkInitCheckerState module_ctxt type_server
   = CheckerState
   { checkerTypeContext     = Map.empty
   , checkerValueContext    = Map.empty
+  , checkerModuleContext    = module_ctxt
   , checkerTypeServer   = type_server
   , checkerMemoizedJavaClasses = Set.empty
   }
@@ -87,6 +105,7 @@ mkInitCheckerStateWithEnv value_ctxt type_server
   = CheckerState
   { checkerTypeContext     = Map.empty
   , checkerValueContext    = value_ctxt
+  , checkerModuleContext    = Map.empty
   , checkerTypeServer   = type_server
   , checkerMemoizedJavaClasses = Set.empty
   }
@@ -95,6 +114,11 @@ lookupVar :: Name -> Checker (Maybe Type)
 lookupVar x
   = do valueCtxt <- getValueContext
        return (Map.lookup x valueCtxt)
+
+lookupModuleVar :: Name -> Checker (Maybe ModuleMapInfo)
+lookupModuleVar x
+  = do moduleCtxt <- getModuleContext
+       return (Map.lookup x moduleCtxt)
 
 lookupTVarKind :: Name -> Checker (Maybe Kind)
 lookupTVarKind a

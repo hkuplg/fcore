@@ -12,16 +12,17 @@ Portability :  portable
 
 module SymbolicEvaluator where
 
-import           Control.Monad.Fix            (fix)
+import           Control.Monad.Fix (fix)
 import           Data.Maybe
-import qualified Language.Java.Syntax         as J (Op (..))
-import           Panic
-import           Prelude                      hiding (EQ, GT, LT)
-import           PrettyUtils
-import qualified Src                          as S
-import           SystemFI
+import qualified Language.Java.Syntax as J (Op (..))
+import           Prelude hiding (EQ, GT, LT)
 import           Text.PrettyPrint.ANSI.Leijen
 import           Unsafe.Coerce
+
+import           Panic
+import           PrettyUtils
+import qualified Src as S
+import           SystemFI
 
 instance Show (Type t) where
   show = show . prettyType . unsafeCoerce

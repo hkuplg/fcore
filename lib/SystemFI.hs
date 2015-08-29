@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, RankNTypes #-}
-{-# OPTIONS_GHC -Wall #-}
+
 {- |
 Module      :  SystemFI
 Description :  Abstract syntax and pretty printer for SystemFI.
@@ -18,6 +18,7 @@ module SystemFI
   , Constructor(..)
   , Alt(..)
   , DataBind(..)
+  , Definition(..)
 --, TypeContext
 --, ValueContext
 --, Index
@@ -32,17 +33,17 @@ module SystemFI
   , prettyExpr
   ) where
 
+import           JavaUtils
+import           PrettyUtils
 import qualified Src
 
-import JavaUtils
-import PrettyUtils
-
-import Text.PrettyPrint.ANSI.Leijen
-import qualified Language.Java.Pretty      (prettyPrint)
-
+import           Control.Arrow (second)
 import           Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Language.Java.Pretty (prettyPrint)
+import           Prelude hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen
 
 data Type t
   = TVar Src.ReadId t                 -- a
@@ -51,7 +52,7 @@ data Type t
   | Forall Src.ReadId (t -> Type t)   -- forall a. t
   | Product [Type t]                    -- (t1, ..., tn)
   | Unit
-
+  -- Extensions
   | And (Type t) (Type t)               -- t1 & t2
   | RecordType (Src.Label, Type t)
   | Datatype Src.ReadId [Type t] [Src.ReadId]
@@ -59,6 +60,10 @@ data Type t
     -- binary relations on your new case. Namely, add cases for your data
     -- constructor in `alphaEq' (below) and `coerce' (in Simplify.hs). Consult
     -- George if you're not sure.
+
+data Definition t e = Def Src.Name (Src.Type, Type t) (Expr t e) (e -> Definition t e)
+                    | DefRec [Src.Name] [(Src.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
+                    | Null
 
 data Expr t e
   = Var Src.ReadId e
@@ -91,6 +96,9 @@ data Expr t e
 
   | Tuple [Expr t e]     -- Tuple introduction
   | Proj Int (Expr t e)  -- Tuple elimination
+
+  -- Module
+  | Module (Maybe Src.PackageName) (Definition t e)
 
   -- Java
   | JNew ClassName [Expr t e]
@@ -178,6 +186,15 @@ mapVar g h (Merge e1 e2)             = Merge (mapVar g h e1) (mapVar g h e2)
 mapVar g h (RecordCon (l, e))        = RecordCon (l, mapVar g h e)
 mapVar g h (RecordProj e l)          = RecordProj (mapVar g h e) l
 mapVar g h (RecordUpdate e (l1,e1))  = RecordUpdate (mapVar g h e) (l1, mapVar g h e1)
+mapVar g h (Module pname defs) = Module pname (mapVarDefs defs)
+  where
+    -- necessary?
+    mapVarDefs Null = Null
+    mapVarDefs (Def n t expr def) = Def n t (mapVar g h expr) (mapVarDefs . def)
+    mapVarDefs (DefRec names types exprs def) =
+      DefRec names (map (second h) types) (map (mapVar g h) . exprs) (mapVarDefs . def)
+
+
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
 fsubstTT x r = mapTVar (\n a -> if a == x then r else TVar n a)
@@ -248,6 +265,28 @@ prettyType' _ i (RecordType (l,t)) = lbrace <+> text l <+> colon <+> prettyType'
 -- instance Pretty (Expr Index Index) where
 --   pretty = prettyExpr
 
+prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
+prettyDef _ (i, j) (Def fname typ e def) =
+  text fname <+> colon <+> pretty (fst typ) <+> equals <+> prettyExpr' basePrec (i, j + 1) e <> semi <$>
+  prettyDef basePrec (i, j+1) (def j) -- crappy pretty printer
+
+prettyDef p (i, j) (DefRec names sigs binds def) = vcat (intersperse (text "and") pretty_binds) <> semi <$> pretty_body
+  where
+    n = length sigs
+    ids = [i .. (i + n) - 1]
+    pretty_ids = map text names
+    pretty_sigs = map (pretty . fst) sigs
+    pretty_defs = map (prettyExpr' p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3
+                     (\pretty_id pretty_sig pretty_def ->
+                        pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
+                     pretty_ids
+                     pretty_sigs
+                     pretty_defs
+    pretty_body = prettyDef p (i, j + n) (def ids)
+
+prettyDef _ _ Null = text ""
+
 prettyExpr :: Expr Index Index -> Doc
 prettyExpr = prettyExpr' basePrec (0, 0)
 
@@ -300,6 +339,9 @@ prettyExpr' _ (i,j) (Tuple es) = tupled (map (prettyExpr' basePrec (i,j)) es)
 prettyExpr' p i (Proj n e) =
   parensIf p 5
     (prettyExpr' (5,PrecMinus) i e <> dot <> char '_' <> int n)
+
+prettyExpr' p i (Module pname defs) =
+  maybe empty ((text "package" <+>) . pretty) pname <$> text "module" <> semi <$> prettyDef p i defs
 
 prettyExpr' _ (i,j) (JNew c args) =
   parens (text "new" <+> text c <> tupled (map (prettyExpr' basePrec (i,j)) args))

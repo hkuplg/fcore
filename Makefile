@@ -1,50 +1,74 @@
 # General project-wide tasks
 
-srcdir=lib
-testdir=testsuite
+SRC_DIR := lib
+TEST_DIR := testsuite
+PREDEF_DIR := lib/predef
+PRELUDE_DIR := runtime/src/f2j/prelude
+OBJ_FILE := $(wildcard $(PREDEF_DIR)/*.java)
+SF_FILES := $(wildcard $(PREDEF_DIR)/*.sf)
+FLAGS := -m naive
+
+
+all : compiler
+
+# Hack for first time install
+.PHONY : new
+new : compiler prelude
+	make compiler
+
+# for rebuild prelude module
+.PHONY : prelude
+prelude : prerequisite mkprelude runtime compiler
+
+.PHONY : prerequisite
+prerequisite :
+	mkdir -p $(PRELUDE_DIR)
+	rm -f $(PRELUDE_DIR)/*.java
+	cd runtime; ant clean
+
+.PHONY : mkprelude
+mkprelude : $(SF_FILES)
+	f2j $(FLAGS) $^
+	cp $(PREDEF_DIR)/*.java $(PRELUDE_DIR)
+	rm -f $(PREDEF_DIR)/*.java
 
 .PHONY : compiler
-compiler : dependencies runtime
-	$${CABAL=cabal}  install
+compiler : runtime
+	stack build --copy-bins
 
-.PHONY : smt
-smt : dependencies runtime
-	$${CABAL=cabal}  install -f Z3
+# .PHONY : smt
+# smt : runtime dependencies
+# 	$${CABAL=cabal}  install -f Z3
 
 .PHONY : test
-test : whitespace_test dependencies runtime
-	$${CABAL=cabal} configure --enable-tests && $${CABAL=cabal} build && $${CABAL=cabal} test
-
-.PHONY : test2
-test2 : whitespace_test dependencies runtime
-	make parsers
-	runhaskell -i$(srcdir):lib/services:lib/typeCheck:lib/simplify $(testdir)/FileLoad.hs
+test : whitespace_test runtime
+	stack build --test
 
 .PHONY : whitespace_test
 whitespace_test :
-	ruby $(testdir)/whitespace_check.rb
+	ruby $(TEST_DIR)/whitespace_check.rb
 
-.PHONY : dependencies
-dependencies : 
-	$${CABAL=cabal} install --only-dependencies --enable-tests
+# .PHONY : dependencies
+# dependencies :
+# 	stack --no-terminal build --only-snapshot
 
 .PHONY : runtime
 runtime :
-	cd runtime && ant && cd ..
+	cd runtime ; ant
 
 .PHONY : parsers
 parsers :
-	cd $(srcdir) && make && cd ..
+	cd $(SRC_DIR) ; make
 
-.PHONY : guard
-guard :
-	cabal install hspec
-	gem install guard-haskell
+# .PHONY : guard
+# guard :
+# 	cabal install hspec
+# 	gem install guard-haskell
 
 .PHONY : clean
 clean :
 	rm -rf dist
 	rm -f *.class *.jar Main.java
-	rm -f $(testdir)/tests/run-pass/*.java
+	rm -f $(TEST_DIR)/tests/run-pass/*.java
 	cd lib; make clean
 	cd runtime; ant clean
