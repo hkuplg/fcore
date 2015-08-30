@@ -36,12 +36,12 @@ data Connection = Connection
   }
 
 data ModuleInfo = ModuleInfo {
-  minfoName :: String,  -- | source name
-  minfoGname :: String, -- | java variable name
+  minfoName :: String,  -- source name
+  minfoGname :: String, -- java variable name
   minfoSignature :: Type } deriving (Show)
 
 withConnection :: (Connection -> IO a)
-               -> Bool -- ^ True for loading prelude
+               -> Bool -- True for loading prelude
                -> IO a
 withConnection action
   = withRuntimeProcess "TypeServer" NoBuffering (\(toHandle, fromHandle) ->

@@ -37,7 +37,9 @@ library
                       , transformers == 0.4.*
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
-  hs-source-dirs:       lib,lib/services,lib/typeCheck,lib/simplify,repl
+  hs-source-dirs:       lib,lib/services
+                      , lib/typeCheck
+                      , lib/simplify,repl
   exposed-modules:      ApplyTransCFJava
                         BackEnd
                         BaseTransCFJava
@@ -83,7 +85,9 @@ library
   other-modules:        Paths_fcore
                         SimplifyImpl
   if flag(Z3)
-                        exposed-modules: SymbolicEvaluator, Z3Backend, Z3ModelParser
+                        exposed-modules: SymbolicEvaluator
+                                       , Z3Backend
+                                       , Z3ModelParser
                         build-depends: z3 > 0.3.2
                         cpp-options: -DZ3
 
@@ -154,7 +158,11 @@ test-suite test
   type:                 exitcode-stdio-1.0
   hs-source-dirs:       testsuite,testsuite/tests
   main-is:              Test.hs
-  other-modules:        SpecHelper TestTerms TransCFSpec TypeCheckSpec ModuleSpec
+  other-modules:        ModuleSpec
+                        SpecHelper
+                        TestTerms
+                        TransCFSpec
+                        TypeCheckSpec
   build-depends:        fcore
                       , base == 4.*
                       , containers == 0.5.*
