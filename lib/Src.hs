@@ -15,14 +15,14 @@ Portability :  portable
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Src
-  ( Module(..), ReaderModule, Import(..), ReaderImport, ModuleBind(..), ReaderModuleBind, Definition(..), CheckedBind
+  ( Module(..), ReadModule, Import(..), ReadImport, ModuleBind(..), ReadModuleBind, Definition(..), CheckedBind
   , Kind(..)
-  , Type(..), ReaderType
-  , Expr(..), ReaderExpr, CheckedExpr, LExpr
+  , Type(..), ReadType
+  , Expr(..), ReadExpr, CheckedExpr, LExpr
   , Constructor(..), Alt(..), Pattern(..)
-  , Bind(..), ReaderBind
-  , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JCallee(..), JVMType(..), Label
-  , Name, ReaderId, CheckedId, LReaderId, PackageName
+  , Bind(..), ReadBind
+  , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JReceiver(..), Label
+  , Name, ReadId, CheckedId, LReadId, PackageName
   , TypeValue(..), TypeContext, ValueContext, ModuleContext, ModuleMapInfo
   , DataBind(..)
   , groupForall
@@ -33,7 +33,6 @@ module Src
   , compatible
   , leastUpperBound
 
-  , deThunkOnce
   , recordFields
   , freeTVars
   , fsubstTT
@@ -67,9 +66,9 @@ import           Text.PrettyPrint.ANSI.Leijen
 
 -- Names and identifiers.
 type Name      = String
-type ReaderId  = Name
-type LReaderId = Located ReaderId
-type CheckedId = (ReaderId, Type)
+type ReadId  = Name
+type LReadId = Located ReadId
+type CheckedId = (ReadId, Type)
 type Label      = Name
 
 -- Modules.
@@ -77,10 +76,10 @@ data ModuleBind id ty = BindNonRec (Bind id ty)
                       | BindRec [Bind id ty] deriving (Eq, Show)
 data Module id ty = Module [Import id] [ModuleBind id ty] deriving (Eq, Show)
 
-type ReaderModule = Located (Module Name Type)
-type ReaderModuleBind = ModuleBind Name Type
+type ReadModule = Located (Module Name Type)
+type ReadModuleBind = ModuleBind Name Type
 data Import id = Import id deriving (Eq, Show)
-type ReaderImport = Located (Import Name)
+type ReadImport = Located (Import Name)
 
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
@@ -88,15 +87,14 @@ data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
 -- Types.
 data Type
   = TVar Name
-  | JType JVMType -- JClass ClassName
+  | JClass ClassName
   | Unit
   | Fun Type Type
   | Forall Name Type
-  | Product [Type]
+  | TupleType [Type]
   -- Extensions
   | And Type Type
   | RecordType [(Label, Type)]
-  | Thunk Type
 
   -- Type synonyms
   | OpAbs Name Type -- Type-level abstraction: "type T A = t" becomes "type T = \A. t", and "\A. t" is the abstraction.
@@ -109,9 +107,7 @@ data Type
   -- `compatible` and `subtype` below.
   deriving (Eq, Show, Data, Typeable, Read)
 
-type ReaderType = Type
-
-data JVMType = JClass ClassName | JPrim String deriving (Eq, Show, Data, Typeable, Read)
+type ReadType = Type
 
 type LExpr id ty = Located (Expr id ty)
 
@@ -123,11 +119,11 @@ data Expr id ty
   | App (LExpr id ty) (LExpr id ty)            -- Application
   | BLam Name (LExpr id ty)                    -- Big lambda
   | TApp (LExpr id ty) ty                    -- Type application
-  | Tuple [LExpr id ty]                        -- Tuples
-  | Proj (LExpr id ty) Int                     -- Tuple projection
+  | TupleCon [LExpr id ty]                        -- Tuples
+  | TupleProj (LExpr id ty) Int                     -- Tuple projection
   | PrimOp (LExpr id ty) Operator (LExpr id ty) -- Primitive operation
   | If (LExpr id ty) (LExpr id ty) (LExpr id ty) -- If expression
-  | Let RecFlag [Bind id ty] (LExpr id ty)     -- Let (rec) ... (and) ... in ...
+  | LetIn RecFlag [Bind id ty] (LExpr id ty)     -- Let (rec) ... (and) ... in ...
   | LetOut                                    -- Post typecheck only
       RecFlag
       [(Name, Type, CheckedExpr)]
@@ -140,8 +136,8 @@ data Expr id ty
   -- elim), while the former cannot.
 
   | JNew ClassName [LExpr id ty]
-  | JMethod (JCallee (LExpr id ty)) MethodName [LExpr id ty] ClassName -- `ClassName` is the return (Java) type
-  | JField  (JCallee (LExpr id ty)) FieldName            Type
+  | JMethod (JReceiver (LExpr id ty)) MethodName [LExpr id ty] ClassName
+  | JField  (JReceiver (LExpr id ty)) FieldName            Type
   | Seq [LExpr id ty]
   | PolyList [LExpr id ty]
   | Merge (LExpr id ty) (LExpr id ty)
@@ -160,8 +156,8 @@ data Expr id ty
   | Data RecFlag [DataBind] (LExpr id ty)
   | Case (LExpr id ty) [Alt id ty]
   | CaseString (LExpr id ty) [Alt id ty] --pattern match on string
-  | ConstrTemp Name
-  | Constr Constructor [LExpr id ty] -- post typecheck only
+  | ConstrIn Name
+  | ConstrOut Constructor [LExpr id ty] -- post typecheck only
                                      -- the last type in Constructor will always be the real type
   | Error Type (LExpr id ty)
   deriving (Eq, Show)
@@ -184,7 +180,7 @@ data Pattern = PConstr Constructor [Pattern]
              deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
-type ReaderExpr  = LExpr Name Type
+type ReadExpr  = LExpr Name Type
 type CheckedExpr = LExpr CheckedId Type
 -- type TcExpr  = Expr TcId
 -- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
@@ -208,14 +204,14 @@ data Bind id ty = Bind
   , bindRhsTyAscription :: Maybe Type  -- Type annotation for the RHS
   } deriving (Eq, Show)
 
-type ReaderBind = Bind Name Type
+type ReadBind = Bind Name Type
 
 data RecFlag = Rec | NonRec deriving (Eq, Show)
 data UnitPossibility = UnitPossible | UnitImpossible deriving (Eq, Show)
 
-data JCallee e = Static ClassName | NonStatic e deriving (Eq, Show)
+data JReceiver e = Static ClassName | NonStatic e deriving (Eq, Show)
 
-instance Functor JCallee where
+instance Functor JReceiver where
   fmap _ (Static c)    = Static c
   fmap f (NonStatic e) = NonStatic (f e)
 
@@ -229,10 +225,10 @@ data TypeValue
     -- Non-terminal types, i.e. type synoyms. `Type` holds the RHS to the
     -- equal sign of type synonym definitions.
 
-type TypeContext  = Map.Map ReaderId (Kind, TypeValue) -- Delta
-type ValueContext = Map.Map ReaderId Type              -- Gamma
-type ModuleMapInfo = (Maybe PackageName, Type, ReaderId, ReaderId)
-type ModuleContext = Map.Map ReaderId ModuleMapInfo -- Sigma
+type TypeContext  = Map.Map ReadId (Kind, TypeValue) -- Delta
+type ValueContext = Map.Map ReadId Type              -- Gamma
+type ModuleMapInfo = (Maybe PackageName, Type, ReadId, ReadId)
+type ModuleContext = Map.Map ReadId ModuleMapInfo -- Sigma
 
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
@@ -254,20 +250,14 @@ expandType d (OpApp t1 t2)
       OpAbs x t -> fsubstTT (x,t2') t
 
 -- Uninteresting cases:
-expandType _ (JType t)    = JType t
+expandType _ (JClass c)   = JClass c
 expandType _ Unit         = Unit
 expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
 expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalType) d) t)
-expandType d (Product ts) = Product (map (expandType d) ts)
+expandType d (TupleType ts) = TupleType (map (expandType d) ts)
 expandType d (RecordType fs)  = RecordType (map (second (expandType d)) fs)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
-expandType d (Thunk t)    = Thunk (expandType d t)
 expandType d (Datatype n ts ns) = Datatype n (map (expandType d) ts) ns
-
-
-deThunkOnce :: Type -> Type
-deThunkOnce (Thunk t) = t
-deThunkOnce t         = t
 
 
 -- Relations between types
@@ -278,14 +268,12 @@ subtype d t1 t2 = subtypeS (expandType d t1) (expandType d t2)
 
 -- | Subtyping of two *expanded* types.
 subtypeS :: Type -> Type -> Bool
-subtypeS t1             (Thunk t2)             = subtypeS t1 t2
-subtypeS (Thunk t1)     t2                     = subtypeS t1 t2
 subtypeS (TVar a)       (TVar b)               = a == b
-subtypeS (JType c)      (JType d)              = c == d
+subtypeS (JClass c)     (JClass d)             = c == d
 -- The subtypeS here shouldn't be aware of the subtyping relations in the Java world.
 subtypeS (Fun t1 t2)    (Fun t3 t4)            = subtypeS t3 t1 && subtypeS t2 t4
 subtypeS (Forall a1 t1) (Forall a2 t2)         = subtypeS (fsubstTT (a1,TVar a2) t1) t2
-subtypeS (Product ts1)  (Product ts2)          = length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
+subtypeS (TupleType ts1) (TupleType ts2)       = length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
 subtypeS (RecordType [(l1,t1)]) (RecordType [(l2,t2)]) = l1 == l2 && subtypeS t1 t2
 subtypeS (RecordType fs1)   (RecordType fs2)           = subtypeS (desugarMultiRecordType fs1) (desugarMultiRecordType fs2)
 -- The order is significant for the two `And` cases below.
@@ -353,7 +341,6 @@ recordFields (And t1 t2) =
     --   fromList [(1,"one")]
     LeftBiased  -> recordFields t1 `Map.union` recordFields t2
     RightBiased -> recordFields t2 `Map.union` recordFields t1
-recordFields (Thunk t) = recordFields t
 recordFields _         = Map.empty
 
 -- Free variable substitution
@@ -362,10 +349,9 @@ fsubstTT :: (Name, Type) -> Type -> Type
 fsubstTT (x,r) (TVar a)
   | a == x                     = r
   | otherwise                  = TVar a
--- fsubstTT (_,_) (JClass c )     = JClass c
-fsubstTT (_,_) (JType c)       = JType c
+fsubstTT (_,_) (JClass c)      = JClass c
 fsubstTT (x,r) (Fun t1 t2)     = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
-fsubstTT (x,r) (Product ts)    = Product (map (fsubstTT (x,r)) ts)
+fsubstTT (x,r) (TupleType ts)  = TupleType (map (fsubstTT (x,r)) ts)
 fsubstTT (x,r) (Forall a t)
     | a == x || a `Set.member` freeTVars r = -- The freshness condition, crucial!
         let fresh = freshName a (freeTVars t `Set.union` freeTVars r)
@@ -374,7 +360,6 @@ fsubstTT (x,r) (Forall a t)
 fsubstTT (_,_) Unit            = Unit
 fsubstTT (x,r) (RecordType fs)     = RecordType (map (second (fsubstTT (x,r))) fs)
 fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
-fsubstTT (x,r) (Thunk t1)      = Thunk (fsubstTT (x,r) t1)
 fsubstTT (x,r) (OpAbs a t)
     | a == x || a `Set.member` freeTVars r = -- The freshness condition, crucial!
         let fresh = freshName a (freeTVars t `Set.union` freeTVars r)
@@ -388,15 +373,13 @@ freshName name existedNames = head $ dropWhile (`Set.member` existedNames) [name
 
 freeTVars :: Type -> Set.Set Name
 freeTVars (TVar x)     = Set.singleton x
--- freeTVars (JClass _)    = Set.empty
-freeTVars (JType _)    = Set.empty
+freeTVars (JClass {})  = Set.empty
 freeTVars Unit         = Set.empty
 freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
 freeTVars (Forall a t) = Set.delete a (freeTVars t)
-freeTVars (Product ts) = Set.unions (map freeTVars ts)
+freeTVars (TupleType ts) = Set.unions (map freeTVars ts)
 freeTVars (RecordType fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
-freeTVars (Thunk t)    = freeTVars t
 freeTVars (OpAbs _ t)  = freeTVars t
 freeTVars (OpApp t1 t2) = Set.union (freeTVars t1) (freeTVars t2)
 freeTVars (Datatype _ ts _) = Set.unions (map freeTVars ts)
@@ -421,19 +404,17 @@ instance (Pretty id) => Pretty (Import id) where
 
 instance Pretty Type where
   pretty (TVar a)     = text a
-  pretty (JType (JClass "java.lang.Integer"))   = text "Int"
-  pretty (JType (JClass "java.lang.String"))    = text "String"
-  pretty (JType (JClass "java.lang.Boolean"))   = text "Bool"
-  pretty (JType (JClass "java.lang.Character")) = text "Char"
-  pretty (JType (JClass c))   = text c
-  pretty (JType (JPrim c))   = text c
+  pretty (JClass "java.lang.Integer")   = text "Int"
+  pretty (JClass "java.lang.String")    = text "String"
+  pretty (JClass "java.lang.Boolean")   = text "Bool"
+  pretty (JClass "java.lang.Character") = text "Char"
+  pretty (JClass c)   = text c
   pretty Unit         = text "Unit"
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
   pretty (Forall a t) = parens $ forall <+> hsep (map text as) <> dot <+> pretty t' where (as, t') = groupForall (Forall a t)
-  pretty (Product ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
+  pretty (TupleType ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
   pretty (And t1 t2)  = pretty t1 <> text "&" <> pretty t2
   pretty (RecordType fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
-  pretty (Thunk t)    = squote <> parens (pretty t)
   pretty (OpAbs x t)  = backslash <> text x <> dot <+> pretty t
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (Datatype n ts _) = hsep (text n : map pretty ts)
@@ -459,8 +440,8 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
       pretty e
   pretty (TApp e t) = parens $ pretty e <+> pretty t
   pretty (App e1 e2) = parens $ pretty e1 <+> pretty e2
-  pretty (Tuple es) = lparen <> (hcat . intersperse comma $ map pretty es) <> rparen
-  pretty (Proj e i) = parens (pretty e) <> text "._" <> int i
+  pretty (TupleCon es) = lparen <> (hcat . intersperse comma $ map pretty es) <> rparen
+  pretty (TupleProj e i) = parens (pretty e) <> text "._" <> int i
   pretty (PrimOp e1 op e2) = parens $
                                parens (pretty e1) <+>
                                text (show op) <+>
@@ -470,7 +451,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
                             text "if" <+> pretty e1 <+>
                             text "then" <+> pretty e2 <+>
                             text "else" <+> pretty e3
-  pretty (Let recFlag bs e) =
+  pretty (LetIn recFlag bs e) =
     text "let" <+> pretty recFlag <+>
     encloseSep empty empty (softline <> text "and" <> space) (map pretty bs) <+>
     text "in" <+>
@@ -497,7 +478,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
 
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
-  pretty (Constr c es) = parens $ hsep $ text (constrName c) : map pretty es
+  pretty (ConstrOut c es) = parens $ hsep $ text (constrName c) : map pretty es
   pretty (EModule pname modu e) = maybe empty ((text "package" <+>) . pretty) pname <$> pretty modu <$> pretty e
   pretty (EImport imp e) = pretty imp <$> pretty e
   pretty e = text (show e)
@@ -612,4 +593,3 @@ defaultMatrix pats =
 
 -- Make some instances of TH
 $(deriveLift ''Type)
-$(deriveLift ''JVMType)

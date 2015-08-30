@@ -3,16 +3,15 @@
 
 module Predef (getPredefInfoTH) where
 
-import System.IO.Unsafe (unsafePerformIO)
+import Data.List
+import Language.Haskell.TH.Syntax (lift)
 import System.Directory
 import System.FilePath
+import System.IO.Unsafe (unsafePerformIO)
 
 import JvmTypeQuery
-import RuntimeProcessManager
-import StringUtils
-import Data.List
 import Src
-import Language.Haskell.TH.Syntax (lift)
+import StringUtils
 
 -- Here I am doing crazy things ...
 
@@ -34,6 +33,6 @@ getPredef h = do
     flatInfo (p, mname) = map (\(ModuleInfo f g t) -> (f, (Just "f2j.prelude", t, g, capitalize mname))) p
 
 getPredefInfo :: [(String, ModuleMapInfo)]
-getPredefInfo = unsafePerformIO $ withTypeServer getPredef True
+getPredefInfo = unsafePerformIO $ withConnection getPredef True
 
 getPredefInfoTH = [| $(lift (getPredefInfo)) |]

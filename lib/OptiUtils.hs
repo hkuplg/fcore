@@ -3,10 +3,11 @@
 
 module OptiUtils where
 
-import Core
+import           Data.List (foldl')
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromJust)
-import Data.List (foldl')
+import           Data.Maybe (fromJust)
+
+import           Core
 import qualified Src
 
 
@@ -23,7 +24,7 @@ joinExpr (PrimOp e1 o e2) = PrimOp (joinExpr e1) o (joinExpr e2)
 joinExpr (Tuple es) = Tuple (map joinExpr es)
 joinExpr (Error ty str)         = Error ty (joinExpr str)
 joinExpr (Data recflag databinds e) = Data recflag databinds (joinExpr e)
-joinExpr (Constr ctr es) = Constr ctr (map joinExpr es)
+joinExpr (ConstrOut ctr es) = ConstrOut ctr (map joinExpr es)
 joinExpr (Case e alts) = Case (joinExpr e) (map joinAlt alts)
   where joinAlt (ConstrAlt ctr e1) = ConstrAlt ctr (joinExpr e1)
         joinAlt (Default e1) = Default (joinExpr e1)
@@ -72,7 +73,7 @@ mapExpr f e =
       JField cnameOrE fname cname -> JField (fmap f cnameOrE) fname cname
       Error ty str -> Error ty (f str)
       Data recflag databinds e -> Data recflag databinds (f e)
-      Constr ctr es -> Constr ctr (map f es)
+      ConstrOut ctr es -> ConstrOut ctr (map f es)
       Case e' alts -> Case (f e') (map mapAlt alts)
          where mapAlt (ConstrAlt ctr e1) = ConstrAlt ctr (f e1)
                mapAlt (Default e1) = Default (f e1)
@@ -111,7 +112,7 @@ rewriteExpr f num env expr =
    Error ty str -> Error ty (f num env str)
    Seq es -> Seq (map (f num env) es)
    Data recflag databinds e -> Data recflag databinds (f num env e)
-   Constr c es -> Constr c (map (f num env) es)
+   ConstrOut c es -> ConstrOut c (map (f num env) es)
    Case e alts -> Case (f num env e) (map rewriteAlt alts)
  where
    rewriteAlt (ConstrAlt ctr e) = ConstrAlt ctr (f num env e)
@@ -173,7 +174,7 @@ peq n (Error _ str1) (Error _ str2) = peq n str1 str2
 peq n (Seq es) (Seq gs) = and (zipWith (peq n) es gs)
 peq _ _ _ = False
 
-checkCall :: Int -> Src.JCallee (Expr Int Int) -> Src.JCallee (Expr Int Int) -> Bool
+checkCall :: Int -> Src.JReceiver (Expr Int Int) -> Src.JReceiver (Expr Int Int) -> Bool
 checkCall _ (Src.Static s1) (Src.Static s2) = s1 == s2
 checkCall n (Src.NonStatic e1) (Src.NonStatic e2) = peq n e1 e2
 checkCall _ _ _ = False

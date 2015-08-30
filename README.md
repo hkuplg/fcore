@@ -80,8 +80,7 @@ you to the REPL.
 In the `example` directory, you will see a lot of example programs
 written in FCore. You may want to take a look at them to get familiar
 with the syntax. These examples demonstrate different features of our
-compiler, such as call-by-name, record syntax, modules, thunk, type
-synonyms, etc.
+compiler, such as record syntax, modules, type synonyms, etc.
 
 Particularly, in `examples/fractals`, there is an interesting program
 that draws a fractal.

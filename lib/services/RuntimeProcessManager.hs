@@ -1,4 +1,4 @@
-module RuntimeProcessManager (withRuntimeProcess, withTypeServer) where
+module RuntimeProcessManager (withRuntimeProcess) where
 
 import JavaUtils      (getClassPath)
 import StringPrefixes (namespace)
@@ -17,8 +17,3 @@ withRuntimeProcess class_name buffer_mode do_this loadPrelude
        result <- do_this (inP, outP)
        terminateProcess proch
        return result
-
-withTypeServer :: ((Handle, Handle) -> IO a)
-               -> Bool -- ^ True for loading prelude
-               -> IO a
-withTypeServer = withRuntimeProcess "TypeServer" NoBuffering

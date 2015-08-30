@@ -53,37 +53,37 @@ import           Prelude hiding ((<$>))
 import           Text.PrettyPrint.ANSI.Leijen
 
 data Type t
-  = TVar Src.ReaderId t                -- a
+  = TVar Src.ReadId t                -- a
   | JClass ClassName                   -- C
   | Fun (Type t) (Type t)              -- t1 -> t2
-  | Forall Src.ReaderId (t -> Type t)  -- forall a. t
+  | Forall Src.ReadId (t -> Type t)  -- forall a. t
   | Product [Type t]                   -- (t1, ..., tn)
   | Unit
-  | Datatype Src.ReaderId [Type t] [Src.ReaderId]
+  | Datatype Src.ReadId [Type t] [Src.ReadId]
 
 data Definition t e = Def Src.Name Src.Type (Expr t e) (e -> Definition t e)
                     | DefRec [Src.Name] [(Src.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
                     | Null
 
 data Expr t e
-  = Var Src.ReaderId e
+  = Var Src.ReadId e
   | Lit Src.Lit
 
   -- Binders we have: λ, fix, letrec, and Λ
-  | Lam Src.ReaderId (Type t) (e -> Expr t e)
-  | Fix Src.ReaderId Src.ReaderId
+  | Lam Src.ReadId (Type t) (e -> Expr t e)
+  | Fix Src.ReadId Src.ReadId
         (e -> e -> Expr t e)
         (Type t)  -- t1
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
-  | Let Src.ReaderId (Expr t e) (e -> Expr t e)
-  | LetRec [Src.ReaderId]       -- Names
+  | Let Src.ReadId (Expr t e) (e -> Expr t e)
+  | LetRec [Src.ReadId]       -- Names
            [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
-  | BLam Src.ReaderId (t -> Expr t e)
+  | BLam Src.ReadId (t -> Expr t e)
 
   | App  (Expr t e) (Expr t e)
   | TApp (Expr t e) (Type t)
@@ -102,23 +102,23 @@ data Expr t e
 
   -- Java
   | JNew ClassName [Expr t e]
-  | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
-  | JField  (Src.JCallee (Expr t e)) FieldName (Type t)
+  | JMethod (Src.JReceiver (Expr t e)) MethodName [Expr t e] ClassName
+  | JField  (Src.JReceiver (Expr t e)) FieldName (Type t)
 
   | Seq [Expr t e]
 
   | Data Src.RecFlag [DataBind t] (Expr t e)
-  | Constr (Constructor t) [Expr t e]
+  | ConstrOut (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
 
   | Error (Type t) (Expr t e)
 
-data DataBind t = DataBind Src.ReaderId [Src.ReaderId] ([t] -> [Constructor t])
+data DataBind t = DataBind Src.ReadId [Src.ReadId] ([t] -> [Constructor t])
 
 data Alt t e = ConstrAlt (Constructor t) (Expr t e)
              | Default (Expr t e)
 
-data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
+data Constructor t = Constructor {constrName :: Src.ReadId, constrParams :: [Type t]}
 
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
@@ -134,7 +134,7 @@ alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq
 alphaEq _  Unit         Unit        = True
 alphaEq _  _            _           = False
 
-mapTVar :: (Src.ReaderId -> t -> Type t) -> Type t -> Type t
+mapTVar :: (Src.ReadId -> t -> Type t) -> Type t -> Type t
 mapTVar g (TVar n a)     = g n a
 mapTVar _ (JClass c)     = JClass c
 mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
@@ -143,7 +143,7 @@ mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
 mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
 
-mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
+mapVar :: (Src.ReadId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)
@@ -154,7 +154,7 @@ mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . 
 mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (mapVar g h e)
     where mapDatabind (DataBind name params ctrs) = DataBind name params (map mapCtr. ctrs)
           mapCtr (Constructor n ts)  = Constructor n (map h ts)
-mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
+mapVar g h (ConstrOut (Constructor n ts) es) = ConstrOut c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
     where mapAlt (ConstrAlt (Constructor n ts) e1) = ConstrAlt (Constructor n (map h ts)) (mapVar g h e1)
@@ -385,7 +385,7 @@ prettyExpr' p (i,j) (Data recflag databinds e) =
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
                    (equals <+> intersperseBar (map (prettyCtr (i+ (length tvars)))$ cons [i..(i-1+(length tvars))]) <$$> semi)
 
-prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (ConstrOut c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))

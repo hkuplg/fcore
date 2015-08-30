@@ -37,7 +37,7 @@ import           Simplify (simplify')
 import           Src hiding (wrap)
 import qualified SystemFI as FI
 import           Text.PrettyPrint.ANSI.Leijen
-import           TypeCheck hiding (Connection)
+import           TypeCheck
 
 #ifdef Z3
 -- #if MIN_VERSION_z3(0,3,2)
@@ -333,7 +333,7 @@ wrapFlag handle opt flagC flagT flagS filename = case flagT of
         False -> do error <- wrap handle receiveMsg opt flagC flagS filename
                     return ()
 
-{-checkType :: ValueContext -> String -> IO (Either TypeError (ReaderType, CheckedExpr))
+{-checkType :: ValueContext -> String -> IO (Either TypeError (ReadType, CheckedExpr))
 checkType val_ctx s =
   do let parsed = reader s
      typeCheckWithEnv val_ctx parsed

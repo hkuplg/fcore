@@ -13,18 +13,17 @@ Portability :  non-portable (MPTC)
 -}
 module ClosureF where
 
-import qualified Src as S
 import qualified Core as C
-
 import           JavaUtils
 import           Panic
+import           PrettyUtils
+import qualified Src as S
 import           StringPrefixes
 
 import           Control.Arrow (second)
 import           Data.List (intersperse)
 import qualified Language.Java.Pretty (prettyPrint)
 import           Prelude hiding ((<$>))
-import           PrettyUtils
 import           Text.PrettyPrint.ANSI.Leijen
 
 -- Closure F syntax
@@ -49,16 +48,16 @@ data Type t =
     | CFCharacter
     | TupleType [Type t]
     | ListType (Type t)
-    | Datatype S.ReaderId [Type t] [S.ReaderId]
+    | Datatype S.ReadId [Type t] [S.ReadId]
 
 data Definition t e = Def S.Name S.Type (Expr t e) (e -> Definition t e)
                     | DefRec [S.Name] [(S.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
                     | Null
 
 data Expr t e =
-     Var S.ReaderId e
+     Var S.ReadId e
    | FVar Int
-   | Lam S.ReaderId (EScope t e)
+   | Lam S.ReadId (EScope t e)
    | App (Expr t e) (Expr t e)
    | TApp (Expr t e) (Type t)
    | PrimOp (Expr t e) S.Operator (Expr t e)
@@ -66,10 +65,10 @@ data Expr t e =
    | If (Expr t e) (Expr t e) (Expr t e)
    | Tuple [Expr t e]
    | Proj Int (Expr t e)
-   | Let S.ReaderId (Expr t e) (e -> Expr t e)
+   | Let S.ReadId (Expr t e) (e -> Expr t e)
    -- fixpoints
-   | LetRec [S.ReaderId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
-   | Fix S.ReaderId S.ReaderId (Type t) (e -> EScope t e)
+   | LetRec [S.ReadId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
+   | Fix S.ReadId S.ReadId (Type t) (e -> EScope t e)
    -- Module
    | Module (Maybe S.PackageName) (Definition t e)
    -- Java
@@ -78,12 +77,12 @@ data Expr t e =
    | JField  (Either ClassName (Expr t e)) FieldName (Type t)
    | SeqExprs [Expr t e]
    | Data S.RecFlag [DataBind t] (Expr t e)
-   | Constr (Constructor t) [Expr t e]
+   | ConstrOut (Constructor t) [Expr t e]
    | Case (Expr t e) [Alt t e]
    | Error (Type t) (Expr t e)
 
-data DataBind t = DataBind S.ReaderId [S.ReaderId] ([t] -> [Constructor t])
-data Constructor t = Constructor {constrName :: S.ReaderId, constrParams :: [Type t]}
+data DataBind t = DataBind S.ReadId [S.ReadId] ([t] -> [Constructor t])
+data Constructor t = Constructor {constrName :: S.ReadId, constrParams :: [Type t]}
 data Alt t e = ConstrAlt (Constructor t) (Expr t e)
              | Default (Expr t e)
 
@@ -165,7 +164,7 @@ fexp2cexp (C.Error ty str)         = Error (ftyp2ctyp ty) (fexp2cexp str)
 fexp2cexp (C.Seq es)            = SeqExprs (map fexp2cexp es)
 fexp2cexp (C.Data recflag binds e) = Data recflag (map fdatabind2cdatabind binds) (fexp2cexp e)
     where fdatabind2cdatabind (C.DataBind name params ctrs) = DataBind ('$':name) params (map fctr2cctr . ctrs)
-fexp2cexp (C.Constr ctr es) = Constr (fctr2cctr ctr) (map fexp2cexp es)
+fexp2cexp (C.ConstrOut ctr es) = ConstrOut (fctr2cctr ctr) (map fexp2cexp es)
 fexp2cexp (C.Case e alts) = Case (fexp2cexp e) (map falt2calt alts)
   where falt2calt (C.ConstrAlt ctr e1) = ConstrAlt (fctr2cctr ctr) (fexp2cexp e1)
         falt2calt (C.Default e1)       = Default (fexp2cexp e1)
@@ -420,7 +419,7 @@ prettyExpr p (i,j) (Data recflag databinds e) =
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
                    (equals <+> intersperseBar (map (prettyCtr (i+ length tvars))$ cons [i..(i-1+length tvars)]) <$$> semi)
 
-prettyExpr p i (Constr (Constructor ctrName ctrParams) es) = braces (text ctrName <+> hsep (map (prettyExpr p i) es))
+prettyExpr p i (ConstrOut (Constructor ctrName ctrParams) es) = braces (text ctrName <+> (hsep $ map (prettyExpr p i) es))
 
 prettyExpr p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))

@@ -1,20 +1,32 @@
 module FrontEnd (source2core) where
 
-import Parser    (reader, P(..))
-import TypeCheck (typeCheck)
-import Desugar   (desugar)
-import Simplify  (simplify)
+import           BackEnd (DumpOption(..))
+import           Desugar (desugar)
 import qualified OptiUtils (Exp(Hide))
-import BackEnd   (DumpOption(..))
+import           Parser (reader, P(..))
+import           Problem
+import           Simplify (simplify)
+import           SrcLoc
+import qualified SystemFI as FI (FExp(HideF), prettyExpr)
+import           TypeCheck (typeCheck)
+import           TypeErrors
 
-import qualified SystemFI as FI   (FExp(HideF), prettyExpr)
+import           Control.Monad (when)
+import           Data.List.Split (splitOn)
+import           System.Exit (exitFailure)
+import           Text.PrettyPrint.ANSI.Leijen hiding (line, column)
 
-import System.Exit   (exitFailure)
-import Text.PrettyPrint.ANSI.Leijen
-import Control.Monad (when)
+makeProblem :: (FilePath, String) -> LTypeErrorExpr -> Problem
+makeProblem (filePath, source) (L loc (err, _maybeExpr))
+  = Problem
+    { problemLevel    = Error
+    , problemLocation = (filePath, line loc, column loc)
+    , problemLine     = splitOn "\n" source !! (line loc - 1)
+    , problemDescription = pretty err
+    }
 
-source2core :: DumpOption -> String -> IO OptiUtils.Exp
-source2core optDump source
+source2core :: DumpOption -> (FilePath, String) -> IO OptiUtils.Exp
+source2core optDump (filePath, source)
   = case reader source of
       PError msg -> do putStrLn msg
                        exitFailure
@@ -22,8 +34,9 @@ source2core optDump source
         when (optDump == Parsed) $ print (pretty parsed)
         result <- typeCheck parsed
         case result of
-          Left typeError -> do print (pretty typeError)
-                               exitFailure
+          Left typeError ->
+            do print (prettyProblems [makeProblem (filePath, source) typeError])
+               exitFailure
           Right (_, checked) ->
             do when (optDump == TChecked) $ print (pretty checked)
                let fiExpr = desugar checked
