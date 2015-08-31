@@ -1,0 +1,114 @@
+
+data Formula = And Formula Formula
+             | Or Formula Formula
+             | Implies Formula Formula
+             | Not Formula
+             | Literal Int ;
+
+let rec simplify (f: Formula): Formula = 
+         case f of 
+             And l r     -> And (simplify l) (simplify r)
+           | Or l r      -> Or (simplify l) (simplify r)
+           | Implies l r -> Or (Not (simplify l)) (simplify r)
+           | Not f       -> Not (simplify f)
+           | Literal _   -> f ;
+
+let rec isSimplified(f: Formula): Bool =
+         case f of 
+             And l r     -> isSimplified l && isSimplified r
+           | Or l r      -> isSimplified l && isSimplified r
+           | Implies _ _ -> False
+           | Not f       -> isSimplified f
+           | Literal _   -> True ;
+
+-- (* property simplify*)
+let prop_simplify (f: Formula): Bool = isSimplified (simplify f);
+
+
+let rec nnf (f: Formula): Formula = 
+         case f of
+              And l r     -> And (nnf l) (nnf r)
+            | Or l r      -> Or (nnf l) (nnf r)
+            | Implies l r -> nnf (Or (Not l) r)
+            | Not fs      -> (case fs of
+                                And l r     -> Or (nnf (Not l)) (nnf (Not r))
+                              | Or l r      -> And (nnf (Not l)) (nnf (Not r)) 
+                              | Implies l r -> And (nnf l) (nnf (Not r))
+                              | Not ff      -> nnf ff
+                              | Literal ff  -> Not (Literal ff) )
+            | Literal _   -> f ;
+
+
+let rec isNNF (f: Formula): Bool =
+        case f of
+             And l r     -> (isNNF l) && (isNNF r)
+           | Or l r      -> (isNNF l) && (isNNF r)
+           | Implies l r -> False
+           | Not fs      -> (case fs of
+                                Literal x   -> True
+                              | And _ _     -> False
+                              | Or _ _      -> False
+                              | Implies _ _ -> False
+                              | Not _       -> False )
+           | Literal _    -> True ;
+
+-- (* Property nnf*)
+let prop_nnf (f: Formula): Bool = isNNF (nnf f);
+
+
+
+
+-- (*eval*)
+let evalLit (id : Int) : Bool = id == 42 ;
+
+let rec eval (f: Formula) : Bool =
+        case f of
+           And l r     -> eval l && eval r
+         | Or l r      -> eval l || eval r
+         | Implies l r -> let not = if eval l then False else True; not || eval r
+         | Not f       -> let not = if eval f then False else True; not 
+         | Literal id  -> evalLit id ;
+
+
+-- (*Property *)
+
+let prop_simplifySemantics(f: Formula) : Bool = 
+      eval f == eval (simplify f);
+
+
+--let rec vars (f: Formula) : Set =
+--   if isNNF f
+--   then case f of
+ --      And l r -> union (vars l) (vars r) 
+ --    | Or l r -> union (vars l) (vars r) 
+ --    | Not (Literal i) -> singleton i
+ --    | Literal i       -> singleton i
+ --    | _               -> error [Set] "the fromula should be nnf"
+ --  else error [Set] "the fromula should be nnf" ;
+
+--let fv(f: Formula) : Set = vars (nnf f);
+
+let prop_wrongCommutative(f: Formula) : Bool =
+     nnf (simplify f) == simplify (nnf f);
+
+let prop_simplifyPreservesNNF(f: Formula) : Bool =
+    if isNNF f then isNNF (simplify f)
+               else True ;
+
+
+let prop_nnfIsStable(f: Formula) : Bool =
+    if isNNF f then nnf f == f
+               else True ;
+
+let prop_simplifyIsStable(f: Formula) : Bool =
+    if isSimplified f then simplify f == f
+                      else True ;
+
+
+prop_simplifyIsStable
+--prop_nnfIsStable
+--prop_simplifyPreservesNNF
+--prop_simplifySemantics
+--prop_nnf
+--prop_simplify
+--prop_wrongCommutative
