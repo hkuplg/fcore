@@ -10,44 +10,38 @@ branches:
 
 language: java
 
-env:
-  #- GHCVER=7.4.2
-  #- GHCVER=7.6.3
-  #- GHCVER=7.8.3
-  - GHCVER=7.10.2
-  #- GHCVER=head
-  # - >
-  #   GHCVER=7.4.2
-  #   MODE="-fsafe"
+jdk:
+  - oraclejdk8
 
 addons:
   apt:
     sources:
     - hvr-ghc
     packages:
-    - ghc-7.10.1
-
-jdk:
-  - oraclejdk8
+    - ghc-7.10.2
+    - libgmp-dev
+    - alex-3.1.4
+    - happy-1.19.5
 
 before_install:
   # stack
   - mkdir -p ~/.local/bin
   - export PATH=~/.local/bin:$PATH
-  - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.4.0/stack-0.1.4.0-x86_64-linux.tar.gz | gunzip > stack.tar
-  - tar -xvf stack.tar -C ~/.local/bin
-  - chmod a+x ~/.local/bin/stack
-  # let stack download ghc
-  - export PATH=/opt/ghc/$GHCVER/bin:$PATH
-  # - stack setup
-  - stack install alex
-
+  - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.4.0/stack-0.1.4.0-x86_64-linux.tar.gz | tar xzf - && mv -f stack ~/.local/bin
+  - export PATH=/opt/ghc/7.10.2/bin:$PATH
+  - export PATH=/opt/happy/1.19.5/bin:/opt/alex/3.1.4/bin:$PATH
 
 install:
-  - make new
+  - stack --no-terminal setup
+  - make runtime
+  - stack --no-terminal install
+  - make prerequisite
+  - make mkprelude
+  - make runtime
+  - stack --no-terminal install
 
 script:
-  - make test
+  - stack --no-terminal test
 
 cache:
   directories:
