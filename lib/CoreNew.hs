@@ -94,9 +94,9 @@ coreTypeToNew (C.Product ts) = Product (map coreTypeToNew ts)
 coreTypeToNew C.Unit         = Unit
 coreTypeToNew _ = error "CoreNew.coreTypeToNew: translation not defined"
 
-coreExprToNew :: (t -> e) -> (e -> t) -> C.Expr t e -> Expr e -- TODO: Datatypes missing
-coreExprToNew toExpr toType = transExpr
-  where transType = mapExpr toExpr toType . coreTypeToNew
+coreExprToNew :: C.Expr e e -> Expr e -- TODO: Datatypes missing
+coreExprToNew = transExpr
+  where transType = coreTypeToNew
         transExpr (C.Var n e) = Var n e
         transExpr (C.Lit l) = Lit l
         transExpr (C.Lam n t f) = Lam n (transType t) (transExpr . f)
@@ -108,7 +108,7 @@ coreExprToNew toExpr toType = transExpr
                                                t = head ts
                                              in Let n (Mu n (transType t) (\e -> transExpr . head . bi  $ [e]))
                                                 (\e -> transExpr . bo $ [e])
-        transExpr (C.BLam n f) = Lam n Star (transExpr . f . toType)
+        transExpr (C.BLam n f) = Lam n Star (transExpr . f)
         transExpr (C.App f e) = App (transExpr f) (transExpr e)
         transExpr (C.TApp f e) = App (transExpr f) (transType e)
         transExpr (C.If e1 e2 e3) = If (transExpr e1) (transExpr e2) (transExpr e3)
@@ -123,28 +123,6 @@ coreExprToNew toExpr toType = transExpr
         transExpr _ = error "CoreNew.coreExprToNew: translation not defined"
 
 -- Utilities
-
-mapExpr :: (a -> b) -> (b -> a) -> Expr a -> Expr b
-mapExpr g _ (Var n a)                 = Var n (g a)
-mapExpr _ _ (Lit n)                   = Lit n
-mapExpr g h (Lam n t f)               = Lam n (mapExpr g h t) (mapExpr g h . f . h)
-mapExpr g h (Pi n t f)                = Pi n (mapExpr g h t) (mapExpr g h . f . h)
-mapExpr g h (Mu n t f)                = Mu n (mapExpr g h t) (mapExpr g h . f . h)
-mapExpr g h (Let n b e)               = Let n (mapExpr g h b) (mapExpr g h . e . h)
-mapExpr g h (App f e)                 = App (mapExpr g h f) (mapExpr g h e)
-mapExpr g h (If p b1 b2)              = If (mapExpr g h p) (mapExpr g h b1) (mapExpr g h b2)
-mapExpr g h (PrimOp e1 op e2)         = PrimOp (mapExpr g h e1) op (mapExpr g h e2)
-mapExpr g h (Tuple es)                = Tuple (map (mapExpr g h) es)
-mapExpr g h (Proj i e)                = Proj i (mapExpr g h e)
-mapExpr g h (Product ts)              = Product (map (mapExpr g h) ts)
-mapExpr _ _ Unit                      = Unit
-mapExpr _ _ Star                      = Star
-mapExpr g h (JNew c args)             = JNew c (map (mapExpr g h) args)
-mapExpr g h (JMethod callee m args c) = JMethod (fmap (mapExpr g h) callee) m (map (mapExpr g h) args) c
-mapExpr g h (JField  callee f c)      = JField (fmap (mapExpr g h) callee) f (mapExpr g h c)
-mapExpr _ _ (JClass c)                = JClass c
-mapExpr g h (Seq es)                  = Seq (map (mapExpr g h) es)
-mapExpr g h (Error ty str)            = Error (mapExpr g h ty) (mapExpr g h str)
 
 alphaEq :: Int -> Type Index -> Type Index -> Bool
 alphaEq _ (Var _ a)   (Var _ b)     = a == b

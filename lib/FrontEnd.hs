@@ -59,7 +59,7 @@ s2n source
                let exp = simplify (FI.HideF fiExpr)
                putStrLn "-- Core:"
                print (Core.prettyExpr exp)
-               let expcn = CoreNew.coreExprToNew id id exp
+               let expcn = CoreNew.coreExprToNew exp
                putStrLn "\n-- New Core:"
                print (CoreNew.pretty expcn)
                putStrLn ""
