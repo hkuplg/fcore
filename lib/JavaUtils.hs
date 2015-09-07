@@ -22,7 +22,7 @@ module JavaUtils
 import StringUtils (capitalize)
 
 import Paths_fcore
-import System.Directory (withCurrentDirectory)
+import System.Directory.Extra (withCurrentDirectory)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, (</>), (<.>), dropExtension, searchPathSeparator)
 import System.Process.Extra (system_)
 

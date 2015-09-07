@@ -3,6 +3,5 @@ flags:
     z3: false
 packages:
 - '.'
-extra-deps:
-- directory-1.2.3.1
+extra-deps: []
 resolver: lts-3.3
