@@ -49,14 +49,14 @@ import           Text.PrettyPrint.ANSI.Leijen
 type Type t = Expr t
 
 data Expr e
-  = Var Src.ReaderId e
+  = Var Src.ReadId e
   | Lit Src.Lit
 
   -- Binders we have: λ, μ, Π
-  | Lam Src.ReaderId (Type e) (e -> Expr e)
-  | Pi Src.ReaderId (Type e) (e -> Type e) -- Pi (x : t) . e
-  | Mu Src.ReaderId (Type e) (e -> Expr e) -- mu (x : t) . e
-  | Let Src.ReaderId (Expr e) (e -> Expr e)
+  | Lam Src.ReadId (Type e) (e -> Expr e)
+  | Pi Src.ReadId (Type e) (e -> Type e) -- Pi (x : t) . e
+  | Mu Src.ReadId (Type e) (e -> Expr e) -- mu (x : t) . e
+  | Let Src.ReadId (Expr e) (e -> Expr e)
   | App  (Expr e) (Expr e)
 
   | If (Expr e) (Expr e) (Expr e)
@@ -73,8 +73,8 @@ data Expr e
 
   -- Java
   | JNew ClassName [Expr e]
-  | JMethod (Src.JCallee (Expr e)) MethodName [Expr e] ClassName
-  | JField  (Src.JCallee (Expr e)) FieldName (Type e)
+  | JMethod (Src.JReceiver (Expr e)) MethodName [Expr e] ClassName
+  | JField  (Src.JReceiver (Expr e)) FieldName (Type e)
   | JClass ClassName
 
   | Seq [Expr e]
@@ -155,7 +155,7 @@ alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq
 alphaEq _  Unit         Unit        = True
 alphaEq _  _            _           = False
 
-mapVar :: (Src.ReaderId -> e -> Expr e) -> (Type e -> Type e) -> Expr e -> Expr e
+mapVar :: (Src.ReadId -> e -> Expr e) -> (Type e -> Type e) -> Expr e -> Expr e
 mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)

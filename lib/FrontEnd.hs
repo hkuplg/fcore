@@ -1,7 +1,9 @@
 module FrontEnd (source2core) where
 
 import           BackEnd (DumpOption(..))
+import qualified Core
 import           Desugar (desugar)
+import qualified CoreNew
 import qualified OptiUtils (Exp(Hide))
 import           Parser (reader, P(..))
 import           Problem
@@ -51,8 +53,7 @@ s2n source
       POk parsed -> do
         result <- typeCheck parsed
         case result of
-          Left typeError -> do print (pretty typeError)
-                               exitFailure
+          Left typeError -> exitFailure
           Right (_, checked) ->
             do let fiExpr = desugar checked
                let exp = simplify (FI.HideF fiExpr)
