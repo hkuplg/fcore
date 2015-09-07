@@ -1,7 +1,9 @@
 
+
+
 data Color = Red | Black;
 
-data rec Tree1 = Tempty | Node Color Tree1 Int Tree1;
+data Tree1 = Tempty | Node Color Tree1 Int Tree1;
 
 data OptionInt = None | Some Int;
 
@@ -69,30 +71,59 @@ let balance(c: Color) (a: Tree1) (v: Int) (b: Tree1): Tree1 =
     case c of
      Red   -> Node c a v b
    | Black -> (case a of 
-                 Empty -> (case b of
-                             Empty -> Node c a v b
+                Node lc la lv lb -> (case lc of
+                                        Black -> 
+                        (case b of
+                             Tempty -> Node c a v b
                            | Node rc ra rv rb -> (case rc of
                                                     Black -> Node c a v b
                                                   | Red -> (case ra of
-                                                              Empty -> (case rb of
-                                                                         Empty -> Node c a v b
+                                                              Tempty -> (case rb of
+                                                                         Tempty -> Node c a v b
                                                                        | Node rrc rra rrv rrb -> (case rrc of
                                                                                                     Black -> Node c a v b
                                                                                                   | Red -> Node Red (Node Black a v ra) rv (Node Black rra rrv rrb) ))
                                                             | Node rrc rra rrv rrb -> (case rrc of
-                                                                                         Black -> Node c a v b
+                                                                                         Black -> (case rb of
+                                                                                                    Tempty -> Node c a v b
+                                                                                                  | Node rrrc rrra rrrv rrrb -> (case rrrc of
+                                                                                                                          Black -> Node c a v b
+                                                                                                                        | Red -> Node Red (Node Black a v ra) rv (Node Black rrra rrrv rrrb) ))
+
+
                                                                                        | Red -> Node Red (Node Black a v ra) rv (Node Black rra rrv rrb) ))))
-                | Node lc la lv lb -> (case lc of
-                                          Black -> Node c a v b
-                                        | Red   -> (case la of
-                                                      Empty -> (case lb of
-                                                                  Empty -> Node c a v b
+                                      | Red   -> (case la of
+                                                      Tempty -> (case lb of
+                                                                  Tempty -> Node c a v b
                                                                 | Node llc lla llv llb -> (case llc of
-                                                                                             Red -> Node Red (Node Black lla llv llb) lv (Node Black lb v b)
+                                                                                             Red -> Node Red (Node Black la lv lla) llv (Node Black llb v b)
                                                                                            | Black -> Node c a v b ))
                                                     | Node llc lla llv llb -> (case llc of
                                                                                  Red -> Node Red (Node Black lla llv llb) lv (Node Black lb v b)
-                                                                               | Black -> Node c a v b   ))));
+                                                                               | Black -> (case lb of
+                                                                                            Tempty -> Node c a v b
+                                                                                          | Node lllc llla lllv lllb -> (case lllc of
+                                                                                                                   Red -> Node Red (Node Black la lv llla) lllv (Node Black lllb v b)
+                                                                                                                 | Black -> Node c a v b )) )))
+
+
+               | Tempty -> (case b of
+                             Tempty -> Node c a v b
+                           | Node rc ra rv rb -> (case rc of
+                                                    Black -> Node c a v b
+                                                  | Red -> (case ra of
+                                                              Tempty -> (case rb of
+                                                                         Tempty -> Node c a v b
+                                                                       | Node rrc rra rrv rrb -> (case rrc of
+                                                                                                    Black -> Node c a v b
+                                                                                                  | Red -> Node Red (Node Black a v ra) rv (Node Black rra rrv rrb) ))
+                                                            | Node rrc rra rrv rrb -> (case rrc of
+                                                                                        Black -> (case rb of
+                                                                                                    Tempty -> Node c a v b
+                                                                                                  | Node rrrc rrra rrrv rrrb -> (case rrrc of
+                                                                                                       Black -> Node c a v b
+                                                                                                     | Red -> Node Red (Node Black a v ra) rv (Node Black rrra rrrv rrrb) ))
+                                                                                      | Red -> Node Red (Node Black a v rra) rrv (Node Black rrb v b) )))));
 
 
 {-
@@ -118,33 +149,42 @@ let prop_buggyBalance (c: Color) (a: Tree1) (x: Int) (b: Tree1): Bool =
 
 -}
 
+
 let rec ins (x: Int) (t: Tree1) : Tree1 =
-      if redNodesHaveBlackChildren t && blackBalanced t
-      then case t of 
+     -- if redNodesHaveBlackChildren t && blackBalanced t
+    --  then 
+       case t of 
            Tempty -> Node Red Tempty x Tempty
          | Node c a y b -> if x < y 
                            then balance c (ins x a) y b
                            else if x ==y 
                                 then Node c a y b
-                                else balance c a y (ins x b)
-      else error [Tree1] "The Input is not a RedBlackTree" ;
+                                else balance c a y (ins x b);
+     -- else error [Tree1] "The Input is not a RedBlackTree" ;
+
 
 let prop_ins (x: Int) (t: Tree1) : Bool =
       let res = ins x t;
    --   content res == union (content t) (singleton x) && 
-      size t <= size res && 
-      size res <= size t + 1 &&
-      redDescHaveBlackChildren res && 
-      blackBalanced res;
+      
+    if redNodesHaveBlackChildren t && blackBalanced t
+    then size t < size res && 
+         size res <= size t + 1 &&
+         redDescHaveBlackChildren res && 
+         blackBalanced res    
+    else True;
  
 
+
 let makeBlack (n: Tree1) : Tree1 = 
-     if redDescHaveBlackChildren n && blackBalanced n
-     then case n of
+   --  if redDescHaveBlackChildren n && blackBalanced n
+   --  then 
+        case n of
            Node c l v r -> (case c of 
                              Red   -> Node Black l v r
                            | Black -> n)
-     else error [Tree1] "The Input is not a RedBlackTree" ;
+         | Tempty       -> Tempty;
+     --else error [Tree1] "The Input is not a RedBlackTree" ;
 
 let prop_makeBlack (n: Tree1) : Bool =
     let res = makeBlack n;
@@ -152,9 +192,9 @@ let prop_makeBlack (n: Tree1) : Bool =
 
 
 let add(x: Int) (t: Tree1) : Tree1 =
-    if redDescHaveBlackChildren t && blackBalanced t
-     then makeBlack (ins x t)
-     else error [Tree1] "The Input is not a RedBlackTree" ;
+  --  if redDescHaveBlackChildren t && blackBalanced t
+      makeBlack (ins x t);
+   --  else error [Tree1] "The Input is not a RedBlackTree" ;
 
 let prop_add (x: Int) (t: Tree1) : Bool =
     if redDescHaveBlackChildren t && blackBalanced t
@@ -165,9 +205,9 @@ let prop_add (x: Int) (t: Tree1) : Bool =
 
 
 let buggyAdd (x: Int) (t: Tree1) : Tree1 =
-    if redDescHaveBlackChildren t
-     then ins x t
-     else error [Tree1] "aha! Get you!";
+  --  if redDescHaveBlackChildren t
+     ins x t;
+  --   else error [Tree1] "aha! Get you!";
 
 let prop_buggyAdd (x: Int) (t: Tree1) : Bool =
     if redDescHaveBlackChildren t
@@ -175,8 +215,6 @@ let prop_buggyAdd (x: Int) (t: Tree1) : Bool =
       --    content res == union (content t) (singleton x) &&
           redNodesHaveBlackChildren res
      else True ;
-           
-
 
 prop_ins
 --prop_makeBlack
