@@ -45,6 +45,7 @@ library
                         BaseTransCFJava
                         Checker
                         ClosureF
+                        ClosureFNew
                         Config
                         Core
                         CoreNew

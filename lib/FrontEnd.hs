@@ -1,9 +1,7 @@
 module FrontEnd (source2core) where
 
 import           BackEnd (DumpOption(..))
-import qualified Core
 import           Desugar (desugar)
-import qualified CoreNew
 import qualified OptiUtils (Exp(Hide))
 import           Parser (reader, P(..))
 import           Problem
@@ -44,32 +42,3 @@ source2core optDump (filePath, source)
                let fiExpr = desugar checked
                when (optDump == SystemFI) $ print (FI.prettyExpr fiExpr)
                return (OptiUtils.Hide (simplify (FI.HideF fiExpr)))
-
-s2n :: String -> IO (CoreNew.Expr CoreNew.Index)
-s2n source
-  = case reader source of
-      PError msg -> do putStrLn msg
-                       exitFailure
-      POk parsed -> do
-        result <- typeCheck parsed
-        case result of
-          Left typeError -> exitFailure
-          Right (_, checked) ->
-            do let fiExpr = desugar checked
-               let exp = simplify (FI.HideF fiExpr)
-               putStrLn "-- Core:"
-               print (Core.prettyExpr exp)
-               let expcn = CoreNew.coreExprToNew exp
-               putStrLn "\n-- New Core:"
-               print (CoreNew.pretty expcn)
-               putStrLn ""
-               return expcn
-
-testnc :: IO ()
-testnc =
-  do
-    s2n "let rec fact (n : Int) : Int = if n == 0 then 1 else n * fact (n - 1); fact 5"
-    s2n "let id[A] (x : A) = x; id [forall A. A -> A] id 10"
-    s2n "let get [D, E, F] (x : E) (y : D) : D = y; get [Int, String, Int] \"abc\" 5"
-    return ()
-

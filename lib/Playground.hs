@@ -19,6 +19,10 @@ import           Language.Java.Pretty (prettyPrint)
 import           Text.PrettyPrint.ANSI.Leijen
 import           Unsafe.Coerce (unsafeCoerce)
 
+import qualified CoreNew
+import qualified ClosureFNew
+import qualified ClosureF
+
 instance Show (Expr t e) where
   show = show . prettyExpr . unsafeCoerce
 
@@ -82,9 +86,41 @@ add (n : Int) (m : Int) = n + m
 --                      (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
 --                      (\f2 -> Null)))))
 
+-- New Core Test
 
-javaIntS = (S.JType (S.JClass "java.lang.Integer"))
-javaBoolS = (S.JType (S.JClass "java.lang.Boolean"))
+s2n :: String -> IO ()
+s2n source
+  = case reader source of
+      PError msg -> do putStrLn msg
+                       exitFailure
+      POk parsed -> do
+        result <- typeCheck parsed
+        case result of
+          Left typeError -> exitFailure
+          Right (_, checked) ->
+            do let fiExpr = desugar checked
+               let exp = simplify (FI.HideF fiExpr)
+               putStrLn "-- Core:"
+               print (Core.prettyExpr exp)
+               let expcn = CoreNew.coreExprToNew exp
+               putStrLn "\n-- New Core:"
+               print (CoreNew.pretty expcn)
+               putStrLn "\n*****\n-- ClosureF:"
+               print (ClosureF.prettyExpr basePrec (0, 0) (ClosureF.fexp2cexp exp))
+               putStrLn "\n-- New ClosureF:"
+               print (ClosureFNew.pretty (ClosureFNew.fexp2cexp expcn))
+               putStrLn ""
+
+testnc :: IO ()
+testnc =
+  do
+    s2n "let rec fact (n : Int) : Int = if n == 0 then 1 else n * fact (n - 1); fact 5"
+    s2n "let id[A] (x : A) = x; id [forall A. A -> A] id 10"
+    s2n "let get [D, E, F] (x : E) (y : D) : D = y; get [Int, String, Int] \"abc\" 5"
+    return ()
+
+-- javaIntS = (S.JType (S.JClass "java.lang.Integer"))
+-- javaBoolS = (S.JType (S.JClass "java.lang.Boolean"))
 
 
 tailFact :: Expr t e
