@@ -104,7 +104,7 @@ adjust _ _ = sorry "ClosureFNew.adjust: no idea how to do"
 
 scope2ctyp :: EScope t -> Type t
 scope2ctyp (Body t)  = t
-scope2ctyp s         = Pi "" s
+scope2ctyp s         = Pi "_" s
 
 getArity :: EScope t -> Int
 getArity (Type _ g) = 1 + getArity (g undefined)
