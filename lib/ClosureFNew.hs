@@ -28,7 +28,7 @@ data Scope b e =
       Body b
     | Type (Type e) (e -> Scope b e)
 
-type TScope t = Scope (Type t) t
+-- type TScope t = Scope (Type t) t
 type EScope e = Scope (Expr e) e
 
 type Type t = Expr t
@@ -38,11 +38,11 @@ data Expr e =
    | Lit S.Lit
 
    | Lam S.ReadId (EScope e)
-   | Pi S.ReadId (TScope e)
+   | Pi S.ReadId (EScope e)
    | Mu S.ReadId (EScope e)
    | Let S.ReadId (Expr e) (e -> Expr e)
    | App (Expr e) (Expr e)
-   
+
    | If (Expr e) (Expr e) (Expr e)
    | PrimOp (Expr e) S.Operator (Expr e)
 
@@ -95,18 +95,18 @@ fexp2cexp (C.JField c fName r)       =
 fexp2cexp (C.Error ty str)           = Error (fexp2cexp ty) (fexp2cexp str)
 fexp2cexp (C.Seq es)                 = SeqExprs (map fexp2cexp es)
 
-adjust :: C.Type t -> EScope t -> TScope t
+adjust :: C.Type t -> EScope t -> EScope t
 adjust (C.Pi _ _ f) (Type t' g) = Type t' (\t -> adjust (f t) (g t))
 adjust t (Body _)               = Body (fexp2cexp t)
 adjust _ _ = sorry "ClosureFNew.adjust: no idea how to do"
 
 -- join
 
-scope2ctyp :: TScope t -> Type t
+scope2ctyp :: EScope t -> Type t
 scope2ctyp (Body t)  = t
 scope2ctyp s         = Pi "" s
 
-getArity :: TScope t -> Int
+getArity :: EScope t -> Int
 getArity (Type _ g) = 1 + getArity (g undefined)
 getArity _ = 0
 
@@ -119,13 +119,13 @@ joinType (JClass c) = JClass c
 joinType (TupleType ts) = TupleType (map joinType ts)
 joinType _ = error "ClosureFNew.joinType: not defined"
 
-joinTScope :: TScope (Type t) -> TScope t
+joinTScope :: EScope (Type t) -> EScope t
 joinTScope (Body b)   = Body (joinType b)
 joinTScope (Type t f) = Type (joinType t) (joinTScope . f . Var "")
 
 -- Free variable substitution
 
-substScope :: Subst t => Int -> Type Int -> TScope t  -> TScope t
+substScope :: Subst t => Int -> Type Int -> EScope t  -> EScope t
 substScope n t (Body t1) = Body (substType n t t1)
 substScope n t (Type t1 f) = Type (substType n t t1) (substScope n t . f)
 

@@ -104,10 +104,10 @@ coreExprToNew = transExpr
                                          (\e -> Lam n2 (transType t) (transExpr . f e))
         transExpr (C.Let n b e) = Let n (transExpr b) (transExpr . e)
         -- TODO: translate letrec for mutual recursion
-        transExpr (C.LetRec ns ts bi bo) = let n = head ns
-                                               t = head ts
-                                             in Let n (Mu n (transType t) (\e -> transExpr . head . bi  $ [e]))
-                                                (\e -> transExpr . bo $ [e])
+        -- transExpr (C.LetRec ns ts bi bo) = let n = head ns
+        --                                        t = head ts
+        --                                      in Let n (Mu n (transType t) (\e -> transExpr . head . bi  $ [e]))
+        --                                         (\e -> transExpr . bo $ [e])
         transExpr (C.BLam n f) = Lam n Star (transExpr . f)
         transExpr (C.App f e) = App (transExpr f) (transExpr e)
         transExpr (C.TApp f e) = App (transExpr f) (transType e)

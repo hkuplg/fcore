@@ -1,18 +1,19 @@
 
 module Playground where
 
+import           BackEnd (compileN)
 import qualified ClosureF as C
 import           Core
 import           Desugar (desugar)
+import qualified OptiUtils (Exp(Hide))
 import           Parser (reader, P(..))
+import           PartialEvaluator
+import           PrettyUtils
+import           Simplify (simplify)
 import qualified Src as S
 import           System.Exit
 import qualified SystemFI as FI
 import           TypeCheck (typeCheck)
-import qualified OptiUtils (Exp(Hide))
-import PrettyUtils
-import BackEnd (compileN)
-import Simplify  (simplify)
 
 import qualified Language.Java.Syntax as J (Op(..))
 import           Language.Java.Pretty (prettyPrint)
@@ -99,7 +100,8 @@ s2n source
           Left typeError -> exitFailure
           Right (_, checked) ->
             do let fiExpr = desugar checked
-               let exp = simplify (FI.HideF fiExpr)
+               let exp' = OptiUtils.Hide (simplify (FI.HideF fiExpr))
+               let exp = rewriteAndEval exp'
                putStrLn "-- Core:"
                print (Core.prettyExpr exp)
                let expcn = CoreNew.coreExprToNew exp
@@ -114,7 +116,7 @@ s2n source
 testnc :: IO ()
 testnc =
   do
-    s2n "let rec fact (n : Int) : Int = if n == 0 then 1 else n * fact (n - 1); fact 5"
+    -- s2n "let rec fact (n : Int) : Int = if n == 0 then 1 else n * fact (n - 1); fact 5"
     s2n "let id[A] (x : A) = x; id [forall A. A -> A] id 10"
     s2n "let get [D, E, F] (x : E) (y : D) : D = y; get [Int, String, Int] \"abc\" 5"
     return ()
@@ -196,22 +198,6 @@ x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y
 
--- sf2c :: String -> IO (Expr t e)
--- sf2c fname = do
---   path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
---   string <- readFile (path ++ "/" ++ fname)
---   let readSrc = Parser.reader string
---   result <- readSrc `seq` (typeCheck readSrc)
---   case result of
---    Left typeError -> error $ show typeError
---    Right (typ, tcheckedSrc) -> do
---      print tcheckedSrc
---      return (simplify . desugar $ tcheckedSrc)
-     -- case n of
-     --  1 -> return (peval . simplify . desugar $ tcheckedSrc)
-     --  2 -> return (simplify . desugar $ tcheckedSrc)
-      -- 3 -> return (desugar $ tcheckedSrc)
-      -- _ -> return (peval . desugar $ tcheckedSrc)
 
 mconst =
   (bLam (\a ->

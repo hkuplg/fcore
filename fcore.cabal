@@ -43,6 +43,7 @@ library
   exposed-modules:      ApplyTransCFJava
                         BackEnd
                         BaseTransCFJava
+                        BaseTransCFJavaNew
                         Checker
                         ClosureF
                         ClosureFNew
