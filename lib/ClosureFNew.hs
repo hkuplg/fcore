@@ -107,7 +107,7 @@ scope2ctyp (Body t)  = t
 scope2ctyp s         = Pi "_" s
 
 getArity :: EScope t -> Int
-getArity (Type _ g) = 1 + getArity (g undefined)
+getArity (Type _ g) = 1 + getArity (g undefined) -- TODO: better choice
 getArity _ = 0
 
 joinType :: Type (Type t) -> Type t

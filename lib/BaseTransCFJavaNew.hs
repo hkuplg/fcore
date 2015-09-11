@@ -54,23 +54,27 @@ type Var = Int -- Either normal variable or class name
 
 type TransJavaExp = Either J.Name J.Literal -- either variable or special case: Lit
 
-type TransType = ([J.BlockStmt], TransJavaExp, Type Int)
+type TransType = ([J.BlockStmt], TransJavaExp, Type TransBind)
+
+data TyBind = TB {unTB :: (Type (Var, TyBind))}
+
+type TransBind = (Var, TyBind)
 
 data Translate m =
-  T {translateM :: Expr (Var,Type Int) -> m TransType
-    ,translateScopeM :: EScope (Var,Type Int) -> Maybe (Int,Type Int) -> m ([J.BlockStmt],TransJavaExp,EScope Int)
+  T {translateM :: Expr TransBind -> m TransType
+    ,translateScopeM :: EScope TransBind -> m ([J.BlockStmt],TransJavaExp,EScope TransBind)
     ,translateApply :: Bool -> m TransType -> m TransType -> m TransType
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
-    ,translateLet :: TransType -> ((Var,Type Int) -> Expr (Var,Type Int)) -> m TransType
-    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> EScope (Var,Type Int) -> m ([J.BlockStmt],TransJavaExp,EScope Int) -> String -> m ([J.BlockStmt],EScope Int)
-    ,genApply :: J.Exp -> EScope Int -> String -> J.Type -> J.Type -> m [J.BlockStmt]
-    ,genRes :: EScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
+    ,translateLet :: TransType -> (TransBind -> Expr TransBind) -> m TransType
+    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> EScope TransBind -> m ([J.BlockStmt],TransJavaExp,EScope TransBind) -> String -> m ([J.BlockStmt],EScope TransBind)
+    ,genApply :: J.Exp -> EScope TransBind -> String -> J.Type -> J.Type -> m [J.BlockStmt]
+    ,genRes :: EScope TransBind -> [J.BlockStmt] -> m [J.BlockStmt]
     ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
     ,withApply :: m Bool
     ,getPrefix :: m String
-    ,javaType :: Type Int -> m J.Type
-    ,chooseCastBox :: Type Int -> m (String -> J.Exp -> J.BlockStmt,J.Type)
+    ,javaType :: Type TransBind -> m J.Type
+    ,chooseCastBox :: Type TransBind -> m (String -> J.Exp -> J.BlockStmt,J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
     ,genClosureVar :: Bool -> Int -> TransJavaExp -> m J.Exp
     ,createWrap :: String -> Expr (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
@@ -81,7 +85,7 @@ getNewVarName _ =
      put (n + 1)
      return $ localvarstr ++ show n
 
-assignVar :: Monad m => Translate m -> Type Int -> String -> J.Exp -> m J.BlockStmt
+assignVar :: Monad m => Translate m -> Type TransBind -> String -> J.Exp -> m J.BlockStmt
 assignVar this t varId e =
   do aType <- javaType this t
      return $
@@ -129,7 +133,7 @@ getS3 :: MonadState Int m
       => Translate m
       -> J.Exp
       -> J.Exp
-      -> EScope Int
+      -> EScope TransBind
       -> J.Type
       -> m ([J.BlockStmt],TransJavaExp)
 getS3 this j1 j2 retTyp ctempCastTyp =
@@ -157,7 +161,7 @@ trans self =
   in T {translateM =
           \e ->
             case e of
-              Var _ (i,t) -> return ([],var (localvarstr ++ show i),t)
+              Var _ (i,t) -> return ([],var (localvarstr ++ show i),unTB t)
               Lit lit ->
                 case lit of
                   (S.Int i) ->
@@ -198,7 +202,7 @@ trans self =
                   _ ->
                     do tuple' <- mapM (translateM this) tuple
                        let (statements,exprs,types) =
-                             (unzip3 tuple') & _1 %~ concat
+                             unzip3 tuple' & _1 %~ concat
                        newVarName <- getNewVarName this
                        let c = getTupleClassName tuple
                        let rhs =
@@ -234,7 +238,7 @@ trans self =
                                 (s1,j1,t1)
                                 body
               Lam _ se ->
-                do (s,je,t) <- translateScopeM this se Nothing
+                do (s,je,t) <- translateScopeM this se
                    return (s,je,Pi "_" t)
               Mu _ se -> undefined -- TODO: Mu thing
               SeqExprs es ->
@@ -244,12 +248,53 @@ trans self =
                    return (statements,lastExp,lastType)
               -- Pi, TupleType, Unit, Star, Jnew, JMethod, JField, JClass, Error
               _ -> panic "BaseTransCFJavaNew.trans: don't know how to do"
-       ,translateScopeM = undefined
+       ,translateScopeM =
+          \e ->
+            case e of
+              Body t ->
+                do (s,je,t1) <- translateM this t
+                   return (s,je,Body t1)
+              Type t g ->  -- TODO: when t is star, should not generate code
+                do n <- get
+                   let (x1,x2) = (n + 1,n + 2)
+                   put (x2 + 1)
+                   let nextInClosure = g (x2,TB t)
+                   typT1 <- javaType this t
+                   let flag = typT1 == objClassTy
+                   let accessField =
+                         fieldAccess (left $ var (localvarstr ++ show x1))
+                                     closureInput
+                   let xf =
+                         localFinalVar
+                           typT1
+                           (varDecl (localvarstr ++ show x2)
+                                    (if flag
+                                        then accessField
+                                        else cast typT1 accessField))
+                   closureClass <-
+                     liftM2 (++)
+                            (getPrefix this)
+                            (return "Closure")
+                   (cvar,t1) <-
+                     translateScopeTyp this
+                                       x1
+                                       n
+                                       [xf]
+                                       nextInClosure
+                                       (translateScopeM this nextInClosure)
+                                       closureClass
+                   let fstmt =
+                         [localVar closureType
+                                   (varDecl (localvarstr ++ show n)
+                                            (funInstCreate n))]
+                   return (cvar ++ fstmt
+                          ,var (localvarstr ++ show n)
+                          ,Type t (const t1))
        ,translateApply =
           \flag m1 m2 ->
             do (s1,j1',Pi _ (Type _ g)) <- m1
                (s2,j2,_) <- m2
-               let retTyp = g 0 -- better choice?
+               let retTyp = g undefined -- TODO: better choice?
                j1 <-
                  genClosureVar this
                                flag
@@ -264,14 +309,51 @@ trans self =
                (s1,j1,_) <- m1
                genIfBody this m2 m3 (s1,j1) n
        ,translateLet = undefined
-       ,translateScopeTyp = undefined
-       ,genApply = undefined
-       ,genRes = undefined
+       ,translateScopeTyp =
+          \x1 f initVars _ otherStmts closureClass ->
+            do b <- genClone this
+               (ostmts,oexpr,t1) <- otherStmts
+               let fc = f
+               return ([localClassDecl
+                          (closureTransName ++ show fc)
+                          closureClass
+                          (closureBodyGen
+                             [memberDecl $
+                              fieldDecl (classTy closureClass)
+                                        (varDecl (localvarstr ++ show x1) J.This)]
+                             (initVars ++
+                              ostmts ++
+                              [bsAssign (name [closureOutput])
+                                        (unwrap oexpr)])
+                             fc
+                             b
+                             (classTy closureClass))]
+                      ,t1)
+       ,genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
+       ,genRes = const return
        ,applyRetType = undefined
-       ,genClone = undefined
-       ,withApply = undefined
-       ,getPrefix = undefined
-       ,javaType = undefined
+       ,genClone = return False -- do not generate clone method
+       ,withApply = return True
+       ,getPrefix = return namespace
+       ,javaType =
+          \typ ->
+            case typ of
+              (JClass c) -> return $ classTy c
+              -- (Forall (Kind f)) -> case f 0 of -- TODO: could be a bug
+              --                       Body typ' -> javaType this typ'
+              --                       _ -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
+              -- return (classTy closureClass)
+              (Pi _ s) -> -- TODO: need to check for big lambda
+                do closureClass <-
+                     liftM2 (++)
+                            (getPrefix this)
+                            (return "Closure")
+                   return (classTy closureClass)
+              (TupleType tuple) ->
+                case tuple of
+                  [t] -> javaType this t
+                  _ -> return $ classTy $ getTupleClassName tuple
+              _ -> return objClassTy
        ,chooseCastBox =
           \typ ->
             case typ of
@@ -289,6 +371,6 @@ trans self =
                     do let tupleClassName = getTupleClassName tuple
                        return (initClass tupleClassName,classTy tupleClassName)
               _ -> return (initClass "Object",objClassTy)
-       ,stackMainBody = undefined
-       ,genClosureVar = undefined
+       ,stackMainBody = \_ -> return []
+       ,genClosureVar = \_ _ j1 -> return (unwrap j1)
        ,createWrap = undefined}
