@@ -10,6 +10,7 @@
 module BackEnd
     ( Compilation
     , compileN
+    , compileN2
     , compileAO
     , compileS
     -- , compileSAU
@@ -23,10 +24,13 @@ module BackEnd
 
 import           ApplyTransCFJava
 import qualified BaseTransCFJava as OB
+import qualified BaseTransCFJavaNew as NB
 -- import           BenchGenCF2J
 -- import           BenchGenStack
 import qualified ClosureF
+import qualified ClosureFNew
 import qualified Core
+import qualified CoreNew
 import           Inheritance
 import           Inliner
 import           JavaUtils (ClassName)
@@ -55,6 +59,9 @@ data DumpOption
 
 naive :: MonadState Int m => OB.Translate m
 naive = new OB.trans
+
+naiveN :: MonadState Int m => NB.Translate m
+naiveN = new NB.trans
 
 -- Apply naive optimization
 
@@ -171,11 +178,17 @@ core2java supernaive optInline optDump compilation className closedCoreExpr =
 
 type Compilation = String -> Core.Expr Int (OB.Var,ClosureF.Type Int) -> (J.CompilationUnit,ClosureF.Type Int)
 
+type Compilation2 = String -> CoreNew.Expr NB.TransBind -> (J.CompilationUnit, ClosureFNew.Type NB.TransBind)
+
 -- | setting for various combination of optimization
 -- Setting for naive
 type NType = State Int
+
 ninst :: OB.Translate NType  -- instantiation; all coinstraints resolved
 ninst = naive
+
+ninstN :: NB.Translate NType  -- instantiation; all coinstraints resolved
+ninstN = naiveN
 
 translateN
   :: String
@@ -183,8 +196,17 @@ translateN
   -> NType (J.CompilationUnit,ClosureF.Type Int)
 translateN = OB.createWrap (up ninst)
 
+translateN2
+  :: String
+  -> ClosureFNew.Expr NB.TransBind
+  -> NType (J.CompilationUnit,ClosureFNew.Type NB.TransBind)
+translateN2 = NB.createWrap (up ninstN)
+
 compileN :: Compilation
 compileN name e = evalState (translateN name (ClosureF.fexp2cexp e)) 1
+
+compileN2 :: Compilation2
+compileN2 name e = evalState (translateN2 name (ClosureFNew.fexp2cexp e)) 1
 
 -- Setting for apply + naive
 type AOptType = ReaderT Int (ReaderT OB.InitVars (State Int))

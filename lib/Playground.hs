@@ -1,7 +1,7 @@
 
 module Playground where
 
-import           BackEnd (compileN)
+import           BackEnd (compileN, compileN2)
 import qualified ClosureF as C
 import           Core
 import           Desugar (desugar)
@@ -112,6 +112,23 @@ s2n source
                putStrLn "\n-- New ClosureF:"
                print (ClosureFNew.pretty (ClosureFNew.fexp2cexp expcn))
                putStrLn ""
+
+s2Java :: String -> IO ()
+s2Java source
+  = case reader source of
+      PError msg -> do putStrLn msg
+                       exitFailure
+      POk parsed -> do
+        result <- typeCheck parsed
+        case result of
+          Left typeError -> exitFailure
+          Right (_, checked) ->
+            do let fiExpr = desugar checked
+               let exp' = OptiUtils.Hide (simplify (FI.HideF fiExpr))
+               let exp = rewriteAndEval exp'
+               let core = CoreNew.coreExprToNew exp
+               let (cu,_) = compileN2 "test" core
+               putStrLn $ prettyPrint cu
 
 testnc :: IO ()
 testnc =
