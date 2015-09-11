@@ -69,7 +69,7 @@ data Translate m =
     ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> EScope TransBind -> m ([J.BlockStmt],TransJavaExp,EScope TransBind) -> String -> m ([J.BlockStmt],EScope TransBind)
     ,genApply :: J.Exp -> EScope TransBind -> String -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: EScope TransBind -> [J.BlockStmt] -> m [J.BlockStmt]
-    ,applyRetType :: Type Int -> m (Maybe J.Type)
+    ,applyRetType :: Type TransBind -> m (Maybe J.Type)
     ,genClone :: m Bool
     ,withApply :: m Bool
     ,getPrefix :: m String
@@ -77,7 +77,7 @@ data Translate m =
     ,chooseCastBox :: Type TransBind -> m (String -> J.Exp -> J.BlockStmt,J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
     ,genClosureVar :: Bool -> Int -> TransJavaExp -> m J.Exp
-    ,createWrap :: String -> Expr (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
+    ,createWrap :: String -> Expr TransBind -> m (J.CompilationUnit,Type TransBind)}
 
 getNewVarName :: MonadState Int m => Translate m -> m String
 getNewVarName _ =
@@ -254,7 +254,8 @@ trans self =
               Body t ->
                 do (s,je,t1) <- translateM this t
                    return (s,je,Body t1)
-              Type t g ->  -- TODO: when t is star, should not generate code
+              -- TODO: when t is star, should not generate code
+              Type t g ->
                 do n <- get
                    let (x1,x2) = (n + 1,n + 2)
                    put (x2 + 1)
@@ -331,7 +332,13 @@ trans self =
                       ,t1)
        ,genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
        ,genRes = const return
-       ,applyRetType = undefined
+       ,applyRetType =
+          \t ->
+            (case t of
+               JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
+               JClass "java.lang.Boolean" ->
+                 return $ Just $ J.PrimType J.BooleanT
+               _ -> return $ Just objClassTy)
        ,genClone = return False -- do not generate clone method
        ,withApply = return True
        ,getPrefix = return namespace
@@ -343,7 +350,8 @@ trans self =
               --                       Body typ' -> javaType this typ'
               --                       _ -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
               -- return (classTy closureClass)
-              (Pi _ s) -> -- TODO: need to check for big lambda
+              -- TODO: need to check for big lambda
+              (Pi _ s) ->
                 do closureClass <-
                      liftM2 (++)
                             (getPrefix this)
@@ -373,4 +381,15 @@ trans self =
               _ -> return (initClass "Object",objClassTy)
        ,stackMainBody = \_ -> return []
        ,genClosureVar = \_ _ j1 -> return (unwrap j1)
-       ,createWrap = undefined}
+       ,createWrap =
+          \nam expr ->
+            do (bs,e,t) <- translateM this expr
+               returnType <- applyRetType this t
+               let javaCode =
+                     let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
+                     in wrapperClass False
+                                     nam
+                                     (bs ++ returnStmt)
+                                     returnType
+                                     mainBody
+               return ((createCUB Nothing [javaCode]),t)}
