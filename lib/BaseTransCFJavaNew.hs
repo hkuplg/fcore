@@ -330,10 +330,7 @@ translateScopeTyp' this =
 javaType' this =
   \typ -> case typ of
     (JClass c) -> return $ classTy c
-    -- (Forall (Kind f)) -> case f 0 of -- TODO: could be a bug
-    --                       Body typ' -> javaType this typ'
-    --                       _ -> do closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
-    -- return (classTy closureClass) TODO: need to check for big lambda
+    -- TODO: need to check for big lambda?
     (Pi _ s) -> do
       closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
       return (classTy closureClass)
