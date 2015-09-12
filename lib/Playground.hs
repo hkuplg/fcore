@@ -30,21 +30,10 @@ instance Show (Expr t e) where
 instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
-core2java core =
-  do let (cu,_) = compileN "M1" core
-     return $ prettyPrint cu
-
-src2test source
-  = case reader source of
-      PError msg -> do putStrLn msg
-                       exitFailure
-      POk parsed -> print (pretty parsed)
-        -- do
-        --   result <- typeCheck parsed
-        --   case result of
-        --     Left typeError -> do print (pretty typeError)
-        --                          exitFailure
-        --     Right (_, checked) -> print (pretty checked)
+core2java core = do
+  let newcore = CoreNew.coreExprToNew core
+  let (cu,_) = compileN2 "M1" newcore
+  putStrLn $ prettyPrint cu
 
 m1src = "package P.k module {rec even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1) and odd  (n : Int) : Bool = if n == 0 then False else even (n - 1)} "
 
@@ -142,7 +131,7 @@ testB :: String
 testB = "(/\\B -> \\(f : B) -> f) [Int] 3"
 
 testA :: String
-testA = "(\\ (x : Int) -> x) 3"
+testA = "if True then 1 else 2"
 
 -- javaIntS = (S.JType (S.JClass "java.lang.Integer"))
 -- javaBoolS = (S.JType (S.JClass "java.lang.Boolean"))
@@ -165,11 +154,11 @@ testTail = App (fix (\f n -> If (var n `eq` zero)
                (javaInt `Fun` javaInt)) one
 
 fact :: Expr t e
-fact = fix (\f n -> If (var n `eq` zero)
+fact = App (fix (\f n -> If (var n `eq` zero)
                        one
                        (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
-           javaInt
+           javaInt) one
 
 
 test1 :: Expr t e

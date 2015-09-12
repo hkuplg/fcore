@@ -64,7 +64,7 @@ type TransBind = (Var, TyBind)
 
 data Translate m =
   T {translateM :: Expr TransBind -> m TransType
-    ,translateScopeM :: EScope TransBind -> m ([J.BlockStmt],TransJavaExp,EScope TransBind)
+    ,translateScopeM :: EScope TransBind -> Maybe Int -> m ([J.BlockStmt],TransJavaExp,EScope TransBind)
     ,translateApply :: Bool -> m TransType -> Expr TransBind -> m TransType
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
     ,translateLet :: TransType -> (TransBind -> Expr TransBind) -> m TransType
@@ -268,9 +268,17 @@ translateM' this =
                         (s1,j1,t1)
                         body
       Lam _ se ->
-        do (s,je,t) <- translateScopeM this se
+        do (s,je,t) <- translateScopeM this se Nothing
            return (s,je,Pi "_" t)
-      Mu _ se -> undefined -- TODO: Mu thing
+      Mu _ (Type t se)    -- FIXME: generalize?
+       ->
+        do n <- get
+           put (n + 1)
+           (expr,je,t') <-
+             translateScopeM this
+                             (se (n,TB t))
+                             (Just n)
+           return (expr,je,Pi "_" t')
       SeqExprs es ->
         do es' <- mapM (translateM this) es
            let (_,lastExp,lastType) = last es'
@@ -281,7 +289,7 @@ translateM' this =
       _ -> panic "BaseTransCFJavaNew.trans: don't know how to do"
 
 translateScopeM' this =
-  \e ->
+  \e m ->
     case e of
       Body t ->
         do (s,je,t1) <- translateM this t
@@ -291,10 +299,10 @@ translateScopeM' this =
            case t of
              Star ->
                do put (n + 1)
-                  (s,je,t1) <- translateScopeM this (g (n, None))
+                  (s,je,t1) <- translateScopeM this (g (n, None)) m
                   return (s,je, Type Star (\a -> substEScope n (Var "_" a) t1))
              _ ->
-               do let (x1,x2) = (n + 1,n + 2)
+               do let (x1,x2) = maybe (n + 1,n + 2) (\i -> (i, n + 1)) m
                   put (x2 + 1)
                   let nextInClosure = g (x2,TB t)
                   typT1 <- javaType this t
@@ -319,7 +327,7 @@ translateScopeM' this =
                                       n
                                       [xf]
                                       nextInClosure
-                                      (translateScopeM this nextInClosure)
+                                      (translateScopeM this nextInClosure Nothing)
                                       closureClass
                   let fstmt =
                         [localVar closureType
