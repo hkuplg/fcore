@@ -138,6 +138,12 @@ testnc =
     s2n "let get [D, E, F] (x : E) (y : D) : D = y; get [Int, String, Int] \"abc\" 5"
     return ()
 
+testB :: String
+testB = "(/\\B -> \\(f : B) -> f) [Int] 3"
+
+testA :: String
+testA = "(\\ (x : Int) -> x) 3"
+
 -- javaIntS = (S.JType (S.JClass "java.lang.Integer"))
 -- javaBoolS = (S.JType (S.JClass "java.lang.Boolean"))
 

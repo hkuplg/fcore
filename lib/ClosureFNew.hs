@@ -24,6 +24,8 @@ import           Text.PrettyPrint.ANSI.Leijen
 
 -- Closure F syntax
 
+-- FIXME: This is probably wrong, because it would group pi and lambda
+-- together
 data Scope b e =
       Body b
     | Type (Type e) (e -> Scope b e)

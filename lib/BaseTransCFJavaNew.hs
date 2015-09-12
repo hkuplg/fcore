@@ -56,14 +56,16 @@ type TransJavaExp = Either J.Name J.Literal -- either variable or special case: 
 
 type TransType = ([J.BlockStmt], TransJavaExp, Type TransBind)
 
-data TyBind = TB {unTB :: (Type (Var, TyBind))}
+data TyBind
+  = TB {unTB :: (Type (Var,TyBind))}
+  | None
 
 type TransBind = (Var, TyBind)
 
 data Translate m =
   T {translateM :: Expr TransBind -> m TransType
     ,translateScopeM :: EScope TransBind -> m ([J.BlockStmt],TransJavaExp,EScope TransBind)
-    ,translateApply :: Bool -> m TransType -> m TransType -> m TransType
+    ,translateApply :: Bool -> m TransType -> Expr TransBind -> m TransType
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
     ,translateLet :: TransType -> (TransBind -> Expr TransBind) -> m TransType
     ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> EScope TransBind -> m ([J.BlockStmt],TransJavaExp,EScope TransBind) -> String -> m ([J.BlockStmt],EScope TransBind)
@@ -155,6 +157,14 @@ getS3 this j1 j2 retTyp ctempCastTyp =
      let r = fd : fs : apply ++ res
      return (r,var xf)
 
+substEScope :: Int -> Expr TransBind -> EScope TransBind -> EScope TransBind
+substEScope n t (Body t1)   = Body (substExpr n t t1)
+substEScope n t (Type t1 f) = Type (substExpr n t t1) (substEScope n t  . f)
+
+substExpr :: Int -> Expr TransBind -> Expr TransBind -> Expr TransBind
+substExpr n t v@(Var _ (x, _)) = if n == x then t else v
+substExpr n t (Pi n' s) = Pi n' (substEScope n t s)
+substExpr _ _ x = x
 
 -- | Translation dispatcher
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
@@ -251,7 +261,7 @@ translateM' this =
         translateApply this
                        False
                        (translateM this e1)
-                       (translateM this e2)
+                       e2
       Let _ expr body ->
         do (s1,j1,t1) <- translateM this expr
            translateLet this
@@ -276,54 +286,72 @@ translateScopeM' this =
       Body t ->
         do (s,je,t1) <- translateM this t
            return (s,je,Body t1)
-      -- TODO: when t is star, should not generate code
       Type t g ->
         do n <- get
-           let (x1,x2) = (n + 1,n + 2)
-           put (x2 + 1)
-           let nextInClosure = g (x2,TB t)
-           typT1 <- javaType this t
-           let flag = typT1 == objClassTy
-           let accessField =
-                 fieldAccess (left $ var (localvarstr ++ show x1))
-                             closureInput
-           let xf =
-                 localFinalVar
-                   typT1
-                   (varDecl (localvarstr ++ show x2)
-                            (if flag
-                                then accessField
-                                else cast typT1 accessField))
-           closureClass <-
-             liftM2 (++)
-                    (getPrefix this)
-                    (return "Closure")
-           (cvar,t1) <-
-             translateScopeTyp this
-                               x1
-                               n
-                               [xf]
-                               nextInClosure
-                               (translateScopeM this nextInClosure)
-                               closureClass
-           let fstmt =
-                 [localVar closureType
-                           (varDecl (localvarstr ++ show n)
-                                    (funInstCreate n))]
-           return (cvar ++ fstmt,var (localvarstr ++ show n),Type t (const t1))
+           case t of
+             Star ->
+               do put (n + 1)
+                  (s,je,t1) <- translateScopeM this (g (n, None))
+                  return (s,je, Type Star (\a -> substEScope n (Var "_" a) t1))
+             _ ->
+               do let (x1,x2) = (n + 1,n + 2)
+                  put (x2 + 1)
+                  let nextInClosure = g (x2,TB t)
+                  typT1 <- javaType this t
+                  let flag = typT1 == objClassTy
+                  let accessField =
+                        fieldAccess (left $ var (localvarstr ++ show x1))
+                                    closureInput
+                  let xf =
+                        localFinalVar
+                          typT1
+                          (varDecl (localvarstr ++ show x2)
+                                   (if flag
+                                       then accessField
+                                       else cast typT1 accessField))
+                  closureClass <-
+                    liftM2 (++)
+                           (getPrefix this)
+                           (return "Closure")
+                  (cvar,t1) <-
+                    translateScopeTyp this
+                                      x1
+                                      n
+                                      [xf]
+                                      nextInClosure
+                                      (translateScopeM this nextInClosure)
+                                      closureClass
+                  let fstmt =
+                        [localVar closureType
+                                  (varDecl (localvarstr ++ show n)
+                                           (funInstCreate n))]
+                  return (cvar ++ fstmt
+                         ,var (localvarstr ++ show n)
+                         ,Type t (const t1))
 
 translateApply' this =
   \flag m1 m2 ->
-    do (s1,j1',Pi _ (Type _ g)) <- m1
-       (s2,j2,_) <- m2
-       let retTyp = g undefined -- TODO: better choice?
-       j1 <-
-         genClosureVar this
-                       flag
-                       (getArity retTyp)
-                       j1'
-       (s3,nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
-       return (s2 ++ s1 ++ s3,nje3,scope2ctyp retTyp)
+    do (s1,j1',Pi _ (Type t1 g)) <- m1
+       case t1 of
+         Star ->
+           do n <- get
+              put (n + 1)
+              return (s1
+                     ,j1'
+                     ,scope2ctyp
+                        (substEScope n
+                                     m2
+                                     (g (n,None))))
+         _ ->
+           do (s2,j2,_) <- translateM this m2
+              let retTyp = g undefined -- TODO: better choice?
+              j1 <-
+                genClosureVar this
+                              flag
+                              (getArity retTyp)
+                              j1'
+              (s3,nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
+              return (s2 ++ s1 ++ s3,nje3,scope2ctyp retTyp)
 
 translateIf' this =
   \m1 m2 m3 ->
