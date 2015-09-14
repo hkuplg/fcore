@@ -19,6 +19,7 @@ module BackEnd
     -- , compileAoptUnbox
     -- , compileSU
     , core2java
+    , picore2java
     , DumpOption(..)
     ) where
 
@@ -175,6 +176,19 @@ core2java supernaive optInline optDump compilation className closedCoreExpr =
                                (reveal closedCoreExpr)
               else compilation className inlinedCore
      return $ prettyPrint cu
+
+-- | Dependent Core expression to Java.
+picore2java :: DumpOption -> Compilation2 -> ClassName -> Exp -> IO String
+picore2java optDump compilation className closedCoreExpr = do
+  let rewrittenCore = rewriteAndEval closedCoreExpr
+  let core = CoreNew.coreExprToNew rewrittenCore
+  when (optDump == SimpleCore) $
+    print (CoreNew.pretty core)
+  when (optDump == ClosureF) $
+    print (ClosureFNew.pretty (ClosureFNew.fexp2cexp core))
+  let (cu, _) = compilation className core
+  return $ prettyPrint cu
+
 
 type Compilation = String -> Core.Expr Int (OB.Var,ClosureF.Type Int) -> (J.CompilationUnit,ClosureF.Type Int)
 

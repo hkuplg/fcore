@@ -48,6 +48,7 @@ data Options = Options
 data TransMethod = Apply
                  | Naive
                  | Stack
+                 | NewCore
                  -- | Unbox
                  -- | StackAU1
                  -- | StackAU2
@@ -59,7 +60,7 @@ data TransMethod = Apply
                  -- | BenchSAI2
                  deriving (Eq, Show, Ord)
 
-transOpts = Map.fromList [("apply", Apply), ("naive", Naive), ("stack", Stack)]
+transOpts = Map.fromList [("apply", Apply), ("naive", Naive), ("stack", Stack), ("newcore", NewCore)]
 
 dumpOpts = Map.fromList
              [ ("parsed", Parsed)
@@ -126,7 +127,9 @@ main = do
 
        source     <- readFile source_path
        coreExpr   <- source2core optDump (source_path, source)
-       javaSource <- core2java False optInline optDump opts (inferClassName output_path) coreExpr
+       javaSource <- if translate_method == [NewCore]
+                     then picore2java optDump compileN2 (inferClassName output_path) coreExpr
+                     else core2java False optInline optDump opts (inferClassName output_path) coreExpr
        writeFile output_path javaSource
 
        when (optCompile || optCompileAndRun) $
