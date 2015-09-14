@@ -157,7 +157,7 @@ trans self =
     , translateScopeM = translateScopeM' this
     , translateApply = translateApply' this
     , translateIf = translateIf' this
-    , translateLet = undefined -- TODO: Li Huang
+    , translateLet = translateLet' this
     , translateScopeTyp = translateScopeTyp' this
     , genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
     , genRes = const return
@@ -251,8 +251,73 @@ translateM' this e =
       let (_, lastExp, lastType) = last es'
       let statements = concatMap (\(x, _, _) -> x) es'
       return (statements, lastExp, lastType)
-    -- Pi, TupleType, Unit, Star, Jnew, JMethod, JField, JClass, Error TODO: Li Huang: Finish all Java
-    -- related
+
+    JNew c args -> do
+      args' <- mapM (translateM this) args
+      let (statements, exprs, types) = unzip3 args' & _1 %~ concat
+      let rhs = J.InstanceCreation
+                  (map
+                     (\y -> case y of
+                        JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                        _        -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                     types)
+                  (J.ClassType [(J.Ident c, [])])
+                  (map unwrap exprs)
+                  Nothing
+      let typ = JClass c
+      newVarName <- getNewVarName this
+      assignExpr <- assignVar this typ newVarName rhs
+      return (statements ++ [assignExpr], var newVarName, typ)
+
+    JMethod c m args r -> do
+      args' <- mapM (translateM this) args
+      let (statements, exprs, types) = unzip3 args' & _1 %~ concat
+      let exprs' = map unwrap exprs
+      let refTypes =
+            map
+              (\y -> case y of
+                 JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                 _        -> sorry "BaseTransCFJava.trans.JMethod: no idea how to do")
+              types
+      (classStatement, rhs) <- case c of
+                                 Right ce ->
+                                   do
+                                     (classS, classE, _) <- translateM this ce
+                                     return
+                                       (classS, J.MethodInv $ J.PrimaryMethodCall
+                                                                (unwrap classE)
+                                                                refTypes
+                                                                (J.Ident m)
+                                                                exprs')
+                                 Left cn ->
+                                   return
+                                     ([], J.MethodInv $ J.TypeMethodCall
+                                                          (J.Name [J.Ident cn])
+                                                          refTypes
+                                                          (J.Ident m)
+                                                          exprs')
+      if r /= "java.lang.Void"
+        then do
+          let typ = JClass r
+          newVarName <- getNewVarName this
+          assignExpr <- assignVar this typ newVarName rhs
+          return (statements ++ classStatement ++ [assignExpr], var newVarName, typ)
+        else return
+               (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right J.Null, Unit)
+
+    JField c fName r -> do
+      (classStatement, classExpr, _) <- case c of
+                                          Right ce ->
+                                            translateM this ce
+                                          Left cn ->
+                                            return ([], Left $ J.Name [J.Ident cn], undefined)
+      newVarName <- getNewVarName this
+      aType <- javaType this r
+      let rhs = J.Cast aType $ J.FieldAccess $ J.PrimaryFieldAccess (unwrap classExpr)
+                                                 (J.Ident fName)
+          assignExpr = localFinalVar aType $ varDecl newVarName rhs
+      return (classStatement ++ [assignExpr], var newVarName, r)
+    -- Pi, TupleType, Unit, Star, JClass, Error related
     _ -> panic "BaseTransCFJavaNew.trans: don't know how to do"
 
 translateScopeM' this e m =
@@ -304,6 +369,15 @@ translateApply' this flag m1 m2 = do
       j1 <- genClosureVar this flag (getArity retTyp) j1'
       (s3, nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
       return (s2 ++ s1 ++ s3, nje3, scope2ctyp retTyp)
+
+translateLet' this (s1, j1, t1) body = do
+  (n :: Int) <- get
+  put (n + 1)
+  (s2, j2, t2) <- translateM this (body (n, TB t1))
+  let x = localvarstr ++ show n
+  jt1 <- javaType this t1
+  let xDecl = localVar jt1 (varDecl x $ unwrap j1)
+  return (s1 ++ [xDecl] ++ s2, j2, t2)
 
 translateIf' this m1 m2 m3 = do
   n <- get
