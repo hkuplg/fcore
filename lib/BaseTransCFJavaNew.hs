@@ -16,11 +16,8 @@ more information, please refer to the paper on wiki.
 
 module BaseTransCFJavaNew where
 
--- import           Data.Char (toLower)
--- import           Data.List (zip4, elemIndex)
 import qualified Language.Java.Syntax as J
 import           Lens.Micro
-
 
 import           ClosureFNew
 import           Inheritance
@@ -56,7 +53,7 @@ type TransJavaExp = Either J.Name J.Literal -- either variable or special case: 
 
 type TransType = ([J.BlockStmt], TransJavaExp, Type TransBind)
 
-data TyBind = TB { unTB :: (Type (Var, TyBind)) }
+data TyBind = TB { unTB :: Type (Var, TyBind) }
             | None
 
 type TransBind = (Var, TyBind)
@@ -177,8 +174,8 @@ trans self =
 
 -- Field functions
 
-translateM' this =
-  \e -> case e of
+translateM' this e =
+  case e of
     Var _ (i, t) -> return ([], var (localvarstr ++ show i), unTB t)
 
     Lit lit ->
@@ -258,8 +255,8 @@ translateM' this =
     -- related
     _ -> panic "BaseTransCFJavaNew.trans: don't know how to do"
 
-translateScopeM' this =
-  \e m -> case e of
+translateScopeM' this e m =
+  case e of
     Body t -> do
       (s, je, t1) <- translateM this t
       return (s, je, Body t1)
@@ -283,52 +280,55 @@ translateScopeM' this =
                            then accessField
                            else cast typT1 accessField))
           closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
-          (cvar, t1) <- translateScopeTyp this x1 n [xf] nextInClosure (translateScopeM this nextInClosure Nothing) closureClass
+          (cvar, t1) <- translateScopeTyp
+                          this
+                          x1
+                          n
+                          [xf]
+                          nextInClosure
+                          (translateScopeM this nextInClosure Nothing)
+                          closureClass
           let fstmt = [localVar closureType (varDecl (localvarstr ++ show n) (funInstCreate n))]
           return (cvar ++ fstmt, var (localvarstr ++ show n), Type t (const t1))
 
-translateApply' this =
-  \flag m1 m2 -> do
-    (s1, j1', Pi _ (Type t1 g)) <- m1
-    case t1 of
-      Star -> do
-        n <- get
-        put (n + 1)
-        return (s1, j1', scope2ctyp (substEScope n m2 (g (n, None))))
-      _ -> do
-        (s2, j2, _) <- translateM this m2
-        let retTyp = g undefined -- TODO: better choice?
-        j1 <- genClosureVar this flag (getArity retTyp) j1'
-        (s3, nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
-        return (s2 ++ s1 ++ s3, nje3, scope2ctyp retTyp)
+translateApply' this flag m1 m2 = do
+  (s1, j1', Pi _ (Type t1 g)) <- m1
+  case t1 of
+    Star -> do
+      n <- get
+      put (n + 1)
+      return (s1, j1', scope2ctyp (substEScope n m2 (g (n, None))))
+    _ -> do
+      (s2, j2, _) <- translateM this m2
+      let retTyp = g undefined -- TODO: better choice?
+      j1 <- genClosureVar this flag (getArity retTyp) j1'
+      (s3, nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
+      return (s2 ++ s1 ++ s3, nje3, scope2ctyp retTyp)
 
-translateIf' this =
-  \m1 m2 m3 -> do
-    n <- get
-    put (n + 1)
-    (s1, j1, _) <- m1
-    genIfBody this m2 m3 (s1, j1) n
+translateIf' this m1 m2 m3 = do
+  n <- get
+  put (n + 1)
+  (s1, j1, _) <- m1
+  genIfBody this m2 m3 (s1, j1) n
 
-translateScopeTyp' this =
-  \x1 f initVars _ otherStmts closureClass ->
-    do
-      b <- genClone this
-      (ostmts, oexpr, t1) <- otherStmts
-      let fc = f
-      return
-        ([ localClassDecl (closureTransName ++ show fc) closureClass
-             (closureBodyGen
-                [ memberDecl $ fieldDecl (classTy closureClass)
-                                 (varDecl (localvarstr ++ show x1) J.This)
-                ]
-                (initVars ++ ostmts ++ [bsAssign (name [closureOutput]) (unwrap oexpr)])
-                fc
-                b
-                (classTy closureClass))
-         ], t1)
+translateScopeTyp' this x1 f initVars _ otherStmts closureClass = do
+  b <- genClone this
+  (ostmts, oexpr, t1) <- otherStmts
+  let fc = f
+  return
+    ([ localClassDecl (closureTransName ++ show fc) closureClass
+         (closureBodyGen
+            [ memberDecl $ fieldDecl (classTy closureClass)
+                             (varDecl (localvarstr ++ show x1) J.This)
+            ]
+            (initVars ++ ostmts ++ [bsAssign (name [closureOutput]) (unwrap oexpr)])
+            fc
+            b
+            (classTy closureClass))
+     ], t1)
 
-javaType' this =
-  \typ -> case typ of
+javaType' this typ =
+  case typ of
     (JClass c) -> return $ classTy c
     -- TODO: need to check for big lambda?
     (Pi _ s) -> do
@@ -340,8 +340,8 @@ javaType' this =
         _   -> return $ classTy $ getTupleClassName tuple
     _ -> return objClassTy
 
-chooseCastBox' this =
-  \typ -> case typ of
+chooseCastBox' this typ =
+  case typ of
     (JClass c) -> return (initClass c, classTy c)
     (Pi _ _) -> do
       closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
@@ -354,17 +354,16 @@ chooseCastBox' this =
           return (initClass tupleClassName, classTy tupleClassName)
     _ -> return (initClass "Object", objClassTy)
 
-createWrap' this =
-  \nam expr -> do
-    (bs, e, t) <- translateM this expr
-    returnType <- applyRetType this t
-    let javaCode =
-          let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
-          in wrapperClass False nam (bs ++ returnStmt) returnType mainBody
-    return ((createCUB Nothing [javaCode]), t)
+createWrap' this name expr = do
+  (bs, e, t) <- translateM this expr
+  returnType <- applyRetType this t
+  let javaCode =
+        let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
+        in wrapperClass False name (bs ++ returnStmt) returnType mainBody
+  return (createCUB Nothing [javaCode], t)
 
-applyRetType' _ =
-  \t -> (case t of
-           JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
-           JClass "java.lang.Boolean" -> return $ Just $ J.PrimType J.BooleanT
-           _                          -> return $ Just objClassTy)
+applyRetType' _ t =
+  case t of
+    JClass "java.lang.Integer" -> return $ Just $ J.PrimType J.IntT
+    JClass "java.lang.Boolean" -> return $ Just $ J.PrimType J.BooleanT
+    _                          -> return $ Just objClassTy
