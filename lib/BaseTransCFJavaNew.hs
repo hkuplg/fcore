@@ -160,7 +160,7 @@ trans self =
     , translateScopeM = translateScopeM' this
     , translateApply = translateApply' this
     , translateIf = translateIf' this
-    , translateLet = undefined -- TODO: Li Huang
+    , translateLet = translateLet' this
     , translateScopeTyp = translateScopeTyp' this
     , genApply = \f _ _ _ _ -> return [bStmt $ applyMethodCall f]
     , genRes = const return
@@ -301,6 +301,16 @@ translateApply' this =
         j1 <- genClosureVar this flag (getArity retTyp) j1'
         (s3, nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
         return (s2 ++ s1 ++ s3, nje3, scope2ctyp retTyp)
+
+translateLet' this =
+  \(s1, j1, t1) body ->
+    do (n :: Int) <- get
+       put (n + 1)
+       (s2, j2, t2) <- translateM this (body (n, TB t1))
+       let x = localvarstr ++ show n
+       jt1 <- javaType this t1
+       let xDecl = localVar jt1 (varDecl x $ unwrap j1)
+       return (s1 ++ [xDecl] ++ s2, j2, t2)
 
 translateIf' this =
   \m1 m2 m3 -> do

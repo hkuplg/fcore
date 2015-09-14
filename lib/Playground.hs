@@ -160,6 +160,8 @@ fact = App (fix (\f n -> If (var n `eq` zero)
            javaInt
            javaInt) one
 
+testLet :: String
+testLet = "let id[A] (x : A) = x in id[Int] 5 + 1"
 
 test1 :: Expr t e
 test1 =
