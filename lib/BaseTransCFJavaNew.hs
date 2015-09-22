@@ -61,13 +61,13 @@ type TransBind = (Var, TyBind)
 data Translate m =
        T
          { translateM :: Expr TransBind -> m TransType
-         , translateScopeM :: EScope TransBind -> Maybe Int -> m ([J.BlockStmt], TransJavaExp, EScope TransBind)
+         , translateScopeM :: Scope TransBind -> Maybe Int -> m ([J.BlockStmt], TransJavaExp, Scope TransBind)
          , translateApply :: Bool -> m TransType -> Expr TransBind -> m TransType
          , translateIf :: m TransType -> m TransType -> m TransType -> m TransType
          , translateLet :: TransType -> (TransBind -> Expr TransBind) -> m TransType
-         , translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> EScope TransBind -> m ([J.BlockStmt], TransJavaExp, EScope TransBind) -> String -> m ([J.BlockStmt], EScope TransBind)
-         , genApply :: J.Exp -> EScope TransBind -> String -> J.Type -> J.Type -> m [J.BlockStmt]
-         , genRes :: EScope TransBind -> [J.BlockStmt] -> m [J.BlockStmt]
+         , translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> Scope TransBind -> m ([J.BlockStmt], TransJavaExp, Scope TransBind) -> String -> m ([J.BlockStmt], Scope TransBind)
+         , genApply :: J.Exp -> Scope TransBind -> String -> J.Type -> J.Type -> m [J.BlockStmt]
+         , genRes :: Scope TransBind -> [J.BlockStmt] -> m [J.BlockStmt]
          , applyRetType :: Type TransBind -> m (Maybe J.Type)
          , genClone :: m Bool
          , withApply :: m Bool
@@ -121,7 +121,7 @@ getS3 :: MonadState Int m
       => Translate m
       -> J.Exp
       -> J.Exp
-      -> EScope TransBind
+      -> Scope TransBind
       -> J.Type
       -> m ([J.BlockStmt], TransJavaExp)
 getS3 this j1 j2 retTyp ctempCastTyp = do
@@ -139,7 +139,7 @@ getS3 this j1 j2 retTyp ctempCastTyp = do
   let r = fd : fs : apply ++ res
   return (r, var xf)
 
-substEScope :: Int -> Expr TransBind -> EScope TransBind -> EScope TransBind
+substEScope :: Int -> Expr TransBind -> Scope TransBind -> Scope TransBind
 substEScope n t (Body t1) = Body (substExpr n t t1)
 substEScope n t (Type t1 f) = Type (substExpr n t t1) (substEScope n t . f)
 
