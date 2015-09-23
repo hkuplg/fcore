@@ -1,0 +1,395 @@
+
+--------------------definition--------------------
+type Classname = Int;
+type Superclass = Int;
+type Fieldname = Int;
+type Variable = Int;
+type Methodname = Int;
+
+
+data Field = Fd Classname Fieldname; 
+data Fieldlist = FNil | FCons Field Fieldlist;
+
+data rec Term = Var Variable
+              | FieAcc Term Fieldname
+              | MetInv Term Methodname Termlist
+              | New Classname Termlist
+              | Cast Classname Term 
+ and 
+Termlist = TNil | TCons Term Termlist;
+
+data Constructor = Mkcon Classname Fieldlist;
+data Method = Mkmtd Classname Methodname Fieldlist Term;
+data Methodlist = MNil | MCons Method Methodlist;
+data CL = Class Classname Superclass Fieldlist Constructor Methodlist ;
+
+data PairC = Pc Classname CL;
+data CT = PNil | PCons PairC CT;
+data Ilist = INil | ICons Int Ilist;
+data Boolist = BNil | BCons Bool Boolist;
+data PairF = Pf Ilist Term;
+
+data PairM = Pm Methodname Method;
+data PairMlist = PMNil | PMCons PairM PairMlist;
+
+data PairT = Pt Term Term;
+data PairTlist = PTNil | PTCons PairT PairTlist;
+---------------------------------------
+
+------------some pre tries------------------
+
+-- 1-9 : class name
+-- 11-19 : field name
+-- 21-29 : method name
+-- 31-39 : variable --this : 30
+
+let ffst = Fd 1 11;
+let ssnd = Fd 1 12;
+let newfst = Fd 1 13;
+
+let m = Mkmtd 2 21 (FCons newfst FNil) (New 2 (TCons (Var 13) (TCons (FieAcc (Var 14) 12) TNil)));
+
+let object = Class 1 1 FNil (Mkcon 1 FNil) MNil;
+let pair = Class 2 1 (FCons ffst (FCons ssnd FNil)) (Mkcon 2 (FCons ffst (FCons ssnd FNil))) (MCons m MNil);
+let a = Class 3 1 FNil (Mkcon 3 FNil) MNil;
+let b = Class 4 1 FNil (Mkcon 4 FNil) MNil;
+
+let ct = PCons (Pc 1 object) (PCons (Pc 2 pair) (PCons (Pc 3 a) (PCons (Pc 4 b) PNil)));
+
+
+let context = ICons 1 (ICons 2 (ICons 3 INil)); --Classname
+let contextFn = ICons 11 (ICons 12 (ICons 13 INil)); --Fieldname
+let contextVa = ICons 30 (ICons 31 (ICons 32 (ICons 33 (ICons 34 (ICons 35 INil))))); --Variable
+-----------------------------------------------
+
+-----------equal function------------------------
+
+let equalF (f1: Field) (f2: Field) : Bool =
+      case f1 of 
+        Fd c1 fn1 -> case f2 of
+                       Fd c2 fn2 -> (c1 == c2) && (fn1 == fn2);
+
+let 
+rec equalT (t1: Term) (t2: Term) : Bool =
+      case t1 of
+         Var v1 -> (case t2 of
+                      Var v2       -> v1 == v2
+                    | FieAcc _ _   -> False
+                    | MetInv _ _ _ -> False
+                    | New _ _      -> False
+                    | Cast _ _     -> False )
+      | FieAcc t fn -> (case t2 of
+                      Var _        -> False
+                    | FieAcc t2 fn2 -> (equalT t t2) && (fn == fn2)
+                    | MetInv _ _ _ -> False
+                    | New _ _      -> False
+                    | Cast _ _     -> False )
+      | MetInv t mn ts -> (case t2 of
+                      Var _        -> False
+                    | FieAcc _ _   -> False
+                    | MetInv tt mn2 ts2 -> (equalT t tt) && (mn == mn2) && (equalTs ts ts2)
+                    | New _ _      -> False
+                    | Cast _ _     -> False )
+      | New c ts -> (case t2 of
+                      Var _        -> False
+                    | FieAcc _ _   -> False
+                    | MetInv _ _ _ -> False
+                    | New c2 ts2   -> (c == c2) && (equalTs ts ts2)
+                    | Cast _ _     -> False )
+      | Cast c t -> (case t2 of
+                      Var _        -> False
+                    | FieAcc _ _   -> False
+                    | MetInv _ _ _ -> False
+                    | New _ _      -> False
+                    | Cast c2 t2   -> (c == c2) && (equalT t t2) )
+  and
+equalTs (ts1: Termlist) (ts2: Termlist) : Bool =
+    case ts1 of 
+      TNil -> (case ts2 of
+                 TNil      -> True
+               | TCons _ _ -> False)
+    | TCons t ts -> (case ts2 of
+                         TNil         -> False
+                       | TCons t0 ts0 -> (equalT t t0) && (equalTs ts ts0) );
+
+-------------------------------------------
+
+----------functions: fields & mbody --------------------
+let rec mergeF (f1: Fieldlist) (f2: Fieldlist) : Fieldlist =
+     case f2 of
+        FNil       -> f1
+      | FCons f fs -> mergeF (FCons f f1) fs;
+
+let rec notMemberF (f: Field) (l: Fieldlist) : Bool =
+      case l of
+        FNil        -> True
+      | FCons f0 fs -> if equalF f f0 
+                       then False
+                       else (notMemberF f fs);
+
+let rec rmDupF (f: Fieldlist) : Fieldlist =
+     case f of
+        FNil        -> FNil
+      | FCons f0 fs -> if notMemberF f0 fs 
+                       then FCons f0 (rmDupF fs)
+                       else rmDupF fs;
+
+let rec lookup (ct: CT) (c: Classname) : CL =
+      case ct of
+        PNil       -> Class 0 0 FNil (Mkcon 0 FNil) MNil --represents error
+      | PCons p ps ->( case p of 
+                        Pc c0 cl0 -> if c == c0 then cl0
+                                     else lookup ps c) ;
+
+
+--fields
+let rec fields (c: Classname) : Fieldlist =
+      if c == 1 then FNil
+      else case (lookup ct c) of
+                  Class cn sc fs c ms -> rmDupF (mergeF fs (fields sc));  
+    
+--let mtype (m: Methodname) (c: Classname) : Classnamelist
+
+
+let rec methodtoMap (m: Methodlist) : PairMlist =
+     case m of
+       MNil        -> PMNil
+     | MCons m0 ms -> (case m0 of
+                        Mkmtd cn mn fs t -> PMCons (Pm mn m0) (methodtoMap ms));
+       
+
+let rec lookupM (p: PairMlist) (m: Methodname) : Method = 
+         case p of
+        PMNil        -> Mkmtd 0 20 FNil (Var 0) --represents error
+      | PMCons p0 ps -> (case p0 of 
+                        Pm mn m0 -> if m == mn then m0
+                                     else lookupM ps m) ;
+
+let rec notMemberM (mn:Methodname) (p: PairMlist) : Bool = 
+      case p of
+        PMNil        -> True
+      | PMCons p1 ps -> (case p1 of
+                           Pm m0 m -> if mn == m0 then False
+                                      else notMemberM mn ps);
+
+let rec fnsFromFs (fl: Fieldlist) : Ilist = --Ilist
+           case fl of
+             FNil        -> INil
+           | FCons f0 fs -> (case f0 of
+                               Fd c fn -> ICons fn (fnsFromFs fs));
+
+--mbody
+let rec mbody (m: Methodname) (cn:Classname) : PairF =
+    let temp = (lookup ct cn);
+    case temp of
+      Class cn sc fs c ms -> let mapMs = methodtoMap ms;
+                               if notMemberM m mapMs 
+                               then mbody m sc
+                               else let ha = lookupM mapMs m;
+                                    case ha of
+                                     Mkmtd b m bs t -> Pf (fnsFromFs bs) t;
+ -----------------------------------------------
+
+
+------------------subtyping----------------------
+--subtype
+let rec subtype (c1: Classname) (c2: Classname) : Bool =
+    if c1 == c2 then True
+    else let temp = (lookup ct c1); 
+         if case temp of
+              Class c1 sc fs co ms -> c2 == sc
+         then True
+         else if (subtype c1 1 && subtype 1 c2) then True
+              else if (subtype c1 2 && subtype 2 c2) then True
+                   else if (subtype c1 3 && subtype 3 c2) then True
+                        else False ; -- depands on context 
+-------------------------------------------------
+
+
+-------------evaluation-------------------------
+let rec andd (l: Boolist) : Bool =
+      case l of
+        BNil       -> True
+      | BCons b bs -> b && (andd bs);
+
+let rec map (f: Term -> Bool) (l: Termlist) : Boolist =
+    case l of 
+       TNil        -> BNil
+     | TCons l0 ls -> BCons (f l0) (map f ls);
+       
+
+--isValue
+let rec isValue (t: Term) : Bool =
+     case t of 
+        New cn ts       -> andd (map isValue ts)
+      | Var v           -> False
+      | FieAcc t1 fn    -> False
+      | MetInv t1 mn ts -> False
+      | Cast cn t       -> False ;
+
+
+-----------------eval-----------------
+let rec mapT (f: Term -> Term) (l: Termlist) : Termlist =
+      case l of
+        TNil       -> TNil
+      | TCons t ts -> TCons (f t) (mapT f ts);
+
+let rec elem (i: Int) (l: Ilist) : Bool =
+      case l of 
+        INil        -> False
+      | ICons i0 is -> if i == i0 then True else (elem i is);
+
+let rec readOrd (l: Termlist) (n: Int) : Term =
+     case l of 
+      TNil       -> Var (-1)
+    | TCons t ts -> if n == 0 then t else readOrd ts (n-1);  
+
+let rec seeOrd (i: Fieldname) (l: Fieldlist) : Int =
+     case l of 
+       FNil        -> 0
+     | FCons i0 is -> (case i0 of 
+                         Fd c f1 -> if i == f1 then 0 else 1 + (seeOrd i is));
+
+let rec or (l:Boolist) : Bool =
+     case l of
+       BNil       -> False
+     | BCons b bs -> b || (or bs);
+
+let rec mapI (f: Term -> Int) (t: Termlist) : Ilist =
+      case t of
+        TNil        -> INil
+      | TCons t0 ts -> ICons (f t0) (mapI f ts);
+
+let rec sum (l: Ilist) : Int =
+     case l of
+       INil       -> 0
+     | ICons i is -> i + (sum is);
+
+let rec size (t: Term) : Int =
+     case t of
+       Var v         -> 1
+     | FieAcc t fn   -> 1 + (size t)
+     | MetInv t m ts -> 1 + (size t) + (sum (mapI size ts))
+     | New c ts      -> 1 + (sum (mapI size ts))
+     | Cast c t      -> 1 + (size t);
+
+let fstt (p: PairT) : Term = case p of Pt t1 t2 -> t1;
+
+let sndt (p: PairT) : Term = case p of Pt t1 t2 -> t2;
+
+
+let rec move (t: Term) (l: PairTlist) : Term = --one step of subst
+   case t of 
+     Var v -> (case l of PTCons m ms -> if equalT (fstt m) t
+                                        then sndt m
+                                        else move t ms
+                       | PTNil       -> t)
+  | FieAcc t1 fn -> (case l of PTCons m ms -> if equalT (fstt m) t1
+                                              then FieAcc (sndt m) fn
+                                              else move t ms
+                             | PTNil       -> t)
+  | MetInv t1 mn ar -> (case l of PTCons m ms -> if equalT (fstt m) t1 
+                                                 then MetInv (sndt m) mn ar 
+                                                 else move t ms
+                                | PTNil       -> t)
+  | New cn ts -> let helper = (\(x:Term) -> move x l);
+                 if equalTs ts TNil then t else New cn (mapT helper ts)
+  | Cast cn t1 -> (case l of PTCons m ms -> if equalT (fstt m) t1 
+                                            then Cast cn (sndt m)
+                                            else move t ms
+                           | PTNil       -> t);
+ 
+let rec helper (l: Ilist) : Termlist = --Ilist 
+    case l of
+       INil       -> TNil
+     | ICons i is -> TCons (Var i) (helper is);
+
+let rec zipT (l1: Termlist) (l2: Termlist) : PairTlist =
+     case l1 of
+        TNil         -> PTNil
+      | TCons i1 is1 -> (case l2 of
+                           TNil         -> PTNil
+                         | TCons i2 is2 -> PTCons (Pt i1 i2) (zipT is1 is2));
+
+let rec helper1 (n: Int) (t: Term) (fs: Ilist) (ts: Termlist): Term =
+      let mapFsTs = zipT (helper fs) ts;
+      if n == 0 then t 
+      else helper1 (n-1) (move t mapFsTs) fs ts ;
+
+let rec lengthI (l: Ilist) : Int = 
+     case l of 
+       INil       -> 0
+     | ICons i is -> 1 + lengthI is;
+
+let rec lengthT (l: Termlist) : Int = 
+      case l of
+        TNil       -> 0
+      | TCons t ts -> 1 + lengthT ts;
+
+--subst 
+let subst (fs: Ilist) (ts: Termlist) (t: Term) : Term = --Ilist
+     case fs of
+       INil         -> t
+     | ICons f0 fs0 -> (case ts of
+                          TNil         -> t
+                        | TCons t0 ts0 -> if lengthI fs != lengthT ts
+                                          then Var 0 --represent error
+                                          else helper1 (size t) t fs ts);
+
+--eval1
+let rec eval1 (t: Term) : Term =
+     case t of
+       MetInv c m ar -> (case c of 
+                         New cn ts ->
+                           if isValue c
+                           then if or (map isValue ar)
+                                then let helper = (\(x:Term) -> (if isValue x then x else eval1 x)) ;
+                                     MetInv c m (mapT helper ar)
+                                else let pf = mbody m cn;
+                                     case pf of Pf xs t0 ->
+                                     subst (ICons 30 INil) (TCons c TNil) (subst xs ar t0)
+                           else MetInv (eval1 c) m ar
+                        | Var v           -> t
+                        | FieAcc t1 fn    -> t
+                        | MetInv t1 mn ts -> t
+                        | Cast cn t0      -> t )
+    | FieAcc c fn -> (case c of
+                         New cn ts ->
+                          if isValue c 
+                          then if elem fn (fnsFromFs (fields cn))
+                               then readOrd ts (seeOrd fn (fields cn))
+                               else  Var 0 -- error no such field
+                          else FieAcc (eval1 c) fn 
+                       | Var v           -> t
+                       | FieAcc t1 fn    -> t
+                       | MetInv t1 mn ts -> t
+                       | Cast cn t0      -> t )
+    | New c vs  -> let helper = (\(x:Term)-> if isValue x then x else eval1 x) ;
+                    New c (mapT helper vs)
+    | Cast d t0 -> (case t0 of
+                        New c vs        -> if subtype c d
+                                           then New c vs
+                                           else Var 0 --error
+                      | Var v           -> t
+                      | FieAcc t1 fn    -> t
+                      | MetInv t1 mn ts -> t
+                      | Cast cn t0      -> t )
+    | Var v     -> Var v;
+
+
+let rec helper3 (n: Int) (t: Term) : Term =
+     if n == 0 then t
+     else helper3 (n-1) (eval1 t);
+
+--evaluation
+let eval (t: Term) : Term = helper3 ((size t)*2) t;
+
+let prop_eval (t: Term) : Bool = isValue (eval t);
+
+let prop_try (t: Term) : Bool = equalT t (New 3 TNil) ;
+      
+
+prop_try
+
+
+
