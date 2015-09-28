@@ -317,6 +317,15 @@ translateM' this e =
                                                  (J.Ident fName)
           assignExpr = localFinalVar aType $ varDecl newVarName rhs
       return (classStatement ++ [assignExpr], var newVarName, r)
+
+
+    -- TODO: need one-step evaluation?
+    CastUp t e -> do
+      (s, v, _) <- translateM this e
+      return (s, v, t)
+
+    CastDown e -> undefined
+
     -- Pi, TupleType, Unit, Star, JClass, Error related
     _ -> panic "BaseTransCFJavaNew.trans: don't know how to do"
 

@@ -33,6 +33,9 @@ unit      = text "()"
 bar       = text "|"
 evalTo    = text "==>"
 mu        = text "mu"
+castup    = text "cast↑"
+castdown  = text "cast↓"
+
 
 bquote :: Doc
 bquote = char '`'

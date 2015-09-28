@@ -70,6 +70,8 @@ data Expr e
   | Product [Type e]   -- Type of tuple. TODO: make it dependent?
   | Unit
   | Star
+  | CastUp (Expr e) (Expr e)
+  | CastDown (Expr e)
 
   -- Java
   | JNew ClassName [Expr e]
@@ -141,6 +143,8 @@ mapVar g h (Pi n t f)                = Pi n (h t) (mapVar g h . f)
 mapVar g h (Mu n t f)                = Mu n (h t) (mapVar g h . f)
 mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (App f e)                 = App (mapVar g h f) (mapVar g h e)
+mapVar g h (CastUp f e)              = CastUp (mapVar g h f) (mapVar g h e)
+mapVar g h (CastDown e)              = CastDown (mapVar g h e)
 mapVar g h (If p b1 b2)              = If (mapVar g h p) (mapVar g h b1) (mapVar g h b2)
 mapVar g h (PrimOp e1 op e2)         = PrimOp (mapVar g h e1) op (mapVar g h e2)
 mapVar g h (Tuple es)                = Tuple (map (mapVar g h) es)
@@ -211,10 +215,11 @@ pretty' p i (Lam n t f)
       lambda <+> parens (text n <+> colon <+> pretty' basePrec i t) <+> text "->" <$>
       pretty' (2,PrecMinus) (i + 1) (f i)
 
-pretty' p i (Pi n t f)
-  = parensIf p 2 $ group $ hang 2 $
-      (if n == "_" then pretty' basePrec i t else parens (text n <+> colon <+> pretty' basePrec i t)) <+> text "->" <$>
-      pretty' (2,PrecMinus) (i + 1) (f i)
+pretty' p i (Pi n t f) = parensIf p 2 $ group $ hang 2 $
+  (if n == "_"
+     then pretty' basePrec i t
+     else parens (text n <+> colon <+> pretty' basePrec i t)) <+> text "->" <$>
+  pretty' (2, PrecMinus) (i + 1) (f i)
 
 pretty' p i (Mu n t f)
   = parensIf p 2 $ group $ hang 2 $
@@ -224,6 +229,13 @@ pretty' p i (Mu n t f)
 pretty' p i (App e1 e2)
   = parensIf p 4 $
       group $ hang 2 $ pretty' (4,PrecMinus) i e1 <$> pretty' (4,PrecPlus) i e2
+
+pretty' p i (CastUp t e)
+  = parensIf p 2 $ group $ hang 2 $ castup <> (brackets (pretty' (2, PrecMinus) i t)) <+> pretty' (2, PrecMinus) i e
+
+pretty' p i (CastDown e)
+  = parensIf p 2 $ group $ hang 2 $ castdown <+> pretty' (2, PrecMinus) i e
+
 
 pretty' _ _ (Lit (Src.Int n))    = integer n
 pretty' _ _ (Lit (Src.String s)) = dquotes (string s)
