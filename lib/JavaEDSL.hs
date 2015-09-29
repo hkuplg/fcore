@@ -25,6 +25,9 @@ closureType = classTy ifoClass
 objClassTy :: Type
 objClassTy = classTy "Object"
 
+typeOfType :: Type
+typeOfType = classTy typeHouse
+
 -- var
 
 name :: [String] -> Name
@@ -203,6 +206,11 @@ instCreat cls args = InstanceCreation [] cls args Nothing
 funInstCreate :: Int -> Exp
 funInstCreate i = instCreat fun []
   where fun = ClassType [(Ident (closureTransName ++ show i),[])]
+
+typeHouseCreate :: Exp
+typeHouseCreate = instCreat fun []
+  where
+    fun = ClassType [(Ident typeHouse, [])]
 
 -- assignment
 bsAssign :: Name -> Exp -> BlockStmt

@@ -20,8 +20,8 @@ import           Language.Java.Pretty (prettyPrint)
 import           Text.PrettyPrint.ANSI.Leijen
 import           Unsafe.Coerce (unsafeCoerce)
 
-import qualified CoreNew
-import qualified ClosureFNew
+import qualified CoreNew as CN
+import qualified ClosureFNew as CFN
 import qualified ClosureF
 
 instance Show (Expr t e) where
@@ -31,9 +31,13 @@ instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
 
 core2java core = do
-  let newcore = CoreNew.coreExprToNew core
-  let (cu,_) = compileN2 "M1" newcore
+  -- let newcore = CN.coreExprToNew core
+  let (cu,_) = compileN2 "M1" core
   putStrLn $ prettyPrint cu
+
+testJClass :: CN.Expr e
+testJClass = CN.App (CN.App (CN.Lam "" CN.Star (\x -> CN.Lam "" (CN.Var "" x) (\y -> CN.Var "" y))) (CN.JClass "java.lang.Integer")) (CN.Lit (S.Int 3))
+
 
 m1src = "package P.k module {rec even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1) and odd  (n : Int) : Bool = if n == 0 then False else even (n - 1)} "
 
@@ -93,13 +97,13 @@ s2n source
                let exp = rewriteAndEval exp'
                putStrLn "-- Core:"
                print (Core.prettyExpr exp)
-               let expcn = CoreNew.coreExprToNew exp
+               let expcn = CN.coreExprToNew exp
                putStrLn "\n-- New Core:"
-               print (CoreNew.pretty expcn)
+               print (CN.pretty expcn)
                putStrLn "\n*****\n-- ClosureF:"
                print (ClosureF.prettyExpr basePrec (0, 0) (ClosureF.fexp2cexp exp))
                putStrLn "\n-- New ClosureF:"
-               print (ClosureFNew.pretty (ClosureFNew.fexp2cexp expcn))
+               print (CFN.pretty (CFN.fexp2cexp expcn))
                putStrLn ""
 
 s2Java :: String -> IO ()
@@ -115,7 +119,7 @@ s2Java source
             do let fiExpr = desugar checked
                let exp' = OptiUtils.Hide (simplify (FI.HideF fiExpr))
                let exp = rewriteAndEval exp'
-               let core = CoreNew.coreExprToNew exp
+               let core = CN.coreExprToNew exp
                let (cu,_) = compileN2 "test" core
                putStrLn $ prettyPrint cu
 

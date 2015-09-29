@@ -57,7 +57,7 @@ data Expr e
   | Pi Src.ReadId (Type e) (e -> Type e) -- Pi (x : t) . e
   | Mu Src.ReadId (Type e) (e -> Expr e) -- mu (x : t) . e
   | Let Src.ReadId (Expr e) (e -> Expr e)
-  | App  (Expr e) (Expr e)
+  | App (Expr e) (Expr e)
 
   | If (Expr e) (Expr e) (Expr e)
   | PrimOp (Expr e) Src.Operator (Expr e)
