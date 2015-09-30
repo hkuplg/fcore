@@ -253,12 +253,11 @@ translateM' this e =
       (s, je, t) <- translateScopeM this se Nothing
       return (s, je, Pi "_" t)
 
-    -- FIXME: generalize?
     Mu _ (Type t se) -> do
       n <- get
       put (n + 1)
-      (expr, je, t') <- translateScopeM this (se (n, TB t)) (Just n)
-      return (expr, je, Pi "_" t')
+      (expr, je, _) <- translateScopeM this (se (n, TB t)) (Just n)
+      return (expr, je, t)
 
     SeqExprs es -> do
       es' <- mapM (translateM this) es
@@ -337,8 +336,9 @@ translateM' this e =
       (s, v, _) <- translateM this e
       return (s, v, t)
 
-    -- TODO: need one-step evaluation?
-    CastDown e -> undefined
+    CastDown t e -> do
+      (s, v, _) <- translateM this e
+      return (s, v, t)
 
     JClass className -> do
       (stmts, jvar) <- createTypeHouse this className
@@ -356,7 +356,11 @@ translateM' this e =
       (stmts, jvar) <- createTypeHouse this "Unit"
       return (stmts, jvar, Star)
 
-    -- Pi, Error related
+    Pi _ s -> do
+      (stmts, jvar) <- createTypeHouse this "Pi"
+      return (stmts, jvar, Star)
+
+    -- Error related
     _ -> panic "BaseTransCFJavaNew.trans: don't know how to do"
 
 translateScopeM' this e m =
@@ -400,6 +404,7 @@ translateApply' this flag m1 m2 = do
   (s3, nje3) <- getS3 this j1 (unwrap j2) retTyp closureType
   return (s2 ++ s1 ++ s3, nje3, scope2ctyp retTyp)
 
+-- TODO: This is not dependently typed
 translateLet' this (s1, j1, t1) body = do
   (n :: Int) <- get
   put (n + 1)
@@ -434,7 +439,6 @@ translateScopeTyp' this x1 f initVars _ otherStmts closureClass = do
 javaType' this typ =
   case typ of
     (JClass c) -> return $ classTy c
-    -- TODO: need to check for big lambda?
     (Pi _ s) -> do
       closureClass <- liftM2 (++) (getPrefix this) (return "Closure")
       return (classTy closureClass)

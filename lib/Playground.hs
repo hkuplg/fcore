@@ -35,8 +35,36 @@ core2java core = do
   let (cu,_) = compileN2 "M1" core
   putStrLn $ prettyPrint cu
 
-testJClass :: CN.Expr e
-testJClass = CN.App (CN.App (CN.Lam "" CN.Star (\x -> CN.Lam "" (CN.Var "" x) (\y -> CN.Var "" y))) (CN.JClass "java.lang.Integer")) (CN.Lit (S.Int 3))
+
+typeId :: CN.Expr e
+typeId = CN.Lam "" CN.Star (\x -> CN.Var "" x)
+
+-- (\ x : ⋆ . (\ y : x . y)) Int 3 + 3
+testPoly :: CN.Expr e
+testPoly = (CN.App
+                (CN.App (CN.Lam "" CN.Star (\x -> CN.Lam "" (CN.Var "" x) (\y -> CN.Var "" y)))
+                   (CN.javaInt))
+                (CN.Lit (S.Int 3))) `addn` (CN.Lit (S.Int 3))
+
+-- (\x : (\ y : ⋆ . y) Int . x) (castup [(\ y : ⋆ . y) Int] 3)
+testCastUp :: CN.Expr e
+testCastUp = CN.App (CN.Lam "" (CN.App typeId (CN.JClass "java.lang.Integer")) (\x -> CN.Var "" x))
+               (CN.CastUp (CN.App typeId CN.javaInt) (CN.Lit (S.Int 3)))
+
+-- (\e : (\y : ⋆ . x) Int . (\x : Int . x) (castdown e))
+testCastDown :: CN.Expr e
+testCastDown = CN.Lam "" (CN.App typeId CN.javaInt)
+                 (\e ->
+                    CN.App (CN.Lam "" CN.javaInt (\x -> CN.Var "" x)) (CN.CastDown CN.javaInt (CN.Var "" e)))
+
+-- let x = Int in (\y : x . y) 3
+-- testLet :: CN.Expr e
+-- testLet = CN.Let "" CN.javaInt
+--             (\x -> CN.App (CN.Lam "" (CN.Var "" x) (\y -> CN.Var "" y)) (CN.Lit (S.Int 3)))
+
+-- pi x : * . x -> x
+testPi :: CN.Expr e
+testPi = CN.Pi "" (CN.Star) (\x -> CN.Pi "" (CN.Var "" x) (\y -> CN.Var "" x))
 
 
 m1src = "package P.k module {rec even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1) and odd  (n : Int) : Bool = if n == 0 then False else even (n - 1)} "
@@ -169,8 +197,8 @@ testJNew = "let x = new java.lang.Integer(10) in x"
 
 testJMethod = "let x = new java.lang.Integer(10) in x.toString()"
 
-testLet :: String
-testLet = "let id[A] (x : A) = x in id[Int] 5 + 1"
+-- testLet :: String
+-- testLet = "let id[A] (x : A) = x in id[Int] 5 + 1"
 
 test1 :: Expr t e
 test1 =
@@ -221,6 +249,7 @@ x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y
 
+x `addn` y    = CN.PrimOp x (S.Arith J.Add) y
 
 mconst =
   (bLam (\a ->

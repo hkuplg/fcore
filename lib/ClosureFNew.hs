@@ -46,7 +46,7 @@ data Expr e =
    | PrimOp (Expr e) S.Operator (Expr e)
 
    | CastUp (Expr e) (Expr e)
-   | CastDown (Expr e)
+   | CastDown (Expr e) (Expr e)
 
    | Tuple [Expr e]
    | Proj Int (Expr e)
@@ -81,7 +81,7 @@ fexp2cexp e@(C.Mu n _ _)             = Mu n (fexp2scope e)
 fexp2cexp (C.Var rid x)              = Var rid x
 fexp2cexp (C.App e1 e2)              = App (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (C.CastUp e1 e2)           = CastUp (fexp2cexp e1) (fexp2cexp e2)
-fexp2cexp (C.CastDown e)             = CastDown (fexp2cexp e)
+fexp2cexp (C.CastDown e1 e2)         = CastDown (fexp2cexp e1) (fexp2cexp e2)
 fexp2cexp (C.PrimOp e1 op e2)        = PrimOp (fexp2cexp e1) op (fexp2cexp e2)
 fexp2cexp (C.Lit S.UnitLit)          = Lit S.UnitLit
 fexp2cexp (C.Lit e)                  = Lit e
@@ -197,8 +197,8 @@ prettyExpr p i (App e1 e2) = parensIf p 4 (prettyExpr (4, PrecMinus) i e1 <+> pr
 prettyExpr p i (CastUp t e)
   = parensIf p 2 $ castup <> (brackets (prettyExpr (2, PrecMinus) i t)) <+> prettyExpr (2, PrecMinus) i e
 
-prettyExpr p i (CastDown e)
-  = parensIf p 2 $ castdown <+> prettyExpr (2, PrecMinus) i e
+prettyExpr p i (CastDown t e)
+  = parensIf p 2 $ castdown <> (brackets (prettyExpr (2, PrecMinus) i t)) <+> prettyExpr (2, PrecMinus) i e
 
 
 prettyExpr p i (PrimOp e1 op e2)
