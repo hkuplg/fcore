@@ -2,7 +2,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 
-module FWJava 
+module FWJava
        (Classname, Superclass, Fieldname,
         Variable, Methodname,
         CT,
@@ -33,9 +33,9 @@ type Variable = String
 type Methodname = String
 type CT = Map.Map Classname CL --a mapping from class to its CL
 
-{-data Type = TyVar String 
+{-data Type = TyVar String
           | TyTop
-          | 
+          |
 -}
 
 data CL = Class Classname Superclass [Field] Constructor [Method] deriving Eq
@@ -46,7 +46,7 @@ data Constructor = Mkcon Classname [Field] deriving Eq
 
 data Method = Mkmtd Classname Methodname [Field] Term deriving Eq
 
-data Term = Var Variable 
+data Term = Var Variable
           | FieAcc Term Fieldname
           | MetInv Term Methodname [Term]
           | New Classname [Term]
@@ -57,33 +57,33 @@ instance Arbitrary Term where
   arbitrary = sized arbTerm
 
 arbTerm 0 = liftM Var (listOf (elements ['a'..'z']))
-arbTerm n = frequency 
+arbTerm n = frequency
           [ (1, liftM Var (listOf (elements ['a'..'z'])))
-          , (1, liftM2 FieAcc (arbTerm (n `div` 2)) 
-                              (listOf (elements ['a'..'z']))) 
-          , (1, liftM3 MetInv (arbTerm (n `div` 2)) 
-                              (listOf (elements ['a'..'z'])) 
+          , (1, liftM2 FieAcc (arbTerm (n `div` 2))
+                              (listOf (elements ['a'..'z'])))
+          , (1, liftM3 MetInv (arbTerm (n `div` 2))
+                              (listOf (elements ['a'..'z']))
                               (listOf (arbTerm (n `div` 2))))
           , (1, liftM2 New (listOf (elements ['a'..'z']))
-                           (listOf (arbTerm (n `div` 2)))) 
+                           (listOf (arbTerm (n `div` 2))))
           , (1, liftM2 Cast (listOf (elements ['a'..'z']))
-                            (arbTerm (n `div` 2)))  ] 
+                            (arbTerm (n `div` 2)))  ]
 -}
 
 instance Arbitrary Term where
   arbitrary = sized arbTerm
 arbTerm 0 = liftM Var (elements contextVa)
-arbTerm n = frequency 
+arbTerm n = frequency
           [ (1, liftM Var  (elements contextVa))
-          , (1, liftM2 FieAcc (arbTerm (n `div` 6)) 
+          , (1, liftM2 FieAcc (arbTerm (n `div` 6))
                               (elements contextFn))
-          , (1, liftM3 MetInv (arbTerm (n `div` 6)) 
-                              (elements contextMn) 
+          , (1, liftM3 MetInv (arbTerm (n `div` 6))
+                              (elements contextMn)
                               (listOf (arbTerm (n `div` 6))))
           , (1, liftM2 New (elements context)
-                           (listOf (arbTerm (n `div` 6)))) 
+                           (listOf (arbTerm (n `div` 6))))
           , (1, liftM2 Cast (elements context)
-                            (arbTerm (n `div` 6))) ] 
+                            (arbTerm (n `div` 6))) ]
 
 
 ----show----
@@ -93,7 +93,7 @@ mergeS [] = " "
 
 classdeclaration :: CL -> String
 classdeclaration (Class cn sc f c m) = "class " ++ cn ++ " extends " ++
-                                       sc ++ " {\n" ++ showFields f ++ 
+                                       sc ++ " {\n" ++ showFields f ++
                                        "\n" ++ (showCon c) ++ "\n" ++ (mergeS $ map showMethod m) ++ " }"
 
 showField :: Field -> String
@@ -111,8 +111,8 @@ showMethod :: Method -> String
 showMethod (Mkmtd cn mn f t) = cn ++ " " ++ mn ++ "(" ++ (showFields f) ++ ") {return " ++ (showTerm t) ++ ";}"
 
 showTerm :: Term -> String
-showTerm (Var v) = v 
-showTerm (FieAcc t fn) = "(" ++ (showTerm t) ++ "." ++ fn ++ ")" 
+showTerm (Var v) = v
+showTerm (FieAcc t fn) = "(" ++ (showTerm t) ++ "." ++ fn ++ ")"
 showTerm (MetInv t m fn) = "(" ++ (showTerm t) ++ "." ++ m ++ "(" ++ (showTerms fn) ++ ")"++ ")"
 showTerm (New cn t) = "new " ++ cn ++ "(" ++ (showTerms t) ++ ")"
 showTerm (Cast cn t) = "(" ++ cn ++ ")" ++ (showTerm t)
@@ -167,7 +167,7 @@ context = Map.keys ct
 contextFn :: [Fieldname]
 contextFn = helper (Map.elems ct)
             where helper [] = []
-                  helper (c1:cs) = case c1 of 
+                  helper (c1:cs) = case c1 of
                                    Class cc s fs c ms -> (fnsFromFs fs) ++ (helper cs)
 
 contextMn :: [Methodname]
@@ -187,26 +187,26 @@ mnsFromMs (m:ms) = case m of Mkmtd c m ts t -> m:(mnsFromMs ms)
 --Field lookup
 fields :: Classname -> [Field]
 fields "Object" = []
-fields cn = case (ct Map.! cn) of 
+fields cn = case (ct Map.! cn) of
                    (Class cn sc fs c ms) -> fs ++ (fields sc)
 
 --Method type lookup
 mtype :: Methodname -> Classname -> ([Classname], Classname)
 mtype m cn = case (ct Map.! cn) of
-                 (Class cn sc fs c ms) -> if Map.member m mapMs 
+                 (Class cn sc fs c ms) -> if Map.member m mapMs
                                           then case (mapMs Map.! m) of
                                                (Mkmtd b m bs t) -> ((cnsFromFs bs),b)
                                           else mtype m sc
-                  where mapMs = methodstoMap ms 
+                  where mapMs = methodstoMap ms
 
 --helper function
 methodstoMap :: [Method] -> Map.Map Methodname Method
 methodstoMap [] = Map.empty
-methodstoMap (m@(Mkmtd cn mn fs t):ms) = Map.insert mn m (methodstoMap ms) 
+methodstoMap (m@(Mkmtd cn mn fs t):ms) = Map.insert mn m (methodstoMap ms)
 
 cnsFromFs :: [Field] -> [Classname]
 cnsFromFs [] = []
-cnsFromFs ((Field cn fn):fs) = (:) cn (cnsFromFs fs)    
+cnsFromFs ((Field cn fn):fs) = (:) cn (cnsFromFs fs)
 
 
 --Method body lookup
@@ -226,14 +226,14 @@ fnsFromFs ((Field cn fn):fs) = fn : (fnsFromFs fs)
 
 --Valid method overriding : judge whether a method m is defined in a subclass of D
 override :: Methodname -> Classname -> ([Classname],Classname) -> Bool
-override m d (cs,c0) = case (mtype m d) of 
-                           (ds,d0) -> ds == cs && c0 == d0 
+override m d (cs,c0) = case (mtype m d) of
+                           (ds,d0) -> ds == cs && c0 == d0
 
 
 --subtyping
 subtype :: Classname -> Classname -> Bool
-subtype c e = if c == e 
-              then True 
+subtype c e = if c == e
+              then True
               else if case (ct Map.! c) of
                       (Class c sc fs co ms) -> e == sc
                    then True
@@ -246,33 +246,33 @@ isValue (New cn ts) = and (map isValue ts)
 isValue _ = False
 
 eval1 :: Term -> Term
--- E-PROJNEW 
-eval1 (FieAcc c@(New cn ts) fn) = if isValue c        
-                                  then if elem fn (fnsFromFs $ fields cn) 
+-- E-PROJNEW
+eval1 (FieAcc c@(New cn ts) fn) = if isValue c
+                                  then if elem fn (fnsFromFs $ fields cn)
                                        then ts !! (seeOrder fn (fields cn))
-                                       else error "There is no such field"   
+                                       else error "There is no such field"
                                   else FieAcc (eval1 c) fn -- E-FIELD
--- E-INVKNEW	
-eval1 (MetInv c@(New cn ts) m ar) = if isValue c  
-                                    then let (xs,t0) = (mbody m cn) 
+-- E-INVKNEW
+eval1 (MetInv c@(New cn ts) m ar) = if isValue c
+                                    then let (xs,t0) = (mbody m cn)
                                          in subst [this] [c] (subst xs ar t0)--danger
                                     else MetInv (eval1 c) m ar  -- E-INVK-RECV
 -- E-CASTNEW
-eval1 (Cast d (New c vs)) = if subtype c d        
+eval1 (Cast d (New c vs)) = if subtype c d
                             then New c vs
                             else error "Cast error"
 -- E-FIELD
 eval1 (FieAcc t f) = FieAcc (eval1 t) f
 -- E-INVK-ARG
-eval1 (MetInv c m ar) = if isValue c && (or (map isValue ar))  
+eval1 (MetInv c m ar) = if isValue c && (or (map isValue ar))
                         then MetInv c m (map helper ar)
                         else MetInv (eval1 c) m ar
-                        where helper = (\x-> if isValue x then x else eval1 x) 
+                        where helper = (\x-> if isValue x then x else eval1 x)
 -- E-NEW-ARG
-eval1 (New c vs) = New c (map helper vs)        
+eval1 (New c vs) = New c (map helper vs)
                    where helper = (\x-> if isValue x then x else eval1 x)
 -- E-CAST
-eval1 (Cast c t0) = Cast c (eval1 t0)           
+eval1 (Cast c t0) = Cast c (eval1 t0)
 eval1 t           = t --error "No Evaluation rules applied"
 
 
@@ -289,7 +289,7 @@ subst fs ts t = if length fs /= length ts then error "Do not have suffice substi
                       helper (t:ts) = (Var t):(helper ts)
                       helper1 0 t   = t
                       helper1 n t   = helper1 (n-1) (move t mapFsTs)
-                      
+
 move :: Term -> [(Term,Term)] -> Term
 move t@(Var v) (m:ms)           = if (fst m) == t then snd m else move t ms
 move t@(FieAcc t1 fn) (m:ms)    = if (fst m) == t1 then FieAcc (snd m) fn else move t ms
@@ -305,7 +305,7 @@ size (FieAcc t fn)   = 1 + (size t)
 size (MetInv t m ts) = 1 + (size t) + (sum $ map size ts)
 size (New c ts)      = 1 + (sum $ map size ts)
 size (Cast c t)      = 1 + (size t)
- 
+
 
 eval :: Term -> Term
 eval t = helper ((size t)*2) t
@@ -337,25 +337,24 @@ timeIt action arg = do
 oneTestNv = timeout 5000000 $ timeIt quickCheck prop_tryNv >>= print --change prop here
 --oneTestCl = timeout 5000000 $ timeIt quickCheck prop_tryCl >>= print --change prop here
 
-multiTestNv = do 
+multiTestNv = do
             startTime <- getCPUTime
-            oneTestNv  
             oneTestNv
             oneTestNv
-            oneTestNv 
             oneTestNv
-            oneTestNv 
-            oneTestNv 
-            oneTestNv 
-            oneTestNv 
-            oneTestNv 
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
             finishTime <- getCPUTime
             return $ fromIntegral (finishTime - startTime) / 1000000000
 
 {-
-multiTestCl = do 
+multiTestCl = do
             startTime <- getCPUTime
-            oneTestCl  
             oneTestCl
             oneTestCl
             oneTestCl
@@ -364,7 +363,8 @@ multiTestCl = do
             oneTestCl
             oneTestCl
             oneTestCl
-            oneTestCl 
+            oneTestCl
+            oneTestCl
             finishTime <- getCPUTime
             return $ fromIntegral (finishTime - startTime) / 1000000000
 -}

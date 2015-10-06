@@ -18,7 +18,7 @@ let rec size (l : PList) : Int =
           Nil       -> 0
         | Cons _ xs -> 1 + size xs;
 
-let rec isSorted(l: PList): Bool = 
+let rec isSorted(l: PList): Bool =
        case l of
            Nil                -> True
          | Cons x ll -> (case ll of
@@ -53,19 +53,19 @@ let prop_mergeFast (l1: PList) (l2: PList) : Bool =
     else True;
 
 let splitSpec (l: PList) (res: PairPList) : Bool =
-    case res of 
-       Pair r1 r2 -> 
+    case res of
+       Pair r1 r2 ->
            let s1 = size r1;
            let s2 = size r2;
-           abs (s1 - s2) <= 1 && s1 + s2 == size l ;-- && 
+           abs (s1 - s2) <= 1 && s1 + s2 == size l ;-- &&
          --union (content res._1) (content res._2) == content l;
 
-let rec split (l: PList) : PairPList = 
+let rec split (l: PList) : PairPList =
       case l of
-         Nil       -> Pair Nil Nil 
+         Nil       -> Pair Nil Nil
        | Cons x ll -> (case ll of
                          Nil         -> Pair (Cons x Nil) Nil
-                       | Cons x1 lll -> (case lll of 
+                       | Cons x1 lll -> (case lll of
                                            Nil        -> Pair (Cons x Nil) (Cons x1 Nil)
                                          | Cons x2 xs -> let s = split xs;
                                                           case s of Pair s1 s2 ->
@@ -76,12 +76,12 @@ let prop_split (l: PList) : Bool = splitSpec l (split l);
 let sortSpec (in: PList) (out: PList) : Bool = --content out == content in
                                           isSorted out;
 
-let rec weirdSort (in: PList) : PList = 
+let rec weirdSort (in: PList) : PList =
       case in of
          Nil        -> Nil
        | Cons x l -> (case l of
                        Nil -> Cons x Nil
-                     | Cons _ _-> let s = split in; 
+                     | Cons _ _-> let s = split in;
                                   case s of Pair s1 s2 -> mergeFast (weirdSort s1) (weirdSort s2));
 
 let rec toLPList (l: PList) : LPList =
@@ -89,11 +89,11 @@ let rec toLPList (l: PList) : LPList =
           Nil -> LNil
         | Cons x xs -> LCons (Cons x Nil) (toLPList xs);
 
-let prop_toLPList (l: PList) : Bool = 
+let prop_toLPList (l: PList) : Bool =
       let res = toLPList l;
-     -- lContent res == content l && 
+     -- lContent res == content l &&
         lIsSorted res;
- 
+
 let rec mergeMap (ll : LPList) : LPList =
      if lIsSorted ll
      then case ll of
@@ -104,9 +104,9 @@ let rec mergeMap (ll : LPList) : LPList =
      else LNil; --error [LPList] "the LPList is not sorted.";
 
 let prop_mergeMap (ll: LPList) : Bool =
-    if lIsSorted ll 
-    then let res = mergeMap ll; 
-        -- lContent res == lContent ll && 
+    if lIsSorted ll
+    then let res = mergeMap ll;
+        -- lContent res == lContent ll &&
          lIsSorted res
     else True;
 

@@ -2,15 +2,15 @@
 data PList = Nil | Cons Int PList;
 
 
-let rec max (l: PList) : Int = 
+let rec max (l: PList) : Int =
       case l of
          Nil      -> 0
-       | Cons x c -> case c of 
+       | Cons x c -> case c of
                          Nil        -> x
                        | Cons y ys  -> let m2 = max c;
                                        if m2 > x then m2 else x;
-  
-let rec sum (l: PList) : Int = 
+
+let rec sum (l: PList) : Int =
      case l of
          Nil       -> 0
        | Cons x xs -> x + sum xs;
@@ -23,13 +23,13 @@ let rec size (l : PList) : Int =
 let prop_size (l : PList) : Bool = size l >= 0;
 
 let rec allPos (l: PList) : Bool =
-     case l of 
+     case l of
         Nil       -> True
       | Cons x xs -> x >= 0 && (allPos xs) ;
 
 let prop0 (l: PList) : Bool =
     if l != Nil
-     then (if allPos l then False else True) || (max l >= 0) 
+     then (if allPos l then False else True) || (max l >= 0)
      else True ;
 
 let property (l: PList) : Bool =

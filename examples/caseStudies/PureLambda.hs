@@ -33,9 +33,9 @@ instance Arbitrary TermL where
  arbitrary = sized arbTermL
 
 arbTermL 0 = liftM Var (elements initc)
-arbTermL n = frequency [ 
+arbTermL n = frequency [
              (1, (liftM Var (elements initc))),
-             (3, (liftM2 App (arbTermL (n `div` 2)) 
+             (3, (liftM2 App (arbTermL (n `div` 2))
                              (arbTermL (n `div` 2)))),
              (3, (liftM2 Abs (elements initc)
                              (arbTermL (n `div` 2)))) ]
@@ -52,7 +52,7 @@ appOpr  = " "
 
 fullForm :: TermL -> String
 fullForm (Var x)         = x
-fullForm (Abs x y)       = "(" ++ absHead ++ x ++ absOpr ++ fullForm y ++ ")" 
+fullForm (Abs x y)       = "(" ++ absHead ++ x ++ absOpr ++ fullForm y ++ ")"
 fullForm (App x y)       = "(" ++ fullForm x ++ appOpr ++ fullForm y ++ ")"
 
 simpleForm :: TermL -> String
@@ -92,7 +92,7 @@ subst n x m@(Var y)                         -- if y = x, then just subst n to y,
   | x == y             = n
   | otherwise          = m
 subst n x (App p q)    = App (subst n x p) (subst n x q)   -- App, subst each respectively
-subst n x m@(Abs y p)                                      -- Abs,  
+subst n x m@(Abs y p)                                      -- Abs,
   | x == y             = m                                 -- if it is bounded, no subst
   | x `Set.notMember` freeP  = m                           -- bounded in p, still no subst
   | y `Set.notMember` freeN  = Abs y (subst n x p)         -- then fv in n is still free
@@ -131,8 +131,8 @@ alphaCongruent _ _                      = False
 prop_alphaCongruent_ref :: TermL -> Bool        --easy
 prop_alphaCongruent_ref t = alphaCongruent t t
 
-prop_alphaCongruent_traNv :: TermL -> TermL -> TermL -> Property 
-prop_alphaCongruent_traNv t1 t2 t3 = 
+prop_alphaCongruent_traNv :: TermL -> TermL -> TermL -> Property
+prop_alphaCongruent_traNv t1 t2 t3 =
     (alphaCongruent t1 t2) && (alphaCongruent t2 t3) ==> alphaCongruent t1 t3
 
 prop_alphaCongruent_sym :: TermL -> TermL -> Property
@@ -141,7 +141,7 @@ prop_alphaCongruent_sym t1 t2 = alphaCongruent t1 t2 ==> alphaCongruent t2 t1
 
 ----property : alpha subst
 prop_alphasubst :: TermL -> TermL -> TermL -> TermL -> Ide -> Property
-prop_alphasubst m1 m2 n1 n2 x = (alphaCongruent m1 m2) && (alphaCongruent n1 n2) ==> 
+prop_alphasubst m1 m2 n1 n2 x = (alphaCongruent m1 m2) && (alphaCongruent n1 n2) ==>
                                  alphaCongruent (subst n1 x m1) (subst n2 x m2)
 
 
@@ -151,11 +151,11 @@ loReduce :: TermL -> Maybe TermL        --just one step
 loReduce (Var _) = Nothing
 loReduce (App (Abs x t1) t2) = Just $ subst t2 x t1   --beta reduction
 loReduce (App t1 t2) =
-  case loReduce t1 of                   
+  case loReduce t1 of
     Just t1' -> Just $ App t1' t2        -- leftmost
     Nothing ->
       case loReduce t2 of
-        Just t2' -> Just $ App t1 t2'    -- just as it has parens 
+        Just t2' -> Just $ App t1 t2'    -- just as it has parens
         Nothing -> Nothing
 loReduce (Abs x t) =
   case loReduce t of
@@ -185,11 +185,11 @@ prop_limitedReduce p = allAlphaCon $ limitedReduce p
 allAlphaCon :: [TermL] -> Bool
 allAlphaCon [] = True
 allAlphaCon [t] = True
-allAlphaCon (x:xs@(y:ys)) = (alphaCongruent xl yl) && allAlphaCon xs 
+allAlphaCon (x:xs@(y:ys)) = (alphaCongruent xl yl) && allAlphaCon xs
                               where xl = head $ reverse (limitedReduce x)
                                     yl = head $ reverse (limitedReduce y)
 
-exhaustedIterate :: Eq a => (a -> a) -> a -> a  --till it deplicate it exhausted 
+exhaustedIterate :: Eq a => (a -> a) -> a -> a  --till it deplicate it exhausted
 exhaustedIterate f x   = helper trace
   where trace          = iterate f x
         helper (x:xs@(y:_))
@@ -209,27 +209,26 @@ timeIt action arg = do
 --timeIt' :: (Fractional c) => (a -> b) -> a -> IO c
 --timeIt' f = timeIt (\x -> f x `seq` return())
 
-oneTestNv = timeout 5000000 $ timeIt quickCheck prop_alphaCongruent_traNv >>= print 
---oneTestCl = timeout 5000000 $ timeIt quickCheck prop_alphaCongruent_tra >>= print 
+oneTestNv = timeout 5000000 $ timeIt quickCheck prop_alphaCongruent_traNv >>= print
+--oneTestCl = timeout 5000000 $ timeIt quickCheck prop_alphaCongruent_tra >>= print
 
-multiTestNv = do 
+multiTestNv = do
             startTime <- getCPUTime
-            oneTestNv  
             oneTestNv
             oneTestNv
-            oneTestNv 
             oneTestNv
-            oneTestNv 
-            oneTestNv 
-            oneTestNv 
-            oneTestNv 
-            oneTestNv 
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
             finishTime <- getCPUTime
             return $ fromIntegral (finishTime - startTime) / 1000000000
 {-
-multiTestCl = do 
+multiTestCl = do
             startTime <- getCPUTime
-            oneTestCl  
             oneTestCl
             oneTestCl
             oneTestCl
@@ -238,7 +237,8 @@ multiTestCl = do
             oneTestCl
             oneTestCl
             oneTestCl
-            oneTestCl 
+            oneTestCl
+            oneTestCl
             finishTime <- getCPUTime
             return $ fromIntegral (finishTime - startTime) / 1000000000
 -}
@@ -247,6 +247,6 @@ multiTestCl = do
 
 
 ------for-quickCheck-test------
-return []                    -- 
+return []                    --
 runTests = $quickCheckAll    --
 -------------------------------
