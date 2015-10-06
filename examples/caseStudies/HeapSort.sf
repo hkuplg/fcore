@@ -7,16 +7,16 @@ data Heap = Leaf | Node Int Int Heap Heap;
 
 -----------equal & notEqual function for Heap-----------------
 let rec equal (h1 : Heap) (h2 : Heap) : Bool =
-  case h1 of 
+  case h1 of
       Leaf             -> (case h2 of
                                 Leaf         -> True
                               | Node _ _ _ _ -> False)
     | Node k1 v1 l1 r1 -> (case h2 of
                               Leaf             -> False
                             | Node k2 v2 l2 r2 -> if (k1 == k2 && v1 == v2 && equal l1 l2 && equal r1 r2) then True else False );
-                      
+
 let notEqual (h1 : Heap) (h2 : Heap) : Bool =
-    if equal h1 h2 
+    if equal h1 h2
     then False
     else True;
 -------------------------------------------------------------
@@ -32,7 +32,7 @@ let rec rightHeight (h: Heap): Int =
         Leaf         -> 0
       | Node _ _ _ r -> rightHeight r + 1;
 
-let rank(h:Heap) : Int = 
+let rank(h:Heap) : Int =
     case h of
      Leaf          -> 0
    | Node rk _ _ _ -> rk;
@@ -62,8 +62,8 @@ let rec heapSize (t: Heap) : Int =
 let prop_heapSize (t: Heap) : Bool = heapSize t >= 0 ;
 
 
-   
-let makeT (v: Int) (l: Heap) (r: Heap): Heap = 
+
+let makeT (v: Int) (l: Heap) (r: Heap): Heap =
      if (rank l) >= (rank r) then (Node ((rank r) + 1) v l r)
                              else (Node ((rank l) + 1) v r l);
 
@@ -83,12 +83,12 @@ let prop_merge (h1: Heap) (h2: Heap) : Bool =
      then let res = merge h1 h2;
           (case res of
               Leaf         -> h1 == Leaf && h2 == Leaf
-            | Node _ v _ _ -> (notEqual h1 Leaf && rootVal h1 == v) || 
+            | Node _ v _ _ -> (notEqual h1 Leaf && rootVal h1 == v) ||
                               (notEqual h2 Leaf && rootVal h2 == v) )  &&
           hasLeftistProperty res &&
-          heapSize h1 + heapSize h2 == heapSize res 
+          heapSize h1 + heapSize h2 == heapSize res
         --  union (heapContent h1) (heapContent h2) == heapContent res
-      else True ; 
+      else True ;
 
 
 let insert (e: Int) (h: Heap) : Heap =
@@ -96,15 +96,15 @@ let insert (e: Int) (h: Heap) : Heap =
     then merge (Node 1 e Leaf Leaf) h
     else Leaf ;--error [Heap] "the input heap does not have leftist property";
 
-let prop_insert (e: Int) (h: Heap) : Bool = 
+let prop_insert (e: Int) (h: Heap) : Bool =
     if hasLeftistProperty h
     then let res = insert e h;
-         heapSize res == (heapSize h) + 1 
+         heapSize res == (heapSize h) + 1
      -- && heapContent res == union (singleton e) (heapContent h)
     else True;
 
 let findMax (h: Heap) : Int =
-    if hasLeftistProperty h -- && (notEqual h Leaf) 
+    if hasLeftistProperty h -- && (notEqual h Leaf)
     then rootVal h
     else 0 ; --error [Int] "the Input does not have leftist property or empty" ;
 
@@ -118,8 +118,8 @@ let removeMax(h: Heap): Heap =
 let prop_removeMax (h: Heap): Bool =
     if (equal h Leaf)  then True
     else if hasLeftistProperty h
-         then let res = removeMax h; 
-              if (hasLeftistProperty res) && 
+         then let res = removeMax h;
+              if (hasLeftistProperty res) &&
                  ((equal res Leaf) || ((findMax res) < (findMax h)))
               then True else False
          else True ;
@@ -160,20 +160,20 @@ let prop_buildHeap (l: PList) : Bool =
                    hasLeftistProperty res &&
                 -- heapContent res == content l &&
                    heapSize res == size l;
-                  
+
 
 let heapSort (l: PList) : PList = let h = buildHeap l; removeElements h;
 
 let prop_heapSort (l: PList) : Bool =
                   let res = heapSort l;
                   sortedDescending res &&
-                  size res == size l ;  -- && 
+                  size res == size l ;  -- &&
                --  content res == content l ;
 
 --prop_heapSize
 --prop_merge
 --prop_insert
 prop_removeMax
---prop_removeElements 
+--prop_removeElements
 --prop_buildHeap
---prop_heapSort 
+--prop_heapSort

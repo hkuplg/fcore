@@ -8,7 +8,7 @@ let rec size (l : PList) : Int =
           Nil       -> 0
         | Cons _ xs -> 1 + size xs;
 
-let rec isSorted(l: PList): Bool = 
+let rec isSorted(l: PList): Bool =
        case l of
            Nil       -> True
          | Cons x ll -> (case ll of
@@ -18,7 +18,7 @@ let rec isSorted(l: PList): Bool =
 
 let rec sortedIns(e: Int) (l: PList): PList =
        if isSorted l
-        then case l of 
+        then case l of
              Nil       -> Cons e Nil
            | Cons x xs -> if x <= e then Cons x (sortedIns e xs) else Cons e l
         else Nil ; --error [PList] "the input PList is not sorted." ;
@@ -33,7 +33,7 @@ let prop_sortedIns (e: Int) (l: PList): Bool =
        else True;
 
 let buggySortedIns (e: Int) (l: PList): PList =
-         case l of 
+         case l of
              Nil       -> Cons e Nil
            | Cons x xs -> if x <= e then Cons x (sortedIns e xs) else Cons e l;
 
@@ -43,7 +43,7 @@ let prop_buggySortedIns (e: Int) (l: PList): Bool =
             isSorted res &&
             size res == size l + 1;
 
-let rec sort(l: PList): PList = 
+let rec sort(l: PList): PList =
        case l of
           Nil       -> Nil
         | Cons x xs -> sortedIns x (sort xs);
@@ -56,7 +56,7 @@ let prop_sort(l: PList): Bool =
 
 let rec mergeInto(l1: PList) (l2: PList) : PList =
       if isSorted l2
-       then case l1 of 
+       then case l1 of
                Nil -> l2
              | Cons x xs -> mergeInto xs (sortedIns x l2)
        else Nil ; --error [PList] "PList2 is not sorted.";
@@ -68,7 +68,7 @@ let prop_mergeInto(l1: PList) (l2: PList) : Bool =
        else True;
 
 
-    
+
 --prop_sortedIns
 --prop_buggySortedIns
 --prop_sort

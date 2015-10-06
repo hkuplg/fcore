@@ -4,21 +4,21 @@
 let not (b: Bool) : Bool = if b then False else True;
 
 type Pre = Int;
-type Ide = Int; 
+type Ide = Int;
 type Cos = Int;
 
 data Term = Var Ide | Con Cos;
 
-let getConT(c: Term) : Cos = case c of 
+let getConT(c: Term) : Cos = case c of
                               Con cos -> cos
                             | Var ide -> 0; --uh..
-         
 
-data FOrmula = Prd Int Term 
-               | And FOrmula FOrmula 
+
+data FOrmula = Prd Int Term
+               | And FOrmula FOrmula
                | Or FOrmula FOrmula
                | Implies FOrmula FOrmula
-               | Not FOrmula 
+               | Not FOrmula
                | E Ide FOrmula
                | A Ide FOrmula ;
 
@@ -27,7 +27,7 @@ data Assigment = Asg Ide Cos;
 data Valuation = VNil | VCons Assigment Valuation ;
 
 data Coslist = CNil | CCons Cos Coslist;
-data Idelist = INil | ICons Ide Idelist; 
+data Idelist = INil | ICons Ide Idelist;
 data Prelist = PNil | PCons Pre Prelist;
 data Boolist = BoNil | BoCons Bool Boolist;
 data Bind = Prop Pre Coslist;
@@ -35,7 +35,7 @@ data Context = BNil | BCons Bind Context;
 data ListofValuation = VANil | VACons Valuation ListofValuation;
 
 
-let predicate = PCons 1 (PCons 2 (PCons 3 (PCons 4 (PCons 5 (PCons 6 
+let predicate = PCons 1 (PCons 2 (PCons 3 (PCons 4 (PCons 5 (PCons 6
                (PCons 7 (PCons 8 (PCons 9 (PCons 10 (PCons 11 (PCons 12 PNil)))))))))));
 let context = BCons (Prop 1 (CCons 12 (CCons 24 (CCons 36 CNil))))
              (BCons (Prop 2 (CCons 1 (CCons 13 (CCons 25 CNil))))
@@ -80,8 +80,8 @@ let tequal (t1: Term) (t2: Term) : Bool =
                     | Var _  -> False);
 
 
-let rec fequal (f1: FOrmula) (f2: FOrmula) : Bool = 
-      case f1 of 
+let rec fequal (f1: FOrmula) (f2: FOrmula) : Bool =
+      case f1 of
           Prd i1 t1 -> (case f2 of
                           Prd i2 t2   -> i1 == i2 && tequal t1 t2
                         | And _ _     -> False
@@ -140,35 +140,35 @@ let rec fequal (f1: FOrmula) (f2: FOrmula) : Bool =
                         | E _ _       -> False);
 
 let aequal (a1: Assigment) (a2: Assigment) : Bool =
-    case a1 of 
-       Asg i1 c1 -> (case a2 of 
-                       Asg i2 c2 -> (i1 == i2) && (c1 == c2)); 
+    case a1 of
+       Asg i1 c1 -> (case a2 of
+                       Asg i2 c2 -> (i1 == i2) && (c1 == c2));
 
 
 let rec vequal (v1: Valuation) (v2: Valuation) : Bool =
-    case v1 of 
+    case v1 of
       VNil -> (case v2 of
                  VNil -> True
                | VCons b1 b2 -> False)
     | VCons a1 a2 -> (case v2 of
                         VNil -> False
-                      | VCons b1 b2 -> (aequal a1 b1) && (vequal a2 b2) ); 
+                      | VCons b1 b2 -> (aequal a1 b1) && (vequal a2 b2) );
 
 
 ---------------------------------------------------------------------------
 
 
---------------------------- pf -------------------------------------------- 
+--------------------------- pf --------------------------------------------
 
 let rec simplify (f: FOrmula): FOrmula =
-      case f of 
+      case f of
         Prd p v     -> Prd p v
       | And l r     -> And (simplify l) (simplify r)
       | Or l r      -> Or (simplify l) (simplify r)
       | Implies l r -> Or (Not (simplify l)) (simplify r)
       | E i f       -> E i (simplify f)
       | A i f       -> A i (simplify f)
-      | Not sf      -> (case sf of 
+      | Not sf      -> (case sf of
                           E i ssf       -> A i (simplify (Not ssf))
                         | A i ssf       -> E i (simplify (Not ssf))
                         | And sl sr     -> Or (simplify (Not sl)) (simplify (Not sr))
@@ -183,13 +183,13 @@ let rec opf (f: FOrmula): FOrmula =  ----one step of prenex formula manipulation
       | A i sf   -> A i (opf sf)
       | E i sf   -> E i (opf sf)
       | Implies l r -> opf (simplify (Implies l r))
-      | Not sf   -> (case sf of 
+      | Not sf   -> (case sf of
                        Prd p v     -> f
                      | Not ssf     -> opf (simplify f)
                      | Or l r      -> opf (simplify f)
                      | And l r     -> opf (simplify f)
                      | Implies l r -> opf (simplify f)
-                     | E i ssf     -> opf (simplify f)    
+                     | E i ssf     -> opf (simplify f)
                      | A i ssf     -> opf (simplify f))
       | And l r -> (case l of
                        Prd p v       -> (case r of
@@ -232,7 +232,7 @@ let rec opf (f: FOrmula): FOrmula =  ----one step of prenex formula manipulation
                                           | Not ff        -> And (opf l) (opf r)
                                           | E ii ssf      -> E ii (And (opf l) (opf ssf))
                                           | A ii ssf      -> A ii (And (opf l) (opf ssf)))
-                     | A i sf -> (case r of 
+                     | A i sf -> (case r of
                                     Prd p v       -> A i (And sf (opf r))
                                   | Or ll rr      -> A i (And sf (opf r))
                                   | And ll rr     -> A i (And sf (opf r))
@@ -247,7 +247,7 @@ let rec opf (f: FOrmula): FOrmula =  ----one step of prenex formula manipulation
                                   | Implies ll rr -> E i (And sf (opf r))
                                   | Not ff        -> E i (And sf (opf r))
                                   | E ii ssf      -> E i (E ii (And (opf sf) (opf ssf)))
-                                  | A ii ssf      -> E i (A ii (And (opf sf) (opf ssf))))) 
+                                  | A ii ssf      -> E i (A ii (And (opf sf) (opf ssf)))))
       | Or l r -> (case l of
                        Prd p v       -> (case r of
                                             Prd p v       -> Or (opf l) (opf r)
@@ -289,7 +289,7 @@ let rec opf (f: FOrmula): FOrmula =  ----one step of prenex formula manipulation
                                           | Not ff        -> Or (opf l) (opf r)
                                           | E ii ssf      -> E ii (Or (opf l) (opf ssf))
                                           | A ii ssf      -> A ii (Or (opf l) (opf ssf)))
-                     | A i sf -> (case r of 
+                     | A i sf -> (case r of
                                     Prd p v       -> A i (Or sf (opf r))
                                   | Or ll rr      -> A i (Or sf (opf r))
                                   | And ll rr     -> A i (Or sf (opf r))
@@ -330,23 +330,23 @@ let pf (f: FOrmula) : FOrmula = pfhelper f (lgh f);
 ----------------------------satisfy------------------------------------------
 
 -----------some help function: "append" or "elem" of the list
-let rec appendI (i1: Idelist) (i2: Idelist) : Idelist = 
-        case i1 of 
+let rec appendI (i1: Idelist) (i2: Idelist) : Idelist =
+        case i1 of
           INil -> i2
         | ICons v1 vs -> ICons v1 (appendI vs i2);
 
 let rec elemP (p: Pre) (l: Prelist) : Bool =
-    case l of 
+    case l of
        PNil -> False
      | PCons p1 ps -> if (p == p1) || (elemP p ps) then True else False;
 
 let rec elemC (p: Cos) (l: Coslist) : Bool =
-    case l of 
+    case l of
        CNil -> False
      | CCons p1 ps -> if (p == p1) || (elemC p ps) then True else False;
 
 let rec elemI (p: Ide) (l: Idelist) : Bool =
-    case l of 
+    case l of
        INil -> False
      | ICons p1 ps -> if (p == p1) || (elemI p ps) then True else False;
 
@@ -360,7 +360,7 @@ let rec showConB (p: Pre) (co: Context) : Coslist =
 let rec mapCA (i: Ide) (cl: Coslist) : Valuation =
     case cl of
        CNil       -> VNil
-     | CCons x xs -> VCons (Asg i x) (mapCA i xs); 
+     | CCons x xs -> VCons (Asg i x) (mapCA i xs);
 
 let rec mapAV (f: Assigment -> Valuation) (a: Valuation) : ListofValuation =
      case a of
@@ -370,17 +370,17 @@ let rec mapAV (f: Assigment -> Valuation) (a: Valuation) : ListofValuation =
 let rec mapAI (f: Assigment -> Ide) (v: Valuation) : Idelist =
      case v of
         VNil -> INil
-      | VCons i vs ->  ICons (f i) (mapAI f vs); 
+      | VCons i vs ->  ICons (f i) (mapAI f vs);
 
 let rec mapVB (f: Valuation -> Bool) (v: ListofValuation) : Boolist =
-     case v of 
+     case v of
        VANil -> BoNil
      | VACons vv vs -> BoCons (f vv) (mapVB f vs);
 
 let rec foldAdd (ib: Bool) (bl: Boolist) : Bool =
     case bl of
        BoNil -> ib
-     | BoCons b bs -> foldAdd (ib && b) bs; 
+     | BoCons b bs -> foldAdd (ib && b) bs;
 
 let rec foldOr (ib: Bool) (bl: Boolist) : Bool =
     case bl of
@@ -390,20 +390,20 @@ let rec foldOr (ib: Bool) (bl: Boolist) : Bool =
 ------------------------------------------------
 
 --function "verify" verify a FOrmula without variables, with context
-let rec verify (f: FOrmula) : Bool = 
-      case f of 
+let rec verify (f: FOrmula) : Bool =
+      case f of
          Prd p c -> if (elemP p predicate) then elemC (getConT c) (showConB p context)
                                           else False
-       | Not ff      -> not (verify ff)  
+       | Not ff      -> not (verify ff)
        | Or l r      -> verify l || verify r
        | And l r     -> verify l && verify r
        | Implies l r -> (not (verify l)) || verify r
        | E i ff      -> False
-       | A i ff      -> False;           
-                       
+       | A i ff      -> False;
 
---substitute a constant to a variable using valuationa 
-let rec subst (t: Term) (va: Valuation) : Term = 
+
+--substitute a constant to a variable using valuationa
+let rec subst (t: Term) (va: Valuation) : Term =
      case va of
          VNil       -> t
        | VCons v vs -> (case t of
@@ -423,13 +423,13 @@ let rec reverseConV (v: Valuation) (a: Assigment) : Valuation = VCons a v;
 
 --function "iequivalent" give the list of i-equivalent valuation of a valuation
 let iequivalent (va: Valuation) (i: Ide) : ListofValuation =
-     case va of 
+     case va of
        VNil       -> VANil
      | VCons v vs -> mapAV (reverseConV (deleteIE va i)) (mapCA i (getConsV va));
 
 
 --get the variables of a FOrmula
-let rec vars (f: FOrmula) : Idelist = 
+let rec vars (f: FOrmula) : Idelist =
        case f of
          E i f       -> ICons i (vars f)
        | A i f       -> ICons i (vars f)
@@ -448,32 +448,32 @@ let isEmptyI (l: Idelist) : Bool =
      | ICons ll ls -> False;
 
 let rec isSubset (sl: Idelist) (bl: Idelist) : Bool =
-     case sl of 
+     case sl of
        INil -> True
      | ICons ll ls -> (elemI ll bl) && (isSubset ls bl);
 
 
 --remove the repetition of Idelist
 let rec removeRepI (il: Idelist) : Idelist =
-     case il of 
+     case il of
        INil -> INil
-     | ICons i is -> if (elemI i is) then removeRepI is else ICons i (removeRepI is); 
+     | ICons i is -> if (elemI i is) then removeRepI is else ICons i (removeRepI is);
 
 
 let rec satisfy (f: FOrmula) (va: Valuation) : Bool =
-      case va of 
+      case va of
          VNil -> if isEmptyI (vars f) then verify f else False -- non-exhuasted error
-       | VCons v vs -> 
-              if  isSubset (removeRepI (vars f)) (mapAI getIdeA va)  then 
+       | VCons v vs ->
+              if  isSubset (removeRepI (vars f)) (mapAI getIdeA va)  then
               case f of
                 Prd p fo    -> verify (Prd p (subst fo va))
               | And l r     -> satisfy l va && satisfy r va
               | Or l r      -> satisfy l va || satisfy r va
-              | Implies l r -> (not (satisfy l va)) || satisfy r va 
+              | Implies l r -> (not (satisfy l va)) || satisfy r va
               | Not f       -> not (satisfy f va)
-              | A i fo      -> foldAdd True (mapVB (satisfy fo) (iequivalent va i)) 
-              | E i fo      -> foldOr False (mapVB (satisfy fo) (iequivalent va i)) 
-               else True ;-- should be error              
+              | A i fo      -> foldAdd True (mapVB (satisfy fo) (iequivalent va i))
+              | E i fo      -> foldOr False (mapVB (satisfy fo) (iequivalent va i))
+               else True ;-- should be error
 
 
 ----------------property----------------
@@ -489,8 +489,8 @@ let theIde = ICons 0 (ICons 2 (ICons 4 INil));
 let counterExample = VCons (Asg 0 1) (VCons (Asg 2 1) (VCons (Asg 4 2) VNil));
 
 
-let prop_the (v: Valuation) : Bool = 
-     case v of 
+let prop_the (v: Valuation) : Bool =
+     case v of
      VNil -> True
    | VCons vv vs -> satisfy (pf the) v ;
 

@@ -7,15 +7,15 @@ type Variable = Int;
 type Methodname = Int;
 
 
-data Field = Fd Classname Fieldname; 
+data Field = Fd Classname Fieldname;
 data Fieldlist = FNil | FCons Field Fieldlist;
 
 data rec Term = Var Variable
               | FieAcc Term Fieldname
               | MetInv Term Methodname Termlist
               | New Classname Termlist
-              | Cast Classname Term 
- and 
+              | Cast Classname Term
+ and
 Termlist = TNil | TCons Term Termlist;
 
 data Constructor = Mkcon Classname Fieldlist;
@@ -65,11 +65,11 @@ let contextVa = ICons 30 (ICons 31 (ICons 32 (ICons 33 (ICons 34 (ICons 35 INil)
 -----------equal function------------------------
 
 let equalF (f1: Field) (f2: Field) : Bool =
-      case f1 of 
+      case f1 of
         Fd c1 fn1 -> case f2 of
                        Fd c2 fn2 -> (c1 == c2) && (fn1 == fn2);
 
-let 
+let
 rec equalT (t1: Term) (t2: Term) : Bool =
       case t1 of
          Var v1 -> (case t2 of
@@ -104,7 +104,7 @@ rec equalT (t1: Term) (t2: Term) : Bool =
                     | Cast c2 t2   -> (c == c2) && (equalT t t2) )
   and
 equalTs (ts1: Termlist) (ts2: Termlist) : Bool =
-    case ts1 of 
+    case ts1 of
       TNil -> (case ts2 of
                  TNil      -> True
                | TCons _ _ -> False)
@@ -123,21 +123,21 @@ let rec mergeF (f1: Fieldlist) (f2: Fieldlist) : Fieldlist =
 let rec notMemberF (f: Field) (l: Fieldlist) : Bool =
       case l of
         FNil        -> True
-      | FCons f0 fs -> if equalF f f0 
+      | FCons f0 fs -> if equalF f f0
                        then False
                        else (notMemberF f fs);
 
 let rec rmDupF (f: Fieldlist) : Fieldlist =
      case f of
         FNil        -> FNil
-      | FCons f0 fs -> if notMemberF f0 fs 
+      | FCons f0 fs -> if notMemberF f0 fs
                        then FCons f0 (rmDupF fs)
                        else rmDupF fs;
 
 let rec lookup (ct: CT) (c: Classname) : CL =
       case ct of
         PNil       -> Class 0 0 FNil (Mkcon 0 FNil) MNil --represents error
-      | PCons p ps ->( case p of 
+      | PCons p ps ->( case p of
                         Pc c0 cl0 -> if c == c0 then cl0
                                      else lookup ps c) ;
 
@@ -146,8 +146,8 @@ let rec lookup (ct: CT) (c: Classname) : CL =
 let rec fields (c: Classname) : Fieldlist =
       if c == 1 then FNil
       else case (lookup ct c) of
-                  Class cn sc fs c ms -> rmDupF (mergeF fs (fields sc));  
-    
+                  Class cn sc fs c ms -> rmDupF (mergeF fs (fields sc));
+
 --let mtype (m: Methodname) (c: Classname) : Classnamelist
 
 
@@ -156,16 +156,16 @@ let rec methodtoMap (m: Methodlist) : PairMlist =
        MNil        -> PMNil
      | MCons m0 ms -> (case m0 of
                         Mkmtd cn mn fs t -> PMCons (Pm mn m0) (methodtoMap ms));
-       
 
-let rec lookupM (p: PairMlist) (m: Methodname) : Method = 
+
+let rec lookupM (p: PairMlist) (m: Methodname) : Method =
          case p of
         PMNil        -> Mkmtd 0 20 FNil (Var 0) --represents error
-      | PMCons p0 ps -> (case p0 of 
+      | PMCons p0 ps -> (case p0 of
                         Pm mn m0 -> if m == mn then m0
                                      else lookupM ps m) ;
 
-let rec notMemberM (mn:Methodname) (p: PairMlist) : Bool = 
+let rec notMemberM (mn:Methodname) (p: PairMlist) : Bool =
       case p of
         PMNil        -> True
       | PMCons p1 ps -> (case p1 of
@@ -183,7 +183,7 @@ let rec mbody (m: Methodname) (cn:Classname) : PairF =
     let temp = (lookup ct cn);
     case temp of
       Class cn sc fs c ms -> let mapMs = methodtoMap ms;
-                               if notMemberM m mapMs 
+                               if notMemberM m mapMs
                                then mbody m sc
                                else let ha = lookupM mapMs m;
                                     case ha of
@@ -195,14 +195,14 @@ let rec mbody (m: Methodname) (cn:Classname) : PairF =
 --subtype
 let rec subtype (c1: Classname) (c2: Classname) : Bool =
     if c1 == c2 then True
-    else let temp = (lookup ct c1); 
+    else let temp = (lookup ct c1);
          if case temp of
               Class c1 sc fs co ms -> c2 == sc
          then True
          else if (subtype c1 1 && subtype 1 c2) then True
               else if (subtype c1 2 && subtype 2 c2) then True
                    else if (subtype c1 3 && subtype 3 c2) then True
-                        else False ; -- depands on context 
+                        else False ; -- depands on context
 -------------------------------------------------
 
 
@@ -213,14 +213,14 @@ let rec andd (l: Boolist) : Bool =
       | BCons b bs -> b && (andd bs);
 
 let rec map (f: Term -> Bool) (l: Termlist) : Boolist =
-    case l of 
+    case l of
        TNil        -> BNil
      | TCons l0 ls -> BCons (f l0) (map f ls);
-       
+
 
 --isValue
 let rec isValue (t: Term) : Bool =
-     case t of 
+     case t of
         New cn ts       -> andd (map isValue ts)
       | Var v           -> False
       | FieAcc t1 fn    -> False
@@ -235,19 +235,19 @@ let rec mapT (f: Term -> Term) (l: Termlist) : Termlist =
       | TCons t ts -> TCons (f t) (mapT f ts);
 
 let rec elem (i: Int) (l: Ilist) : Bool =
-      case l of 
+      case l of
         INil        -> False
       | ICons i0 is -> if i == i0 then True else (elem i is);
 
 let rec readOrd (l: Termlist) (n: Int) : Term =
-     case l of 
+     case l of
       TNil       -> Var (-1)
-    | TCons t ts -> if n == 0 then t else readOrd ts (n-1);  
+    | TCons t ts -> if n == 0 then t else readOrd ts (n-1);
 
 let rec seeOrd (i: Fieldname) (l: Fieldlist) : Int =
-     case l of 
+     case l of
        FNil        -> 0
-     | FCons i0 is -> (case i0 of 
+     | FCons i0 is -> (case i0 of
                          Fd c f1 -> if i == f1 then 0 else 1 + (seeOrd i is));
 
 let rec or (l:Boolist) : Bool =
@@ -279,7 +279,7 @@ let sndt (p: PairT) : Term = case p of Pt t1 t2 -> t2;
 
 
 let rec move (t: Term) (l: PairTlist) : Term = --one step of subst
-   case t of 
+   case t of
      Var v -> (case l of PTCons m ms -> if equalT (fstt m) t
                                         then sndt m
                                         else move t ms
@@ -288,18 +288,18 @@ let rec move (t: Term) (l: PairTlist) : Term = --one step of subst
                                               then FieAcc (sndt m) fn
                                               else move t ms
                              | PTNil       -> t)
-  | MetInv t1 mn ar -> (case l of PTCons m ms -> if equalT (fstt m) t1 
-                                                 then MetInv (sndt m) mn ar 
+  | MetInv t1 mn ar -> (case l of PTCons m ms -> if equalT (fstt m) t1
+                                                 then MetInv (sndt m) mn ar
                                                  else move t ms
                                 | PTNil       -> t)
   | New cn ts -> let helper = (\(x:Term) -> move x l);
                  if equalTs ts TNil then t else New cn (mapT helper ts)
-  | Cast cn t1 -> (case l of PTCons m ms -> if equalT (fstt m) t1 
+  | Cast cn t1 -> (case l of PTCons m ms -> if equalT (fstt m) t1
                                             then Cast cn (sndt m)
                                             else move t ms
                            | PTNil       -> t);
- 
-let rec helper (l: Ilist) : Termlist = --Ilist 
+
+let rec helper (l: Ilist) : Termlist = --Ilist
     case l of
        INil       -> TNil
      | ICons i is -> TCons (Var i) (helper is);
@@ -313,20 +313,20 @@ let rec zipT (l1: Termlist) (l2: Termlist) : PairTlist =
 
 let rec helper1 (n: Int) (t: Term) (fs: Ilist) (ts: Termlist): Term =
       let mapFsTs = zipT (helper fs) ts;
-      if n == 0 then t 
+      if n == 0 then t
       else helper1 (n-1) (move t mapFsTs) fs ts ;
 
-let rec lengthI (l: Ilist) : Int = 
-     case l of 
+let rec lengthI (l: Ilist) : Int =
+     case l of
        INil       -> 0
      | ICons i is -> 1 + lengthI is;
 
-let rec lengthT (l: Termlist) : Int = 
+let rec lengthT (l: Termlist) : Int =
       case l of
         TNil       -> 0
       | TCons t ts -> 1 + lengthT ts;
 
---subst 
+--subst
 let subst (fs: Ilist) (ts: Termlist) (t: Term) : Term = --Ilist
      case fs of
        INil         -> t
@@ -339,7 +339,7 @@ let subst (fs: Ilist) (ts: Termlist) (t: Term) : Term = --Ilist
 --eval1
 let rec eval1 (t: Term) : Term =
      case t of
-       MetInv c m ar -> (case c of 
+       MetInv c m ar -> (case c of
                          New cn ts ->
                            if isValue c
                            then if or (map isValue ar)
@@ -355,11 +355,11 @@ let rec eval1 (t: Term) : Term =
                         | Cast cn t0      -> t )
     | FieAcc c fn -> (case c of
                          New cn ts ->
-                          if isValue c 
+                          if isValue c
                           then if elem fn (fnsFromFs (fields cn))
                                then readOrd ts (seeOrd fn (fields cn))
                                else  Var 0 -- error no such field
-                          else FieAcc (eval1 c) fn 
+                          else FieAcc (eval1 c) fn
                        | Var v           -> t
                        | FieAcc t1 fn    -> t
                        | MetInv t1 mn ts -> t
@@ -387,7 +387,7 @@ let eval (t: Term) : Term = helper3 ((size t)*2) t;
 let prop_eval (t: Term) : Bool = isValue (eval t);
 
 let prop_try (t: Term) : Bool = equalT t (New 3 TNil) ;
-      
+
 
 prop_try
 

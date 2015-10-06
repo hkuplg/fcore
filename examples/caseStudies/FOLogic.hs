@@ -9,7 +9,7 @@ To simplify, the following structrues are not contained in this First order logi
 3 The domain of constant is just [1..1000]
 4 The domain of identity is just ["o".."z"]
 5 The domain of predicate is just ["O".."Z"]
-6 We assume that the context is given, that is, we already know the relation between predicates 
+6 We assume that the context is given, that is, we already know the relation between predicates
   and constants
 ----all the constrain of the model is kind to quickCheck.
 
@@ -28,28 +28,28 @@ import MonadLib
 import Data.Char as C
 import System.CPUTime
 import System.Timeout
-import qualified Data.Foldable 
+import qualified Data.Foldable
 
 
 --type definition
 
 type Pre = String
-type Ide = String 
+type Ide = String
 type Cos = Int
 
-data Term = Var Ide | Con Cos deriving (Show,Eq) 
+data Term = Var Ide | Con Cos deriving (Show,Eq)
 
 data FOrmula = Prd Pre Term        --only one arguement predicates involved
-               | And FOrmula FOrmula 
+               | And FOrmula FOrmula
                | Or FOrmula FOrmula
                | Implies FOrmula FOrmula
-               | Not FOrmula 
+               | Not FOrmula
                | E Ide FOrmula
                | A Ide FOrmula deriving (Show,Eq)
 
 data Assigment = Asg Ide Cos deriving (Show,Eq)
 
-type Valuation = [Assigment] 
+type Valuation = [Assigment]
 
 
 -- context  (the properties that every constants hold)----------
@@ -66,7 +66,7 @@ change :: [Int] -> Int -> [Int]
 change [] x = []
 change (c:cs) x = if (c `mod` 12) == x then c:(change cs x) else change cs x
 
-helper = map (change [1..36]) [0..12] 
+helper = map (change [1..36]) [0..12]
 
 multiconstant :: Int -> [Int] -> [[Int]]
 multiconstant 0 c = [c]
@@ -86,7 +86,7 @@ getConsV ((Asg i1 c1):vs) = c1:(getConsV vs)
 
 getIde :: Valuation -> [Ide]
 getIde []               = []
-getIde ((Asg i1 c1):vs) = i1:(getIde vs) 
+getIde ((Asg i1 c1):vs) = i1:(getIde vs)
 
 --getfunction for Assigment
 getIdeA (Asg i _) = i
@@ -101,7 +101,7 @@ getCosC (Prop _ cc) = cc
 
 showCons :: String -> Context -> [Cos]
 showCons p (c1:cs) = if p == getPreC c1 then getCosC c1
-                                        else showCons p cs 
+                                        else showCons p cs
 
 -----Navie generator------------------
 instance Arbitrary Assigment where
@@ -112,15 +112,15 @@ instance Arbitrary Assigment where
 ----------clever generator------------
 uniqueVal :: Valuation -> Valuation
 uniqueVal va@(v@(Asg i c):vs) = if elem i (getIde vs) then uniqueVal vs
-                                                      else v:(uniqueVal vs) 
-uniqueVal _ = [] 
+                                                      else v:(uniqueVal vs)
+uniqueVal _ = []
 
 clGen :: Gen Valuation
 clGen = fmap uniqueVal xyzArb
         where xyzArb = liftM2 (:) (liftM2 Asg (return "x") (elements [1..36]))
-                      (liftM2 (:) (liftM2 Asg (return "y") (elements [1..36])) 
-                      (liftM2 (:) (liftM2 Asg (return "z") (elements [1..36])) arbitrary)) 
-                    
+                      (liftM2 (:) (liftM2 Asg (return "y") (elements [1..36]))
+                      (liftM2 (:) (liftM2 Asg (return "z") (elements [1..36])) arbitrary))
+
 
 ---------------------------------------
 
@@ -182,11 +182,11 @@ opf (Or (A i f) r)  = A i (Or f (opf r))
 opf (Or l (A i f))  = A i (Or (opf l) f)
 opf (Or (E i f) r)  = E i (Or f (opf r))
 opf (Or l (E i f))  = E i (Or (opf l) f)
-opf (Or l r)        = Or (opf l) (opf r)   
+opf (Or l r)        = Or (opf l) (opf r)
 opf (Not (Prd p v)) = Not (Prd p v)
 opf (Not f)         = opf (simplify (Not f))
 opf (Implies l r)   = opf (simplify (Implies l r))
-opf (A i f)         = A i (opf f) 
+opf (A i f)         = A i (opf f)
 opf (E i f)         = E i (opf f)
 
 
@@ -207,7 +207,7 @@ pf f = pfhelp f (lgh f)
 
 pfhelp :: FOrmula -> Int -> FOrmula
 pfhelp f 0 = f
-pfhelp f n = pfhelp (opf f) (n-1) 
+pfhelp f n = pfhelp (opf f) (n-1)
 ---------------------------------------------------------------------------
 
 
@@ -217,9 +217,9 @@ pfhelp f n = pfhelp (opf f) (n-1)
 vars :: FOrmula -> Set.Set Ide
 vars (E i f)        = Set.singleton i `Set.union` vars f
 vars (A i f)        = Set.singleton i `Set.union` vars f
-vars (Prd p t) = 
+vars (Prd p t) =
         case t of Var v -> Set.singleton v
-                  Con c -> Set.empty 
+                  Con c -> Set.empty
 vars (Not f)        = vars f
 vars (And l r)      = vars l `Set.union` vars r
 vars (Or l r)       = vars l `Set.union` vars r
@@ -240,7 +240,7 @@ prdof (Implies l r) = prdof l `Set.union` prdof r
 --function "verify" verify a FOrmula without variables, with context
 verify :: FOrmula -> Bool
 verify (Prd p c)     = if (elem p predicate) then elem (getCon c) (showCons p context)
-                                             else False  
+                                             else False
 verify (Not f)       = not (verify f)
 verify (Or l r)      = verify l || verify r
 verify (And l r)     = verify l && verify r
@@ -263,27 +263,27 @@ deleteIE (v@(Asg i1 c1):vs) i = if i == i1 then vs
 
 --function "satisfy"
 satisfy :: FOrmula -> Valuation -> Bool
-satisfy f [] = if Set.null (vars f) 
+satisfy f [] = if Set.null (vars f)
                then verify f
-               else error "the valuation is not exhuasted." 
-satisfy f va = if (vars f) `Set.isSubsetOf` (Set.fromList (map getIdeA va)) 
+               else error "the valuation is not exhuasted."
+satisfy f va = if (vars f) `Set.isSubsetOf` (Set.fromList (map getIdeA va))
                then case f of
                 Prd p fo    -> verify $ Prd p (subst fo va)
                 And l r     -> satisfy l va && satisfy r va
                 Or l r      -> satisfy l va || satisfy r va
-                Implies l r -> (not (satisfy l va)) || satisfy r va 
+                Implies l r -> (not (satisfy l va)) || satisfy r va
                 Not f       -> not (satisfy f va)
-                A i fo -> foldl (&&) True (map (satisfy fo) (iequivalent va i)) 
+                A i fo -> foldl (&&) True (map (satisfy fo) (iequivalent va i))
                 E i fo -> foldl (||) False (map (satisfy fo) (iequivalent va i))
-               else error "the valuation is not exhuasted."               
+               else error "the valuation is not exhuasted."
 
 --function "subst" valua the constants into variables
 subst :: Term -> Valuation -> Term
-subst t va@(v:vs) =  case t of 
+subst t va@(v:vs) =  case t of
                            Var t1 -> if t1 == (getIdeA v) then Con (getCosA v) else subst t vs
                            Con t1 -> Con t1
 
-   
+
 ------------------------------------------------------------------------------------------
 
 
@@ -302,24 +302,23 @@ timeIt action arg = do
 oneTestNv = timeout 5000000 $ timeIt quickCheck prop_theNv >>= print --change prop here
 oneTestCl = timeout 5000000 $ timeIt quickCheck prop_theCl >>= print --change prop here
 
-multiTestNv = do 
+multiTestNv = do
             startTime <- getCPUTime
-            oneTestNv  
             oneTestNv
             oneTestNv
-            oneTestNv 
             oneTestNv
-            oneTestNv 
-            oneTestNv 
-            oneTestNv 
-            oneTestNv 
-            oneTestNv 
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
+            oneTestNv
             finishTime <- getCPUTime
             return $ fromIntegral (finishTime - startTime) / 1000000000
 
-multiTestCl = do 
+multiTestCl = do
             startTime <- getCPUTime
-            oneTestCl  
             oneTestCl
             oneTestCl
             oneTestCl
@@ -328,7 +327,8 @@ multiTestCl = do
             oneTestCl
             oneTestCl
             oneTestCl
-            oneTestCl 
+            oneTestCl
+            oneTestCl
             finishTime <- getCPUTime
             return $ fromIntegral (finishTime - startTime) / 1000000000
 

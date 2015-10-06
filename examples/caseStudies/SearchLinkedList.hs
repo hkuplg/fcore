@@ -19,9 +19,9 @@ contains [] e = False
 contains (x:xs) e = x == e || contains xs e
 
 --function "firstZero"
-firstZero :: [Int] -> Int 
+firstZero :: [Int] -> Int
 firstZero [] = 0
-firstZero (x:xs) = if x == 0 then 0 
+firstZero (x:xs) = if x == 0 then 0
                              else (firstZero xs) + 1
 
 
@@ -29,25 +29,25 @@ firstZero (x:xs) = if x == 0 then 0
 firstZeroAtPos :: [Int] -> Int -> Bool
 firstZeroAtPos [] e = False
 firstZeroAtPos (x:xs) e = if e ==0 then x == 0
-                                   else x /= 0 && 
+                                   else x /= 0 &&
                                         firstZeroAtPos xs (e-1)
- 
+
 ----Property "goal"
 prop_goal :: [Int] -> Int -> Bool
-prop_goal l i = if (firstZero l) == i 
-                then if contains l 0 
+prop_goal l i = if (firstZero l) == i
+                then if contains l 0
                      then firstZeroAtPos l i
                      else i == length l
                 else True
 
 ---prop pseudo goal
 prop_pseudo_goal :: [Int] -> Int -> Bool
-prop_pseudo_goal l i = if (firstZero l) == i 
+prop_pseudo_goal l i = if (firstZero l) == i
                      then if contains l 10
                      then firstZeroAtPos l i
                      else i == length l
                     else True
-                                     
+
 
 
 ----timer
@@ -61,29 +61,29 @@ timeIt action arg = do
 --timeIt' :: (Fractional c) => (a -> b) -> a -> IO c
 --timeIt' f = timeIt (\x -> f x `seq` return())
 
-oneTest = timeout 1000000 $ timeIt quickCheck prop_pseudo_goal >>= print 
+oneTest = timeout 1000000 $ timeIt quickCheck prop_pseudo_goal >>= print
 
-multiTest = do 
+multiTest = do
             startTime <- getCPUTime
-            oneTest  
             oneTest
-            oneTest 
-            oneTest 
-            oneTest 
-            oneTest 
-            oneTest 
-            oneTest 
-            oneTest 
-            oneTest 
+            oneTest
+            oneTest
+            oneTest
+            oneTest
+            oneTest
+            oneTest
+            oneTest
+            oneTest
+            oneTest
             finishTime <- getCPUTime
             return $ fromIntegral (finishTime - startTime) / 1000000000
 
-            
+
 
 
 
 ------for-quickCheck-test------
-return []                    -- 
+return []                    --
 runTests = $quickCheckAll    --
 -------------------------------
 

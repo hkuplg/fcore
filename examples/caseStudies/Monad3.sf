@@ -11,7 +11,7 @@ let prop_append [T] (l1: List[T]) (l2: List[T]) : Bool =
     res == l1 || res != Nil[T] ;
 
 let rec flatMap[T, U] (l : List[T]) (f: T -> List[U]) : List[U] =
-    case l of 
+    case l of
        Cons h t -> append [U] (f h) (flatMap [T, U] t f)
      | Nil      -> Nil[U];
 
@@ -26,13 +26,13 @@ let rec prop_associative_lemma_induct[T,U,V] (l: List[T]) (fl: List[U]) (gl: Lis
   && (case gl of
          Cons gh gt -> prop_associative_lemma_induct[T,U,V] l fl gt f g
        | Nil  -> (case fl of
-                  Cons fh ft -> prop_associative_lemma_induct[T,U,V] l ft (g fh) f g 
-                | Nil -> (case l of  
-                          Cons h t -> prop_associative_lemma_induct[T,U,V] t (f h) (Nil[V]) f g 
+                  Cons fh ft -> prop_associative_lemma_induct[T,U,V] l ft (g fh) f g
+                | Nil -> (case l of
+                          Cons h t -> prop_associative_lemma_induct[T,U,V] t (f h) (Nil[V]) f g
                         | Nil -> True)));
 
 
---Property 
+--Property
 
 let left_unit_law[T,U] (x: T) (f: T -> List[U]) : Bool =
      flatMap[T,U] (Cons[T] x (Nil[T])) f == f x;
@@ -64,7 +64,7 @@ let zero_add_law[T] (l: List[T]) : Bool = (append[T] (Nil[T]) l) == l;
 
 
 
---prop_append 
+--prop_append
 --prop_associative_lemma_induct
 --left_unit_law
 --right_unit_law
