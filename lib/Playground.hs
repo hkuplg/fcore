@@ -1,25 +1,90 @@
 
-module Examples where
+module Playground where
 
+import qualified ClosureF as C
 import           Core
 import           Desugar (desugar)
-import           Inliner (inliner)
-import           Parser (reader)
-import           PartialEvaluator
-import           Simplify (simplify)
+import           Parser (reader, P(..))
 import qualified Src as S
-import           System.Directory (getCurrentDirectory)
+import           System.Exit
+import qualified SystemFI as FI
 import           TypeCheck (typeCheck)
-import           Unsafe.Coerce (unsafeCoerce)
-import qualified Data.Map.Strict as Map
+import qualified OptiUtils (Exp(Hide))
+import PrettyUtils
+import BackEnd (compileN)
+import Simplify  (simplify)
 
 import qualified Language.Java.Syntax as J (Op(..))
+import           Language.Java.Pretty (prettyPrint)
+import           Text.PrettyPrint.ANSI.Leijen
+import           Unsafe.Coerce (unsafeCoerce)
 
 instance Show (Expr t e) where
   show = show . prettyExpr . unsafeCoerce
 
 instance Show (Type t) where
   show = show . prettyType . unsafeCoerce
+
+core2java core =
+  do let (cu,_) = compileN "M1" core
+     return $ prettyPrint cu
+
+src2test source
+  = case reader source of
+      PError msg -> do putStrLn msg
+                       exitFailure
+      POk parsed -> print (pretty parsed)
+        -- do
+        --   result <- typeCheck parsed
+        --   case result of
+        --     Left typeError -> do print (pretty typeError)
+        --                          exitFailure
+        --     Right (_, checked) -> print (pretty checked)
+
+m1src = "package P.k module {rec even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1) and odd  (n : Int) : Bool = if n == 0 then False else even (n - 1)} "
+
+m2src = "import a.m; println \"hello\""
+
+{-
+module M1 {
+
+rec even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1)
+and
+odd  (n : Int) : Bool = if n == 0 then False else even (n - 1);
+
+rec fact (n : Int) : Int = ...;
+
+add (n : Int) (m : Int) = n + m
+
+}
+
+-}
+
+-- m1 :: Expr t e
+-- m1 = Module "_"
+--        (DefRec
+--           ["even", "odd"]
+--           [ (S.Fun javaIntS javaBoolS, javaInt `Fun` javaBool)
+--           , (S.Fun javaIntS javaBoolS, javaInt `Fun` javaBool)
+--           ]
+--           (\ids ->
+--              [ lam javaInt
+--                  (\n -> If (var n `eq` zero) true (App (var (ids !! 1)) (var n `sub` one)))
+--              , lam javaInt
+--                  (\n -> If (var n `eq` zero) false (App (var (ids !! 0)) (var n `sub` one)))
+--              ])
+--           (\ids ->
+--              (Def "f1" (javaIntS `S.Fun` javaIntS) fact
+--                 (\f1 ->
+--                    Def
+--                      "f2"
+--                      (javaIntS `S.Fun` javaIntS)
+--                      (lam javaInt (\n -> ((var f1 `App` (var n)) `add` one)))
+--                      (\f2 -> Null)))))
+
+
+javaIntS = (S.JType (S.JClass "java.lang.Integer"))
+javaBoolS = (S.JType (S.JClass "java.lang.Boolean"))
 
 
 tailFact :: Expr t e
@@ -43,7 +108,7 @@ fact = fix (\f n -> If (var n `eq` zero)
                        one
                        (var n `mult` (var f `App` (var n `sub` one))))
            javaInt
-           (javaInt `Fun` javaInt)
+           javaInt
 
 
 test1 :: Expr t e
@@ -95,17 +160,17 @@ x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y
 
-sf2c :: String -> IO (Expr t e)
-sf2c fname = do
-  path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
-  string <- readFile (path ++ "/" ++ fname)
-  let readSrc = Parser.reader string
-  result <- readSrc `seq` (typeCheck readSrc)
-  case result of
-   Left typeError -> error $ show typeError
-   Right (typ, tcheckedSrc) -> do
-     print tcheckedSrc
-     return (simplify . desugar $ tcheckedSrc)
+-- sf2c :: String -> IO (Expr t e)
+-- sf2c fname = do
+--   path <- {-"/Users/weixin/Project/systemfcompiler/compiler/"-} getCurrentDirectory
+--   string <- readFile (path ++ "/" ++ fname)
+--   let readSrc = Parser.reader string
+--   result <- readSrc `seq` (typeCheck readSrc)
+--   case result of
+--    Left typeError -> error $ show typeError
+--    Right (typ, tcheckedSrc) -> do
+--      print tcheckedSrc
+--      return (simplify . desugar $ tcheckedSrc)
      -- case n of
      --  1 -> return (peval . simplify . desugar $ tcheckedSrc)
      --  2 -> return (simplify . desugar $ tcheckedSrc)

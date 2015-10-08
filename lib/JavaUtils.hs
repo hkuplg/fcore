@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -fno-warn-unused-do-bind #-}
 {- |
 Module      :  JavaUtils
@@ -17,22 +16,24 @@ module JavaUtils
   , compileJava, runJava
   , inferOutputPath, inferClassName
   , ClassName, MethodName, FieldName
+  , ModuleName
   ) where
 
 import StringUtils (capitalize)
 
-import System.Directory (setCurrentDirectory, getCurrentDirectory, getTemporaryDirectory)
+import Paths_fcore
+import System.Directory.Extra (withCurrentDirectory)
 import System.FilePath (takeDirectory, takeFileName, takeBaseName, (</>), (<.>), dropExtension, searchPathSeparator)
-import System.Process (system)
+import System.Process.Extra (system_)
+
 
 type ClassName  = String
 type MethodName = String
 type FieldName  = String
+type ModuleName = String
 
 getRuntimeJarPath :: IO FilePath
-getRuntimeJarPath =
-  do tempdir <- getTemporaryDirectory
-     return (tempdir </> "runtime.jar")
+getRuntimeJarPath = getDataFileName "runtime/runtime.jar"
 
 getClassPath :: IO FilePath
 getClassPath = do r <- getRuntimeJarPath
@@ -45,7 +46,7 @@ inferOutputPath :: FilePath -> FilePath
 inferOutputPath source_path =
   let fileName = (dropExtension . takeFileName $ source_path) ++ "$" -- avoid name clash
   in takeDirectory source_path </>
-     (capitalize fileName) <.> "java"
+     capitalize fileName <.> "java"
 
 inferClassName :: FilePath -> String
 inferClassName outputPath = capitalize $ takeBaseName outputPath
@@ -53,15 +54,11 @@ inferClassName outputPath = capitalize $ takeBaseName outputPath
 compileJava :: FilePath -> IO ()
 compileJava srcPath
   = do cp <- getClassPath
-       system ("javac -cp " ++ cp ++ " " ++ srcPath)
-       return ()
+       system_ ("javac -cp " ++ cp ++ " " ++ srcPath)
 
 runJava :: FilePath -> IO ()
 runJava srcPath = do
-    currDir <- getCurrentDirectory
-    let workDir = takeDirectory srcPath
-    setCurrentDirectory workDir
+  withCurrentDirectory (takeDirectory srcPath) $ do
     cp <- getClassPath
-    system $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
-    system "rm *.class"
-    setCurrentDirectory currDir
+    system_ $ "java -cp " ++ cp ++ " " ++ takeBaseName srcPath
+    system_ "rm *.class"

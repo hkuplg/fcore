@@ -15,10 +15,9 @@ Portability :  portable
 
 module SrcLoc where
 
-import Text.PrettyPrint.ANSI.Leijen
+import qualified Config
 
-import Data.Foldable ( Foldable )
-import Data.Traversable ( Traversable )
+import Text.PrettyPrint.ANSI.Leijen
 
 type Located a = GenLocated Loc a
 
@@ -36,7 +35,7 @@ data Loc = Loc { line :: !Int, column :: !Int }
            deriving (Eq, Ord, Show)
 
 instance Pretty Loc where
-    pretty (Loc l c) = int l <> colon <> int c <> colon
+    pretty (Loc l c) = int (l - Config.lineNumberOffset) <> colon <> int c <> colon
     pretty NoLoc = empty
 
 unLoc :: Located a -> a

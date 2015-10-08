@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeOperators, FlexibleInstances, MultiParamTypeClasses #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns -fno-warn-overlapping-patterns #-}
 {- |
 Module      :  Simplify
 Description :  The simplifier turns SystemFI into Core.
@@ -24,17 +24,18 @@ module SimplifyImpl
   , dedeBruE
   ) where
 
-import Core
-import Panic
-import qualified SystemFI             as FI
-import qualified Src                  as S
+import           Core
+import           Panic
+import qualified Src as S
+import qualified SystemFI as FI
 
-import Text.PrettyPrint.ANSI.Leijen
-
-import Debug.Trace   (trace)
-import Data.Maybe    (fromMaybe)
-import Control.Monad (zipWithM)
-import Unsafe.Coerce (unsafeCoerce)
+import           Control.Arrow (second)
+import           Control.Monad (zipWithM)
+import           Data.Maybe (fromMaybe)
+import           Debug.Trace (trace)
+import           Prelude hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen
+import           Unsafe.Coerce (unsafeCoerce)
 
 simplify :: FI.FExp -> Expr t e
 simplify = dedeBruE 0 [] 0 [] . transExpr 0 0 . FI.revealF
@@ -73,7 +74,7 @@ infer i j (FI.RecordCon (l, e))   = FI.RecordType (l, infer i j e)
 infer i j (FI.RecordProj e l1)    = t1                                           where Just (t1, _) = getter i j (infer i j e) l1
 infer i j (FI.RecordUpdate e _)   = infer i j e
 infer _ _ (FI.Error ty _)         = ty
-infer i j (FI.Constr c _)         = last . FI.constrParams $ c
+infer i j (FI.ConstrOut c _)         = last . FI.constrParams $ c
 infer i j (FI.Case _ alts)        = inferAlt . head $ alts
   where inferAlt (FI.ConstrAlt c ns e) =
             let (ts, n) = (FI.constrParams c, length ts - 1)
@@ -117,6 +118,18 @@ transExpr i j (FI.If e1 e2 e3)             = If e1' e2' e3'
 transExpr i j (FI.PrimOp e1 op e2)         = PrimOp (transExpr i j e1) op (transExpr i j e2)
 transExpr i j (FI.Tuple es)                = Tuple . map (transExpr i j) $ es
 transExpr i j (FI.Proj index e)            = Proj index $ transExpr i j e
+transExpr i j (FI.Module pname defs) = Module pname $ transDefs i j defs
+  where
+    transDefs i j (FI.Def n (t, t') expr def) = Def n t (transExpr i j expr)
+                                            (\x -> transDefs i (j + 1) $ def (x, t'))
+    transDefs i j (FI.DefRec names types exprs def) = DefRec names types' exprs' def'
+      where types' = map (second (transType i)) types
+            exprs' args = map (transExpr i (j + n)) . exprs $ zip args ts
+            def' args = transDefs i (j + n) . def $ zip args ts
+            ts = map snd types
+            n = length types
+
+    transDefs _ _ FI.Null = Null
 transExpr i j (FI.JNew c es)               = JNew c . map (transExpr i j) $ es
 transExpr i j (FI.JMethod c m arg ret)     = JMethod (fmap (transExpr i j) c) m (map (transExpr i j) arg) ret
 transExpr i j (FI.JField c m ret)          = JField (fmap (transExpr i j) c) m (transType i ret)
@@ -127,7 +140,7 @@ transExpr i j (FI.RecordProj e l1)         = App c $ transExpr i j e
   where Just (_, c) = getter i j (infer i j e) l1
 transExpr i j (FI.RecordUpdate e (l1, e1)) = App c $ transExpr i j e
   where Just (_, c) = putter i j (infer i j e) l1 (transExpr i j e1)
-transExpr i j (FI.Constr (FI.Constructor n ts) es) = Constr (Constructor n . map (transType i) $ ts) . map (transExpr i j) $ es
+transExpr i j (FI.ConstrOut (FI.Constructor n ts) es) = ConstrOut (Constructor n . map (transType i) $ ts) . map (transExpr i j) $ es
 transExpr i j (FI.Case e alts)             = Case e' . map transAlt $ alts
   where
     e' = transExpr i j e
@@ -207,7 +220,7 @@ getter _ _ _ _ = Nothing
 
 putter :: Index -> Index -> FI.Type Index -> S.Label -> Expr Index Index -> Maybe (FI.Type Index, Expr Index Index)
 putter i j this@(FI.RecordType (l, t)) l1 e
-  | l1 == l = return $ (t, lam (transType i this) (Prelude.const e))
+  | l1 == l = return $ (t, lam (transType i this) (const e))
   | otherwise = Nothing
 putter i j this@(FI.And t1 t2) l e =
   case putter i j t2 l e of
@@ -217,9 +230,9 @@ putter i j this@(FI.And t1 t2) l e =
                      Nothing     -> Nothing
 putter _ _ _ _ _ = Nothing
 
-subst :: (S.ReaderId -> Index -> FI.Type Index) -> [FI.Type Index] -> FI.Type Index
-subst g ts@((FI.TVar n a):_)      = if const then g n a else FI.TVar n a
-  where const = all (== a) . map (\x -> let FI.TVar _ y = x in y) $ ts
+subst :: (S.ReadId -> Index -> FI.Type Index) -> [FI.Type Index] -> FI.Type Index
+subst g ts@((FI.TVar n a):_)      = if constr then g n a else FI.TVar n a
+  where constr = all (== a) . map (\x -> let FI.TVar _ y = x in y) $ ts
 subst g ((FI.JClass c):_)         = FI.JClass c
 subst g ts@((FI.Fun _ _):_)       = FI.Fun (subst g ts1) (subst g ts2)
   where (ts1, ts2) = unzip . map (\x -> let FI.Fun t1 t2 = x in (t1, t2)) $ ts
@@ -285,6 +298,18 @@ dedeBruE i as j xs (PrimOp e1 op e2)              = PrimOp
                                                       (dedeBruE i as j xs e1) op
                                                       (dedeBruE i as j xs e2)
 dedeBruE i as j xs (Tuple es)                     = Tuple (map (dedeBruE i as j xs) es)
+dedeBruE i as j xs (Module pname defs) = Module pname (dedeBruDefs i as j xs defs)
+  where
+    dedeBruDefs i as j xs (Def n t expr def) = Def n t (dedeBruE i as j xs expr)
+                                                 (\f -> dedeBruDefs i as (j + 1) (f : xs) (def j))
+    dedeBruDefs i as j xs (DefRec names types exprs def) = DefRec names types' exprs' def'
+      where
+        ts = map snd types
+        types' = map (second (dedeBruT i as)) types
+        exprs' args = map (dedeBruE i as (j + n) ((reverse args) ++ xs)) (exprs [j .. j + n - 1])
+        def' args = dedeBruDefs i as (j + n) ((reverse args) ++ xs) (def [j .. j + n - 1])
+        n = length types
+    dedeBruDefs _ _ _ _ Null = Null
 dedeBruE i as j xs (Proj index e)                 = Proj index (dedeBruE i as j xs e)
 dedeBruE i as j xs (JNew c args)                  = JNew c (map (dedeBruE i as j xs) args)
 dedeBruE i as j xs (JMethod callee m args r)      = JMethod
@@ -292,7 +317,7 @@ dedeBruE i as j xs (JMethod callee m args r)      = JMethod
                                                       (map (dedeBruE i as j xs) args) r
 dedeBruE i as j xs (JField callee f r)            = JField (fmap (dedeBruE i as j xs) callee) f (dedeBruT i as r)
 dedeBruE i as j xs (Seq es)                       = Seq (map (dedeBruE i as j xs) es)
-dedeBruE i as j xs (Constr (Constructor n ts) es) = Constr
+dedeBruE i as j xs (ConstrOut (Constructor n ts) es) = ConstrOut
                                                       (Constructor n (map (dedeBruT i as) ts))
                                                       (map (dedeBruE i as j xs) es)
 dedeBruE i as j xs (Case e alts)                  = Case (dedeBruE i as j xs e) (map dedeBruijnAlt alts)

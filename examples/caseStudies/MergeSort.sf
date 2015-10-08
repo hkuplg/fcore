@@ -1,0 +1,138 @@
+
+
+data PList = Nil | Cons Int PList;
+
+data LPList = LNil | LCons PList LPList;
+
+data PairPList = Pair PList PList;
+
+
+--let rec lContent(ll : LPList) : Set =
+--    case ll of
+--       LNil -> (new java.util.HashSet( ))
+--     | LCons x xs -> union (content x) (lContent xs);
+
+
+let rec size (l : PList) : Int =
+       case l of
+          Nil       -> 0
+        | Cons _ xs -> 1 + size xs;
+
+let rec isSorted(l: PList): Bool =
+       case l of
+           Nil                -> True
+         | Cons x ll -> (case ll of
+                           Nil       -> True
+                         | Cons y ys -> x <= y && isSorted (Cons y ys));
+
+let rec lIsSorted (ll : LPList) : Bool =
+      case ll of
+          LNil       -> True
+        | LCons x xs -> isSorted x && lIsSorted xs;
+
+let abs (i: Int) : Int =  if i < 0 then -i else i ;
+
+let prop_abs (i: Int) : Bool = (abs i) >= 0;
+
+let mergeSpec (l1: PList) (l2: PList) (res: PList) : Bool =
+     isSorted res ;-- && content res == union (content l1) (content l2);
+
+let rec mergeFast (l1: PList) (l2: PList) : PList =
+      if isSorted l1 && isSorted l2
+      then case l1 of
+             Nil       -> l2
+           | Cons x xs -> (case l2 of
+                            Nil       -> l1
+                          | Cons y ys -> if x <= y then Cons x (mergeFast xs l2)
+                                                   else Cons y (mergeFast l1 ys) )
+      else Nil ; --error [PList] "the PList is not sorted." ;
+
+let prop_mergeFast (l1: PList) (l2: PList) : Bool =
+    if isSorted l1 && isSorted l2
+    then mergeSpec l1 l2 (mergeFast l1 l2)
+    else True;
+
+let splitSpec (l: PList) (res: PairPList) : Bool =
+    case res of
+       Pair r1 r2 ->
+           let s1 = size r1;
+           let s2 = size r2;
+           abs (s1 - s2) <= 1 && s1 + s2 == size l ;-- &&
+         --union (content res._1) (content res._2) == content l;
+
+let rec split (l: PList) : PairPList =
+      case l of
+         Nil       -> Pair Nil Nil
+       | Cons x ll -> (case ll of
+                         Nil         -> Pair (Cons x Nil) Nil
+                       | Cons x1 lll -> (case lll of
+                                           Nil        -> Pair (Cons x Nil) (Cons x1 Nil)
+                                         | Cons x2 xs -> let s = split xs;
+                                                          case s of Pair s1 s2 ->
+                                                             Pair (Cons x1 s1) (Cons x2 s2) ));
+
+let prop_split (l: PList) : Bool = splitSpec l (split l);
+
+let sortSpec (in: PList) (out: PList) : Bool = --content out == content in
+                                          isSorted out;
+
+let rec weirdSort (in: PList) : PList =
+      case in of
+         Nil        -> Nil
+       | Cons x l -> (case l of
+                       Nil -> Cons x Nil
+                     | Cons _ _-> let s = split in;
+                                  case s of Pair s1 s2 -> mergeFast (weirdSort s1) (weirdSort s2));
+
+let rec toLPList (l: PList) : LPList =
+       case l of
+          Nil -> LNil
+        | Cons x xs -> LCons (Cons x Nil) (toLPList xs);
+
+let prop_toLPList (l: PList) : Bool =
+      let res = toLPList l;
+     -- lContent res == content l &&
+        lIsSorted res;
+
+let rec mergeMap (ll : LPList) : LPList =
+     if lIsSorted ll
+     then case ll of
+             LNil -> LNil
+           | LCons x ys -> (case ys of
+                             LNil -> LCons x LNil
+                           | LCons y ys -> LCons (mergeFast x y) (mergeMap ys))
+     else LNil; --error [LPList] "the LPList is not sorted.";
+
+let prop_mergeMap (ll: LPList) : Bool =
+    if lIsSorted ll
+    then let res = mergeMap ll;
+        -- lContent res == lContent ll &&
+         lIsSorted res
+    else True;
+
+let rec mergeReduce (ll: LPList) : PList =
+      if lIsSorted ll
+      then case ll of
+              LNil         -> Nil
+            | LCons x ys -> (case ys of
+                              LNil -> x
+                            | LCons _ _-> mergeReduce (mergeMap ll))
+      else Nil ; -- error [PList] "the LPList is not sorted.";
+
+let prop_mergeReduce (ll: LPList) : Bool =
+    if lIsSorted ll
+    then let res = mergeReduce ll;
+         --content res == lContent ll &&
+         isSorted res
+    else True;
+
+let mergeSort (in: PList) : PList = mergeReduce (toLPList in);
+
+let prop_mergeSort (in : PList) : Bool = sortSpec in (mergeSort in);
+
+--prop_split
+prop_abs
+--prop_mergeFast
+--prop_toLPList
+--prop_mergeMap
+--prop_mergeReduce

@@ -1,24 +1,38 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fforce-recomp #-}
 
-module Predef (injectPredef) where
+module Predef (getPredefInfoTH) where
 
-import Data.ByteString       (ByteString, unpack)
-import Data.ByteString.Char8 (pack)
-import Data.Char             (chr)
-import Data.FileEmbed        (embedFile)
-import Data.List             (intercalate)
+import Data.List
+import Language.Haskell.TH.Syntax (lift)
+import System.Directory
+import System.FilePath
+import System.IO.Unsafe (unsafePerformIO)
 
-injectPredef :: String -> String
-injectPredef s = predef ++ s
+import JvmTypeQuery
+import Src
+import StringUtils
 
-predef :: String
-predef = intercalate "\n" (map toString [predefIO, predefList])
+-- Here I am doing crazy things ...
 
-predefIO :: ByteString
-predefIO = $(embedFile "lib/predef/IO.sf")
+-- grab all the information of prelude modules, and inject it to
+-- the compiler itself
+getPredef h = do
+  filePaths <- getDirectoryContents "lib/predef"
+  let lists = ((map (\path -> (Just "f2j.prelude", takeBaseName path))
+                 (filter (isSuffixOf "sf") filePaths)))
+  -- return lists
+  res <- fmap sequence (mapM (\info -> getModuleInfo h info) lists)
+  let info =
+        case res of
+          Nothing  -> [] -- we cannot panic here, as this will leave the Java process hanging around
+          Just ret -> (concatMap flatInfo ret)
+  return info
 
-predefList :: ByteString
-predefList = $(embedFile "lib/predef/List.sf")
+  where
+    flatInfo (p, mname) = map (\(ModuleInfo f g t) -> (f, (Just "f2j.prelude", t, g, capitalize mname))) p
 
-toString :: ByteString -> String
-toString = map (chr . fromEnum) . unpack
+getPredefInfo :: [(String, ModuleMapInfo)]
+getPredefInfo = unsafePerformIO $ withConnection getPredef True
+
+getPredefInfoTH = [| $(lift (getPredefInfo)) |]

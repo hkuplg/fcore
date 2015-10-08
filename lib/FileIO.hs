@@ -1,5 +1,5 @@
 {- |
-Module      :  FileLoad
+Module      :  FileIO
 Description :  Perform IO for the REPL
 Copyright   :  (c) 2014—2015 The F2J Project Developers (given in AUTHORS.txt)
 License     :  BSD3
@@ -14,18 +14,15 @@ Portability :  portable
 
 module FileIO where
 
-import System.IO
-import System.Directory       (doesFileExist)
-
 import qualified Control.Exception as E
-import Control.Monad (when)
+import           Control.Monad (when)
+import           Data.Data
+import           System.Directory (doesFileExist)
+import           System.IO
 
-import Data.Char
-import Data.Data
-
-import FrontEnd
-import BackEnd
-import JavaUtils (inferClassName, inferOutputPath)
+import           BackEnd
+import           FrontEnd
+import           JavaUtils (inferClassName, inferOutputPath)
 
 data TransMethod = Apply
                  | Naive
@@ -58,12 +55,9 @@ wrap (inP, outP) receMsg opt flagC flagS name = do
               True  -> receMsg 0 outP
               False -> return 1
 
-getClassName :: String -> String
-getClassName (x : xs) = (toUpper x) : xs
-
-source2java :: Bool -> Bool -> DumpOption -> Compilation -> String -> String -> IO String
-source2java supernaive optInline optDump compilation className source =
-  do coreExpr <- source2core optDump source
+source2java :: Bool -> Bool -> DumpOption -> Compilation -> String -> (FilePath, String) -> IO String
+source2java supernaive optInline optDump compilation className  (filePath, source) =
+  do coreExpr <- source2core optDump (filePath, source)
      core2java supernaive optInline optDump compilation className coreExpr
 
 send :: Handle -> CompileOpt -> Bool -> Bool -> FilePath -> IO Bool
@@ -72,8 +66,8 @@ send h (n, opt, method) flagC flagS f = do
   -- let path = dropFileName f
   let className = inferClassName . inferOutputPath $ f
   result <- E.try (if method == [SNaive]
-                   then source2java True False NoDump opt className contents
-                   else source2java False False NoDump opt className contents)
+                   then source2java True False NoDump opt className (f, contents)
+                   else source2java False False NoDump opt className (f, contents))
   case result of
     Left  (_ :: E.SomeException) ->
       do putStrLn ("\x1b[31m" ++ "invalid expression sf2Java")
@@ -96,27 +90,6 @@ receiveMsg err h = do
     else do putStrLn msg
             receiveMsg err h
 
--- make test2
-receiveMsg2 :: String -> Int -> Handle -> IO Int
-receiveMsg2 output err h = do
-  msg <- hGetLine h
-  if msg == "exit"
-    then return err
-    else do
-      if msg /= output
-        then do putStrLn $ "\x1b[31m" ++ "Incorrect: " ++ msg
-                putStrLn "\x1b[0m"
-                receiveMsg2 output (err+1) h
-        else do putStrLn $ "\x1b[32m" ++ "Correct: " ++ msg
-                putStrLn "\x1b[0m"
-                receiveMsg2 output err h
-
--- make test
-receiveMsg3 :: Handle -> IO String
-receiveMsg3 outP = do
-  msg <- hGetLine outP
-  if msg == "exit" then receiveMsg3 outP else return msg
-
 sendMsg :: Handle -> String -> IO ()
 sendMsg h msg = do
   hPutStrLn h msg
@@ -124,4 +97,3 @@ sendMsg h msg = do
 sendFile :: Handle -> String -> IO ()
 sendFile h f = do
   hPutStrLn h f
-
