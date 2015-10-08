@@ -17,6 +17,7 @@ module Inliner where
 import OptiUtils
 import Core
 
+-- TODO: inline definitions inside module?
 inliner :: Expr t (Expr t e) -> Expr t e
 inliner (Var _ x) = x
 inliner (Lam n t1 e1) = Lam n t1 (inliner . e1 . var)
@@ -39,6 +40,7 @@ inliner (JMethod jc m es cn) =
 inliner (JField jc fn cn) = JField (fmap inliner jc) fn cn
 inliner (Seq es) = Seq (map inliner es)
 inliner (Let n e body) = Let n (inliner e) (inliner . body . var)
+inliner e = joinExpr e
 
 -- current version cannot handle LetRec
 recurNum :: Expr t Int -> Int

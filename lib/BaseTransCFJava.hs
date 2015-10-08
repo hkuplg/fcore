@@ -17,17 +17,20 @@ more information, please refer to the paper on wiki.
 module BaseTransCFJava where
 -- translation that does not pre-initialize Closures that are ininitalised in apply() methods of other Closures
 -- TODO: isolate all hardcoded strings to StringPrefixes (e.g. Fun)
+
+
+import           Data.Char (toLower)
+import           Data.List (zip4, elemIndex)
 import qualified Language.Java.Syntax as J
+import           Lens.Micro
 
 import           ClosureF
 import           Inheritance
 import           JavaEDSL
-import           MonadLib
+import           MonadLib hiding (Alt)
 import           Panic
 import qualified Src as S
 import           StringPrefixes
-import           Data.Char (toLower)
-import           Data.List (elemIndex)
 
 instance (:<) (Translate m) (Translate m) where
    up = id
@@ -36,9 +39,9 @@ type InitVars = [J.BlockStmt]
 
 -- Closure F to Java
 
-createCUB :: t -> [J.TypeDecl] -> J.CompilationUnit
-createCUB _ compDef = cu
-  where cu = J.CompilationUnit Nothing [] compDef
+createCUB :: Maybe J.PackageDecl -> [J.TypeDecl] -> J.CompilationUnit
+createCUB package compDef = cu
+  where cu = J.CompilationUnit package [] compDef
 
 
 initClass :: String -> String -> J.Exp -> J.BlockStmt
@@ -56,28 +59,27 @@ type TransType = ([J.BlockStmt], TransJavaExp, Type Int)
 
 data Translate m =
   T {translateM :: Expr Int (Var,Type Int) -> m TransType
-    ,translateScopeM :: EScope Int (Var, Type Int) -> Maybe (Int,Type Int) -> m ([J.BlockStmt],TransJavaExp,TScope Int)
+    ,translateScopeM :: EScope Int (Var,Type Int) -> Maybe (Int,Type Int) -> m ([J.BlockStmt],TransJavaExp,TScope Int)
     ,translateApply :: Bool -> m TransType -> m TransType -> m TransType
     ,translateIf :: m TransType -> m TransType -> m TransType -> m TransType
-    ,translateLet :: TransType -> ((Var, Type Int) -> Expr Int (Var, Type Int)) -> m TransType
-    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> EScope Int (Var, Type Int) -> m ([J.BlockStmt],TransJavaExp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
+    ,translateLet :: TransType -> ((Var,Type Int) -> Expr Int (Var,Type Int)) -> m TransType
+    ,translateScopeTyp :: Int -> Int -> [J.BlockStmt] -> EScope Int (Var,Type Int) -> m ([J.BlockStmt],TransJavaExp,TScope Int) -> String -> m ([J.BlockStmt],TScope Int)
     ,genApply :: J.Exp -> TScope Int -> String -> J.Type -> J.Type -> m [J.BlockStmt]
     ,genRes :: TScope Int -> [J.BlockStmt] -> m [J.BlockStmt]
     ,applyRetType :: Type Int -> m (Maybe J.Type)
     ,genClone :: m Bool
-    -- ,genTest :: m Bool
-    ,transAlts :: TransJavaExp -> [Alt Int (Var, Type Int)] -> m TransType
-    ,mapAlt :: J.Exp -> J.Name -> Alt Int (Var, Type Int) -> m (J.SwitchBlock, Type Int)
-    ,translateDatabind :: DataBind Int -> m (J.BlockStmt, J.BlockStmt)
+    ,transAlts :: TransJavaExp -> [Alt Int (Var,Type Int)] -> m TransType
+    ,mapAlt :: J.Exp -> J.Name -> Alt Int (Var,Type Int) -> m (J.SwitchBlock,Type Int)
+    ,translateDatabind :: DataBind Int -> m (J.BlockStmt,J.BlockStmt)
     ,translateCtr :: String -> Constructor Int -> Integer -> m [J.Decl]
-    ,translateCtrParams :: String -> [Type Int] -> [J.Argument] -> m ([J.BlockStmt], TransJavaExp)
+    ,translateCtrParams :: String -> [Type Int] -> [J.Argument] -> m ([J.BlockStmt],TransJavaExp)
     ,withApply :: m Bool
     ,getPrefix :: m String
-    -- ,getBox :: Type Int -> m String
     ,javaType :: Type Int -> m J.Type
-    ,chooseCastBox :: Type Int -> m (String -> J.Exp -> J.BlockStmt, J.Type)
+    ,chooseCastBox :: Type Int -> m (String -> J.Exp -> J.BlockStmt,J.Type)
     ,stackMainBody :: Type Int -> m [J.BlockStmt]
     ,genClosureVar :: Bool -> Int -> TransJavaExp -> m J.Exp
+    ,transDefs :: Definition Int (Var,Type Int) -> m [J.BlockStmt]
     ,createWrap :: String -> Expr Int (Var,Type Int) -> m (J.CompilationUnit,Type Int)}
 
 -- needed
@@ -123,11 +125,25 @@ genIfBody this m2 m3 (s1,j1) n =
      let ifvarname = ifresultstr ++ show n
      aType <- javaType this t2
      let ifresdecl = localVar aType (varDeclNoInit ifvarname)
-     let thenPart  = J.StmtBlock $ block (s2 ++ [assign (name [ifvarname]) (unwrap j2)])
-     let elsePart  = J.StmtBlock $ block (s3 ++ [assign (name [ifvarname]) (unwrap j3)])
+     let thenPart  = J.StmtBlock $ block (s2 ++ [bsAssign (name [ifvarname]) (unwrap j2)])
+     let elsePart  = J.StmtBlock $ block (s3 ++ [bsAssign (name [ifvarname]) (unwrap j3)])
      let ifstmt    = bStmt $ J.IfThenElse (unwrap j1) thenPart elsePart
 
      return (s1 ++ [ifresdecl,ifstmt],var ifvarname ,t2) -- need to check t2 == t3
+
+initializeRec this types binds = do
+  (n :: Int) <- get
+  let needed = length types
+  put (n + 1 + needed)
+  let mfuns xs = forM (binds xs) (translateM this)
+  -- let (bindings :: [Var]) = [n + 1.. n + needed]
+  let newvars = zip [n + 1 ..] types
+  let finalFuns = mfuns newvars
+  -- let appliedBody = body newvars
+  rBinds <- liftM unzip3 finalFuns
+  -- rBody <- translateM this appliedBody
+  return (n, newvars, rBinds)
+
 
 -- needed
 assignVar :: Monad m => Translate m -> Type Int -> String -> J.Exp -> m J.BlockStmt
@@ -140,15 +156,15 @@ pairUp bindings vars = exchanged
   where z = bindings `zip` vars
         exchanged = map (\(a,(_,c)) -> (a,c)) z
 
--- needed
-concatFirst :: ([[a]], [b], [c]) -> ([a], [b], [c])
-concatFirst (xs, y, z) = (concat xs, y, z)
-
 -- Needed
 getNewVarName :: MonadState Int m => Translate m -> m String
 getNewVarName _ = do (n :: Int) <- get
                      put (n + 1)
                      return $ localvarstr ++ show n
+
+isModule :: Expr t e -> (Maybe S.PackageName, Bool)
+isModule (Module pname _) = (pname, True)
+isModule _ = (Nothing, False)
 
 trans :: (MonadState Int m, selfType :< Translate m) => Base selfType (Translate m)
 trans self =
@@ -194,7 +210,7 @@ trans self =
                        return (s1,j1,TupleType [t1])
                   _ ->
                     do tuple' <- mapM (translateM this) tuple
-                       let (statements,exprs,types) = concatFirst (unzip3 tuple')
+                       let (statements,exprs,types) = (unzip3 tuple') & _1 %~ concat
                        newVarName <- getNewVarName this
                        let c = getTupleClassName tuple
                        let rhs = instCreat (classTyp c) (map unwrap exprs)
@@ -243,41 +259,34 @@ trans self =
                 do (s1, j1, t1) <- translateM this expr
                    translateLet this (s1,j1,t1) body
               -- TODO: propagate names
-              LetRec _ t xs body ->
-                do (n :: Int) <- get
-                   let needed = length t
-                   put (n + 2 + needed)
-                   mfuns <- return (\defs -> forM (xs defs) (translateM this))
-                   let vars = liftM (map (\(_,b,c) -> (b,c))) (mfuns (zip [n ..] t))
-                   let (bindings :: [Var]) = [n + 2 .. n + 1 + needed]
-                   newvars <- liftM (pairUp bindings) vars
-
-                   let finalFuns = mfuns newvars
-                   let appliedBody = body newvars
-                   let varnums = map fst newvars
-                   (bindStmts,bindExprs,tbind) <- liftM unzip3 finalFuns
-                   (bodyStmts,bodyExpr,t') <- translateM this appliedBody
-                   bindtyps <- mapM (javaType this) tbind
-                   typ <- javaType this t'
+              LetRec _ types xs body ->
+                do (n, newvars, (bindStmts,bindExprs,tBinds)) <- initializeRec this types xs
+                   (bodyStmts,bodyExpr,tBody) <- translateM this (body newvars)
+                   bindtyps <- mapM (javaType this) tBinds
+                   typ <- javaType this tBody
 
                    -- initialize declarations
-                   let mDecls = map (\(x, btyp) -> memberDecl (fieldDecl btyp (varDeclNoInit (localvarstr ++ show x)))) (zip bindings bindtyps)
+                   let bindings = map fst newvars
+                   let mDecls = map (\(x, btyp) -> memberDecl (fieldDecl btyp (varDeclNoInit (localvarstr ++ show x))))
+                                                              (zip bindings bindtyps)
 
                    -- assign new created closures bindings to variables
-                   let assm = map (\(i,jz) -> assign (name [localvarstr ++ show i]) jz)
-                                  (varnums `zip` map unwrap bindExprs)
-                   let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts ++ [assign (name [tempvarstr]) (unwrap bodyExpr)]
-                   let letClass =
-                         [localClass (letTransName ++ show n)
-                                     (classBody (memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
-                                                 mDecls ++ [J.InitDecl False (J.Block stasm)]))
+                   let letClassName = letTransName ++ show n
+                   let letVarName = localvarstr ++ show n
+                   let assm = map (\(i,jz) -> bsAssign (name [localvarstr ++ show i]) jz)
+                                  (bindings `zip` map unwrap bindExprs)
+                   let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm)
 
-                         ,localVar (classTy (letTransName ++ show n))
-                                   (varDecl (localvarstr ++ show n)
-                                            (instCreat (classTyp (letTransName ++ show n)) []))
-                         ,localFinalVar typ (varDecl (localvarstr ++ show (n + 1))
-                                                     (cast typ (J.ExpName (name [localvarstr ++ show n, tempvarstr]))))]
-                   return (letClass,var (localvarstr ++ show (n + 1)),t')
+                   let letClass = localClass letClassName (classBody (mDecls ++ [J.InitDecl False (J.Block stasm)]))
+
+                   -- after let class, some variable initialization
+                   let letVarInit = localVar (classTy (letTransName ++ show n))
+                                    (varDecl letVarName (instCreat (classTyp letClassName) []))
+                   let mVarsInit = map (\(x, btyp) -> (localVar btyp (varDecl x (fieldAccess (varExp letVarName) x))))
+                                       (zip (map ((localvarstr ++) . show) bindings) bindtyps)
+
+
+                   return (letClass : letVarInit : mVarsInit ++ bodyStmts, bodyExpr, tBody)
 {-
     Γ |- E1 : ∀(x:T2)∆.T1 ~> J1 in S1
     Γ |- E2 : T2 ~> J2 in S2
@@ -290,10 +299,15 @@ trans self =
                    translateApply this False
                                   (translateM this e1)
                                   (translateM this e2)
+
+              -- Module
+              Module _ defs -> do defStmts <- transDefs this defs
+                                  return (defStmts, var tempvarstr, Unit)
+
               -- InstanceCreation [TypeArgument] ClassType [Argument] (Maybe ClassBody)
               JNew c args ->
                 do args' <- mapM (translateM this) args
-                   let (statements,exprs,types) = concatFirst $ unzip3 args'
+                   let (statements,exprs,types) = unzip3 args' & _1 %~ concat
                    let rhs =
                          J.InstanceCreation
                            (map (\y -> case y of
@@ -320,10 +334,10 @@ trans self =
                    let J.ExpStmt errormsg = classMethodCall (stringExp "Error: ") "concat" [unwrap oexpr]
                    let erro = bStmt $ methodCall ["System","err","println"] [errormsg]
                    let exit = bStmt $ methodCall ["System", "exit"] [integerExp 0]
-                   return (stmt ++ [erro, exit], Right $ J.Null, ty)
+                   return (stmt ++ [erro, exit], Right J.Null, ty)
               JMethod c m args r ->
                 do args' <- mapM (translateM this) args
-                   let (statements,exprs,types) = concatFirst $ unzip3 args'
+                   let (statements,exprs,types) = unzip3 args' & _1 %~ concat
                    let exprs' = map unwrap exprs
                    let refTypes =
                          map (\y -> case y of
@@ -364,28 +378,28 @@ trans self =
                    let statements = concatMap (\(x,_,_) -> x) es'
                    return (statements,lastExp,lastType)
               FVar _ -> sorry "BaseTransCFJava.trans.FVar: no idea how to do"
-              Constr (Constructor ctrName' ctrParams) es -> do
+              ConstrOut (Constructor ctrName' ctrParams) es -> do
                    newVar <- getNewVarName this
                    let realType = last ctrParams
                    let getdt ty = case ty of Kind f -> getdt (f 0)
                                              Type _ f -> getdt (f ())
                                              Body (Datatype nam _ _) -> nam
-                                             _ -> sorry "Constr.gentdt: no idea how to do"
+                                             _ -> sorry "ConstrOut.gentdt: no idea how to do"
                    let nam = case realType of Datatype nam' _ _ -> nam'
                                               Forall t -> getdt t
-                                              _ -> sorry "Constr.nam: no idea how to do"
+                                              _ -> sorry "ConstrOut.nam: no idea how to do"
                    let ctrName = nam ++ ctrName'
                    case realType of
-                       Datatype _ _ _ | null es -> do
+                       Datatype{} | null es -> do
                           let inst = localVar (classTy nam) (varDecl newVar $ methodCallExp [map toLower nam,ctrName] [])
                           return ([inst], var newVar, realType)
                        _ -> do
                           let st1 = localVar closureType (varDecl newVar $ methodCallExp [map toLower nam,ctrName] [])
                           let functiontype = case realType of
-                                Datatype _ _ _ -> Forall $ foldr (\a b -> Type a (\()->b)) (Body realType) (init ctrParams)
+                                Datatype{} -> Forall $ foldr (\a b -> Type a (\()->b)) (Body realType) (init ctrParams)
                                 Forall ts -> Forall $ foldr (\a b -> Type a (\()->b)) ts (init ctrParams)
-                                _ -> sorry "Constr.functiontype: no idea how to do"
-                          foldl (\acc es' -> translateApply this False acc es')
+                                _ -> sorry "ConstrOut.functiontype: no idea how to do"
+                          foldl (translateApply this False)
                                 (return ([st1], var newVar, functiontype))
                                 (map (translateM this) es)
               Case scrut alts ->
@@ -396,8 +410,7 @@ trans self =
                 (databindclass, databindproxy) <- mapAndUnzipM (translateDatabind this) databinds
                 (s', e', t') <- translateM this expr
                 case recflag of
-                    S.NonRec -> do
-                        return (databindclass ++ databindproxy ++ s', e', t')
+                    S.NonRec -> return (databindclass ++ databindproxy ++ s', e', t')
                     S.Rec -> do
                         (n::Int) <- get
                         put (n+2)
@@ -405,8 +418,8 @@ trans self =
                         let datatypeclass =
                              [localClass ("Datatype" ++ show n)
                                          (classBody ( memberDecl (fieldDecl objClassTy (varDeclNoInit tempvarstr)) :
-                                                      (map (memberDecl . localToMemberClass) databindclass) ++
-                                                      [J.InitDecl False (block $ databindproxy ++ s' ++ [assign (name [tempvarstr]) (unwrap e')])]
+                                                      map localToMember databindclass ++
+                                                      [J.InitDecl False (block $ databindproxy ++ s' ++ [bsAssign (name [tempvarstr]) (unwrap e')])]
                                                     ))
                              ,localVar (classTy ("Datatype" ++ show n))
                                        (varDecl (localvarstr ++ show n)
@@ -497,7 +510,7 @@ trans self =
                        proxy = localVar (classTy nam) (varDecl (map toLower nam) (instCreat (classTyp nam) [integerExp 0]) )
                    return (classdef,proxy)
        ,translateCtr =
-            \nam (Constructor ctrname' types') tagnum -> do
+            \nam (Constructor ctrname' types') tagnum ->
                case types' of
                  [_] -> do
                           let ctrname = nam ++ ctrname'
@@ -520,10 +533,10 @@ trans self =
 
                          (stmts, oexpr) <- translateCtrParams this ctrname types []
                          let methodbody = Just . block $ stmts ++ [returnExpS (unwrap oexpr)]
-                         let methoddecl = memberDecl $ methodDecl [] (Just $ closureType) ctrname [] methodbody
+                         let methoddecl = memberDecl $ methodDecl [] (Just closureType) ctrname [] methodbody
                          return [ctrclass, methoddecl]
        ,translateCtrParams =
-           \classnam types params -> do
+           \classnam types params ->
              case types of
                 [] -> do
                     newVarName <- getNewVarName this
@@ -536,12 +549,12 @@ trans self =
                     let accessField = fieldAccess (left $ var (localvarstr ++ show (n+1))) closureInput
                     let initVar = localFinalVar typ (varDecl (localvarstr ++ show (n+2))
                                                              (if typ == objClassTy then accessField else cast typ accessField))
-                    let classbody = closureBodyGen [memberDecl $ fieldDecl (closureType) (varDecl (localvarstr ++ show (n+1)) J.This)]
-                                                   (initVar:stmt ++ [assign (name [closureOutput]) (unwrap oexpr)])
+                    let classbody = closureBodyGen [memberDecl $ fieldDecl closureType (varDecl (localvarstr ++ show (n+1)) J.This)]
+                                                   (initVar:stmt ++ [bsAssign (name [closureOutput]) (unwrap oexpr)])
                                                    n
                                                    False
                                                    closureType
-                    let innerclassdef = localClassDecl (closureTransName ++ show n) (namespace ++ "Closure") classbody
+                    let innerclassdef = localClassDecl (closureTransName ++ show n) ifoClass classbody
                     let funInst = localVar closureType (varDecl (localvarstr ++ show n) (funInstCreate n))
                     return ([innerclassdef, funInst], var (localvarstr ++ show n))
        ,transAlts =
@@ -559,7 +572,7 @@ trans self =
                case alt of
                    Default e1 -> do
                        (altstmt, alte, altt) <- translateM this e1
-                       let result = assign resultName (unwrap alte)
+                       let result = bsAssign resultName (unwrap alte)
                        return (switchBlock Nothing $ altstmt ++ [result], altt)
                    ConstrAlt (Constructor ctrname types) names e1 -> do
                        let (Datatype nam tvars ctrnames) = last types
@@ -580,7 +593,7 @@ trans self =
                                               [1 .. len]
                                               jtypes
                        (altstmt, alte, altt) <- translateM this $ e1 (zip [(n + 1) .. ] (init types))
-                       let result = assign resultName (unwrap alte)
+                       let result = bsAssign resultName (unwrap alte)
                        return (switchBlock
                                   (Just (integerExp $ fromIntegral label + 1))
                                   (objdecl : vardecls ++ altstmt ++ [result]),
@@ -594,7 +607,7 @@ trans self =
                                        closureClass
                                        (closureBodyGen [memberDecl $ fieldDecl (classTy closureClass)
                                                                                (varDecl (localvarstr ++ show x1) J.This)]
-                                                       (initVars ++ ostmts ++ [assign (name [closureOutput]) (unwrap oexpr)])
+                                                       (initVars ++ ostmts ++ [bsAssign (name [closureOutput]) (unwrap oexpr)])
                                                        fc
                                                        b
                                                        (classTy closureClass))]
@@ -647,8 +660,42 @@ trans self =
                                _ -> return $ Just objClassTy)
        ,createWrap =
           \nam expr ->
-            do (bs,e,t) <- translateM this expr
-               returnType <- applyRetType this t
-               let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
-               let mainDecl = wrapperClass nam (bs ++ returnStmt) returnType mainBody
-               return (createCUB this [mainDecl],t)}
+              do (bs,e,t) <- translateM this expr
+                 returnType <- applyRetType this t
+                 let (package, flag) = isModule expr
+                 let javaCode = if flag
+                                then wrapperClass flag nam bs returnType moduleMainBody
+                                else let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
+                                     in wrapperClass flag nam (bs ++ returnStmt) returnType mainBody
+                 return (maybe (createCUB Nothing [javaCode])
+                               (\pname -> createCUB  (Just (J.PackageDecl (name [pname]))) [javaCode]) package, t)
+
+       ,transDefs =
+         \ defs -> case defs of
+                     Def fname srcTyp expr otherDef ->
+                       do (bs,e,t) <- translateM this expr
+                          (n :: Int) <- get
+                          put (n + 1)
+                          otherDefStmts <- transDefs this (otherDef (n, t))
+                          let x = localvarstr ++ show n
+                          typ <- javaType this t
+                          let anno = normalAnno fname x (show srcTyp)
+                          let xDecl = localVarWithAnno anno typ (varDecl x $ unwrap e)
+                          return (bs ++ [xDecl] ++ otherDefStmts)
+                     DefRec names types exprs body -> do
+                       (n, newvars, (bindStmts, bindExprs, tBinds)) <- initializeRec this (map snd types) exprs
+                       bodyStmts <- transDefs this (body newvars)
+                       bindtyps <- mapM (javaType this) tBinds
+                       let srcTypes = map fst types
+
+                       -- create annotations for each variable
+                       let varnums = map ((localvarstr ++) . show . fst) newvars
+                       let annos = map (\(fname, x, srcTyp) -> normalAnno fname x (show srcTyp)) (zip3 names varnums srcTypes)
+
+                       -- assign new created closures bindings to variables
+                       let assm = map (\(anno,i,typ,jz) -> localVarWithAnno anno typ (varDecl i jz))
+                                      (zip4 annos varnums bindtyps (map unwrap bindExprs))
+                       return (concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts)
+                     Null -> return []
+
+       }

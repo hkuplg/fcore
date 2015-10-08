@@ -10,10 +10,9 @@ Ubuntu. It builds the compiler from source, thus may take some time.
 
 1. Make sure you have installed the dependencies:
 
-    + Install the [Haskell Platform](https://www.haskell.org/platform/)
     + Java SDK (8 or newer)
     + Apache Ant (version 1.8 or above)
-    + [Alex](https://www.haskell.org/alex/) and [Happy](https://www.haskell.org/happy/) (install them by `cabal install alex happy`)
+    + [stack](https://github.com/commercialhaskell/stack/wiki/Downloads)
 
 2. Clone the [source] with [git]:
 
@@ -24,20 +23,22 @@ Ubuntu. It builds the compiler from source, thus may take some time.
 [source]: https://github.com/hkuplg/fcore
 [git]: http://git-scm.com/
 
-3. Build and install:
+3. Quick install with stack:
 
    ```bash
-   cabal update
    make
    ```
 
+   You may be prompted to run `stack setup`, which will automatically
+   download the GHC compiler if needed.
+
 4. After the installation, invoking `f2j` in your console will show
-   its usage. If not, you probably want to add `.cabal/bin` to your
+   its usage. If not, you probably want to add `~/.local/bin` to your
    `$PATH`.
 
 ## Building on Windows ##
 
-TODO
+The above instructions should automatically work on Windows.
 
 ## Documentation ##
 
@@ -79,8 +80,7 @@ you to the REPL.
 In the `example` directory, you will see a lot of example programs
 written in FCore. You may want to take a look at them to get familiar
 with the syntax. These examples demonstrate different features of our
-compiler, such as call-by-name, record syntax, modules, thunk, type
-synonyms, etc.
+compiler, such as record syntax, modules, type synonyms, etc.
 
 Particularly, in `examples/fractals`, there is an interesting program
 that draws a fractal.
@@ -93,7 +93,7 @@ If you run into any problem, try to do
 
 and then
 
-     make
+    make
 
 If the problem persists, create an issue!
 

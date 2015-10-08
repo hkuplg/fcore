@@ -18,7 +18,7 @@
     <mkdir dir="${dist}/"/>
     <manifest file="build/MANIFEST.MF">
   	<attribute name="Main-Class"
-             value="hk.hku.cs.f2j.TypeServer" />
+             value="f2j.TypeServer" />
     </manifest>
     <jar jarfile="${dist}/runtime-${DSTAMP}.jar" manifest="build/MANIFEST.MF" basedir="${build}"/>
     <copy file="${dist}/runtime-${DSTAMP}.jar" tofile="runtime.jar"/>

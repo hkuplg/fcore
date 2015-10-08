@@ -12,26 +12,22 @@ including the removal of type synonyms. No desugaring should happen before this
 stage.
 -}
 
-{-# LANGUAGE RecordWildCards #-}
-{-# OPTIONS_GHC -Wall #-}
+
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Desugar (desugar) where
 
-import Src
-import SrcLoc
-import StringPrefixes
-
+import           Panic
+import           Src
+import           SrcLoc
+import           StringPrefixes
 import qualified SystemFI as F
 
-import Panic
-
-import Data.Maybe       (fromMaybe)
-import Data.List        (intercalate)
-
-import Text.PrettyPrint.ANSI.Leijen
-
+import           Data.List (intercalate)
 import qualified Data.Map as Map
+import           Data.Maybe (fromMaybe)
 import qualified Data.Set as Set (member)
+import           Text.PrettyPrint.ANSI.Leijen
 
 
 -- | Generate a fresh variable in the context. This is a very general API and
@@ -79,15 +75,14 @@ generateNFreshVar g0 num0 = try g0 num0 1
 desugar :: CheckedExpr -> F.Expr t e
 desugar = desugarExpr (Map.empty, Map.empty)
 
-type TVarMap t  = Map.Map ReaderId t
-type VarMap t e = Map.Map ReaderId (F.Expr t e)
+type TVarMap t  = Map.Map ReadId t
+type VarMap t e = Map.Map ReadId (F.Expr t e)
 
-transType :: TVarMap t -> ReaderType -> F.Type t
+transType :: TVarMap t -> ReadType -> F.Type t
 transType d (TVar a)     = F.TVar a (fromMaybe (panic ("transType: " ++ show (TVar a))) (Map.lookup a d))
-transType _ (JType (JClass c)) = F.JClass c
-transType _ (JType (JPrim c))  = F.JClass c
+transType _ (JClass c)   = F.JClass c
 transType d (Fun t1 t2)  = F.Fun (transType d t1) (transType d t2)
-transType d (Product ts) = F.Product (map (transType d) ts)
+transType d (TupleType ts) = F.Product (map (transType d) ts)
 transType d (Forall a t) = F.Forall a (\a' -> transType (Map.insert a a' d) t)
 transType d (And t1 t2)  = F.And (transType d t1) (transType d t2)
 transType d (RecordType fs)  =
@@ -95,7 +90,6 @@ transType d (RecordType fs)  =
                   [(l,t)]  -> F.RecordType (l, transType d t)
                   _        -> transType d (RecordType (take (length fs - 1) fs)) `F.And` F.RecordType (let (l,t) = last fs in (l,transType d t))
 transType _ Unit         = F.Unit
-transType i (Thunk t)    = F.Fun F.Unit (transType i t)
 transType i (Datatype n ts ns) = F.Datatype n (map (transType i) ts) ns
 transType _ t            = prettySorry "transType" (pretty t)
 
@@ -107,15 +101,15 @@ desugarExpr (d, g) = go
     go (L _ (Lit lit))         = F.Lit lit
     go (L _ (App f x))         = F.App (go f) (go x)
     go (L _ (TApp e t))        = F.TApp (go e) (transType d t)
-    go (L _ (Tuple es))        = F.Tuple (map go es)
-    go (L _ (Proj e i))        = F.Proj i (go e)
+    go (L _ (TupleCon es))     = F.Tuple (map go es)
+    go (L _ (TupleProj e i))   = F.Proj i (go e)
     go (L _ (PrimOp e1 op e2)) = F.PrimOp (go e1) op (go e2)
     go (L _ (If e1 e2 e3))     = F.If (go e1) (go e2) (go e3)
     go (L _ (Lam (x, t) e))    = F.Lam x
                                  (transType d t)
                                  (\x' -> desugarExpr (d, Map.insert x (F.Var x x') g) e)
     go (L _ (BLam a e))        = F.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
-    go (L _ Let{..})           = panic "desugarExpr: Let"
+    go (L _ LetIn{})         = panic "desugarExpr: LetIn"
     go (L _ (LetOut _ [] e))   = go e
     go (L _ (Merge e1 e2))     = F.Merge (go e1) (go e2)
     go (L _ (RecordCon fs))    =
@@ -155,13 +149,16 @@ variable renaming. An example:
         where
           (fs, _, es)  = unzip3 bs
 
-          tupled_es = noLoc $ Tuple es
+          tupled_es = noLoc $ TupleCon es
 
           -- Substitution: fi -> y._(i-1)
           g' y = Map.fromList $ -- `Map.fromList` is right-biased.
                    zipWith (\f i -> (f, F.Proj i (F.Var f y)))
                            fs
                            [1..length bs]
+
+    go (L _ EModule{})                 = panic "desugarExpr: Module"
+
 
 {-
    let f : forall A1...An. t1 -> t2 = e@(\(x : t1). peeled_e) in body
@@ -196,7 +193,7 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
     go (L _ (Seq es)) = F.Seq (map go es)
     go (L _ (Data recflag databinds e)) = F.Data recflag (map (desugarDatabind d) databinds) (go e)
 
-    go (L _ (Constr c es)) = F.Constr (desugarConstructor d c) (map go es)
+    go (L _ (ConstrOut c es)) = F.ConstrOut (desugarConstructor d c) (map go es)
     go (L _ (Case e alts)) = decisionTree (d,g) [e] pats exprs (replicate (length alts) [])
                      where pats = [ [pat] | ConstrAlt pat _ <- alts]
                            exprs = [ expr | ConstrAlt _ expr <- alts]
@@ -205,12 +202,29 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                 [ConstrAlt _ b1, ConstrAlt (PConstr _ [sub1, sub2]) b2] = alts
                 headfetch = noLoc $ JMethod (NonStatic e) "charAt" [noLoc $ Lit (Int 0)] "java.lang.Character"
                 tailfetch = noLoc $ JMethod (NonStatic e) "substring" [noLoc $ Lit (Int 1)] "java.lang.String"
-                b2'  = case sub1 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, JType(JClass "java.lang.Character"), headfetch)] b2
+                b2'  = case sub1 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, (JClass "java.lang.Character"), headfetch)] b2
                                     _ -> b2
-                b2'' = case sub2 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, JType(JClass "java.lang.String"), tailfetch)] b2'
+                b2'' = case sub2 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, (JClass "java.lang.String"), tailfetch)] b2'
                                     _ -> b2'
             in
             go (noLoc $ If emptytest b1 b2'')
+
+    go (L _ (EModuleOut pname binds)) = F.Module pname (desugarBindsToDefs (d, g) binds)
+
+
+desugarBindsToDefs :: (TVarMap t, VarMap t e) -> [Definition] -> F.Definition t e
+desugarBindsToDefs _ [] = F.Null
+desugarBindsToDefs (d, g) (b:bs) =
+  case b of
+    Def (n, t, e) -> F.Def n (t, transType d t) (desugarExpr (d, g) e)
+                       (\f -> desugarBindsToDefs (d, Map.insert n (F.Var n f) g) bs)
+    -- at least one element
+    DefRec binds -> F.DefRec names types exprs def
+      where (ids, sigs, defs) = unzip3 binds
+            names = ids
+            types = map (\t -> (t, transType d t)) sigs
+            exprs ids' = map (desugarExpr (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g)) defs
+            def ids' = desugarBindsToDefs (d, zipWith (\f f' -> (f, F.Var f f')) ids ids' `addToVarMap` g) bs
 
 desugarLetRecToFix :: (TVarMap t, VarMap t e) -> CheckedExpr -> F.Expr t e
 desugarLetRecToFix (d,g) (L _ (LetOut Rec [(f,t,e)] body)) =
@@ -252,8 +266,8 @@ desugarLetRecToFixEncoded (d,g) = go
               where
                 (fs, ts, es) = unzip3 bs
 
-                tupled_es = noLoc $ Tuple es
-                tupled_ts = Product ts
+                tupled_es = noLoc $ TupleCon es
+                tupled_ts = TupleType ts
 
                 -- Substitution: fi -> (y 0)._(i-1)
                 g' y = Map.fromList $ -- `Map.fromList` is right-biased.
@@ -341,8 +355,8 @@ decisionTree = go
                                     PVar nam ty -> (rest, branch, (nam, ty, curExp): bind) :acc
                                     _ -> acc
 
-addToVarMap :: [(ReaderId, F.Expr t e)] -> VarMap t e -> VarMap t e
+addToVarMap :: [(ReadId, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
 
-addToTVarMap :: [(ReaderId, t)] -> TVarMap t -> TVarMap t
+addToTVarMap :: [(ReadId, t)] -> TVarMap t -> TVarMap t
 addToTVarMap xs tvar_map = foldr (\(x,x') acc -> Map.insert x x' acc) tvar_map xs

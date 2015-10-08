@@ -20,6 +20,7 @@ module Core
   , Index
   , Constructor(..)
   , DataBind(..)
+  , Definition(..)
   , alphaEq
   , mapTVar
   , mapVar
@@ -40,44 +41,49 @@ module Core
 
 import qualified Src
 
-import JavaUtils
-import PrettyUtils
+import           JavaUtils
+import           PrettyUtils
 
-import Text.PrettyPrint.ANSI.Leijen
-import qualified Language.Java.Pretty      (prettyPrint)
-
+import           Control.Arrow (second)
 import           Data.List (intersperse)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import qualified Language.Java.Pretty (prettyPrint)
+import           Prelude hiding ((<$>))
+import           Text.PrettyPrint.ANSI.Leijen
 
 data Type t
-  = TVar Src.ReaderId t                -- a
+  = TVar Src.ReadId t                -- a
   | JClass ClassName                   -- C
   | Fun (Type t) (Type t)              -- t1 -> t2
-  | Forall Src.ReaderId (t -> Type t)  -- forall a. t
+  | Forall Src.ReadId (t -> Type t)  -- forall a. t
   | Product [Type t]                   -- (t1, ..., tn)
   | Unit
-  | Datatype Src.ReaderId [Type t] [Src.ReaderId]
+  | Datatype Src.ReadId [Type t] [Src.ReadId]
+
+data Definition t e = Def Src.Name Src.Type (Expr t e) (e -> Definition t e)
+                    | DefRec [Src.Name] [(Src.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
+                    | Null
 
 data Expr t e
-  = Var Src.ReaderId e
+  = Var Src.ReadId e
   | Lit Src.Lit
 
   -- Binders we have: λ, fix, letrec, and Λ
-  | Lam Src.ReaderId (Type t) (e -> Expr t e)
-  | Fix Src.ReaderId Src.ReaderId
+  | Lam Src.ReadId (Type t) (e -> Expr t e)
+  | Fix Src.ReadId Src.ReadId
         (e -> e -> Expr t e)
         (Type t)  -- t1
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
-  | Let Src.ReaderId (Expr t e) (e -> Expr t e)
-  | LetRec [Src.ReaderId]       -- Names
+  | Let Src.ReadId (Expr t e) (e -> Expr t e)
+  | LetRec [Src.ReadId]       -- Names
            [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
-  | BLam Src.ReaderId (t -> Expr t e)
+  | BLam Src.ReadId (t -> Expr t e)
 
   | App  (Expr t e) (Expr t e)
   | TApp (Expr t e) (Type t)
@@ -91,25 +97,28 @@ data Expr t e
   | Tuple [Expr t e]     -- Tuple introduction
   | Proj Int (Expr t e)  -- Tuple elimination
 
+  -- Module
+  | Module (Maybe Src.PackageName) (Definition t e)
+
   -- Java
   | JNew ClassName [Expr t e]
-  | JMethod (Src.JCallee (Expr t e)) MethodName [Expr t e] ClassName
-  | JField  (Src.JCallee (Expr t e)) FieldName (Type t)
+  | JMethod (Src.JReceiver (Expr t e)) MethodName [Expr t e] ClassName
+  | JField  (Src.JReceiver (Expr t e)) FieldName (Type t)
 
   | Seq [Expr t e]
 
   | Data Src.RecFlag [DataBind t] (Expr t e)
-  | Constr (Constructor t) [Expr t e]
+  | ConstrOut (Constructor t) [Expr t e]
   | Case (Expr t e) [Alt t e]
 
   | Error (Type t) (Expr t e)
 
-data DataBind t = DataBind Src.ReaderId [Src.ReaderId] ([t] -> [Constructor t])
+data DataBind t = DataBind Src.ReadId [Src.ReadId] ([t] -> [Constructor t])
 
-data Alt t e = ConstrAlt (Constructor t) [Src.ReaderId] ( [e] -> Expr t e)
+data Alt t e = ConstrAlt (Constructor t) [Src.ReadId] ( [e] -> Expr t e)
              | Default (Expr t e)
 
-data Constructor t = Constructor {constrName :: Src.ReaderId, constrParams :: [Type t]}
+data Constructor t = Constructor {constrName :: Src.ReadId, constrParams :: [Type t]}
 
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
@@ -125,7 +134,7 @@ alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq
 alphaEq _  Unit         Unit        = True
 alphaEq _  _            _           = False
 
-mapTVar :: (Src.ReaderId -> t -> Type t) -> Type t -> Type t
+mapTVar :: (Src.ReadId -> t -> Type t) -> Type t -> Type t
 mapTVar g (TVar n a)     = g n a
 mapTVar _ (JClass c)     = JClass c
 mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
@@ -134,7 +143,7 @@ mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
 mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
 
-mapVar :: (Src.ReaderId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
+mapVar :: (Src.ReadId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)
@@ -144,8 +153,8 @@ mapVar g h (Let n b e)               = Let n (mapVar g h b) (mapVar g h . e)
 mapVar g h (LetRec ns ts bs e)       = LetRec ns (map h ts) (map (mapVar g h) . bs) (mapVar g h . e)
 mapVar g h (Data rec databinds e)    = Data rec (map mapDatabind databinds) (mapVar g h e)
     where mapDatabind (DataBind name params ctrs) = DataBind name params (map mapCtr. ctrs)
-          mapCtr (Constructor n ts) = Constructor n (map h ts)
-mapVar g h (Constr (Constructor n ts) es) = Constr c' (map (mapVar g h) es)
+          mapCtr (Constructor n ts)  = Constructor n (map h ts)
+mapVar g h (ConstrOut (Constructor n ts) es) = ConstrOut c' (map (mapVar g h) es)
     where c' = Constructor n (map h ts)
 mapVar g h (Case e alts)             = Case (mapVar g h e) (map mapAlt alts)
     where mapAlt (ConstrAlt (Constructor n ts) ns e1) = ConstrAlt (Constructor n (map h ts)) ns ((mapVar g h) . e1)
@@ -161,6 +170,15 @@ mapVar g h (JMethod callee m args c) = JMethod (fmap (mapVar g h) callee) m (map
 mapVar g h (JField  callee f c)      = JField (fmap (mapVar g h) callee) f (h c)
 mapVar g h (Seq es)                  = Seq (map (mapVar g h) es)
 mapVar g h (Error ty str)            = Error (h ty) (mapVar g h str)
+mapVar g h (Module pname defs)       = Module pname (mapVarDef defs)
+  where
+    -- Necessary?
+    mapVarDef (Def name typ expr def) = Def name typ (mapVar g h expr) (mapVarDef . def)
+    mapVarDef (DefRec names types exprs def) =
+      DefRec names (map (second h) types) (map (mapVar g h) . exprs) (mapVarDef . def)
+    mapVarDef Null = Null
+
+
 
 fsubstTT :: Eq a => a -> Type a -> Type a -> Type a
 fsubstTT x r = mapTVar (\n a -> if a == x then r else TVar n a)
@@ -239,6 +257,28 @@ prettyType' _ _ (JClass c)                     = text c
 -- instance Pretty (Expr Index Index) where
 --   pretty = prettyExpr
 
+prettyDef :: Prec -> (Index, Index) -> Definition Index Index -> Doc
+prettyDef _ (i, j) (Def fname typ e def) =
+  text fname <+> colon <+> pretty typ <+> equals <+> prettyExpr' basePrec (i, j + 1) e <> semi <$>
+  prettyDef basePrec (i, j+1) (def j) -- crappy pretty printer
+
+prettyDef p (i, j) (DefRec names sigs binds def) = vcat (intersperse (text "and") pretty_binds) <> semi <$> pretty_body
+  where
+    n = length sigs
+    ids = [i .. (i + n) - 1]
+    pretty_ids = map text names
+    pretty_sigs = map (pretty . fst) sigs
+    pretty_defs = map (prettyExpr' p (i, j + n)) (binds ids)
+    pretty_binds = zipWith3
+                     (\pretty_id pretty_sig pretty_def ->
+                        pretty_id <+> colon <+> pretty_sig <$> indent 2 (equals <+> pretty_def))
+                     pretty_ids
+                     pretty_sigs
+                     pretty_defs
+    pretty_body = prettyDef p (i, j + n) (def ids)
+
+prettyDef _ _ Null = text ""
+
 prettyExpr :: Expr Index Index -> Doc
 prettyExpr = prettyExpr' basePrec (0, 0)
 
@@ -292,6 +332,9 @@ prettyExpr' p i (Proj n e) =
   parensIf p 5
     (prettyExpr' (5,PrecMinus) i e <> dot <> char '_' <> int n)
 
+prettyExpr' p i (Module pname defs) =
+  maybe empty ((text "package" <+>) . pretty) pname <$> text "module" <> semi <$> prettyDef p i defs
+
 prettyExpr' _ (i,j) (JNew c args) =
   parens (text "new" <+> text c <> tupled (map (prettyExpr' basePrec (i,j)) args))
 
@@ -342,7 +385,7 @@ prettyExpr' p (i,j) (Data recflag databinds e) =
           prettyDatabind (DataBind n tvars cons) = hsep (map text $ n:tvars) <+> align
                    (equals <+> intersperseBar (map (prettyCtr (i+ (length tvars)))$ cons [i..(i-1+(length tvars))]) <$$> semi)
 
-prettyExpr' p (i,j) (Constr c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
+prettyExpr' p (i,j) (ConstrOut c es)            = parens $ hsep $ text (constrName c) : map (prettyExpr' p (i,j)) es
 
 prettyExpr' p (i,j) (Case e alts) =
     hang 2 $ text "case" <+> prettyExpr' p (i,j) e <+> text "of" <$> align (intersperseBar (map pretty_alt alts))

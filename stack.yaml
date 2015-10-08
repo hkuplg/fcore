@@ -1,0 +1,7 @@
+flags:
+  fcore:
+    z3: false
+packages:
+- '.'
+extra-deps: []
+resolver: lts-3.3

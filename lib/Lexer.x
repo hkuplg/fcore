@@ -84,6 +84,7 @@ tokens :-
     type        { locate (\_ _ -> Ttype) }
     let         { locate (\_ _ -> Tlet) }
     rec         { locate (\_ _ -> Trec) }
+    in          { locate (\_ _ -> Tin) }
     \=          { locate (\_ _ -> Teq) }
     and         { locate (\_ _ -> Tand) }
     Int         { locate (\_ _ -> Tjavaclass "java.lang.Integer") }
@@ -100,6 +101,7 @@ tokens :-
     new         { locate (\_ _ -> Tnew) }
     module      { locate (\_ _ -> Tmodule) }
     import      { locate (\_ _ -> Timport) }
+    package     { locate (\_ _ -> TPackage) }
     data        { locate (\_ _ -> Tdata) }
     \|          { locate (\_ _ -> Tbar) }
     case        { locate (\_ _ -> Tcase) }
@@ -150,7 +152,7 @@ tokens :-
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tbackquote
            -- | Tthis | Tsuper
-           | Ttype | Tlet | Trec | Teq | Tand
+           | Ttype | Tlet | Trec | Tin | Teq | Tand
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
@@ -159,7 +161,7 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tint Integer | Tbool Bool | Tchar Char | Tunitlit | Tunit
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
-           | Tmodule | Timport
+           | Tmodule | Timport | TPackage
            | Temptytree | Tnonemptytree
            | Tlistbegin
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
