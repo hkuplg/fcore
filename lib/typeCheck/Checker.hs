@@ -43,11 +43,21 @@ memoizeJavaClass c
        memoized_java_classes <- getMemoizedJavaClasses
        setCheckerState CheckerState{ checkerMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
 
-withLocalTVars :: [(ReadId, (Kind, TypeValue))] -> Checker a -> Checker a
+withLocalTVars :: [(ReadId, Kind)] -> Checker a -> Checker a
 withLocalTVars tvars do_this
   = do delta <- getTypeContext
-       let delta' = Map.fromList tvars `Map.union` delta
-                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
+       let delta' = addTVarToContext tvars delta
+       CheckerState {..} <- getCheckerState
+       setCheckerState CheckerState { checkerTypeContext = delta', ..}
+       r <- do_this
+       CheckerState {..} <- getCheckerState
+       setCheckerState CheckerState { checkerTypeContext = delta, ..}
+       return r
+
+withTypeSynonym :: [(ReadId, Type, Kind)] -> Checker a -> Checker a
+withTypeSynonym tvars do_this
+  = do delta <- getTypeContext
+       let delta' = addTypeSynonym tvars delta
        CheckerState {..} <- getCheckerState
        setCheckerState CheckerState { checkerTypeContext = delta', ..}
        r <- do_this
@@ -58,8 +68,7 @@ withLocalTVars tvars do_this
 withLocalVars :: [(ReadId, Type)]-> Checker a -> Checker a
 withLocalVars vars do_this
   = do gamma <- getValueContext
-       let gamma' = Map.fromList vars `Map.union` gamma
-                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
+       let gamma' = addVarToContext vars gamma
        CheckerState {..} <- getCheckerState
        setCheckerState CheckerState { checkerValueContext = gamma', ..}
        r <- do_this
@@ -70,8 +79,7 @@ withLocalVars vars do_this
 withLocalMVars :: [(ReadId, ModuleMapInfo)]-> Checker a -> Checker a
 withLocalMVars vars do_this
   = do sigma <- getModuleContext
-       let sigma' = Map.fromList vars `Map.union` sigma
-                -- `Map.fromList` is right-biased and `Map.union` is left-biased.
+       let sigma' = addModuleInfo vars sigma
        CheckerState {..} <- getCheckerState
        setCheckerState CheckerState { checkerModuleContext = sigma', ..}
        r <- do_this
