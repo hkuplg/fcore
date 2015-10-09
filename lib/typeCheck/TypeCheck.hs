@@ -402,38 +402,34 @@ checkExpr (L loc (Error ty str)) = do
 -- delta |- List: \A. List A
 checkExpr (L loc (Data recflag databinds e)) =
     do checkDupNames [ name | DataBind name _ _ <- databinds]
-       mapM_ (\(DataBind name params cs) ->
-                  do checkDupNames $ name:params
-                     let names = map constrName cs
-                     checkDupNames names
-             ) databinds
-
        case recflag of
          NonRec -> do
            binds <- mapM (\bind@(DataBind name params _) ->
                              do kind_dt <- getDatatype bind
                                 (cs', constr_binds)<- withLocalTVars (kind_dt : zip params (repeat (Star, TerminalType)))
                                                                      $ getConstrbinds bind
-                                return ( kind_dt, constr_binds, DataBind name params cs')
-                         ) databinds
+                                return ( kind_dt, constr_binds, DataBind name params cs'))
+                         databinds
            let (tvars, vars, databinds') = unzip3 binds
            (t, e') <- withLocalTVars tvars $ withLocalVars (concat vars) $ checkExpr e
            return (t, L loc $ Data recflag databinds' e')
          Rec -> do
            kind_dts <- mapM getDatatype databinds
            withLocalTVars kind_dts $ do
-             (vars, databinds') <- mapAndUnzipM (
-                     \bind@(DataBind name params _) ->
+             (vars, databinds') <- mapAndUnzipM
+                     (\bind@(DataBind name params _) ->
                             do (cs', constr_binds)<- withLocalTVars (zip params (repeat (Star, TerminalType)))
                                                                     $ getConstrbinds bind
-                               return ( constr_binds, DataBind name params cs')
-                    ) databinds
+                               return (constr_binds, DataBind name params cs'))
+                     databinds
              (t ,e') <- withLocalVars (concat vars) (checkExpr e)
              return (t, L loc $ Data recflag databinds' e')
 
     where getDatatype (DataBind name params cs) =
-            do let names = map constrName cs
-                   dt = Datatype name (map TVar params) names
+            do checkDupNames $ name:params
+               let names = map constrName cs
+               checkDupNames names
+               let dt = Datatype name (map TVar params) names
                    kind_dt = (foldr (\_ acc -> KArrow Star acc) Star params, NonTerminalType $ pullRight params dt)
                return (name, kind_dt)
 
@@ -466,58 +462,41 @@ checkExpr expr@(L loc (Case e alts)) =
  do
    (t, e') <- checkExpr e
    if not (isDatatype t)
-    then if isString t
+    then if (== JClass "java.lang.String") t
            then inferString
            else throwError $ TypeMismatch t (Datatype "Datatype" [] []) `withExpr` e
-    else do
-     value_ctxt <- getValueContext
-     type_ctxt <- getTypeContext
-     let pats = [pat' | ConstrAlt pat' _ <- alts]
-         exps = [exp' | ConstrAlt _ exp' <- alts]
-     -- check patterns
-     pats' <- mapM (typecheckPattern t) pats
-     let alts' = zipWith substAltPattern alts pats'
+    else do let (pats, exps) = unzip [(pat', exp') | ConstrAlt pat' exp' <- alts]
+            -- check patterns
+            pats' <- mapM (typecheckPattern t) pats
 
-     -- infer e
-     (ts, es) <- mapAndUnzipM
-                 (\(ConstrAlt pat e2) ->
-                      let newvars = getLocalVars pat
-                      in  do checkDupNames . fst . unzip $ newvars
-                             withLocalVars newvars (checkExpr e2))
-                 alts'
+            -- check each branch: no duplicate names; check expr
+            let alts' = zipWith (\(ConstrAlt _ exp') p -> ConstrAlt p exp') alts pats'
+            (ts, es) <- mapAndUnzipM (\(ConstrAlt pat e2) -> let newvars = getLocalVars pat
+                                                             in  do checkDupNames . fst . unzip $ newvars
+                                                                    withLocalVars newvars (checkExpr e2))
+                                     alts'
 
-     -- result type check
-     let resType = head ts
-     let i = findIndex (not . compatible type_ctxt resType) ts
-     when (isJust i) $
-            throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
+            -- result type check: case branches have same type
+            let resType = head ts
+            type_ctxt <- getTypeContext
+            let i = findIndex (not . compatible type_ctxt resType) ts
+            when (isJust i) $ throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
 
-     -- exhaustive test
-     let exhaustivity = exhaustiveTest value_ctxt (map (: []) pats') 1
-     unless (null exhaustivity) $
-         throwError $ General (text "patterns are not exhausive, missing patterns:" <$>
-                               vcat (map (hcat . map pretty) exhaustivity)) `withExpr` expr
+            let patmatrix = map (: []) pats'
+            -- pattern exhaustive test
+            value_ctxt <- getValueContext
+            let exhaust = exhaustiveTest value_ctxt patmatrix 1
+            unless (null exhaust) $ throwError $
+               General (text "patterns are not exhausive, missing patterns:" <$> vcat (map (hcat . map pretty) exhaust)) `withExpr` expr
 
-     -- overlap test
-     let patmatrix = map (: []) pats'
-         overlapcases = foldr (\num acc ->
-                             if usefulClause (take num patmatrix) (patmatrix !! num)
-                             then acc
-                             else (pats'!! num):acc
-                         ) [] [1.. length patmatrix -1]
-     when (overlapcases /= []) $
-         throwError $ General (text "patterns are overlapped:"<$> vcat (map pretty overlapcases )) `withExpr` expr
+            -- pattern overlap test
+            let overlap = map (pats' !! ) . filter (\i -> not $ usefulClause (take i patmatrix) (patmatrix !! i)) $ [1.. length patmatrix -1]
+            when (not $ null overlap) $ throwError $ General (text "patterns are overlapped:"<$> vcat (map pretty overlap)) `withExpr` expr
 
-     return (resType, L loc $ Case e' (zipWith substAltExpr alts' es))
+            return (resType, L loc $ Case e' (zipWith (\(ConstrAlt c _) -> ConstrAlt c) alts' es))
 
-  where substAltExpr (ConstrAlt c _) = ConstrAlt c
-        substAltPattern (ConstrAlt _ exp') p = ConstrAlt p exp'
-
-        isDatatype (Datatype{}) = True
+  where isDatatype (Datatype{}) = True
         isDatatype _ = False
-
-        isString (JClass "java.lang.String") = True
-        isString _ = False
 
         getLocalVars PWildcard  = []
         getLocalVars (PVar nam ty) = [(nam, ty)]
@@ -526,23 +505,22 @@ checkExpr expr@(L loc (Case e alts)) =
         -- ty is the expected type
         typecheckPattern ty (PVar nam _) = return (PVar nam ty)
         typecheckPattern _  PWildcard    = return PWildcard
-        typecheckPattern ty pctr@(PConstr ctr pats) = do
+        typecheckPattern ty pctr@(PConstr (Constructor nam _) pats) = do
             unless (isDatatype ty) $ throwError $ TypeMismatch ty (Datatype "Datatype" [] []) `withExpr` expr
-            let Datatype _ ts_feed _ = ty
-                nam = constrName ctr
             type_ctxt <- getTypeContext
             result <- lookupVar nam
-            case result of
-                Nothing -> throwError $ NotInScope nam `withExpr` expr
-                Just t_constr ->
-                    let ts = unwrapFun $ feedToForall t_constr ts_feed
-                    in do unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch t_constr ty `withExpr` expr
-                          unless (length ts - 1 == length pats) $ throwError $ General (text "Constructor" <+> bquotes (text nam)
-                                          <+> text "should have" <+> int (length ts -1) <+> text "arguments, but has been given"
-                                          <+> int (length pats) <+> text "in pattern" <+> pretty pctr ) `withExpr` expr
-                          pat' <- zipWithM typecheckPattern ts pats
-                          return $ PConstr (Constructor nam ts) pat'
+            unless (isJust result) $ throwError $ NotInScope nam `withExpr` expr
+            let Just t_constr = result
+                Datatype _ ts_feed _ = ty
+                ts = unwrapFun $ feedToForall t_constr ts_feed
+            unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch t_constr ty `withExpr` expr
+            unless (length ts - 1 == length pats) $ throwError $
+                General (text "Constructor" <+> bquotes (text nam) <+> text "should have" <+> int (length ts -1) <+>
+                        text "arguments, but has been given" <+> int (length pats) <+> text "in pattern" <+> pretty pctr ) `withExpr` expr
+            pat' <- zipWithM typecheckPattern ts pats
+            return $ PConstr (Constructor nam ts) pat'
 
+        -- this is to deal with pattern match on String.
         -- inferString :: ReadExpr -> Checker (Type, CheckedExpr)
         inferString =
           do
