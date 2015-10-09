@@ -73,7 +73,7 @@ kind d (TVar a)     = case Map.lookup a d of Nothing     -> return Nothing
                                              Just (k, _) -> return (Just k)
 kind _  Unit        = return (Just Star)
 kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
-kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, TerminalType) d
+kind d (Forall a t) = kind (addTVarToContext [(a, Star)] d) t
 kind d (TupleType ts)  = justStarIffAllHaveKindStar d ts
 kind d (RecordType fs) = justStarIffAllHaveKindStar d (map snd fs)
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
@@ -82,7 +82,7 @@ kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 -- -------------------- (K-Abs) Restriction compared to F_omega: x can only have kind *
 -- Δ ⊢ λx. t :: * => k
 kind d (OpAbs x t) = do
-  maybe_k <- kind (Map.insert x (Star, TerminalType) d) t
+  maybe_k <- kind (addTVarToContext [(x, Star)] d) t
   case maybe_k of
     Nothing -> return Nothing
     Just k  -> return $ Just (KArrow Star k)
@@ -159,7 +159,7 @@ checkExpr (L _ (App e1 e2)) =
           _ -> throwError (NotAFunction t1 `withExpr` e1)
 
 checkExpr (L loc (BLam a e))
-  = do (t, e') <- withLocalTVars [(a, (Star, TerminalType))] (checkExpr e)
+  = do (t, e') <- withLocalTVars [(a, Star)] (checkExpr e)
        return (Forall a t, L loc $ BLam a e')
 
 checkExpr (L loc (TApp e arg))
@@ -387,7 +387,7 @@ checkExpr expr@(L _ (Type t params rhs e))
        maybe_kind <- liftIO $ kind typeContext pulledRight
        case maybe_kind of
          Nothing -> throwError $ NotWellKinded pulledRight `withExpr` expr
-         Just k  -> withLocalTVars [(t, (k, NonTerminalType pulledRight))] $ checkExpr e
+         Just k  -> withTypeSynonym [(t, pulledRight, k)] $ checkExpr e
   where
     pulledRight = pullRight params rhs
 
@@ -402,45 +402,40 @@ checkExpr (L loc (Error ty str)) = do
 -- delta |- List: \A. List A
 checkExpr (L loc (Data recflag databinds e)) =
     do checkDupNames [ name | DataBind name _ _ <- databinds]
+       mapM_ checkDupNames [ name:params | DataBind name params _ <- databinds]
+       mapM_ checkDupNames [ map constrName cs | DataBind _ _ cs <- databinds]
        case recflag of
-         NonRec -> do
-           binds <- mapM (\bind@(DataBind name params _) ->
-                             do kind_dt <- getDatatype bind
-                                (cs', constr_binds)<- withLocalTVars (kind_dt : zip params (repeat (Star, TerminalType)))
-                                                                     $ getConstrbinds bind
-                                return ( kind_dt, constr_binds, DataBind name params cs'))
-                         databinds
-           let (tvars, vars, databinds') = unzip3 binds
-           (t, e') <- withLocalTVars tvars $ withLocalVars (concat vars) $ checkExpr e
-           return (t, L loc $ Data recflag databinds' e')
-         Rec -> do
-           kind_dts <- mapM getDatatype databinds
-           withLocalTVars kind_dts $ do
-             (vars, databinds') <- mapAndUnzipM
-                     (\bind@(DataBind name params _) ->
-                            do (cs', constr_binds)<- withLocalTVars (zip params (repeat (Star, TerminalType)))
-                                                                    $ getConstrbinds bind
-                               return (constr_binds, DataBind name params cs'))
-                     databinds
-             (t ,e') <- withLocalVars (concat vars) (checkExpr e)
-             return (t, L loc $ Data recflag databinds' e')
+           -- datatype are new type synonym in context
+           -- constructors are new var in context
+           -- use new context to check expression `e`
+           NonRec -> do
+               binds <- mapM nonrecDatabind databinds
+               let (tvars, vars, databinds') = unzip3 binds
+               (t, e') <- withTypeSynonym tvars $ withLocalVars (concat vars) $ checkExpr e
+               return (t, L loc $ Data recflag databinds' e')
+           Rec -> do
+               let tvars = map getDatatype databinds
+               withTypeSynonym tvars $ do
+                   (vars, databinds') <- mapAndUnzipM recDatabind databinds
+                   (t ,e') <- withLocalVars (concat vars) (checkExpr e)
+                   return (t, L loc $ Data recflag databinds' e')
+    where nonrecDatabind bind@(DataBind name params _) =
+               do let tvars = getDatatype bind
+                  (cons, vars) <- withTypeSynonym [tvars] $ withLocalTVars (zip params (repeat Star)) $ getConstrbinds bind
+                  return (tvars, vars, DataBind name params cons)
+          recDatabind bind@(DataBind name params _) =
+               do (cons, vars)<- withLocalTVars (zip params (repeat Star)) $ getConstrbinds bind
+                  return (vars, DataBind name params cons)
 
-    where getDatatype (DataBind name params cs) =
-            do checkDupNames $ name:params
-               let names = map constrName cs
-               checkDupNames names
-               let dt = Datatype name (map TVar params) names
-                   kind_dt = (foldr (\_ acc -> KArrow Star acc) Star params, NonTerminalType $ pullRight params dt)
-               return (name, kind_dt)
-
+          getDatatype (DataBind name params cs) = (name, ty, kind)
+               where ty = pullRight params (Datatype name (map TVar params) (map constrName cs))
+                     kind = foldr (\_ acc -> KArrow Star acc) Star params
           getConstrbinds (DataBind name params cs) =
-            do type_ctxt <- getTypeContext
-               let names = map constrName cs
-                   dt = Datatype name (map TVar params) names
-                   constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt | Constructor _ ts <- cs]
-                   cs' = [ Constructor ctrname (map (expandType type_ctxt) ts ++ [dt]) | (Constructor ctrname ts) <- cs]
-                   constr_binds = zip names constr_types
-               return (cs', constr_binds)
+               do type_ctxt <- getTypeContext
+                  let dt = Datatype name (map TVar params) (map constrName cs)
+                      vars = [(nam, pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt) | Constructor nam ts <- cs]
+                      cons = [Constructor nam (map (expandType type_ctxt) ts ++ [dt]) | (Constructor nam ts) <- cs]
+                  return (cons, vars)
 
 checkExpr e@(L loc (ConstrIn name)) =
     do result <- lookupVar name
@@ -577,7 +572,7 @@ inferAgainstAnyJClass expr
 normalizeBind :: ReadBind -> Checker CheckedBind
 normalizeBind bind
   = do bind' <- checkBindLHS bind
-       (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
+       (bindRhsTy, bindRhs') <- withLocalTVars (zip (bindTyParams bind') (repeat Star)) $
                                   do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindParams bind')
                                      withLocalVars expandedBindArgs (checkExpr (bindRhs bind'))
        case bindRhsTyAscription bind' of
@@ -585,7 +580,7 @@ normalizeBind bind
                            , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                            , wrap (\x acc -> BLam x acc `withLoc` acc) (bindTyParams bind') (wrap (\x acc -> Lam x acc `withLoc` acc) (bindParams bind') bindRhs'))
          Just ty_ascription ->
-           withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
+           withLocalTVars (zip (bindTyParams bind') (repeat Star)) $
              do checkType ty_ascription
                 d <- getTypeContext
                 let ty_ascription' = expandType d ty_ascription
@@ -602,7 +597,7 @@ checkBindLHS :: ReadBind -> Checker ReadBind
 checkBindLHS Bind{..}
   = do checkDupNames bindTyParams
        checkDupNames (map fst bindParams)
-       bindParams' <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) bindTyParams) $
+       bindParams' <- withLocalTVars (zip bindTyParams (repeat Star)) $
                     -- Restriction: type params have kind *
                     do d <- getTypeContext
                        forM bindParams (\(x,t) ->
@@ -617,7 +612,7 @@ collectBindIdSigs
               Nothing    -> throwError (noExpr $ MissingTyAscription bindId)
               Just tyAscription ->
                 do d <- getTypeContext
-                   let d' = foldr (\a acc -> Map.insert a (Star, TerminalType) acc) d bindTyParams
+                   let d' = foldr (\a acc -> addTVarToContext [(a, Star)] acc) d bindTyParams
                    return (bindId,
                            wrap Forall bindTyParams $
                            wrap Fun [expandType d' ty |  (_,ty) <- bindParams] $
@@ -763,7 +758,7 @@ withExpr err expr = (err, Just expr) `withLoc` expr
 ctrArity :: Map.Map Name Type -> ReadId -> Int
 ctrArity value_ctxt name =
     length (removeForall t) - 1
-    where Just t =  Map.lookup name value_ctxt
+    where Just t =  lookupVarType name value_ctxt
           removeForall (Forall _ b) = removeForall b
           removeForall x            = unwrapFun x
 
