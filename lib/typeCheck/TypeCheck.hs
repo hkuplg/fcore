@@ -73,7 +73,7 @@ kind d (TVar a)     = case Map.lookup a d of Nothing     -> return Nothing
                                              Just (k, _) -> return (Just k)
 kind _  Unit        = return (Just Star)
 kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
-kind d (Forall a t) = kind d' t where d' = Map.insert a (Star, TerminalType) d
+kind d (Forall a t) = kind (addTVarToContext [(a, Star)] d) t
 kind d (TupleType ts)  = justStarIffAllHaveKindStar d ts
 kind d (RecordType fs) = justStarIffAllHaveKindStar d (map snd fs)
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
@@ -82,7 +82,7 @@ kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
 -- -------------------- (K-Abs) Restriction compared to F_omega: x can only have kind *
 -- Δ ⊢ λx. t :: * => k
 kind d (OpAbs x t) = do
-  maybe_k <- kind (Map.insert x (Star, TerminalType) d) t
+  maybe_k <- kind (addTVarToContext [(x, Star)] d) t
   case maybe_k of
     Nothing -> return Nothing
     Just k  -> return $ Just (KArrow Star k)
@@ -159,7 +159,7 @@ checkExpr (L _ (App e1 e2)) =
           _ -> throwError (NotAFunction t1 `withExpr` e1)
 
 checkExpr (L loc (BLam a e))
-  = do (t, e') <- withLocalTVars [(a, (Star, TerminalType))] (checkExpr e)
+  = do (t, e') <- withLocalTVars [(a, Star)] (checkExpr e)
        return (Forall a t, L loc $ BLam a e')
 
 checkExpr (L loc (TApp e arg))
@@ -387,7 +387,7 @@ checkExpr expr@(L _ (Type t params rhs e))
        maybe_kind <- liftIO $ kind typeContext pulledRight
        case maybe_kind of
          Nothing -> throwError $ NotWellKinded pulledRight `withExpr` expr
-         Just k  -> withLocalTVars [(t, (k, NonTerminalType pulledRight))] $ checkExpr e
+         Just k  -> withTypeSynonym [(t, pulledRight, k)] $ checkExpr e
   where
     pulledRight = pullRight params rhs
 
@@ -402,49 +402,40 @@ checkExpr (L loc (Error ty str)) = do
 -- delta |- List: \A. List A
 checkExpr (L loc (Data recflag databinds e)) =
     do checkDupNames [ name | DataBind name _ _ <- databinds]
-       mapM_ (\(DataBind name params cs) ->
-                  do checkDupNames $ name:params
-                     let names = map constrName cs
-                     checkDupNames names
-             ) databinds
-
+       mapM_ checkDupNames [ name:params | DataBind name params _ <- databinds]
+       mapM_ checkDupNames [ map constrName cs | DataBind _ _ cs <- databinds]
        case recflag of
-         NonRec -> do
-           binds <- mapM (\bind@(DataBind name params _) ->
-                             do kind_dt <- getDatatype bind
-                                (cs', constr_binds)<- withLocalTVars (kind_dt : zip params (repeat (Star, TerminalType)))
-                                                                     $ getConstrbinds bind
-                                return ( kind_dt, constr_binds, DataBind name params cs')
-                         ) databinds
-           let (tvars, vars, databinds') = unzip3 binds
-           (t, e') <- withLocalTVars tvars $ withLocalVars (concat vars) $ checkExpr e
-           return (t, L loc $ Data recflag databinds' e')
-         Rec -> do
-           kind_dts <- mapM getDatatype databinds
-           withLocalTVars kind_dts $ do
-             (vars, databinds') <- mapAndUnzipM (
-                     \bind@(DataBind name params _) ->
-                            do (cs', constr_binds)<- withLocalTVars (zip params (repeat (Star, TerminalType)))
-                                                                    $ getConstrbinds bind
-                               return ( constr_binds, DataBind name params cs')
-                    ) databinds
-             (t ,e') <- withLocalVars (concat vars) (checkExpr e)
-             return (t, L loc $ Data recflag databinds' e')
+           -- datatype are new type synonym in context
+           -- constructors are new var in context
+           -- use new context to check expression `e`
+           NonRec -> do
+               binds <- mapM nonrecDatabind databinds
+               let (tvars, vars, databinds') = unzip3 binds
+               (t, e') <- withTypeSynonym tvars $ withLocalVars (concat vars) $ checkExpr e
+               return (t, L loc $ Data recflag databinds' e')
+           Rec -> do
+               let tvars = map getDatatype databinds
+               withTypeSynonym tvars $ do
+                   (vars, databinds') <- mapAndUnzipM recDatabind databinds
+                   (t ,e') <- withLocalVars (concat vars) (checkExpr e)
+                   return (t, L loc $ Data recflag databinds' e')
+    where nonrecDatabind bind@(DataBind name params _) =
+               do let tvars = getDatatype bind
+                  (cons, vars) <- withTypeSynonym [tvars] $ withLocalTVars (zip params (repeat Star)) $ getConstrbinds bind
+                  return (tvars, vars, DataBind name params cons)
+          recDatabind bind@(DataBind name params _) =
+               do (cons, vars)<- withLocalTVars (zip params (repeat Star)) $ getConstrbinds bind
+                  return (vars, DataBind name params cons)
 
-    where getDatatype (DataBind name params cs) =
-            do let names = map constrName cs
-                   dt = Datatype name (map TVar params) names
-                   kind_dt = (foldr (\_ acc -> KArrow Star acc) Star params, NonTerminalType $ pullRight params dt)
-               return (name, kind_dt)
-
+          getDatatype (DataBind name params cs) = (name, ty, kind)
+               where ty = pullRight params (Datatype name (map TVar params) (map constrName cs))
+                     kind = foldr (\_ acc -> KArrow Star acc) Star params
           getConstrbinds (DataBind name params cs) =
-            do type_ctxt <- getTypeContext
-               let names = map constrName cs
-                   dt = Datatype name (map TVar params) names
-                   constr_types = [pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt | Constructor _ ts <- cs]
-                   cs' = [ Constructor ctrname (map (expandType type_ctxt) ts ++ [dt]) | (Constructor ctrname ts) <- cs]
-                   constr_binds = zip names constr_types
-               return (cs', constr_binds)
+               do type_ctxt <- getTypeContext
+                  let dt = Datatype name (map TVar params) (map constrName cs)
+                      vars = [(nam, pullRightForall params $ wrap Fun [expandType type_ctxt t | t <- ts] dt) | Constructor nam ts <- cs]
+                      cons = [Constructor nam (map (expandType type_ctxt) ts ++ [dt]) | (Constructor nam ts) <- cs]
+                  return (cons, vars)
 
 checkExpr e@(L loc (ConstrIn name)) =
     do result <- lookupVar name
@@ -466,83 +457,66 @@ checkExpr expr@(L loc (Case e alts)) =
  do
    (t, e') <- checkExpr e
    if not (isDatatype t)
-    then if isString t
-           then inferString
-           else throwError $ TypeMismatch t (Datatype "Datatype" [] []) `withExpr` e
-    else do
-     value_ctxt <- getValueContext
-     type_ctxt <- getTypeContext
-     let pats = [pat' | ConstrAlt pat' _ <- alts]
-         exps = [exp' | ConstrAlt _ exp' <- alts]
-     -- check patterns
-     pats' <- mapM (typecheckPattern t) pats
-     let alts' = zipWith substAltPattern alts pats'
+    then if (== JClass "java.lang.String") t then inferString else throwError $ TypeMismatch t (Datatype "Datatype" [] []) `withExpr` e
+    else do let (pats, exps) = unzip [(pat, exp) | ConstrAlt pat exp <- alts]
+            -- check patterns
+            pats' <- mapM (checkPattern t) pats
 
-     -- infer e
-     (ts, es) <- mapAndUnzipM
-                 (\(ConstrAlt pat e2) ->
-                      let newvars = getLocalVars pat
-                      in  do checkDupNames . fst . unzip $ newvars
-                             withLocalVars newvars (checkExpr e2))
-                 alts'
+            -- check each branch: no duplicate names; check expr
+            let alts' = zipWith (\(ConstrAlt _ exp') p -> ConstrAlt p exp') alts pats'
+            (ts, es) <- mapAndUnzipM checkBranch alts'
 
-     -- result type check
-     let resType = head ts
-     let i = findIndex (not . compatible type_ctxt resType) ts
-     when (isJust i) $
-            throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
+            -- result type check: case branches have same type
+            let resType = head ts
+            type_ctxt <- getTypeContext
+            let i = findIndex (not . compatible type_ctxt resType) ts
+            when (isJust i) $ throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
 
-     -- exhaustive test
-     let exhaustivity = exhaustiveTest value_ctxt (map (: []) pats') 1
-     unless (null exhaustivity) $
-         throwError $ General (text "patterns are not exhausive, missing patterns:" <$>
-                               vcat (map (hcat . map pretty) exhaustivity)) `withExpr` expr
+            -- pattern exhaustive test
+            let patmatrix = map (: []) pats'
+            value_ctxt <- getValueContext
+            let exhaust = exhaustiveTest value_ctxt patmatrix 1
+            unless (null exhaust) $ throwError $
+               General (text "patterns are not exhausive, missing patterns:" <$> vcat (map (hcat . map pretty) exhaust)) `withExpr` expr
 
-     -- overlap test
-     let patmatrix = map (: []) pats'
-         overlapcases = foldr (\num acc ->
-                             if usefulClause (take num patmatrix) (patmatrix !! num)
-                             then acc
-                             else (pats'!! num):acc
-                         ) [] [1.. length patmatrix -1]
-     when (overlapcases /= []) $
-         throwError $ General (text "patterns are overlapped:"<$> vcat (map pretty overlapcases )) `withExpr` expr
+            -- pattern overlap test
+            let overlap = map (pats' !! ) . filter (\i -> not $ usefulClause (take i patmatrix) (patmatrix !! i)) $ [1.. length patmatrix -1]
+            when (not $ null overlap) $ throwError $ General (text "patterns are overlapped:"<$> vcat (map pretty overlap)) `withExpr` expr
 
-     return (resType, L loc $ Case e' (zipWith substAltExpr alts' es))
+            return (resType, L loc $ Case e' (zipWith (\(ConstrAlt c _) -> ConstrAlt c) alts' es))
 
-  where substAltExpr (ConstrAlt c _) = ConstrAlt c
-        substAltPattern (ConstrAlt _ exp') p = ConstrAlt p exp'
-
-        isDatatype (Datatype{}) = True
+  where isDatatype (Datatype{}) = True
         isDatatype _ = False
 
-        isString (JClass "java.lang.String") = True
-        isString _ = False
+        checkBranch (ConstrAlt pat e2) = do
+            let getLocalVars PWildcard  = []
+                getLocalVars (PVar nam ty) = [(nam, ty)]
+                getLocalVars (PConstr _ pats) = concatMap getLocalVars pats
+            let newvars = getLocalVars pat
+            checkDupNames . fst . unzip $ newvars
+            withLocalVars newvars (checkExpr e2)
 
-        getLocalVars PWildcard  = []
-        getLocalVars (PVar nam ty) = [(nam, ty)]
-        getLocalVars (PConstr _ pats) = concatMap getLocalVars pats
-
-        -- ty is the expected type
-        typecheckPattern ty (PVar nam _) = return (PVar nam ty)
-        typecheckPattern _  PWildcard    = return PWildcard
-        typecheckPattern ty pctr@(PConstr ctr pats) = do
+        checkPattern ty (PVar nam _) = return (PVar nam ty)
+        checkPattern _  PWildcard    = return PWildcard
+        checkPattern ty pctr@(PConstr (Constructor nam _) pats) = do
+            -- datatype; constructor
             unless (isDatatype ty) $ throwError $ TypeMismatch ty (Datatype "Datatype" [] []) `withExpr` expr
-            let Datatype _ ts_feed _ = ty
-                nam = constrName ctr
-            type_ctxt <- getTypeContext
             result <- lookupVar nam
-            case result of
-                Nothing -> throwError $ NotInScope nam `withExpr` expr
-                Just t_constr ->
-                    let ts = unwrapFun $ feedToForall t_constr ts_feed
-                    in do unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch t_constr ty `withExpr` expr
-                          unless (length ts - 1 == length pats) $ throwError $ General (text "Constructor" <+> bquotes (text nam)
-                                          <+> text "should have" <+> int (length ts -1) <+> text "arguments, but has been given"
-                                          <+> int (length pats) <+> text "in pattern" <+> pretty pctr ) `withExpr` expr
-                          pat' <- zipWithM typecheckPattern ts pats
-                          return $ PConstr (Constructor nam ts) pat'
+            unless (isJust result) $ throwError $ NotInScope nam `withExpr` expr
+            -- type check: ty is the expected type
+            let constr = fromJust result
+                Datatype _ feed _ = ty
+                ts = unwrapFun $ feedToForall constr feed
+            type_ctxt <- getTypeContext
+            unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch constr ty `withExpr` expr
+            -- constructor arguments
+            let error_msg =  text "Constructor" <+> bquotes (text nam) <+> text "should have" <+> int (length ts -1) <+>
+                        text "arguments, but has been given" <+> int (length pats) <+> text "in pattern" <+> pretty pctr
+            unless (length ts - 1 == length pats) $ throwError $ General error_msg `withExpr` expr
+            subpat <- zipWithM checkPattern ts pats
+            return $ PConstr (Constructor nam ts) subpat
 
+        -- temporary hack: this is to deal with pattern match on String.
         -- inferString :: ReadExpr -> Checker (Type, CheckedExpr)
         inferString =
           do
@@ -599,7 +573,7 @@ inferAgainstAnyJClass expr
 normalizeBind :: ReadBind -> Checker CheckedBind
 normalizeBind bind
   = do bind' <- checkBindLHS bind
-       (bindRhsTy, bindRhs') <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
+       (bindRhsTy, bindRhs') <- withLocalTVars (zip (bindTyParams bind') (repeat Star)) $
                                   do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindParams bind')
                                      withLocalVars expandedBindArgs (checkExpr (bindRhs bind'))
        case bindRhsTyAscription bind' of
@@ -607,7 +581,7 @@ normalizeBind bind
                            , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                            , wrap (\x acc -> BLam x acc `withLoc` acc) (bindTyParams bind') (wrap (\x acc -> Lam x acc `withLoc` acc) (bindParams bind') bindRhs'))
          Just ty_ascription ->
-           withLocalTVars (map (\a -> (a, (Star, TerminalType))) (bindTyParams bind')) $
+           withLocalTVars (zip (bindTyParams bind') (repeat Star)) $
              do checkType ty_ascription
                 d <- getTypeContext
                 let ty_ascription' = expandType d ty_ascription
@@ -624,7 +598,7 @@ checkBindLHS :: ReadBind -> Checker ReadBind
 checkBindLHS Bind{..}
   = do checkDupNames bindTyParams
        checkDupNames (map fst bindParams)
-       bindParams' <- withLocalTVars (map (\a -> (a, (Star, TerminalType))) bindTyParams) $
+       bindParams' <- withLocalTVars (zip bindTyParams (repeat Star)) $
                     -- Restriction: type params have kind *
                     do d <- getTypeContext
                        forM bindParams (\(x,t) ->
@@ -639,7 +613,7 @@ collectBindIdSigs
               Nothing    -> throwError (noExpr $ MissingTyAscription bindId)
               Just tyAscription ->
                 do d <- getTypeContext
-                   let d' = foldr (\a acc -> Map.insert a (Star, TerminalType) acc) d bindTyParams
+                   let d' = foldr (\a acc -> addTVarToContext [(a, Star)] acc) d bindTyParams
                    return (bindId,
                            wrap Forall bindTyParams $
                            wrap Fun [expandType d' ty |  (_,ty) <- bindParams] $
@@ -785,7 +759,7 @@ withExpr err expr = (err, Just expr) `withLoc` expr
 ctrArity :: Map.Map Name Type -> ReadId -> Int
 ctrArity value_ctxt name =
     length (removeForall t) - 1
-    where Just t =  Map.lookup name value_ctxt
+    where Just t =  lookupVarType name value_ctxt
           removeForall (Forall _ b) = removeForall b
           removeForall x            = unwrapFun x
 
