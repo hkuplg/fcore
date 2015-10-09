@@ -457,19 +457,14 @@ checkExpr expr@(L loc (Case e alts)) =
  do
    (t, e') <- checkExpr e
    if not (isDatatype t)
-    then if (== JClass "java.lang.String") t
-           then inferString
-           else throwError $ TypeMismatch t (Datatype "Datatype" [] []) `withExpr` e
-    else do let (pats, exps) = unzip [(pat', exp') | ConstrAlt pat' exp' <- alts]
+    then if (== JClass "java.lang.String") t then inferString else throwError $ TypeMismatch t (Datatype "Datatype" [] []) `withExpr` e
+    else do let (pats, exps) = unzip [(pat, exp) | ConstrAlt pat exp <- alts]
             -- check patterns
-            pats' <- mapM (typecheckPattern t) pats
+            pats' <- mapM (checkPattern t) pats
 
             -- check each branch: no duplicate names; check expr
             let alts' = zipWith (\(ConstrAlt _ exp') p -> ConstrAlt p exp') alts pats'
-            (ts, es) <- mapAndUnzipM (\(ConstrAlt pat e2) -> let newvars = getLocalVars pat
-                                                             in  do checkDupNames . fst . unzip $ newvars
-                                                                    withLocalVars newvars (checkExpr e2))
-                                     alts'
+            (ts, es) <- mapAndUnzipM checkBranch alts'
 
             -- result type check: case branches have same type
             let resType = head ts
@@ -477,8 +472,8 @@ checkExpr expr@(L loc (Case e alts)) =
             let i = findIndex (not . compatible type_ctxt resType) ts
             when (isJust i) $ throwError $ TypeMismatch resType (ts !! fromJust i) `withExpr` (exps !! fromJust i)
 
-            let patmatrix = map (: []) pats'
             -- pattern exhaustive test
+            let patmatrix = map (: []) pats'
             value_ctxt <- getValueContext
             let exhaust = exhaustiveTest value_ctxt patmatrix 1
             unless (null exhaust) $ throwError $
@@ -493,29 +488,35 @@ checkExpr expr@(L loc (Case e alts)) =
   where isDatatype (Datatype{}) = True
         isDatatype _ = False
 
-        getLocalVars PWildcard  = []
-        getLocalVars (PVar nam ty) = [(nam, ty)]
-        getLocalVars (PConstr _ pats) = concatMap getLocalVars pats
+        checkBranch (ConstrAlt pat e2) = do
+            let getLocalVars PWildcard  = []
+                getLocalVars (PVar nam ty) = [(nam, ty)]
+                getLocalVars (PConstr _ pats) = concatMap getLocalVars pats
+            let newvars = getLocalVars pat
+            checkDupNames . fst . unzip $ newvars
+            withLocalVars newvars (checkExpr e2)
 
-        -- ty is the expected type
-        typecheckPattern ty (PVar nam _) = return (PVar nam ty)
-        typecheckPattern _  PWildcard    = return PWildcard
-        typecheckPattern ty pctr@(PConstr (Constructor nam _) pats) = do
+        checkPattern ty (PVar nam _) = return (PVar nam ty)
+        checkPattern _  PWildcard    = return PWildcard
+        checkPattern ty pctr@(PConstr (Constructor nam _) pats) = do
+            -- datatype; constructor
             unless (isDatatype ty) $ throwError $ TypeMismatch ty (Datatype "Datatype" [] []) `withExpr` expr
-            type_ctxt <- getTypeContext
             result <- lookupVar nam
             unless (isJust result) $ throwError $ NotInScope nam `withExpr` expr
-            let Just t_constr = result
-                Datatype _ ts_feed _ = ty
-                ts = unwrapFun $ feedToForall t_constr ts_feed
-            unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch t_constr ty `withExpr` expr
-            unless (length ts - 1 == length pats) $ throwError $
-                General (text "Constructor" <+> bquotes (text nam) <+> text "should have" <+> int (length ts -1) <+>
-                        text "arguments, but has been given" <+> int (length pats) <+> text "in pattern" <+> pretty pctr ) `withExpr` expr
-            pat' <- zipWithM typecheckPattern ts pats
-            return $ PConstr (Constructor nam ts) pat'
+            -- type check: ty is the expected type
+            let constr = fromJust result
+                Datatype _ feed _ = ty
+                ts = unwrapFun $ feedToForall constr feed
+            type_ctxt <- getTypeContext
+            unless (compatible type_ctxt (last ts) ty) $ throwError $ TypeMismatch constr ty `withExpr` expr
+            -- constructor arguments
+            let error_msg =  text "Constructor" <+> bquotes (text nam) <+> text "should have" <+> int (length ts -1) <+>
+                        text "arguments, but has been given" <+> int (length pats) <+> text "in pattern" <+> pretty pctr
+            unless (length ts - 1 == length pats) $ throwError $ General error_msg `withExpr` expr
+            subpat <- zipWithM checkPattern ts pats
+            return $ PConstr (Constructor nam ts) subpat
 
-        -- this is to deal with pattern match on String.
+        -- temporary hack: this is to deal with pattern match on String.
         -- inferString :: ReadExpr -> Checker (Type, CheckedExpr)
         inferString =
           do
