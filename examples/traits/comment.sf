@@ -1,0 +1,16 @@
+type Comment = { content: Unit -> String };
+let comment (content: String) (self: Unit -> Comment) = {
+  content = \(d: Unit) -> content
+};
+
+type Up = { upvotes: Unit -> Int };
+let up (upvotes: Int) (self: Unit -> Up) = {
+  upvotes = \(d: Unit) -> upvotes
+};
+
+let comment
+  = let rec self: Unit -> (Comment&Up)
+      = \(d: Unit) -> comment("hello") self ,, up 4 self
+    in self ()
+;
+comment.content().concat(comment.upvotes().toString())
