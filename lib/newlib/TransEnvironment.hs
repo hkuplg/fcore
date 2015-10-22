@@ -8,17 +8,17 @@ module TransEnvironment (
     oneStep,
     ) where
 
-import           Control.Applicative
-import           Control.Monad.Except
-import           Control.Monad.Reader
-import           Control.Monad.Trans.Maybe
-import           Lens.Micro
-import           Lens.Micro.TH
-import           Unbound.Generics.LocallyNameless
+import Control.Applicative
+import Control.Monad.Except
+import Control.Monad.Reader
+import Control.Monad.Trans.Maybe
+import Lens.Micro
+import Lens.Micro.TH
+import Unbound.Generics.LocallyNameless
 
-import           Panic
-import           PrettyPrint
-import           Syntax
+import Panic
+import PrettyPrint
+import Syntax
 
 
 data Context = Ctx {_env :: Tele}

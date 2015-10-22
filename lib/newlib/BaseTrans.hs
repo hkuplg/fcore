@@ -2,10 +2,10 @@
 
 module BaseTrans where
 
+import           Control.Monad.Reader
 import qualified Language.Java.Syntax as J
 import           Lens.Micro
 import           Unbound.Generics.LocallyNameless
-import           Control.Monad.Reader
 
 import           Inheritance
 import           JavaLang
