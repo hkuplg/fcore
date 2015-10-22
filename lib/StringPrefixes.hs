@@ -8,6 +8,8 @@ namespace = "f2j."
 ifoClass :: String
 ifoClass = namespace ++ "Closure"
 
+closureClass = namespace ++ "Closure"
+
 typeHouse :: String
 typeHouse = namespace ++ "TypeHouse"
 

@@ -26,6 +26,7 @@ library
                       , haskeline == 0.7.*
                       , language-java == 0.2.*
                       , microlens == 0.2.0.*
+                      , microlens-th == 0.2.1.*
                       , mtl == 2.2.*
                       , parsec == 3.1.*
                       , pretty == 1.1.*
@@ -35,11 +36,13 @@ library
                       , template-haskell == 2.10.*
                       , time == 1.5.*
                       , transformers == 0.4.*
+                      , unbound-generics == 0.2
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
   hs-source-dirs:       lib,lib/services
                       , lib/typeCheck
                       , lib/simplify,repl
+                      , lib/newlib
   exposed-modules:      ApplyTransCFJava
                         BackEnd
                         BaseTransCFJava
@@ -59,6 +62,8 @@ library
                         Inheritance
                         Inliner
                         JavaEDSL
+                        JavaLang
+                        PrettyPrint
                         JavaUtils
                         JvmTypeQuery
                         Lexer
@@ -75,6 +80,7 @@ library
                         Problem
                         RuntimeProcessManager
                         Simplify
+                        Syntax
                         Src
                         SrcLoc
                         StackTransCFJava
@@ -83,6 +89,7 @@ library
                         StringUtils
                         SystemFI
                         TestInh
+                        TransEnvironment
                         TypeCheck
                         TypeErrors
   other-modules:        Paths_fcore
@@ -117,7 +124,6 @@ executable f2j
                       , template-haskell == 2.10.*
                       , time == 1.5.*
                       , transformers == 0.4.*
-  other-modules:        Main
   ghc-options:          -Wall
                         -fno-warn-missing-signatures
                         -fno-warn-name-shadowing
