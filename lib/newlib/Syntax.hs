@@ -23,7 +23,7 @@ data Expr = Var TmName
           | Mu (Bind (TmName, Embed Expr) Expr)
           | F Expr Expr
           | U Expr
-          | Kind Kinds
+          | Star
 
           | Let (Bind (TmName, Embed Expr) Expr)
           | Nat
@@ -45,17 +45,11 @@ subExpr = PrimOp Sub
 multExpr :: Expr -> Expr -> Expr
 multExpr = PrimOp Mult
 
-data Kinds = Star
-           | Box
-  deriving (Show, Generic, Typeable)
-
 instance Alpha Expr
 instance Alpha Operation
-instance Alpha Kinds
 instance Alpha Tele
 
 instance Subst Expr Operation
-instance Subst Expr Kinds
 instance Subst Expr Tele
 
 instance Subst Expr Expr where
@@ -98,10 +92,7 @@ earr :: Expr -> Expr -> Expr
 earr t1 = epi [("_", t1)]
 
 estar :: Expr
-estar = Kind Star
-
-ebox :: Expr
-ebox = Kind Box
+estar = Star
 
 eapp :: Expr -> Expr -> Expr
 eapp = App

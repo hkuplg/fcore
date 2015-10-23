@@ -9,7 +9,6 @@ module TransEnvironment (
     ) where
 
 import Control.Applicative
-import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.Trans.Maybe
 import Lens.Micro
@@ -58,19 +57,8 @@ lookupTy v = do
     Nothing  -> panic $ "Not in scope: " ++ show v
     Just res -> return res
 
--- lookupCtx :: (MonadReader Context m) => m (ClassTag, PosTag)
--- lookupCtx = do
---   ctx <- ask
---   return (ctx ^. tag, ctx ^. pos)
-
 extendCtx :: (MonadReader Context m) => Tele -> m a -> m a
 extendCtx d = local (over env (`appTele` d))
-
--- flipPos :: (MonadReader Context m) => m a -> m a
--- flipPos = local (over pos flip)
---   where
---     flip Pos = Neg
---     flip Neg = Pos
 
 
 appTele :: Tele -> Tele -> Tele
@@ -88,15 +76,13 @@ multiSubst (Cons rb) t e = (b', e')
     b' = subst x t b
 
 
--- Operation semantics
-
 done :: MonadPlus m => m a
 done = mzero
 
 -- | Small step, call-by-value operational semantics
 step :: Expr -> MaybeT FreshM Expr
 step (Var{}) = done
-step (Kind{}) = done
+step (Star) = done
 step (Lam{}) = done
 step (Pi{}) = done
 step (F{}) = done

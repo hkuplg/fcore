@@ -17,8 +17,7 @@ instance Pretty Expr where
     delta' <- ppr delta
     b' <- ppr b
     return (PP.parens $ text "λ" <> delta' <+> dot <+> b')
-  ppr (Kind Star) = return $ PP.char '★'
-  ppr (Kind Box) = return $ PP.char '▢'
+  ppr (Star) = return $ PP.char '★'
   ppr (Pi bnd) = lunbind bnd $ \(delta, b) -> do
     let Cons bb = delta
     let ((x, Embed t), bb') = unrebind bb

@@ -95,7 +95,7 @@ translateM' this e =
       let x' = name2String x
       (s1, j1, t1) <- translateM this e
       -- types do need to generate code
-      if (aeq t1 estar || aeq t1 ebox)
+      if (aeq t1 estar)
         then translateM this (subst x e b)
         else do
           let jt1 = javaType t1
@@ -114,17 +114,16 @@ translateM' this e =
 
     Nat -> do
       (js, v) <- createTypeHouse "nat"
-      return (js, v, Kind Star)
+      return (js, v, Star)
 
-    Kind Star -> do
+    Star -> do
       (js, v) <- createTypeHouse "star"
-      return (js, v, Kind Box)
+      return (js, v, Star)
 
     Pi _ -> do
       (js, v) <- createTypeHouse "pi"
-      return (js, v, Kind Star)
+      return (js, v, Star)
 
-    _ -> sorry "Not implemented yet"
 
 
 translateScopeM' this bnd n = do
