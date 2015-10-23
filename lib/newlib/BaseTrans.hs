@@ -134,6 +134,14 @@ translateM' this e =
       (js, v) <- createTypeHouse "pi"
       return (js, v, Star)
 
+    JClass className -> do
+      (stmts, jvar) <- createTypeHouse className
+      return (stmts, jvar, Star)
+
+    Unit -> do
+      (stmts, jvar) <- createTypeHouse "Unit"
+      return (stmts, jvar, Star)
+
 
 translateIf' this m1 m2 m3 = do
   (s1, j1, _) <- m1
