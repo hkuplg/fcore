@@ -106,9 +106,10 @@ step (U e) = U <$> step e
 step e@(Mu bnd) = do
   ((n, _), b) <- unbind bnd
   return $ subst n e b
-step (PrimOp op (Lit n) (Lit m)) = do
-  let x = evalOp op
-  return (Lit (n `x` m))
+-- TODO: semantics for primop
+-- step (PrimOp op (Lit n) (Lit m)) = do
+--   let x = evalOp op
+--   return (Lit (n `x` m))
 step (PrimOp op e1 e2) =
   PrimOp <$> pure op <*> step e1 <*> pure e2
   <|> PrimOp <$> pure op <*> pure e1 <*> step e2

@@ -10,6 +10,7 @@ import           Unbound.Generics.LocallyNameless
 import           Inheritance
 import           JavaLang
 import           Panic
+import qualified Src as S
 import           StringPrefixes
 import           Syntax
 import           TransEnvironment
@@ -22,6 +23,7 @@ data Translate m =
        T
          { translateM :: Expr -> m TransType
          , translateScopeM :: Bind Tele Expr -> Maybe TmName -> m ([J.BlockStmt], TransJavaExp, Bind Tele Expr)
+         , translateIf :: m TransType -> m TransType -> m TransType -> m TransType
          , translateApply :: Expr -> Expr -> m TransType
          , translateScopeTy :: Tele -> TransType -> Maybe TmName -> m ([J.BlockStmt], TransJavaExp)
          , createWrap :: String -> Expr -> m J.CompilationUnit
@@ -47,6 +49,7 @@ trans self =
   let this = up self
   in T
     { translateM  = translateM' this
+    , translateIf = translateIf' this
     , translateScopeM = translateScopeM' this
     , translateScopeTy = translateScopeTy' this
     , translateApply = translateApply' this
@@ -59,7 +62,13 @@ translateM' this e =
     Var n -> do
       t <- lookupTy n
       return ([], var (show n), t)
-    Lit lit -> return ([], Right $ J.Int lit, Nat)
+    Lit lit ->
+      case lit of
+        (S.Int i)    -> return ([], Right $ J.Int i, JClass "java.lang.Integer")
+        (S.UnitLit)  -> return ([], Right J.Null, Unit)
+        (S.String s) -> return ([], Right $ J.String s, JClass "java.lang.String")
+        (S.Bool b)   -> return ([], Right $ J.Boolean b, JClass "java.lang.Boolean")
+        (S.Char c)   -> return ([], Right $ J.Char c, JClass "java.lang.Character")
     PrimOp op e1 e2 -> do
       (s1, j1, _) <- translateM this e1
       (s2, j2, _) <- translateM this e2
@@ -67,9 +76,9 @@ translateM' this e =
       let j2' = unwrap j2
       let (je, t) =
             case op of
-              Add  -> (J.BinOp j1' J.Add j2', Nat)
-              Mult -> (J.BinOp j1' J.Mult j2', Nat)
-              Sub  -> (J.BinOp j1' J.Sub j2', Nat)
+              (S.Arith realOp)   -> (J.BinOp j1' realOp j2', JClass "java.lang.Integer")
+              (S.Compare realOp) -> (J.BinOp j1' realOp j2', JClass "java.lang.Boolean")
+              (S.Logic realOp)   -> (J.BinOp j1' realOp j2', JClass "java.lang.Boolean")
       newName <- fresh (string2Name "prim" :: TmName)
       let assignExpr = localFinalVar (javaType t) (varDecl (show newName) je)
       return (s1 ++ s2 ++ [assignExpr], var (show newName), t)
@@ -103,6 +112,8 @@ translateM' this e =
           (s2, j2, t2) <- extendCtx (mkTele [(x', t1)]) (translateM this b)
           return (s1 ++ [xDecl] ++ s2, j2, t2)
 
+    If g e1 e2 -> translateIf this (translateM this g) (translateM this e1) (translateM this e2)
+
     F t e -> do
       (s, v, _) <- translateM this e
       return (s, v, t)
@@ -124,6 +135,21 @@ translateM' this e =
       (js, v) <- createTypeHouse "pi"
       return (js, v, Star)
 
+
+translateIf' this m1 m2 m3 = do
+  (s1, j1, _) <- m1
+  (s2, j2, t2) <- m2
+  (s3, j3, t3) <- m2
+  ifname <- fresh (string2Name ifresultstr :: TmName)
+  let ifvarname = name2String ifname
+  let jtype = javaType t2
+
+  let ifresdecl = localVar jtype (varDeclNoInit ifvarname)
+  let thenPart  = J.StmtBlock $ block (s2 ++ [bsAssign (name [ifvarname]) (unwrap j2)])
+  let elsePart  = J.StmtBlock $ block (s3 ++ [bsAssign (name [ifvarname]) (unwrap j3)])
+  let ifstmt    = bStmt $ J.IfThenElse (unwrap j1) thenPart elsePart
+
+  return (s1 ++ [ifresdecl,ifstmt],var ifvarname ,t2)
 
 
 translateScopeM' this bnd n = do

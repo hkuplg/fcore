@@ -3,5 +3,9 @@ flags:
     z3: false
 packages:
 - '.'
+- location:
+    git: git@github.com:bixuanzju/language-java.git
+    commit: fc26e79f9a2bf1deb55c095e45505bfc197468d3
+
 extra-deps: []
 resolver: lts-3.10

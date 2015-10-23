@@ -1,9 +1,12 @@
 module PrettyPrint (showExpr) where
 
+import qualified Language.Java.Pretty (prettyPrint)
 import           Text.PrettyPrint.ANSI.Leijen (Doc, (<+>), (<>), text, dot, colon)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
 import           Unbound.Generics.LocallyNameless
 
+
+import qualified Src as S
 import           Syntax
 
 
@@ -42,13 +45,35 @@ instance Pretty Expr where
     e1' <- ppr e1
     e2' <- ppr e2
     return (text "let" <+> (text . show $ x) <+> PP.equals <+> e1' <+> text "in" <+> e2')
+  ppr (If g e1 e2) = do
+    g' <- ppr g
+    e1' <- ppr e1
+    e2' <- ppr e2
+    return
+      (text "if" <+>
+       PP.parens g' <+>
+       text "then" <+>
+       PP.parens e1' <+>
+       text "else" <+>
+       PP.parens e2')
   ppr Nat = return $ text "nat"
-  ppr (Lit n) = return . text . show $ n
+  ppr (Lit (S.Int n)) = return $ PP.integer n
+  ppr (Lit (S.String s)) = return $ PP.dquotes (PP.string s)
+  ppr (Lit (S.Bool b)) = return $ PP.bool b
+  ppr (Lit (S.Char c)) = return $ PP.char c
+  ppr (Lit (S.UnitLit)) = return $ text "()"
   ppr (PrimOp op e1 e2) = do
     e1' <- ppr e1
     e2' <- ppr e2
-    op' <- ppr op
     return $ PP.parens (e1' <+> op' <+> e2')
+
+    where
+      op' = text (Language.Java.Pretty.prettyPrint java_op)
+      java_op =
+        case op of
+          S.Arith op'   -> op'
+          S.Compare op' -> op'
+          S.Logic op'   -> op'
 
 instance Pretty Operation where
   ppr Add = return . text $ "+"

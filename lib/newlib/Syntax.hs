@@ -2,12 +2,18 @@
 
 module Syntax where
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans.Maybe
-import Data.Typeable (Typeable)
-import GHC.Generics (Generic)
-import Unbound.Generics.LocallyNameless
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.Trans.Maybe
+import           Data.Typeable (Typeable)
+import           GHC.Generics (Generic)
+import           Unbound.Generics.LocallyNameless
+
+import           JavaUtils
+import qualified Language.Java.Syntax as J
+import qualified Src as S
+
+
 
 type TmName = Name Expr
 
@@ -26,9 +32,15 @@ data Expr = Var TmName
           | Star
 
           | Let (Bind (TmName, Embed Expr) Expr)
+          | If Expr Expr Expr
           | Nat
-          | Lit Integer
-          | PrimOp Operation Expr Expr
+          | Lit S.Lit
+          | PrimOp S.Operator Expr Expr
+
+          | JClass ClassName
+          | Unit
+
+
   deriving (Show, Generic, Typeable)
 
 data Operation = Mult
@@ -36,20 +48,26 @@ data Operation = Mult
                | Add
   deriving (Show, Generic, Typeable)
 
-addExpr :: Expr -> Expr -> Expr
-addExpr = PrimOp Add
+-- addExpr :: Expr -> Expr -> Expr
+-- addExpr = PrimOp Add
 
-subExpr :: Expr -> Expr -> Expr
-subExpr = PrimOp Sub
+-- subExpr :: Expr -> Expr -> Expr
+-- subExpr = PrimOp Sub
 
-multExpr :: Expr -> Expr -> Expr
-multExpr = PrimOp Mult
+-- multExpr :: Expr -> Expr -> Expr
+-- multExpr = PrimOp Mult
 
 instance Alpha Expr
+instance Alpha S.Lit
+instance Alpha S.Operator
+instance Alpha J.Op
 instance Alpha Operation
 instance Alpha Tele
 
 instance Subst Expr Operation
+instance Subst Expr S.Operator
+instance Subst Expr S.Lit
+instance Subst Expr J.Op
 instance Subst Expr Tele
 
 instance Subst Expr Expr where
@@ -61,17 +79,17 @@ instance Subst Expr Expr where
 -- Examples
 
 -- \ x : ⋆ . \ y : x . y
-polyid :: Expr
-polyid = elam [("x", estar), ("y", evar "x")] (evar "y")
+-- polyid :: Expr
+-- polyid = elam [("x", estar), ("y", evar "x")] (evar "y")
 
 
 -- pi x : ⋆ . x -> x
-polyidty :: Expr
-polyidty = epi [("x", estar)] (earr (evar "x") (evar "x"))
+-- polyidty :: Expr
+-- polyidty = epi [("x", estar)] (earr (evar "x") (evar "x"))
 
 -- castup [(\ x : * . x) int] 3
-castupint :: Expr
-castupint = F (eapp (elam [("x", estar)] (evar "x")) Nat) (Lit 3)
+-- castupint :: Expr
+-- castupint = F (eapp (elam [("x", estar)] (evar "x")) Nat) (Lit 3)
 
 
 -- smart constructors
