@@ -97,14 +97,14 @@ translateM' this e =
       ((x, Embed t), e) <- unbind bnd
       case e of
         Lam bnd -> do
-          (s, je, _) <- extendCtx (mkTele [(name2String x, t)]) (translateScopeM this bnd (Just x))
+          (s, je, _) <- extendCtx (mkTele [(x, t)]) (translateScopeM this bnd (Just x))
           return (s, je, t)
 
         _ -> panic "Expected a lambda abstraction after mu"
 
     Let bnd -> do
       ((x, Embed e), b) <- unbind bnd
-      let x' = name2String x
+      let x' = show x
       (s1, j1, t1) <- translateM this e
       -- types do need to generate code
       if (aeq t1 estar)
@@ -112,7 +112,7 @@ translateM' this e =
         else do
           let jt1 = javaType t1
           let xDecl = localVar jt1 (varDecl x' $ unwrap j1)
-          (s2, j2, t2) <- extendCtx (mkTele [(x', t1)]) (translateM this b)
+          (s2, j2, t2) <- extendCtx (mkTele [(x, t1)]) (translateM this b)
           return (s1 ++ [xDecl] ++ s2, j2, t2)
 
     If g e1 e2 -> translateIf this (translateM this g) (translateM this e1) (translateM this e2)
@@ -148,7 +148,7 @@ translateIf' this m1 m2 m3 = do
   (s2, j2, t2) <- m2
   (s3, j3, t3) <- m2
   ifname <- fresh (string2Name ifresultstr :: TmName)
-  let ifvarname = name2String ifname
+  let ifvarname = show ifname
   let jtype = javaType t2
 
   let ifresdecl = localVar jtype (varDeclNoInit ifvarname)

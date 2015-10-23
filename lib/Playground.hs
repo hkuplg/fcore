@@ -1,4 +1,3 @@
-
 module Playground where
 
 import           BackEnd (compileN, compileN2)
@@ -8,7 +7,6 @@ import           Desugar (desugar)
 import qualified OptiUtils (Exp(Hide))
 import           Parser (reader, P(..))
 import           PartialEvaluator
-import           PrettyUtils
 import           Simplify (simplify)
 import qualified Src as S
 import           System.Exit
@@ -17,45 +15,44 @@ import           TypeCheck (typeCheck)
 
 import qualified Language.Java.Syntax as J (Op(..))
 import           Language.Java.Pretty (prettyPrint)
-import           Text.PrettyPrint.ANSI.Leijen
-import           Unsafe.Coerce (unsafeCoerce)
+import           Unbound.Generics.LocallyNameless
 
-import qualified CoreNew as CN
-import qualified ClosureFNew as CFN
-import qualified ClosureF
+import qualified Syntax  as NC
+import qualified PrettyPrint as PP
 
-instance Show (Expr t e) where
-  show = show . prettyExpr . unsafeCoerce
+-- test1 :: Expr t e
+-- test1 =
+--   Lam "f" javaInt (\f -> Lam "g" javaInt (\g -> var f `add` var g))
 
-instance Show (Type t) where
-  show = show . prettyType . unsafeCoerce
-
-core2java core = do
-  -- let newcore = CN.coreExprToNew core
-  let (cu,_) = compileN2 "M1" core
-  putStrLn $ prettyPrint cu
+-- core2java core = do
+--   let newcore = runFreshM (NC.core2New core)
+--   -- putStrLn "-- Core:"
+--   -- print (Core.prettyExpr core)
+--   putStrLn "-- NewCore:"
+--   putStrLn $ PP.showExpr newcore
 
 
-typeId :: CN.Expr e
-typeId = CN.Lam "" CN.Star (\x -> CN.Var "" x)
 
--- (\ x : ⋆ . (\ y : x . y)) Int 3 + 3
-testPoly :: CN.Expr e
-testPoly = (CN.App
-                (CN.App (CN.Lam "" CN.Star (\x -> CN.Lam "" (CN.Var "" x) (\y -> CN.Var "" y)))
-                   (CN.javaInt))
-                (CN.Lit (S.Int 3))) `addn` (CN.Lit (S.Int 3))
+-- typeId :: CN.Expr e
+-- typeId = CN.Lam "" CN.Star (\x -> CN.Var "" x)
 
--- (\x : (\ y : ⋆ . y) Int . x) (castup [(\ y : ⋆ . y) Int] 3)
-testCastUp :: CN.Expr e
-testCastUp = CN.App (CN.Lam "" (CN.App typeId (CN.JClass "java.lang.Integer")) (\x -> CN.Var "" x))
-               (CN.CastUp (CN.App typeId CN.javaInt) (CN.Lit (S.Int 3)))
+-- -- (\ x : ⋆ . (\ y : x . y)) Int 3 + 3
+-- testPoly :: CN.Expr e
+-- testPoly = (CN.App
+--                 (CN.App (CN.Lam "" CN.Star (\x -> CN.Lam "" (CN.Var "" x) (\y -> CN.Var "" y)))
+--                    (CN.javaInt))
+--                 (CN.Lit (S.Int 3))) `addn` (CN.Lit (S.Int 3))
 
--- (\e : (\y : ⋆ . x) Int . (\x : Int . x) (castdown e))
-testCastDown :: CN.Expr e
-testCastDown = CN.Lam "" (CN.App typeId CN.javaInt)
-                 (\e ->
-                    CN.App (CN.Lam "" CN.javaInt (\x -> CN.Var "" x)) (CN.CastDown CN.javaInt (CN.Var "" e)))
+-- -- (\x : (\ y : ⋆ . y) Int . x) (castup [(\ y : ⋆ . y) Int] 3)
+-- testCastUp :: CN.Expr e
+-- testCastUp = CN.App (CN.Lam "" (CN.App typeId (CN.JClass "java.lang.Integer")) (\x -> CN.Var "" x))
+--                (CN.CastUp (CN.App typeId CN.javaInt) (CN.Lit (S.Int 3)))
+
+-- -- (\e : (\y : ⋆ . x) Int . (\x : Int . x) (castdown e))
+-- testCastDown :: CN.Expr e
+-- testCastDown = CN.Lam "" (CN.App typeId CN.javaInt)
+--                  (\e ->
+--                     CN.App (CN.Lam "" CN.javaInt (\x -> CN.Var "" x)) (CN.CastDown CN.javaInt (CN.Var "" e)))
 
 -- let x = Int in (\y : x . y) 3
 -- testLet :: CN.Expr e
@@ -63,8 +60,8 @@ testCastDown = CN.Lam "" (CN.App typeId CN.javaInt)
 --             (\x -> CN.App (CN.Lam "" (CN.Var "" x) (\y -> CN.Var "" y)) (CN.Lit (S.Int 3)))
 
 -- pi x : * . x -> x
-testPi :: CN.Expr e
-testPi = CN.Pi "" (CN.Star) (\x -> CN.Pi "" (CN.Var "" x) (\y -> CN.Var "" x))
+-- testPi :: CN.Expr e
+-- testPi = CN.Pi "" (CN.Star) (\x -> CN.Pi "" (CN.Var "" x) (\y -> CN.Var "" x))
 
 
 m1src = "package P.k module {rec even (n : Int) : Bool = if n == 0 then True  else odd  (n - 1) and odd  (n : Int) : Bool = if n == 0 then False else even (n - 1)} "
@@ -110,8 +107,8 @@ add (n : Int) (m : Int) = n + m
 
 -- New Core Test
 
-s2n :: String -> IO ()
-s2n source
+s2c :: String -> IO ()
+s2c source
   = case reader source of
       PError msg -> do putStrLn msg
                        exitFailure
@@ -125,38 +122,34 @@ s2n source
                let exp = rewriteAndEval exp'
                putStrLn "-- Core:"
                print (Core.prettyExpr exp)
-               let expcn = CN.coreExprToNew exp
+               let expcn = runFreshM (NC.core2New exp)
                putStrLn "\n-- New Core:"
-               print (CN.pretty expcn)
-               putStrLn "\n*****\n-- ClosureF:"
-               print (ClosureF.prettyExpr basePrec (0, 0) (ClosureF.fexp2cexp exp))
-               putStrLn "\n-- New ClosureF:"
-               print (CFN.pretty (CFN.fexp2cexp expcn))
+               putStrLn (PP.showExpr expcn)
                putStrLn ""
 
-s2Java :: String -> IO ()
-s2Java source
-  = case reader source of
-      PError msg -> do putStrLn msg
-                       exitFailure
-      POk parsed -> do
-        result <- typeCheck parsed
-        case result of
-          Left typeError -> exitFailure
-          Right (_, checked) ->
-            do let fiExpr = desugar checked
-               let exp' = OptiUtils.Hide (simplify (FI.HideF fiExpr))
-               let exp = rewriteAndEval exp'
-               let core = CN.coreExprToNew exp
-               let (cu,_) = compileN2 "test" core
-               putStrLn $ prettyPrint cu
+-- s2Java :: String -> IO ()
+-- s2Java source
+--   = case reader source of
+--       PError msg -> do putStrLn msg
+--                        exitFailure
+--       POk parsed -> do
+--         result <- typeCheck parsed
+--         case result of
+--           Left typeError -> exitFailure
+--           Right (_, checked) ->
+--             do let fiExpr = desugar checked
+--                let exp' = OptiUtils.Hide (simplify (FI.HideF fiExpr))
+--                let exp = rewriteAndEval exp'
+--                let core = CN.coreExprToNew exp
+--                let (cu,_) = compileN2 "test" core
+--                putStrLn $ prettyPrint cu
 
 testnc :: IO ()
 testnc =
   do
-    -- s2n "let rec fact (n : Int) : Int = if n == 0 then 1 else n * fact (n - 1); fact 5"
-    s2n "let id[A] (x : A) = x; id [forall A. A -> A] id 10"
-    s2n "let get [D, E, F] (x : E) (y : D) : D = y; get [Int, String, Int] \"abc\" 5"
+    -- s2c "let rec fact (n : Int) : Int = if n == 0 then 1 else n * fact (n - 1); fact 5"
+    s2c "let id[A] (x : A) = x; id [forall A. A -> A] id 10"
+    s2c "let get [D, E, F] (x : E) (y : D) : D = y; get [Int, String, Int] \"abc\" 5"
     return ()
 
 testB :: String
@@ -199,12 +192,6 @@ testJMethod = "let x = new java.lang.Integer(10) in x.toString()"
 
 -- testLet :: String
 -- testLet = "let id[A] (x : A) = x in id[Int] 5 + 1"
-
-test1 :: Expr t e
-test1 =
-  lam javaInt (\f ->
-                lam javaInt (\g -> App (var f)
-                                   (lam javaInt (\x -> Let "" (App (var g) (var x)) (\t -> var t)))))
 
 tailFactLike :: Expr t e
 tailFactLike
@@ -249,7 +236,7 @@ x `add` y    = PrimOp x (S.Arith J.Add) y
 x `sub` y    = PrimOp x (S.Arith J.Sub) y
 x `mult` y   = PrimOp x (S.Arith J.Mult) y
 
-x `addn` y    = CN.PrimOp x (S.Arith J.Add) y
+-- x `addn` y    = CN.PrimOp x (S.Arith J.Add) y
 
 mconst =
   (bLam (\a ->

@@ -44,7 +44,7 @@ instance Pretty Expr where
   ppr (Let bnd) = lunbind bnd $ \((x, Embed e1), e2) -> do
     e1' <- ppr e1
     e2' <- ppr e2
-    return (text "let" <+> (text . show $ x) <+> PP.equals <+> e1' <+> text "in" <+> e2')
+    return (text "let" <+> (text . show $ x) <+> PP.equals <+> e1' PP.<$> text "in" PP.<$> e2')
   ppr (If g e1 e2) = do
     g' <- ppr g
     e1' <- ppr e1
@@ -73,6 +73,13 @@ instance Pretty Expr where
           S.Arith op'   -> op'
           S.Compare op' -> op'
           S.Logic op'   -> op'
+  ppr Unit = return $ text "Unit"
+  ppr (JClass "java.lang.Integer")   = return $ text "Int"
+  ppr (JClass "java.lang.String")    = return $ text "String"
+  ppr (JClass "java.lang.Boolean")   = return $ text "Bool"
+  ppr (JClass "java.lang.Character") = return $ text "Char"
+  ppr (JClass c)                     = return $ text c
+
 
 instance Pretty Operation where
   ppr Add = return . text $ "+"
