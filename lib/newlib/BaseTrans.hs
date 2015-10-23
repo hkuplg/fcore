@@ -41,8 +41,11 @@ createCUB package compDef = cu
   where
     cu = J.CompilationUnit package [] compDef
 
-applyRetType Nat = Just $ J.PrimType J.IntT
-applyRetType _ = Just objClassTy
+applyRetType t =
+  case t of
+    JClass "java.lang.Integer" -> Just $ J.PrimType J.IntT
+    JClass "java.lang.Boolean" -> Just $ J.PrimType J.BooleanT
+    _                          -> Just objClassTy
 
 trans :: (Fresh m, MonadReader Context m, selfType :< Translate m) => Base selfType (Translate m)
 trans self =
@@ -122,10 +125,6 @@ translateM' this e =
       (s, v, t1) <- translateM this e
       let t2 = oneStep t1
       return (s, v, t2)
-
-    Nat -> do
-      (js, v) <- createTypeHouse "nat"
-      return (js, v, Star)
 
     Star -> do
       (js, v) <- createTypeHouse "star"
@@ -260,6 +259,6 @@ initClass ty tempName expr =
 
 javaType ty =
   case ty of
-    Pi _ -> classTy closureClass
-    Nat  -> classTy "java.lang.Integer"
-    _    -> objClassTy
+    Pi _       -> classTy closureClass
+    (JClass c) -> classTy c
+    _          -> objClassTy

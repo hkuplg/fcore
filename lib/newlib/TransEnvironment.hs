@@ -87,7 +87,6 @@ step (Lam{}) = done
 step (Pi{}) = done
 step (F{}) = done
 step (Lit{}) = done
-step (Nat) = done
 step (App (Lam bnd) t2) = do
   (delta, b) <- unbind bnd
   let (b', e') = multiSubst delta t2 b

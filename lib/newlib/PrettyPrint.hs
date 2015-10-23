@@ -56,7 +56,6 @@ instance Pretty Expr where
        PP.parens e1' <+>
        text "else" <+>
        PP.parens e2')
-  ppr Nat = return $ text "nat"
   ppr (Lit (S.Int n)) = return $ PP.integer n
   ppr (Lit (S.String s)) = return $ PP.dquotes (PP.string s)
   ppr (Lit (S.Bool b)) = return $ PP.bool b

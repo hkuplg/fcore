@@ -33,13 +33,11 @@ data Expr = Var TmName
 
           | Let (Bind (TmName, Embed Expr) Expr)
           | If Expr Expr Expr
-          | Nat
           | Lit S.Lit
           | PrimOp S.Operator Expr Expr
-
-          | JClass ClassName
           | Unit
 
+          | JClass ClassName
 
   deriving (Show, Generic, Typeable)
 
