@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric, DeriveDataTypeable, FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, ScopedTypeVariables, OverloadedStrings, ViewPatterns #-}
+{-# LANGUAGE DeriveGeneric, DeriveDataTypeable, FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, ScopedTypeVariables #-}
 
 module Syntax where
 
@@ -24,7 +24,7 @@ data Tele = Empty
 
 type Scope = Bind Tele Expr
 
--- | Syntax of the core, with optimization of aggregate bindings
+-- | Syntax of the core
 data Expr = Var TmName
           | App Expr Expr
           | Lam Scope
@@ -48,15 +48,6 @@ data Operation = Mult
                | Sub
                | Add
   deriving (Show, Generic, Typeable)
-
--- addExpr :: Expr -> Expr -> Expr
--- addExpr = PrimOp Add
-
--- subExpr :: Expr -> Expr -> Expr
--- subExpr = PrimOp Sub
-
--- multExpr :: Expr -> Expr -> Expr
--- multExpr = PrimOp Mult
 
 instance Alpha Expr
 instance Alpha S.Lit
