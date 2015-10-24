@@ -152,7 +152,7 @@ translateM' this e =
 translateIf' this m1 m2 m3 = do
   (s1, j1, _) <- m1
   (s2, j2, t2) <- m2
-  (s3, j3, t3) <- m2
+  (s3, j3, t3) <- m3
   ifname <- fresh (string2Name ifresultstr :: TmName)
   let ifvarname = show ifname
   let jtype = javaType t2
