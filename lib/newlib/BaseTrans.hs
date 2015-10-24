@@ -15,6 +15,12 @@ import           StringPrefixes
 import           Syntax
 import           TransEnvironment
 
+-- import Debug.Trace
+-- import PrettyPrint
+
+instance (:<) (Translate m) (Translate m) where
+   up = id
+
 type TransJavaExp = Either J.Name J.Literal
 
 type TransType = ([J.BlockStmt], TransJavaExp, Expr)
@@ -135,11 +141,11 @@ translateM' this e =
       return (js, v, Star)
 
     JClass className -> do
-      (stmts, jvar) <- createTypeHouse className
+      (stmts, jvar) <- createTypeHouse "jclass"
       return (stmts, jvar, Star)
 
     Unit -> do
-      (stmts, jvar) <- createTypeHouse "Unit"
+      (stmts, jvar) <- createTypeHouse "unit"
       return (stmts, jvar, Star)
 
 
@@ -237,7 +243,7 @@ translateApply' this e1 e2 = do
   let retTy =
         case d' of
           Empty -> b'
-          _     -> Pi (bind d' b)
+          _     -> Pi (bind d' b')
 
   let fexp = unwrap j1
   let fs = assignField (fieldAccExp fexp closureInput) (unwrap j2)
@@ -252,7 +258,7 @@ createTypeHouse :: (Fresh m) => String -> m ([J.BlockStmt], TransJavaExp)
 createTypeHouse str = do
   typeVar <- show <$> fresh (s2n str)
   let fstmt = [ localVar typeOfType (varDecl typeVar typeHouseCreate)
-              , assignField (fieldAccExp (left . var $ typeVar) typeField) (J.Lit (J.String str))
+              -- , assignField (fieldAccExp (left . var $ typeVar) typeField) (J.Lit (J.String str))
               ]
   return (fstmt, var typeVar)
 

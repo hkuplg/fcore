@@ -22,7 +22,7 @@ import Data.Maybe (fromJust)
 
 app2let :: Expr t e -> Expr t e
 app2let (App e1 e2) = case e1' of
-  Lam _ _ f    -> Let "_" e2' f
+  Lam _ _ f    -> Let "x" e2' f
   Let n body f -> Let n body (\x -> app2let (App (f x) e2'))
   _            -> App e1' e2'
   where

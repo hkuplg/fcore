@@ -6,6 +6,7 @@ module TransEnvironment (
     multiSubst,
     Context,
     oneStep,
+    initialEnv
     ) where
 
 import Control.Applicative
@@ -34,8 +35,8 @@ makeLenses ''Context
 -- dummyCtx :: Context
 -- dummyCtx = Ctx Empty Prog Pos
 
--- initialEnv :: ClassTag -> Context
--- initialEnv t = Ctx Empty t Pos
+initialEnv :: Context
+initialEnv = Ctx Empty
 
 lookUpTele :: TmName -> Tele -> Maybe Expr
 lookUpTele _ Empty = Nothing

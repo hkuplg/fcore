@@ -23,11 +23,12 @@ module BackEnd
     , DumpOption(..)
     ) where
 
+import           Unbound.Generics.LocallyNameless
+import qualified Control.Monad.Reader as R
+
 import           ApplyTransCFJava
+import qualified BaseTrans as NB
 import qualified BaseTransCFJava as OB
-import qualified BaseTransCFJavaNew as NB
--- import           BenchGenCF2J
--- import           BenchGenStack
 import qualified ClosureF
 import qualified ClosureFNew
 import qualified Core
@@ -35,11 +36,14 @@ import qualified CoreNew
 import           Inheritance
 import           Inliner
 import           JavaUtils (ClassName)
-import           OptiUtils
 import           MonadLib
+import           OptiUtils
 import           PartialEvaluator
+import           PrettyPrint
 import           PrettyUtils
 import           StackTransCFJava
+import qualified Syntax as NC
+import           TransEnvironment (Context, initialEnv)
 -- import           UnboxTransCFJava
 
 import           Language.Java.Pretty
@@ -61,7 +65,7 @@ data DumpOption
 naive :: MonadState Int m => OB.Translate m
 naive = new OB.trans
 
-naiveN :: MonadState Int m => NB.Translate m
+naiveN :: (Fresh m, R.MonadReader Context m) => NB.Translate m
 naiveN = new NB.trans
 
 -- Apply naive optimization
@@ -181,27 +185,25 @@ core2java supernaive optInline optDump compilation className closedCoreExpr =
 picore2java :: DumpOption -> Compilation2 -> ClassName -> Exp -> IO String
 picore2java optDump compilation className closedCoreExpr = do
   let rewrittenCore = rewriteAndEval closedCoreExpr
-  let core = CoreNew.coreExprToNew rewrittenCore
-  when (optDump == SimpleCore) $
-    print (CoreNew.pretty core)
-  when (optDump == ClosureF) $
-    print (ClosureFNew.pretty (ClosureFNew.fexp2cexp core))
-  let (cu, _) = compilation className core
+  let core = runFreshM (NC.core2New rewrittenCore)
+  when (optDump == SimpleCore) $ putStrLn (showExpr core)
+  let cu = compilation className core
   return $ prettyPrint cu
-
 
 type Compilation = String -> Core.Expr Int (OB.Var,ClosureF.Type Int) -> (J.CompilationUnit,ClosureF.Type Int)
 
-type Compilation2 = String -> CoreNew.Expr NB.TransBind -> (J.CompilationUnit, ClosureFNew.Type NB.TransBind)
+type Compilation2 = String -> NC.Expr -> J.CompilationUnit
 
--- | setting for various combination of optimization
+-- | Setting for various combination of optimization
 -- Setting for naive
 type NType = State Int
+
+type NType2 = FreshMT (R.Reader Context)
 
 ninst :: OB.Translate NType  -- instantiation; all coinstraints resolved
 ninst = naive
 
-ninstN :: NB.Translate NType  -- instantiation; all coinstraints resolved
+ninstN :: NB.Translate NType2  -- instantiation; all coinstraints resolved
 ninstN = naiveN
 
 translateN
@@ -212,15 +214,14 @@ translateN = OB.createWrap (up ninst)
 
 translateN2
   :: String
-  -> ClosureFNew.Expr NB.TransBind
-  -> NType (J.CompilationUnit,ClosureFNew.Type NB.TransBind)
+  -> NC.Expr
+  -> NType2 J.CompilationUnit
 translateN2 = NB.createWrap (up ninstN)
 
 compileN :: Compilation
 compileN name e = evalState (translateN name (ClosureF.fexp2cexp e)) 1
 
-compileN2 :: Compilation2
-compileN2 name e = evalState (translateN2 name (ClosureFNew.fexp2cexp e)) 1
+compileN2 name e = R.runReader (runFreshMT (translateN2 name e)) initialEnv
 
 -- Setting for apply + naive
 type AOptType = ReaderT Int (ReaderT OB.InitVars (State Int))
