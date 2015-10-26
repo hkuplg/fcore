@@ -4,7 +4,7 @@ flags:
 packages:
 - '.'
 - location:
-    git: git@github.com:bixuanzju/language-java.git
+    git: https://github.com/bixuanzju/language-java
     commit: fc26e79f9a2bf1deb55c095e45505bfc197468d3
 
 extra-deps: []
