@@ -210,7 +210,7 @@ type ReadBind = Bind Name Type
 data RecFlag = Rec | NonRec deriving (Eq, Show)
 data UnitPossibility = UnitPossible | UnitImpossible deriving (Eq, Show)
 
-data JReceiver e = Static ClassName | NonStatic e deriving (Eq, Show)
+data JReceiver e = Static ClassName | NonStatic e deriving (Eq, Show, Generic)
 
 instance Functor JReceiver where
   fmap _ (Static c)    = Static c

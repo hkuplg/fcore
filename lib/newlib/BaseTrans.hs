@@ -148,6 +148,71 @@ translateM' this e =
       (stmts, jvar) <- createTypeHouse "unit"
       return (stmts, jvar, Star)
 
+    JNew classname args -> do
+      args' <- mapM (translateM this) args
+      let (statements, exprs, types) = unzip3 args' & _1 %~ concat
+      let rhs = J.InstanceCreation
+                  (map
+                     (\y -> case y of
+                        JClass x -> J.ActualType $ J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                        _        -> sorry "BaseTransCFJava.trans.JNew: no idea how to do")
+                     types)
+                  (J.ClassType [(J.Ident classname, [])])
+                  (map unwrap exprs)
+                  Nothing
+      let typ = JClass classname
+      newVarName <- fresh (string2Name "jnew" :: TmName)
+      let assignExpr = localFinalVar (javaType typ) (varDecl (show newVarName) rhs)
+      return (statements ++ [assignExpr], var (show newVarName), typ)
+
+    JMethod receiver mname args retClassname -> do
+      args' <- mapM (translateM this) args
+      let (statements, exprs, types) = unzip3 args' & _1 %~ concat
+      let exprs' = map unwrap exprs
+      let refTypes =
+            map
+              (\y -> case y of
+                 JClass x -> J.ClassRefType $ J.ClassType [(J.Ident x, [])]
+                 _        -> sorry "BaseTransCFJava.trans.JMethod: no idea how to do")
+              types
+      (classStatement, rhs) <- case receiver of
+                                 Right ce ->
+                                   do
+                                     (classS, classE, _) <- translateM this ce
+                                     return
+                                       (classS, J.MethodInv $ J.PrimaryMethodCall
+                                                                (unwrap classE)
+                                                                refTypes
+                                                                (J.Ident mname)
+                                                                exprs')
+                                 Left cn ->
+                                   return
+                                     ([], J.MethodInv $ J.TypeMethodCall
+                                                          (J.Name [J.Ident cn])
+                                                          refTypes
+                                                          (J.Ident mname)
+                                                          exprs')
+      if retClassname /= "java.lang.Void"
+        then do
+          let typ = JClass retClassname
+          newVarName <- fresh (string2Name "jmcall" :: TmName)
+          let assignExpr = localFinalVar (javaType typ) (varDecl (show newVarName) rhs)
+          return (statements ++ classStatement ++ [assignExpr], var (show newVarName), typ)
+        else return
+               (statements ++ classStatement ++ [J.BlockStmt $ J.ExpStmt rhs], Right J.Null, Unit)
+
+    JField receiver fname retClass -> do
+      (classStatement, classExpr, _) <- case receiver of
+                                          Right ce ->
+                                            translateM this ce
+                                          Left cn ->
+                                            return ([], Left $ J.Name [J.Ident cn], undefined)
+      newVarName <- fresh (string2Name "jfcall" :: TmName)
+      let aType = javaType retClass
+      let rhs = J.Cast aType $ J.FieldAccess $ J.PrimaryFieldAccess (unwrap classExpr)
+                                                 (J.Ident fname)
+          assignExpr = localFinalVar aType $ varDecl (show newVarName) rhs
+      return (classStatement ++ [assignExpr], var (show newVarName), retClass)
 
 translateIf' this m1 m2 m3 = do
   (s1, j1, _) <- m1

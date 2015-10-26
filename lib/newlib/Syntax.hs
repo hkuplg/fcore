@@ -24,6 +24,8 @@ data Tele = Empty
 
 type Scope = Bind Tele Expr
 
+type JReceiver = Either ClassName Expr
+
 -- | Syntax of the core
 data Expr = Var TmName
           | App Expr Expr
@@ -42,6 +44,10 @@ data Expr = Var TmName
 
           | JClass ClassName
 
+          | JNew ClassName [Expr]
+          | JMethod JReceiver MethodName [Expr] ClassName
+          | JField JReceiver FieldName Expr
+
   deriving (Show, Generic, Typeable)
 
 data Operation = Mult
@@ -55,12 +61,14 @@ instance Alpha S.Operator
 instance Alpha J.Op
 instance Alpha Operation
 instance Alpha Tele
+instance Alpha (S.JReceiver Expr)
 
 instance Subst Expr Operation
 instance Subst Expr S.Operator
 instance Subst Expr S.Lit
 instance Subst Expr J.Op
 instance Subst Expr Tele
+instance Subst Expr (S.JReceiver Expr)
 
 instance Subst Expr Expr where
   isvar (Var v) = Just (SubstName v)
@@ -129,8 +137,22 @@ core2New = transExpr
     transExpr (C.TApp f e) = eapp <$> (transExpr f) <*> (transType e)
     transExpr (C.If e1 e2 e3) = If <$> (transExpr e1) <*> (transExpr e2) <*> (transExpr e3)
     transExpr (C.PrimOp e1 op e2) = PrimOp op <$> (transExpr e1) <*> (transExpr e2)
+    transExpr (C.JNew name args) = JNew name <$> (mapM transExpr args)
+    transExpr (C.JMethod rcv mname args cname) =
+      do args' <- mapM transExpr args
+         rcv' <- transRecv rcv
+         return (JMethod rcv' mname args' cname)
+    transExpr (C.JField rcv fname t) = 
+      do rcv' <- transRecv rcv
+         t' <- transType t
+         return (JField rcv' fname t')
     transExpr _ = sorry "Syntax.transExpr: not defined"
 
+    transRecv :: Fresh m => S.JReceiver (C.Expr TmName TmName) -> m JReceiver
+    transRecv (S.Static c) = return (Left c)
+    transRecv (S.NonStatic e) = do e' <- (transExpr e)
+                                   return (Right e')
+    
     transType :: Fresh m => C.Type TmName -> m Expr
     transType (C.TVar _ x) = return $ Var x
     transType (C.JClass c) = return $ JClass c
