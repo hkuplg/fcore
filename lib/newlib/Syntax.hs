@@ -26,17 +26,20 @@ type Scope = Bind Tele Expr
 
 type JReceiver = Either ClassName Expr
 
+type Type = Expr
+
 -- | Syntax of the core
 data Expr = Var TmName
           | App Expr Expr
           | Lam Scope
           | Pi Scope
-          | Mu (Bind (TmName, Embed Expr) Expr)
+          | Mu (Bind (TmName, Embed Type) Expr)
           | F Expr Expr
           | U Expr
           | Star
 
-          | Let (Bind (TmName, Embed Expr) Expr)
+          | Let (Bind (TmName, Embed Type) Expr)
+          | LetRec (Bind (Rec [(TmName, Embed Type, Embed Expr)]) Expr)
           | If Expr Expr Expr
           | Lit S.Lit
           | PrimOp S.Operator Expr Expr
@@ -98,6 +101,10 @@ eapp = App
 
 elet :: String -> Expr -> Expr -> Expr
 elet n e1 e2 = Let (bind (s2n n, embed e1) e2)
+
+eletrec :: [(TmName, Type, Expr)] -> Expr -> Expr
+eletrec xs e = LetRec (bind binds e)
+  where binds = rec (map (\(n, t, b) -> (n, embed t, embed b)) xs)
 
 mkTele :: [(TmName, Expr)] -> Tele
 mkTele []          = Empty
@@ -178,3 +185,37 @@ core2New = transExpr
         collect bag e = do
           e' <- transExpr e
           return (reverse bag, e')
+
+
+
+-- even and odd
+evenOdd :: Expr
+evenOdd =
+  let even = s2n "even"
+      odd = s2n "odd"
+  in eletrec
+       [ (even, (earr javaInt javaInt), elam [(x, javaInt)]
+                                          (If
+                                             (PrimOp (S.Compare J.Equal) (Var x) (Lit (S.Int 0)))
+                                             (Lit (S.Int 0))
+                                             (App (Var odd)
+                                                (PrimOp (S.Arith J.Sub) (Var x) (Lit (S.Int 1))))))
+       , (odd, (earr javaInt javaInt), elam [(x, javaInt)]
+                                         (If
+                                            (PrimOp (S.Compare J.Equal) (Var x) (Lit (S.Int 0)))
+                                            (Lit (S.Int 1))
+                                            (App (Var even)
+                                               (PrimOp (S.Arith J.Sub) (Var x) (Lit (S.Int 1))))))
+       ]
+       (App (Var odd) (Lit (S.Int 3)))
+
+x :: TmName
+y :: TmName
+z :: TmName
+(x,y,z) = (string2Name "x", string2Name "y", string2Name "z")
+
+javaInt :: Expr
+javaInt = JClass "Integer"
+
+javaBool :: Expr
+javaBool = JClass "Bool"
