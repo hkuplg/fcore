@@ -79,7 +79,18 @@ instance Pretty Expr where
   ppr (JClass "java.lang.Boolean")   = return $ text "Bool"
   ppr (JClass "java.lang.Character") = return $ text "Char"
   ppr (JClass c)                     = return $ text c
-
+  ppr (JNew c args)                  = do
+    args' <- mapM ppr args
+    return (text "new" <+> text c <> PP.parens (PP.cat $ PP.punctuate PP.comma args'))
+  ppr (JMethod rcv mname args _)     = do
+    args' <- mapM ppr args
+    c <- case rcv of Left cn -> return $ text cn
+                     Right e -> ppr e
+    return (c <> text "." <> text mname <> PP.parens (PP.cat $ PP.punctuate PP.comma args'))
+  ppr (JField rcv fname _)           = do
+    c <- case rcv of Left cn -> return $ text cn
+                     Right e -> ppr e
+    return (c <> text "." <> text fname)
 
 instance Pretty Operation where
   ppr Add = return . text $ "+"
