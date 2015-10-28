@@ -24,12 +24,12 @@ import qualified PrettyPrint as PP
 -- test1 =
 --   Lam "f" javaInt (\f -> Lam "g" javaInt (\g -> var f `add` var g))
 
--- core2java core = do
---   let newcore = runFreshM (NC.core2New core)
---   -- putStrLn "-- Core:"
---   -- print (Core.prettyExpr core)
---   putStrLn "-- NewCore:"
---   putStrLn $ PP.showExpr newcore
+core2java core = do
+  let newcore = runFreshM (NC.core2New core)
+  -- putStrLn "-- Core:"
+  -- print (Core.prettyExpr core)
+  putStrLn "-- NewCore:"
+  putStrLn $ PP.showExpr newcore
 
 
 

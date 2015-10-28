@@ -28,7 +28,7 @@ instance Pretty Expr where
     let Cons bb = delta
     let ((x, Embed t), bb') = unrebind bb
     b' <- ppr b
-    if (show x == "_" && isEmpty bb')
+    if (head (show x) == '_' && isEmpty bb')
       then do
         t' <- ppr t
         return (PP.parens $ t' <+> text "→" <+> b')

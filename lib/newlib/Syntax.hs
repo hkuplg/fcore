@@ -127,9 +127,11 @@ core2New = transExpr
     transExpr :: Fresh m => C.Expr TmName TmName -> m Expr
     transExpr (C.Var _ e) = return $ Var e
     transExpr (C.Lit l) = return $ Lit l
+
     transExpr e@(C.Lam n t f) = do
       (tele, body) <- getLambda e
       return $ elam tele body
+
     transExpr (C.Fix n1 n2 f t1 t) = do
       fun <- transType (C.Fun t1 t)
       t' <- transType t
@@ -137,11 +139,20 @@ core2New = transExpr
       n2' <- fresh (string2Name n2)
       f' <- transExpr (f n1' n2')
       return $ Mu (bind (n1', Embed fun) (elam [(n2', t')] f'))
+
     transExpr (C.Let n b e) = do
       letName <- fresh (string2Name n)
       b' <- transExpr b
       e' <- transExpr (e letName)
       return (Let (bind (letName, Embed b') e'))
+
+    transExpr (C.LetRec ns ts bs body) = do
+      ns' <- mapM (fresh . s2n) ns
+      ts' <- mapM transType ts
+      bs' <- mapM transExpr (bs ns')
+      body' <- transExpr (body ns')
+      return $ eletrec (zip3 ns' ts' bs') body'
+
     transExpr e@(C.BLam n f) = do
       (tele, body) <- getLambda e
       return $ elam tele body
@@ -206,7 +217,7 @@ core2New = transExpr
           return (reverse bag, e')
 
 
-
+{-
 -- even and odd
 evenOdd :: Expr
 evenOdd =
@@ -238,3 +249,5 @@ javaInt = JClass "Integer"
 
 javaBool :: Expr
 javaBool = JClass "Bool"
+
+-}
