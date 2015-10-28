@@ -1,5 +1,8 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module PrettyPrint (showExpr) where
 
+import           Data.List (intersperse)
 import qualified Language.Java.Pretty (prettyPrint)
 import           Text.PrettyPrint.ANSI.Leijen (Doc, (<+>), (<>), text, dot, colon)
 import qualified Text.PrettyPrint.ANSI.Leijen as PP
@@ -45,17 +48,23 @@ instance Pretty Expr where
     e1' <- ppr e1
     e2' <- ppr e2
     return (text "let" <+> (text . show $ x) <+> PP.equals <+> e1' PP.<$> text "in" PP.<$> e2')
+  ppr (LetRec bnd) = lunbind bnd $ \((unrec -> binds, body)) -> do
+    binds' <- mapM
+                (\(n, Embed t, Embed e) -> do
+                   e' <- ppr e
+                   t' <- ppr t
+                   return (text (show n) <+> PP.colon <+> t' PP.<$> (PP.indent 2 (PP.equals <+> e'))))
+                binds
+    body' <- ppr body
+    return $ text "let" <+> text "rec" PP.<$>
+                            PP.vcat (intersperse (text "and") (map (PP.indent 2) binds')) PP.<$>
+                            text "in" PP.<$>
+                            body'
   ppr (If g e1 e2) = do
     g' <- ppr g
     e1' <- ppr e1
     e2' <- ppr e2
-    return
-      (text "if" <+>
-       PP.parens g' <+>
-       text "then" <+>
-       PP.parens e1' <+>
-       text "else" <+>
-       PP.parens e2')
+    return (text "if" <+> g' <+> text "then" <+> e1' <+> text "else" <+> e2')
   ppr (Lit (S.Int n)) = return $ PP.integer n
   ppr (Lit (S.String s)) = return $ PP.dquotes (PP.string s)
   ppr (Lit (S.Bool b)) = return $ PP.bool b
