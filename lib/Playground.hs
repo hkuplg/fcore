@@ -32,6 +32,11 @@ core2java core = do
   putStrLn $ PP.showExpr newcore
 
 
+s2Java core = do
+  let newcore = runFreshM (NC.core2New core)
+  let cu = compileN2 "test" newcore
+  putStrLn $ prettyPrint cu
+
 
 -- typeId :: CN.Expr e
 -- typeId = CN.Lam "" CN.Star (\x -> CN.Var "" x)
@@ -126,23 +131,6 @@ s2c source
                putStrLn "\n-- New Core:"
                putStrLn (PP.showExpr expcn)
                putStrLn ""
-
--- s2Java :: String -> IO ()
--- s2Java source
---   = case reader source of
---       PError msg -> do putStrLn msg
---                        exitFailure
---       POk parsed -> do
---         result <- typeCheck parsed
---         case result of
---           Left typeError -> exitFailure
---           Right (_, checked) ->
---             do let fiExpr = desugar checked
---                let exp' = OptiUtils.Hide (simplify (FI.HideF fiExpr))
---                let exp = rewriteAndEval exp'
---                let core = CN.coreExprToNew exp
---                let (cu,_) = compileN2 "test" core
---                putStrLn $ prettyPrint cu
 
 testnc :: IO ()
 testnc =

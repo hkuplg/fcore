@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, TypeOperators, MultiParamTypeClasses, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts, TypeOperators, MultiParamTypeClasses, ScopedTypeVariables, ViewPatterns #-}
 
 module BaseTrans where
 
@@ -120,6 +120,36 @@ translateM' this e =
           let xDecl = localVar jt1 (varDecl x' $ unwrap j1)
           (s2, j2, t2) <- extendCtx (mkTele [(x, t1)]) (translateM this b)
           return (s1 ++ [xDecl] ++ s2, j2, t2)
+
+    LetRec bnd -> do
+      (unrec -> bnds', body) <- unbind bnd
+      let bnds = unzip3 . map (\(n, Embed t, Embed def) -> (n, t, def)) $ bnds'
+      let names = bnds ^. _1
+      let types = bnds ^. _2
+      let defs = bnds ^. _3
+      let env = mkTele (zip names types)
+
+      (bindStmts, bindExprs, bindTypes) <- unzip3 <$> mapM (\d -> extendCtx env (translateM this d)) defs
+      (bodyStmts, bodyExpr, bodyType) <- extendCtx env (translateM this body)
+
+      -- initialize declarations
+      let bindJTypes = map javaType bindTypes
+      let mDecls = map (\(n, btyp) -> memberDecl (fieldDecl btyp (varDeclNoInit (show n)))) (zip names bindJTypes)
+
+      -- assign new created closures bindings to variables
+      letClassName <- show <$> fresh (s2n letTransName)
+      letVarName <- show <$> fresh (s2n "let")
+      let assm = map (\(i,jz) -> bsAssign (name [show i]) jz) (names `zip` map unwrap bindExprs)
+      let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm)
+      let letClass = localClass letClassName (classBody (mDecls ++ [J.InitDecl False (J.Block stasm)]))
+
+      -- after let class, some variable initialization
+      let letVarInit = localVar (classTy letClassName) (varDecl letVarName (instCreat (classTyp letClassName) []))
+      let mVarsInit = map (\(x, btyp) -> (localVar btyp (varDecl x (fieldAccess (varExp letVarName) x)))) (zip (map show names) bindJTypes)
+
+
+      return (letClass : letVarInit : mVarsInit ++ bodyStmts, bodyExpr, bodyType)
+
 
     If g e1 e2 -> translateIf this (translateM this g) (translateM this e1) (translateM this e2)
 
