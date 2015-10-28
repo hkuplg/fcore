@@ -149,11 +149,10 @@ translateM' this e =
       return (stmts, jvar, Star)
 
     Tuple tuple -> do
-      let 
-        getTupleClassName t =
-          if (length t) > 50
-            then panic "The length of tuple is too long (>50)!"
-            else namespace ++ "tuples.Tuple" ++ show (length t)
+      let getTupleClassName t =
+            if (length t) > 50
+              then panic "The length of tuple is too long (>50)!"
+              else namespace ++ "tuples.Tuple" ++ show (length t)
       case tuple of
         [t] -> do
           (s1, j1, t1) <- translateM this t
