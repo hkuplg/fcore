@@ -246,6 +246,12 @@ translateM' this e =
           assignExpr = localFinalVar aType $ varDecl (show newVarName) rhs
       return (classStatement ++ [assignExpr], var (show newVarName), retClass)
 
+    Seq es -> do
+      es' <- mapM (translateM this) es
+      let (_, lastExp, lastType) = last es'
+      let statements = concatMap (\(x, _, _) -> x) es'
+      return (statements, lastExp, lastType)
+
 translateIf' this m1 m2 m3 = do
   (s1, j1, _) <- m1
   (s2, j2, t2) <- m2

@@ -56,6 +56,8 @@ data Expr = Var TmName
 
           | Product [Expr] -- Type of tuple
 
+          | Seq [Expr]
+
   deriving (Show, Generic, Typeable)
 
 data Operation = Mult
@@ -162,6 +164,9 @@ core2New = transExpr
     transExpr (C.Proj i e) = do
       e' <- transExpr e
       return $ Proj i e'
+    transExpr (C.Seq es) = do
+      es' <- mapM transExpr es
+      return $ Seq es'
     transExpr _ = sorry "Syntax.transExpr: not defined"
 
     transRecv :: Fresh m => S.JReceiver (C.Expr TmName TmName) -> m JReceiver
