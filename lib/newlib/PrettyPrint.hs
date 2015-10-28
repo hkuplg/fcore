@@ -100,6 +100,12 @@ instance Pretty Expr where
     c <- case rcv of Left cn -> return $ text cn
                      Right e -> ppr e
     return (c <> text "." <> text fname)
+  ppr (Tuple t)                      = do
+    t' <- mapM ppr t
+    return $ PP.parens $ PP.cat $ PP.punctuate PP.comma t'
+  ppr (Proj i t)                     = do
+    t' <- ppr t
+    return $ t' <> text "." <> text (show i)
 
 instance Pretty Operation where
   ppr Add = return . text $ "+"
