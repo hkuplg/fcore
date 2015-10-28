@@ -148,6 +148,38 @@ translateM' this e =
       (stmts, jvar) <- createTypeHouse "unit"
       return (stmts, jvar, Star)
 
+    Tuple tuple -> do
+      let 
+        getTupleClassName t =
+          if (length t) > 50
+            then panic "The length of tuple is too long (>50)!"
+            else namespace ++ "tuples.Tuple" ++ show (length t)
+      case tuple of
+        [t] -> do
+          (s1, j1, t1) <- translateM this t
+          return (s1, j1, Product [t1])
+        _ -> do
+          tuple' <- mapM (translateM this) tuple
+          let (statements, exprs, types) = unzip3 tuple' & _1 %~ concat
+          newVarName <- fresh (string2Name "tuple" :: TmName)
+          let c = getTupleClassName tuple
+          let rhs = instCreat (classTyp c) (map unwrap exprs)
+          let assignExpr = localFinalVar (javaType $ JClass c) (varDecl (show newVarName) rhs)
+          return (statements ++ [assignExpr], var (show newVarName), Product types)
+
+    Proj index expr -> do
+      ret@(statement, javaExpr, exprType) <- translateM this expr
+      case exprType of
+        Product [_] -> return ret
+        Product types -> do
+          newVarName <- fresh (string2Name "proj" :: TmName)
+          let typ = types !! (index - 1)
+          let aType = javaType typ
+          let rhs = cast aType (fieldAccess (unwrap javaExpr) ("_" ++ show index))
+          let assignExpr = localFinalVar (javaType typ) (varDecl (show newVarName) rhs)
+          return (statement ++ [assignExpr], var $ show newVarName, typ)
+        _ -> panic "BaseTransCFJava.trans: expected tuple type"
+
     JNew classname args -> do
       args' <- mapM (translateM this) args
       let (statements, exprs, types) = unzip3 args' & _1 %~ concat

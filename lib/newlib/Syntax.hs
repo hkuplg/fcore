@@ -42,11 +42,16 @@ data Expr = Var TmName
           | PrimOp S.Operator Expr Expr
           | Unit
 
+          | Tuple [Expr]
+          | Proj Int Expr
+
           | JClass ClassName
 
           | JNew ClassName [Expr]
           | JMethod JReceiver MethodName [Expr] ClassName
           | JField JReceiver FieldName Expr
+
+          | Product [Expr] -- Type of tuple
 
   deriving (Show, Generic, Typeable)
 
@@ -144,6 +149,12 @@ core2New = transExpr
       do rcv' <- transRecv rcv
          t' <- transType t
          return (JField rcv' fname t')
+    transExpr (C.Tuple es) = do
+      es' <- mapM transExpr es
+      return $ Tuple es'
+    transExpr (C.Proj i e) = do
+      e' <- transExpr e
+      return $ Proj i e'
     transExpr _ = sorry "Syntax.transExpr: not defined"
 
     transRecv :: Fresh m => S.JReceiver (C.Expr TmName TmName) -> m JReceiver
@@ -163,6 +174,9 @@ core2New = transExpr
       f' <- transType (f forName)
       return $ epi [(forName, Star)] f'
     transType C.Unit = return Unit
+    transType (C.Product ts) = do
+      ts' <- mapM transType ts
+      return $ Product ts'
     transType _ = sorry "Syntax.transType: not defined"
 
     getLambda :: Fresh m => C.Expr TmName TmName -> m ([(TmName, Expr)], Expr)
