@@ -134,11 +134,11 @@ core2New = transExpr
 
     transExpr (C.Fix n1 n2 f t1 t) = do
       fun <- transType (C.Fun t1 t)
-      t' <- transType t
+      t1' <- transType t1
       n1' <- fresh (string2Name n1)
       n2' <- fresh (string2Name n2)
       f' <- transExpr (f n1' n2')
-      return $ Mu (bind (n1', Embed fun) (elam [(n2', t')] f'))
+      return $ Mu (bind (n1', Embed fun) (elam [(n2', t1')] f'))
 
     transExpr (C.Let n b e) = do
       letName <- fresh (string2Name n)
