@@ -95,17 +95,23 @@ instance Pretty Expr where
     args' <- mapM ppr args
     c <- case rcv of Left cn -> return $ text cn
                      Right e -> ppr e
-    return (c <> text "." <> text mname <> PP.parens (PP.cat $ PP.punctuate PP.comma args'))
+    return (c <> dot <> text mname <> PP.parens (PP.cat $ PP.punctuate PP.comma args'))
   ppr (JField rcv fname _)           = do
     c <- case rcv of Left cn -> return $ text cn
                      Right e -> ppr e
-    return (c <> text "." <> text fname)
+    return (c <> dot <> text fname)
   ppr (Tuple t)                      = do
     t' <- mapM ppr t
     return $ PP.parens $ PP.cat $ PP.punctuate PP.comma t'
   ppr (Proj i t)                     = do
     t' <- ppr t
-    return $ t' <> text "." <> text (show i)
+    return $ t' <> dot <> text (show i)
+  ppr (Seq es)                       = do
+    es' <- mapM ppr es
+    return $ PP.vcat es'
+  ppr (Product ts)                   = do
+    ts' <- mapM ppr ts
+    return $ PP.parens $ PP.cat $ PP.punctuate PP.comma ts'
 
 instance Pretty Operation where
   ppr Add = return . text $ "+"
