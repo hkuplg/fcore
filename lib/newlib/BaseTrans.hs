@@ -402,15 +402,17 @@ initClass ty tempName expr =
 getTupleClassName :: [a] -> String
 getTupleClassName tuple =
   if lengthOfTuple > 50
-     then panic "The length of tuple is too long (>50)!"
-     else namespace ++ "tuples.Tuple" ++ show lengthOfTuple
-  where lengthOfTuple = length tuple
+    then panic "The length of tuple is too long (>50)!"
+    else namespace ++ "tuples.Tuple" ++ show lengthOfTuple
+  where
+    lengthOfTuple = length tuple
 
 javaType ty =
   case ty of
-    Pi _       -> classTy closureClass
+    Pi _ -> classTy closureClass
     (JClass c) -> classTy c
     (Product tuple) ->
-      case tuple of [t] -> javaType t
-                    _ -> classTy $ getTupleClassName tuple 
-    _          -> objClassTy
+      case tuple of
+        [t] -> javaType t
+        _   -> classTy $ getTupleClassName tuple
+    _ -> objClassTy
