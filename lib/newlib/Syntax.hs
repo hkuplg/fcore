@@ -19,7 +19,7 @@ import qualified Src as S
 type TmName = Name Expr
 
 data Tele = Empty
-          | Cons (Rebind (TmName, Embed Expr) Tele)
+          | Cons (Rebind (TmName, Embed Type) Tele)
   deriving (Show, Generic, Typeable)
 
 type Scope = Bind Tele Expr
