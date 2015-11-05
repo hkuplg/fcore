@@ -5,6 +5,7 @@ module Syntax where
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans.Maybe
+import           Data.List (zip4)
 import           Data.Typeable (Typeable)
 import           GHC.Generics (Generic)
 import           Unbound.Generics.LocallyNameless
@@ -54,11 +55,21 @@ data Expr = Var TmName
           | JMethod JReceiver MethodName [Expr] ClassName
           | JField JReceiver FieldName Expr
 
-          | Product [Expr] -- Type of tuple
+          -- TODO: generalize to dependent pair
+          | Product [Expr]
 
           | Seq [Expr]
 
+          -- Module
+          | Module (Maybe S.PackageName) Definition
+
   deriving (Show, Generic, Typeable)
+
+
+data Definition = Def (Bind (TmName, Embed S.Type, Embed Expr) Definition)
+                | DefRec (Bind (Rec [(TmName, Embed S.Type, Embed Type, Embed Expr)]) Definition)
+                | DefNull
+                deriving (Show, Generic, Typeable)
 
 data Operation = Mult
                | Sub
@@ -69,14 +80,18 @@ instance Alpha Expr
 instance Alpha S.Lit
 instance Alpha S.Operator
 instance Alpha J.Op
+instance Alpha S.Type
 instance Alpha Operation
 instance Alpha Tele
+instance Alpha Definition
 
 instance Subst Expr Operation
 instance Subst Expr S.Operator
 instance Subst Expr S.Lit
 instance Subst Expr J.Op
 instance Subst Expr Tele
+instance Subst Expr Definition
+instance Subst Expr S.Type
 
 instance Subst Expr Expr where
   isvar (Var v) = Just (SubstName v)
@@ -93,6 +108,14 @@ elam t b = Lam (bind (mkTele t) b)
 
 emu :: (String, Expr) -> Expr -> Expr
 emu (n, t) b = Mu (bind (string2Name n, embed t) b)
+
+edef :: (String, S.Type) -> Expr -> Definition -> Definition
+edef (n, t) e b = Def (bind (string2Name n, embed t, embed e) b)
+
+edefrec :: [(TmName, S.Type, Type, Expr)] -> Definition -> Definition
+edefrec xs e = DefRec (bind binds e)
+  where
+    binds = rec (map (\(n, t1, t2, b) -> (n, embed t1, embed t2, embed b)) xs)
 
 epi :: [(TmName, Expr)] -> Expr -> Expr
 epi t b = Pi (bind (mkTele t) b)
@@ -162,13 +185,15 @@ core2New = transExpr
     transExpr (C.PrimOp e1 op e2) = PrimOp op <$> (transExpr e1) <*> (transExpr e2)
     transExpr (C.JNew name args) = JNew name <$> (mapM transExpr args)
     transExpr (C.JMethod rcv mname args cname) =
-      do args' <- mapM transExpr args
-         rcv' <- transRecv rcv
-         return (JMethod rcv' mname args' cname)
+      do
+        args' <- mapM transExpr args
+        rcv' <- transRecv rcv
+        return (JMethod rcv' mname args' cname)
     transExpr (C.JField rcv fname t) =
-      do rcv' <- transRecv rcv
-         t' <- transType t
-         return (JField rcv' fname t')
+      do
+        rcv' <- transRecv rcv
+        t' <- transType t
+        return (JField rcv' fname t')
     transExpr (C.Tuple es) = do
       es' <- mapM transExpr es
       return $ Tuple es'
@@ -178,14 +203,32 @@ core2New = transExpr
     transExpr (C.Seq es) = do
       es' <- mapM transExpr es
       return $ Seq es'
+
+    transExpr (C.Module n defs) = Module n <$> (trans defs)
+      where
+        trans C.Null = return DefNull
+        trans (C.Def fname ty e def) = do
+          e' <- transExpr e
+          fname' <- fresh (s2n fname)
+          def' <- trans (def fname')
+          return $ edef (fname, ty) e' def'
+        trans (C.DefRec names tys es defs) = do
+          names' <- mapM (fresh . s2n) names
+          let t1' = map fst tys
+          t2' <- mapM (transType . snd) tys
+          es' <- mapM transExpr (es names')
+          defs' <- trans (defs names')
+          return $ edefrec (zip4 names' t1' t2' es') defs'
+
     transExpr _ = sorry "Syntax.transExpr: not defined"
 
     transRecv :: Fresh m => S.JReceiver (C.Expr TmName TmName) -> m JReceiver
     transRecv (S.Static c) = return (Left c)
-    transRecv (S.NonStatic e) = do e' <- (transExpr e)
-                                   return (Right e')
+    transRecv (S.NonStatic e) = do
+      e' <- (transExpr e)
+      return (Right e')
 
-    transType :: Fresh m => C.Type TmName -> m Expr
+    transType :: Fresh m => C.Type TmName -> m Type
     transType (C.TVar _ x) = return $ Var x
     transType (C.JClass c) = return $ JClass c
     transType (C.Fun t1 t2) = do

@@ -106,7 +106,7 @@ data Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `compatible` and `subtype` below.
-  deriving (Eq, Show, Data, Typeable, Read)
+  deriving (Eq, Show, Data, Typeable, Read, Generic)
 
 type ReadType = Type
 
