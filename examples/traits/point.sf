@@ -1,0 +1,28 @@
+type Point = { x: Unit -> Int, y: Unit -> Int };
+let point (x: Int) (y: Int) (self: Unit -> Point) = {
+  x = \(d: Unit) -> x,
+  y = \(d: Unit) -> y
+};
+
+type Norm = { norm: Unit -> Int };
+-- x + y
+let manhattanNorm (self: Unit -> Point) = {
+  norm = \(d: Unit) -> (self ()).x() + (self()).y()
+};
+
+-- x + 2y
+let skewedNorm (self: Unit -> Point) = {
+  norm = \(d: Unit) -> (self ()).x() + (self()).y() * 2
+};
+
+let point1
+  = let rec self: Unit -> (Point&Norm)
+      = \(d: Unit) -> point 3 4 self ,, manhattanNorm self
+    in self ()
+;
+let point2
+  = let rec self: Unit -> (Point&Norm)
+      = \(d: Unit) -> point 3 4 self ,, skewedNorm self
+    in self ()
+;
+point1.norm().toString().concat(", ").concat(point2.norm().toString())
