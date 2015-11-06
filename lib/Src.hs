@@ -45,6 +45,12 @@ module Src
   , extractorsubpattern
   , specializedMatrix
   , defaultMatrix
+
+  , addTVarToContext
+  , addTypeSynonym
+  , addVarToContext
+  , addModuleInfo
+  , lookupVarType
   ) where
 
 import           Config
@@ -231,6 +237,25 @@ type ValueContext = Map.Map ReadId Type              -- Gamma
 type ModuleMapInfo = (Maybe PackageName, Type, ReadId, ReadId)
 type ModuleContext = Map.Map ReadId ModuleMapInfo -- Sigma
 
+addTVarToContext :: [(ReadId, Kind)] -> TypeContext -> TypeContext
+addTVarToContext tvars d =
+  let tvars' = map (\(id, kd) -> (id, (kd, TerminalType))) tvars
+  in Map.fromList tvars' `Map.union` d
+         -- `Map.fromList` is right-biased and `Map.union` is left-biased.
+
+addTypeSynonym :: [(ReadId, Type, Kind)] -> TypeContext -> TypeContext
+addTypeSynonym tvars d =
+  let tvars' = map (\(id, ty, kd) -> (id, (kd, NonTerminalType ty))) tvars
+  in  Map.fromList tvars' `Map.union` d
+
+addVarToContext :: [(ReadId, Type)] -> ValueContext -> ValueContext
+addVarToContext vars d = Map.fromList vars `Map.union` d
+
+addModuleInfo ::  [(ReadId, ModuleMapInfo)] -> ModuleContext -> ModuleContext
+addModuleInfo info m = Map.fromList info `Map.union` m
+
+lookupVarType :: ReadId -> ValueContext -> Maybe Type
+lookupVarType id d = Map.lookup id d
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.
 -- Used in `compatible` and `subtype`.
@@ -242,7 +267,7 @@ expandType d (TVar a)
       Nothing                       -> prettyPanic "expandType" (pretty (TVar a))
       Just (_, TerminalType)        -> TVar a
       Just (_, NonTerminalType def) -> expandType d def
-expandType d (OpAbs x t) = OpAbs x (expandType (Map.insert x (Star, TerminalType) d) t)
+expandType d (OpAbs x t) = OpAbs x (expandType (addTVarToContext [(x, Star)] d) t)
 expandType d (OpApp t1 t2)
   = let t1' = expandType d t1
         t2' = expandType d t2
@@ -254,7 +279,7 @@ expandType d (OpApp t1 t2)
 expandType _ (JClass c)   = JClass c
 expandType _ Unit         = Unit
 expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
-expandType d (Forall a t) = Forall a (expandType (Map.insert a (Star, TerminalType) d) t)
+expandType d (Forall a t) = Forall a (expandType (addTVarToContext [(a, Star)] d) t)
 expandType d (TupleType ts) = TupleType (map (expandType d) ts)
 expandType d (RecordType fs)  = RecordType (map (second (expandType d)) fs)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
