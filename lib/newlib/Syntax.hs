@@ -71,21 +71,14 @@ data Definition = Def (Bind (TmName, Embed S.Type, Embed Expr) Definition)
                 | DefNull
                 deriving (Show, Generic, Typeable)
 
-data Operation = Mult
-               | Sub
-               | Add
-  deriving (Show, Generic, Typeable)
-
 instance Alpha Expr
 instance Alpha S.Lit
 instance Alpha S.Operator
 instance Alpha J.Op
 instance Alpha S.Type
-instance Alpha Operation
 instance Alpha Tele
 instance Alpha Definition
 
-instance Subst Expr Operation
 instance Subst Expr S.Operator
 instance Subst Expr S.Lit
 instance Subst Expr J.Op

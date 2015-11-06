@@ -113,11 +113,6 @@ instance Pretty Expr where
     ts' <- mapM ppr ts
     return $ PP.parens $ PP.cat $ PP.punctuate PP.comma ts'
 
-instance Pretty Operation where
-  ppr Add = return . text $ "+"
-  ppr Mult = return . text $ "*"
-  ppr Sub = return . text $ "-"
-
 instance Pretty Tele where
   ppr Empty = return PP.empty
   ppr (Cons bnd) = do

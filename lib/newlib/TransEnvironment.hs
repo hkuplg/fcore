@@ -114,11 +114,6 @@ step (PrimOp op e1 e2) =
   PrimOp <$> pure op <*> step e1 <*> pure e2
   <|> PrimOp <$> pure op <*> pure e1 <*> step e2
 
-evalOp :: Operation -> Integer -> Integer -> Integer
-evalOp Add = (+)
-evalOp Sub = (-)
-evalOp Mult = (*)
-
 oneStep :: Expr -> Expr
 oneStep e = do
   case runFreshM . runMaybeT $ (step e) of
