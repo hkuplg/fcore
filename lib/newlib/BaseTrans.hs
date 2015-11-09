@@ -36,19 +36,6 @@ data Translate m =
          , createWrap :: String -> Expr -> m J.CompilationUnit
          , transDefs :: Definition -> m [J.BlockStmt]
          }
-{-
-createWrap =
-          \nam expr ->
-              do (bs,e,t) <- translateM this expr
-                 returnType <- applyRetType this t
-                 let (package, flag) = isModule expr
-                 let javaCode = if flag
-                                then wrapperClass flag nam bs returnType moduleMainBody
-                                else let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
-                                     in wrapperClass flag nam (bs ++ returnStmt) returnType mainBody
-                 return (maybe (createCUB Nothing [javaCode])
-                               (\pname -> createCUB  (Just (J.PackageDecl (name [pname]))) [javaCode]) package, t)
--}
 
 createWrap' this str expr = do
   (bs, e, t) <- translateM this expr
@@ -468,10 +455,7 @@ transDefs' this defs =
          bodyStmts <- (extendCtx newBindings) $ transDefs this body
          let bindtyps = map javaType tBinds
          let nameStrs = map show names
-
          let annos = map (\(fname, srcTyp) -> normalAnno fname fname srcTyp) (zip nameStrs (map show stypes))
-
          let assm = map (\(anno, s, typ, e) -> localVarWithAnno anno typ (varDecl s $ unwrap e)) (zip4 annos nameStrs bindtyps bindExprs)
-
          return (concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts)
     DefNull -> return []
