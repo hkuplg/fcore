@@ -139,18 +139,24 @@ translateM' this e =
 
       -- initialize declarations
       let bindJTypes = map javaType bindTypes
-      let mDecls = map (\(n, btyp) -> memberDecl (fieldDecl btyp (varDeclNoInit (show n)))) (zip names bindJTypes)
+      let mDecls = map (\(n, btyp) -> memberDecl (fieldDecl btyp (varDeclNoInit (show n))))
+                     (zip names bindJTypes)
 
       -- assign new created closures bindings to variables
       letClassName <- show <$> fresh (s2n letTransName)
       letVarName <- show <$> fresh (s2n "let")
-      let assm = map (\(i,jz) -> bsAssign (name [show i]) jz) (names `zip` map unwrap bindExprs)
-      let stasm = concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm)
-      let letClass = localClass letClassName (classBody (mDecls ++ [J.InitDecl False (J.Block stasm)]))
+      let assm = map (\(i, jz) -> bsAssign (name [show i]) jz) (names `zip` map unwrap bindExprs)
+      let stasm = concatMap (\(a, b) -> a ++ [b]) (bindStmts `zip` assm)
+      let letClass = localClass letClassName
+                       (classBody (mDecls ++ [J.InitDecl False (J.Block stasm)]))
 
       -- after let class, some variable initialization
-      let letVarInit = localVar (classTy letClassName) (varDecl letVarName (instCreat (classTyp letClassName) []))
-      let mVarsInit = map (\(x, btyp) -> (localVar btyp (varDecl x (fieldAccess (varExp letVarName) x)))) (zip (map show names) bindJTypes)
+      let letVarInit = localVar (classTy letClassName)
+                         (varDecl letVarName (instCreat (classTyp letClassName) []))
+      let mVarsInit = map
+                        (\(x, btyp) ->
+                           (localVar btyp (varDecl x (fieldAccess (varExp letVarName) x))))
+                        (zip (map show names) bindJTypes)
 
 
       return (letClass : letVarInit : mVarsInit ++ bodyStmts, bodyExpr, bodyType)
@@ -281,9 +287,10 @@ translateM' this e =
       let (_, lastExp, lastType) = last es'
       let statements = concatMap (\(x, _, _) -> x) es'
       return (statements, lastExp, lastType)
-    
-    Module _ defs -> do defStmts <- transDefs this defs
-                        return (defStmts, var tempvarstr, Unit)
+
+    Module _ defs -> do
+      defStmts <- transDefs this defs
+      return (defStmts, var tempvarstr, Unit)
 
 translateIf' this m1 m2 m3 = do
   (s1, j1, _) <- m1
@@ -425,37 +432,35 @@ javaType ty =
         _   -> classTy $ getTupleClassName tuple
     _ -> objClassTy
 
-{-
-Def (Bind (TmName, Embed S.Type, Embed Expr) Definition)
-DefRec (Bind (Rec [(TmName, Embed S.Type, Embed Type, Embed Expr)]) Definition)
-DefNull
--}
-
 
 transDefs' this defs =
   case defs of
-    Def bnd ->
-      do ((fname, Embed srcTyp, Embed expr), otherDef) <- unbind bnd
-         (bs, e, t) <- translateM this expr
-         otherDefStmts <- (extendCtx (mkTele [(fname, t)])) $ transDefs this otherDef
-         let typ = javaType t
-         -- HACK
-         let s = show fname
-         let anno = normalAnno s s (show srcTyp)
-         let xDecl = localVarWithAnno anno typ (varDecl s $ unwrap e)
-         return (bs ++ [xDecl] ++ otherDefStmts)
-    DefRec bnd -> 
-      do (defList, body) <- unbind bnd
-         let (names, stypes', types', exprs') = unzip4 $ unrec defList
-         let stypes = map unembed stypes'
-         let types = map unembed types'
-         let exprs = map unembed exprs'
-         let newBindings = (mkTele $ zip names types)
-         (bindStmts, bindExprs, tBinds) <- unzip3 <$> (mapM (extendCtx newBindings . translateM this) exprs)
-         bodyStmts <- (extendCtx newBindings) $ transDefs this body
-         let bindtyps = map javaType tBinds
-         let nameStrs = map show names
-         let annos = map (\(fname, srcTyp) -> normalAnno fname fname srcTyp) (zip nameStrs (map show stypes))
-         let assm = map (\(anno, s, typ, e) -> localVarWithAnno anno typ (varDecl s $ unwrap e)) (zip4 annos nameStrs bindtyps bindExprs)
-         return (concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts)
+    Def bnd -> do
+      ((fname, Embed srcTyp, Embed expr), otherDef) <- unbind bnd
+      (bs, e, t) <- translateM this expr
+      otherDefStmts <- (extendCtx (mkTele [(fname, t)])) $ transDefs this otherDef
+      let typ = javaType t
+      -- HACK
+      let s = show fname
+      let anno = normalAnno s s (show srcTyp)
+      let xDecl = localVarWithAnno anno typ (varDecl s $ unwrap e)
+      return (bs ++ [xDecl] ++ otherDefStmts)
+    DefRec bnd ->
+      do
+        (defList, body) <- unbind bnd
+        let (names, stypes', types', exprs') = unzip4 $ unrec defList
+        let stypes = map unembed stypes'
+        let types = map unembed types'
+        let exprs = map unembed exprs'
+        let newBindings = (mkTele $ zip names types)
+        (bindStmts, bindExprs, tBinds) <- unzip3 <$> (mapM (extendCtx newBindings . translateM this)
+                                                        exprs)
+        bodyStmts <- (extendCtx newBindings) $ transDefs this body
+        let bindtyps = map javaType tBinds
+        let nameStrs = map show names
+        let annos = map (\(fname, srcTyp) -> normalAnno fname fname srcTyp)
+                      (zip nameStrs (map show stypes))
+        let assm = map (\(anno, s, typ, e) -> localVarWithAnno anno typ (varDecl s $ unwrap e))
+                     (zip4 annos nameStrs bindtyps bindExprs)
+        return (concatMap (\(a, b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts)
     DefNull -> return []
