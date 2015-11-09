@@ -102,8 +102,8 @@ elam t b = Lam (bind (mkTele t) b)
 emu :: (String, Expr) -> Expr -> Expr
 emu (n, t) b = Mu (bind (string2Name n, embed t) b)
 
-edef :: (String, S.Type) -> Expr -> Definition -> Definition
-edef (n, t) e b = Def (bind (string2Name n, embed t, embed e) b)
+edef :: (TmName, S.Type) -> Expr -> Definition -> Definition
+edef (n, t) e b = Def (bind (n, embed t, embed e) b)
 
 edefrec :: [(TmName, S.Type, Type, Expr)] -> Definition -> Definition
 edefrec xs e = DefRec (bind binds e)
@@ -202,9 +202,9 @@ core2New = transExpr
         trans C.Null = return DefNull
         trans (C.Def fname ty e def) = do
           e' <- transExpr e
-          fname' <- fresh (s2n fname)
+          fname' <- fresh (string2Name fname)
           def' <- trans (def fname')
-          return $ edef (fname, ty) e' def'
+          return $ edef (fname', ty) e' def'
         trans (C.DefRec names tys es defs) = do
           names' <- mapM (fresh . s2n) names
           let t1' = map fst tys

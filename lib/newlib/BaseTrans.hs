@@ -3,6 +3,7 @@
 module BaseTrans where
 
 import           Control.Monad.Reader
+import           Data.List (zip4, unzip4)
 import qualified Language.Java.Syntax as J
 import           Lens.Micro
 import           Unbound.Generics.LocallyNameless
@@ -33,14 +34,30 @@ data Translate m =
          , translateApply :: Expr -> Expr -> m TransType
          , translateScopeTy :: Tele -> TransType -> Maybe TmName -> m ([J.BlockStmt], TransJavaExp)
          , createWrap :: String -> Expr -> m J.CompilationUnit
+         , transDefs :: Definition -> m [J.BlockStmt]
          }
+{-
+createWrap =
+          \nam expr ->
+              do (bs,e,t) <- translateM this expr
+                 returnType <- applyRetType this t
+                 let (package, flag) = isModule expr
+                 let javaCode = if flag
+                                then wrapperClass flag nam bs returnType moduleMainBody
+                                else let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
+                                     in wrapperClass flag nam (bs ++ returnStmt) returnType mainBody
+                 return (maybe (createCUB Nothing [javaCode])
+                               (\pname -> createCUB  (Just (J.PackageDecl (name [pname]))) [javaCode]) package, t)
+-}
 
-createWrap' this str e = do
-  (bs, e, t) <- translateM this e
+createWrap' this str expr = do
+  (bs, e, t) <- translateM this expr
   let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
   let returnType = applyRetType t
-  let javaCode = wrapperClass False str (bs ++ returnStmt) returnType mainBody
-  return (createCUB Nothing [javaCode])
+  let (javaCode, package) = case expr of (Module p _) -> (wrapperClass True str bs returnType moduleMainBody, p)
+                                         _ -> (wrapperClass False str (bs ++ returnStmt) returnType mainBody, Nothing)
+  return $ maybe (createCUB Nothing [javaCode])
+                 (\pname -> createCUB  (Just (J.PackageDecl (name [pname]))) [javaCode]) package
 
 createCUB :: Maybe J.PackageDecl -> [J.TypeDecl] -> J.CompilationUnit
 createCUB package compDef = cu
@@ -63,6 +80,7 @@ trans self =
     , translateScopeTy = translateScopeTy' this
     , translateApply = translateApply' this
     , createWrap = createWrap' this
+    , transDefs = transDefs' this
     }
 
 
@@ -276,6 +294,9 @@ translateM' this e =
       let (_, lastExp, lastType) = last es'
       let statements = concatMap (\(x, _, _) -> x) es'
       return (statements, lastExp, lastType)
+    
+    Module _ defs -> do defStmts <- transDefs this defs
+                        return (defStmts, var tempvarstr, Unit)
 
 translateIf' this m1 m2 m3 = do
   (s1, j1, _) <- m1
@@ -416,3 +437,41 @@ javaType ty =
         [t] -> javaType t
         _   -> classTy $ getTupleClassName tuple
     _ -> objClassTy
+
+{-
+Def (Bind (TmName, Embed S.Type, Embed Expr) Definition)
+DefRec (Bind (Rec [(TmName, Embed S.Type, Embed Type, Embed Expr)]) Definition)
+DefNull
+-}
+
+
+transDefs' this defs =
+  case defs of
+    Def bnd ->
+      do ((fname, Embed srcTyp, Embed expr), otherDef) <- unbind bnd
+         (bs, e, t) <- translateM this expr
+         otherDefStmts <- (extendCtx (mkTele [(fname, t)])) $ transDefs this otherDef
+         let typ = javaType t
+         -- HACK
+         let s = show fname
+         let anno = normalAnno s s (show srcTyp)
+         let xDecl = localVarWithAnno anno typ (varDecl s $ unwrap e)
+         return (bs ++ [xDecl] ++ otherDefStmts)
+    DefRec bnd -> 
+      do (defList, body) <- unbind bnd
+         let (names, stypes', types', exprs') = unzip4 $ unrec defList
+         let stypes = map unembed stypes'
+         let types = map unembed types'
+         let exprs = map unembed exprs'
+         let newBindings = (mkTele $ zip names types)
+         (bindStmts, bindExprs, tBinds) <- unzip3 <$> (mapM (extendCtx newBindings . translateM this) exprs)
+         bodyStmts <- (extendCtx newBindings) $ transDefs this body
+         let bindtyps = map javaType tBinds
+         let nameStrs = map show names
+
+         let annos = map (\(fname, srcTyp) -> normalAnno fname fname srcTyp) (zip nameStrs (map show stypes))
+
+         let assm = map (\(anno, s, typ, e) -> localVarWithAnno anno typ (varDecl s $ unwrap e)) (zip4 annos nameStrs bindtyps bindExprs)
+
+         return (concatMap (\(a,b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts)
+    DefNull -> return []
