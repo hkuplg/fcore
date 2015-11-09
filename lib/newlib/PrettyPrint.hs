@@ -113,6 +113,29 @@ instance Pretty Expr where
     ts' <- mapM ppr ts
     return $ PP.parens $ PP.cat $ PP.punctuate PP.comma ts'
 
+  ppr (Sum bnd) = lunbind bnd $ \((x, Embed t), e) -> do
+    t' <- ppr t
+    e' <- ppr e
+    return (PP.parens $ text "Σ" <+> (text . show $ x) <+> colon <+> t' <+> dot <+> e')
+
+  ppr (Pack (e1, e2) t) = do
+    e1' <- ppr e1
+    e2' <- ppr e2
+    t' <- ppr t
+    return $ text "pack" <+> (PP.parens $ e1' <+> PP.comma <+> e2') <+> text "as" <+> t'
+
+  ppr (UnPack (e1, e2) e3 e4) = do
+    e1' <- ppr e1
+    e2' <- ppr e2
+    e3' <- ppr e3
+    e4' <- ppr e4
+    return $ text "unpack" <+>
+             (PP.parens e1' <+> PP.comma <+> e2') <+>
+             PP.equals <+>
+             e3' <+>
+             text "in" <+>
+             e4'
+
 instance Pretty Tele where
   ppr Empty = return PP.empty
   ppr (Cons bnd) = do

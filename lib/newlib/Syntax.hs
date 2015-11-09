@@ -41,25 +41,29 @@ data Expr = Var TmName
 
           | Let (Bind (TmName, Embed Type) Expr)
           | LetRec (Bind (Rec [(TmName, Embed Type, Embed Expr)]) Expr)
+
           | If Expr Expr Expr
+
           | Lit S.Lit
           | PrimOp S.Operator Expr Expr
+
           | Unit
 
-          | Tuple [Expr]
-          | Proj Int Expr
-
           | JClass ClassName
-
           | JNew ClassName [Expr]
           | JMethod JReceiver MethodName [Expr] ClassName
           | JField JReceiver FieldName Expr
 
           -- TODO: generalize to dependent pair
           | Product [Expr]
+          | Tuple [Expr]
+          | Proj Int Expr
+
+          | Sum (Bind (TmName, Embed Type) Expr)
+          | Pack (Expr, Expr) Type
+          | UnPack (Expr, Expr) Expr Expr
 
           | Seq [Expr]
-
           -- Module
           | Module (Maybe S.PackageName) Definition
 
