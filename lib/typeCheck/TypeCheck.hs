@@ -40,11 +40,13 @@ import Panic
 import Predef
 import PrettyUtils
 import Src hiding (subtype)
+import qualified Src (subtype)
 import SrcLoc
 import StringUtils
 import TypeErrors
 
 import Control.Monad.Except
+import Data.Data (toConstr)
 import Data.List (findIndex, intercalate)
 import Data.List.Split
 import qualified Data.Map  as Map
@@ -67,13 +69,50 @@ typeCheckWithEnv :: ValueContext -> ReadExpr -> IO (Either LTypeErrorExpr (Type,
 typeCheckWithEnv value_ctxt e = JvmTypeQuery.withConnection (\conn ->
   (evalIOEnv (mkInitCheckerStateWithEnv value_ctxt conn) . runExceptT . checkExpr) e) False
 
+
+disjoint :: TypeContext -> Type -> Type -> Bool
+disjoint ctxt (TVar a) t
+  = case lookupTVarConstraint ctxt a of
+       Nothing -> False
+       Just c  -> Src.subtype ctxt c t && Src.subtype ctxt t c
+  -- = case lookupTVar ctxt a of
+  --     Nothing -> invariantFailed "Disjoint.disjoint:TVar" $ text "Not in scope:" <+> code (text a)
+  --     Just result ->
+  --       case result of
+  --         IsTypeVar UnConstrained    -> False
+  --         IsTypeVar (DisjointWith s) -> subtype s t
+  --         -- Disjointness check shouldn't be aware of the type synonym feature.
+  --         IsTypeAlias _  ->
+  --           invariantFailed "Disjoint.disjoint:TVar" $
+  --             text "Type alias" <+> code (text a) <+> text "should already have been eliminated"
+disjoint ctxt t (TVar a) = disjoint ctxt (TVar a) t
+disjoint ctxt (Fun _ s) (Fun _ t) = disjoint ctxt s t
+disjoint ctxt (Forall v1 b1) (Forall v2 b2) = True -- TODO
+disjoint ctxt (And s t) u         = disjoint ctxt s u && disjoint ctxt t u
+disjoint ctxt s         (And t u) = disjoint ctxt s t && disjoint ctxt s u
+disjoint ctxt Unit Unit = True -- Special case, since `Unit` contains only one value.
+disjoint ctxt (TupleType types1) (TupleType types2)
+  = length types1 /= length types2
+  || any (uncurry (disjoint ctxt)) (zip types1 types2)
+disjoint ctxt (RecordType fields1) (RecordType fields2)
+  = Set.null (labels1 `Set.intersection` labels2)
+  where
+    labels1 = Set.fromList (map fst fields1)
+    labels2 = Set.fromList (map fst fields2)
+disjoint ctxt (JClass c1) (JClass c2) = c1 /= c2
+disjoint ctxt (Datatype n1 _ _) (Datatype n2 _ _) = n1 /= n2
+disjoint ctxt s         t
+  | toConstr s /= toConstr t = True
+  | otherwise                = False -- FIXME
+
+
 -- | Kinding.
 kind :: TypeContext -> Type -> IO (Maybe Kind)
-kind d (TVar a)     = case Map.lookup a d of Nothing     -> return Nothing
-                                             Just (k, _) -> return (Just k)
+kind d (TVar a)     = case Map.lookup a d of Nothing        -> return Nothing
+                                             Just (k, _, _) -> return (Just k)
 kind _  Unit        = return (Just Star)
 kind d (Fun t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
-kind d (Forall a t) = kind (addTVarToContext [(a, Star)] d) t
+kind d (Forall (a,_) t) = kind (addTVarToContext [(a, Star)] d) t
 kind d (TupleType ts)  = justStarIffAllHaveKindStar d ts
 kind d (RecordType fs) = justStarIffAllHaveKindStar d (map snd fs)
 kind d (And t1 t2)  = justStarIffAllHaveKindStar d [t1, t2]
@@ -158,9 +197,12 @@ checkExpr (L _ (App e1 e2)) =
 
           _ -> throwError (NotAFunction t1 `withExpr` e1)
 
-checkExpr (L loc (BLam a e))
-  = do (t, e') <- withLocalTVars [(a, Star)] (checkExpr e)
-       return (Forall a t, L loc $ BLam a e')
+checkExpr (L loc (BLam (a,c) e)) -- TODO: Issue: #addconstrainttocontext, check constraint
+  = do case c of
+         Just t  -> checkType t
+         Nothing -> return ()
+       (t, e') <- withLocalConstrainedTVars [(a, c)] (checkExpr e)
+       return (Forall (a,c) t, L loc $ BLam (a,c) e')
 
 checkExpr (L loc (TApp e arg))
   = do (t, e') <- checkExpr e
@@ -168,10 +210,18 @@ checkExpr (L loc (TApp e arg))
        d <- getTypeContext
        let arg' = expandType d arg
        case t of
-         Forall a t1 -> let t' = fsubstTT (a, arg') t1
-                        in case e' of
-                             L loc' (ConstrOut (Constructor n _) es) -> return (t', L loc' $ ConstrOut (Constructor n [t']) es)
-                             _ -> return (t', L loc $ TApp e' arg')
+         Forall (a,c) t1 -> do
+           case c of
+             Nothing -> return ()
+             Just t  -> do
+               result <- subtype arg t
+               if result
+                  then throwError $ General (text "failed to satisfy disjoint constraint") `withExpr` e
+                  else return ()
+           let t' = fsubstTT (a, arg') t1 -- TODO: Issue: #addconstrainttocontext
+           case e' of
+             L loc' (ConstrOut (Constructor n _) es) -> return (t', L loc' $ ConstrOut (Constructor n [t']) es)
+             _ -> return (t', L loc $ TApp e' arg')
          _ -> throwError $ General (code (pretty e) <+> text "does not take type parameters") `withExpr` e
 
 checkExpr (L loc (TupleCon es))
@@ -350,13 +400,21 @@ checkExpr (L loc (Seq es)) =
   do (ts, es') <- mapAndUnzipM checkExpr es
      return (last ts, Seq es' `withLocs` es')
 
-checkExpr (L loc (Merge e1 e2)) =
-  do (t1, e1') <- checkExpr e1
-     (t2, e2') <- checkExpr e2
-     return (And t1 t2, Merge e1' e2' `withLoc` e1')
+checkExpr expr@(L loc (Merge e1 e2)) =
+ do (t1, e1') <- checkExpr e1
+    (t2, e2') <- checkExpr e2
+    typeContext <- getTypeContext
+    if disjoint typeContext t1 t2
+       then return (And t1 t2, Merge e1' e2' `withLoc` e1')
+       else throwError (General
+                 (text "The merge of two terms of types" <+>
+                 code (pretty t1) <+> text "and" <+> code (pretty t2) <+>
+                 text "is overlapping") `withExpr` expr)
 
 checkExpr (L loc (RecordCon fs)) =
-  do (ts, es') <- mapAndUnzipM checkExpr (map snd fs)
+  do checkDupNames (map fst fs)
+       -- TODO: This will give imprecise error message: should be "label", not "param".
+     (ts, es') <- mapAndUnzipM checkExpr (map snd fs)
      let fs' = zip (map fst fs) ts
      return (foldl (\acc (l,t) -> And acc (RecordType [(l,t)])) (RecordType [head fs']) (tail fs'), L loc $ RecordCon (zip (map fst fs) es'))
 
@@ -578,7 +636,7 @@ pullRight :: [Name] -> Type -> Type
 pullRight params t = foldr OpAbs t params
 
 pullRightForall :: [Name] -> Type -> Type
-pullRightForall params t = foldr Forall t params
+pullRightForall params t = foldr (\a -> Forall (a,Nothing)) t params
 
 inferAgainst :: ReadExpr -> Type -> Checker (Type, CheckedExpr)
 inferAgainst expr expected_ty
@@ -600,7 +658,7 @@ inferAgainstAnyJClass expr
 normalizeBind :: ReadBind -> Checker CheckedBind
 normalizeBind bind
   = do bind' <- checkBindLHS bind
-       (bindRhsTy, bindRhs') <- withLocalTVars (zip (bindTyParams bind') (repeat Star)) $
+       (bindRhsTy, bindRhs') <- withLocalConstrainedTVars (bindTyParams bind') $ -- TODO: Issue: #addconstrainttocontext
                                   do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindParams bind')
                                      withLocalVars expandedBindArgs (checkExpr (bindRhs bind'))
        case bindRhsTyAscription bind' of
@@ -608,7 +666,7 @@ normalizeBind bind
                            , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                            , wrap (\x acc -> BLam x acc `withLoc` acc) (bindTyParams bind') (wrap (\x acc -> Lam x acc `withLoc` acc) (bindParams bind') bindRhs'))
          Just ty_ascription ->
-           withLocalTVars (zip (bindTyParams bind') (repeat Star)) $
+           withLocalConstrainedTVars (bindTyParams bind') $ -- TODO: Issue: #addconstrainttocontext
              do checkType ty_ascription
                 d <- getTypeContext
                 let ty_ascription' = expandType d ty_ascription
@@ -623,9 +681,9 @@ normalizeBind bind
 -- Then check and expand the types of value params.
 checkBindLHS :: ReadBind -> Checker ReadBind
 checkBindLHS Bind{..}
-  = do checkDupNames bindTyParams
+  = do checkDupNames (map fst bindTyParams)
        checkDupNames (map fst bindParams)
-       bindParams' <- withLocalTVars (zip bindTyParams (repeat Star)) $
+       bindParams' <- withLocalConstrainedTVars bindTyParams $ -- TODO: Issue: #addconstrainttocontext
                     -- Restriction: type params have kind *
                     do d <- getTypeContext
                        forM bindParams (\(x,t) ->
@@ -640,7 +698,7 @@ collectBindIdSigs
               Nothing    -> throwError (noExpr $ MissingTyAscription bindId)
               Just tyAscription ->
                 do d <- getTypeContext
-                   let d' = foldr (\a acc -> addTVarToContext [(a, Star)] acc) d bindTyParams
+                   let d' = foldr (\(a,_) acc -> addTVarToContext [(a, Star)] acc) d bindTyParams -- TODO: Issue: #addconstrainttocontext
                    return (bindId,
                            wrap Forall bindTyParams $
                            wrap Fun [expandType d' ty |  (_,ty) <- bindParams] $
@@ -672,6 +730,13 @@ normalizeBindAndAccum = normalize []
 checkType :: Type -> Checker ()
 checkType t =
   case t of
+    And t1 t2 -> do
+      checkType t1
+      checkType t2
+      ctxt <- getTypeContext
+      if disjoint ctxt t1 t2
+          then return ()
+          else throwError (noExpr $ General (text "intersection of types is not disjoint"))
     JClass c -> checkClassName c
     _ -> do
       delta <- getTypeContext
@@ -773,7 +838,7 @@ unwrapFun t = [t]
 feedToForall :: Type -> [Type] -> Type
 feedToForall =
     foldl (\t t_feed -> case t of
-                          Forall a t' -> fsubstTT (a, t_feed) t'
+                          Forall (a,_) t' -> fsubstTT (a, t_feed) t'
                           _ -> prettySorry "TypeCheck.feedToForall" (pretty t))
 
 noExpr :: TypeError -> LTypeErrorExpr

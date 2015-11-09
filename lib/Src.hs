@@ -47,9 +47,11 @@ module Src
   , defaultMatrix
 
   , addTVarToContext
+  , addConstrainedTVarToContext
   , addTypeSynonym
   , addVarToContext
   , addModuleInfo
+  , lookupTVarConstraint
   , lookupVarType
   ) where
 
@@ -96,7 +98,7 @@ data Type
   | JClass ClassName
   | Unit
   | Fun Type Type
-  | Forall Name Type
+  | Forall (Name, Maybe Type) Type
   | TupleType [Type]
   -- Extensions
   | And Type Type
@@ -123,7 +125,7 @@ data Expr id ty
   | Lit Lit                                   -- Literals
   | Lam (Name, ty) (LExpr id ty)             -- Lambda
   | App (LExpr id ty) (LExpr id ty)            -- Application
-  | BLam Name (LExpr id ty)                    -- Big lambda
+  | BLam (Name, Maybe Type) (LExpr id ty)                    -- Big lambda
   | TApp (LExpr id ty) ty                    -- Type application
   | TupleCon [LExpr id ty]                        -- Tuples
   | TupleProj (LExpr id ty) Int                     -- Tuple projection
@@ -204,7 +206,7 @@ data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
 
 data Bind id ty = Bind
   { bindId       :: id             -- Identifier
-  , bindTyParams :: [Name]         -- Type arguments
+  , bindTyParams :: [(Name, Maybe Type)]         -- Type arguments
   , bindParams   :: [(Name, Type)] -- Arguments, each annotated with a type
   , bindRhs      :: LExpr id ty     -- RHS to the "="
   , bindRhsTyAscription :: Maybe Type  -- Type annotation for the RHS
@@ -231,20 +233,29 @@ data TypeValue
     -- Non-terminal types, i.e. type synoyms. `Type` holds the RHS to the
     -- equal sign of type synonym definitions.
 
-type TypeContext  = Map.Map ReadId (Kind, TypeValue) -- Delta
+type TypeContext  = Map.Map ReadId ( Kind
+                                   , Maybe Type -- Constraint
+                                   , TypeValue
+                                   ) -- Delta
 type ValueContext = Map.Map ReadId Type              -- Gamma
 type ModuleMapInfo = (Maybe PackageName, Type, ReadId, ReadId)
 type ModuleContext = Map.Map ReadId ModuleMapInfo -- Sigma
 
 addTVarToContext :: [(ReadId, Kind)] -> TypeContext -> TypeContext
 addTVarToContext tvars d =
-  let tvars' = map (\(id, kd) -> (id, (kd, TerminalType))) tvars
+  let tvars' = map (\(id, kd) -> (id, (kd, Nothing, TerminalType))) tvars
   in Map.fromList tvars' `Map.union` d
          -- `Map.fromList` is right-biased and `Map.union` is left-biased.
 
+addConstrainedTVarToContext :: [(ReadId, Maybe Type)] -> TypeContext -> TypeContext
+addConstrainedTVarToContext tvars d
+  = let tvars' = map (\(id, constraint) -> (id, (Star, constraint, TerminalType))) tvars
+    in Map.fromList tvars' `Map.union` d
+           -- `Map.fromList` is right-biased and `Map.union` is left-biased.
+
 addTypeSynonym :: [(ReadId, Type, Kind)] -> TypeContext -> TypeContext
 addTypeSynonym tvars d =
-  let tvars' = map (\(id, ty, kd) -> (id, (kd, NonTerminalType ty))) tvars
+  let tvars' = map (\(id, ty, kd) -> (id, (kd, Nothing, NonTerminalType ty))) tvars
   in  Map.fromList tvars' `Map.union` d
 
 addVarToContext :: [(ReadId, Type)] -> ValueContext -> ValueContext
@@ -252,6 +263,12 @@ addVarToContext vars d = Map.fromList vars `Map.union` d
 
 addModuleInfo ::  [(ReadId, ModuleMapInfo)] -> ModuleContext -> ModuleContext
 addModuleInfo info m = Map.fromList info `Map.union` m
+
+lookupTVarConstraint :: TypeContext -> ReadId -> Maybe Type
+lookupTVarConstraint d id
+  = case Map.lookup id d of
+      Nothing      -> Nothing
+      Just (_,c,_) -> c
 
 lookupVarType :: ReadId -> ValueContext -> Maybe Type
 lookupVarType id d = Map.lookup id d
@@ -263,9 +280,9 @@ expandType :: TypeContext -> Type -> Type
 -- Interesting cases:
 expandType d (TVar a)
   = case Map.lookup a d of
-      Nothing                       -> prettyPanic "expandType" (pretty (TVar a))
-      Just (_, TerminalType)        -> TVar a
-      Just (_, NonTerminalType def) -> expandType d def
+      Nothing                          -> prettyPanic "expandType" (pretty (TVar a))
+      Just (_, _, TerminalType)        -> TVar a
+      Just (_, _, NonTerminalType def) -> expandType d def
 expandType d (OpAbs x t) = OpAbs x (expandType (addTVarToContext [(x, Star)] d) t)
 expandType d (OpApp t1 t2)
   = let t1' = expandType d t1
@@ -278,7 +295,7 @@ expandType d (OpApp t1 t2)
 expandType _ (JClass c)   = JClass c
 expandType _ Unit         = Unit
 expandType d (Fun t1 t2)  = Fun (expandType d t1) (expandType d t2)
-expandType d (Forall a t) = Forall a (expandType (addTVarToContext [(a, Star)] d) t)
+expandType d (Forall (a,c) t) = Forall (a, fmap (expandType d) c) (expandType (addTVarToContext [(a, Star)] d) t)
 expandType d (TupleType ts) = TupleType (map (expandType d) ts)
 expandType d (RecordType fs)  = RecordType (map (second (expandType d)) fs)
 expandType d (And t1 t2)  = And (expandType d t1) (expandType d t2)
@@ -297,7 +314,12 @@ subtypeS (TVar a)       (TVar b)               = a == b
 subtypeS (JClass c)     (JClass d)             = c == d
 -- The subtypeS here shouldn't be aware of the subtyping relations in the Java world.
 subtypeS (Fun t1 t2)    (Fun t3 t4)            = subtypeS t3 t1 && subtypeS t2 t4
-subtypeS (Forall a1 t1) (Forall a2 t2)         = subtypeS (fsubstTT (a1,TVar a2) t1) t2
+
+subtypeS (Forall (a1,Nothing) t1) (Forall (a2,_) t2) = subtypeS (fsubstTT (a1,TVar a2) t1) t2
+subtypeS (Forall (a1,Just c1) t1) (Forall (a2,Nothing) t2) = False
+subtypeS (Forall (a1,Just c1) t1) (Forall (a2,Just c2) t2)
+  = subtypeS c2 c1 && subtypeS (fsubstTT (a1,TVar a2) t1) t2
+
 subtypeS (TupleType ts1) (TupleType ts2)       = length ts1 == length ts2 && uncurry subtypeS `all` zip ts1 ts2
 subtypeS (RecordType [(l1,t1)]) (RecordType [(l2,t2)]) = l1 == l2 && subtypeS t1 t2
 subtypeS (RecordType fs1)   (RecordType fs2)           = subtypeS (desugarMultiRecordType fs1) (desugarMultiRecordType fs2)
@@ -377,11 +399,11 @@ fsubstTT (x,r) (TVar a)
 fsubstTT (_,_) (JClass c)      = JClass c
 fsubstTT (x,r) (Fun t1 t2)     = Fun (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
 fsubstTT (x,r) (TupleType ts)  = TupleType (map (fsubstTT (x,r)) ts)
-fsubstTT (x,r) (Forall a t)
+fsubstTT (x,r) (Forall (a,c) t)
     | a == x || a `Set.member` freeTVars r = -- The freshness condition, crucial!
         let fresh = freshName a (freeTVars t `Set.union` freeTVars r)
-        in Forall fresh (fsubstTT (x,r) (fsubstTT (a, TVar fresh) t))
-    | otherwise                = Forall a (fsubstTT (x,r) t)
+        in Forall (fresh,c) (fsubstTT (x,r) (fsubstTT (a, TVar fresh) t))
+    | otherwise                = Forall (a,c) (fsubstTT (x,r) t)
 fsubstTT (_,_) Unit            = Unit
 fsubstTT (x,r) (RecordType fs)     = RecordType (map (second (fsubstTT (x,r))) fs)
 fsubstTT (x,r) (And t1 t2)     = And (fsubstTT (x,r) t1) (fsubstTT (x,r) t2)
@@ -401,7 +423,8 @@ freeTVars (TVar x)     = Set.singleton x
 freeTVars (JClass {})  = Set.empty
 freeTVars Unit         = Set.empty
 freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
-freeTVars (Forall a t) = Set.delete a (freeTVars t)
+freeTVars (Forall (a,Nothing) t) = Set.delete a (freeTVars t)
+freeTVars (Forall (a,Just c) t) = freeTVars c `Set.union` (Set.delete a (freeTVars t))
 freeTVars (TupleType ts) = Set.unions (map freeTVars ts)
 freeTVars (RecordType fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
@@ -436,7 +459,7 @@ instance Pretty Type where
   pretty (JClass c)   = text c
   pretty Unit         = text "Unit"
   pretty (Fun t1 t2)  = parens $ pretty t1 <+> text "->" <+> pretty t2
-  pretty (Forall a t) = parens $ forall <+> hsep (map text as) <> dot <+> pretty t' where (as, t') = groupForall (Forall a t)
+  pretty (Forall a t) = parens $ forall <+> hsep (map prettyConstainedTyParam as) <> dot <+> pretty t' where (as, t') = groupForall (Forall a t)
   pretty (TupleType ts) = lparen <> hcat (intersperse comma (map pretty ts)) <> rparen
   pretty (And t1 t2)  = pretty t1 <> text "&" <> pretty t2
   pretty (RecordType fs)  = lbrace <> hcat (intersperse comma (map (\(l,t) -> text l <> colon <> pretty t) fs)) <> rbrace
@@ -444,8 +467,12 @@ instance Pretty Type where
   pretty (OpApp t1 t2) = parens (pretty t1 <+> pretty t2)
   pretty (Datatype n ts _) = hsep (text n : map pretty ts)
 
-groupForall :: Type -> ([Name], Type)
-groupForall (Forall a t) = let (as, t') = groupForall t in (a:as, t')
+prettyConstainedTyParam :: (Name, Maybe Type) -> Doc
+prettyConstainedTyParam (a, Nothing) = text a
+prettyConstainedTyParam (a, Just t)  = parens (text a <+> char '*' <+> pretty t)
+
+groupForall :: Type -> ([(Name, Maybe Type)], Type)
+groupForall (Forall (a,c) t) = let (as, t') = groupForall t in ((a,c):as, t')
 groupForall t            = ([], t)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Located (Expr id ty)) where
@@ -458,7 +485,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Lit (Bool n))    = bool n
   pretty (Lit (Char n))    = char n
   pretty (Lit  UnitLit)    = unit
-  pretty (BLam a e) = parens $ text "/\\" <> text a <> dot <+> pretty e
+  pretty (BLam (a,_) e) = parens $ text "/\\" <> text a <> dot <+> pretty e -- TODO
   pretty (Lam (x,t) e) =
     parens $
       backslash <> parens (pretty x <+> colon <+> pretty t) <> dot <+>

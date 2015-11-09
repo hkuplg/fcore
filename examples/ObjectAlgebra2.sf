@@ -14,7 +14,7 @@ let printAlg = {
   add = \(x : IPrint) (y : IPrint) -> { print = "\{x.print} + \{y.print}" },
   sub = \(x : IPrint) (y : IPrint) -> { print = "\{x.print} - \{y.print}" }
 };
-let merge[A, B] (f : ExpAlg[A]) (g : ExpAlg[B]) = {
+let merge[A, B*A] (f : ExpAlg[A]) (g : ExpAlg[B]) = {
   lit = \(x : Int) -> f.lit x ,, g.lit x,
   add = \(x : A & B) (y : A & B) -> f.add x y ,, g.add x y
 };

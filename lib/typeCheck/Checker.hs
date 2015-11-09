@@ -54,6 +54,17 @@ withLocalTVars tvars do_this
        setCheckerState CheckerState { checkerTypeContext = delta, ..}
        return r
 
+withLocalConstrainedTVars :: [(ReadId, Maybe Type)] -> Checker a -> Checker a
+withLocalConstrainedTVars tvars do_this
+ = do delta <- getTypeContext
+      let delta' = addConstrainedTVarToContext tvars delta
+      CheckerState {..} <- getCheckerState
+      setCheckerState CheckerState { checkerTypeContext = delta', ..}
+      r <- do_this
+      CheckerState {..} <- getCheckerState
+      setCheckerState CheckerState { checkerTypeContext = delta, ..}
+      return r
+
 withTypeSynonym :: [(ReadId, Type, Kind)] -> Checker a -> Checker a
 withTypeSynonym tvars do_this
   = do delta <- getTypeContext
@@ -131,7 +142,7 @@ lookupModuleVar x
 lookupTVarKind :: Name -> Checker (Maybe Kind)
 lookupTVarKind a
  = do typeCtxt <- getTypeContext
-      return (fmap fst (Map.lookup a typeCtxt))
+      return (fmap (\(kind,_,_) -> kind) (Map.lookup a typeCtxt))
 
 subtype :: Type -> Type -> Checker Bool
 subtype t1 t2

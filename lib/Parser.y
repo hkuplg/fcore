@@ -37,7 +37,6 @@ import Control.Monad.State
   ")"      { L _ Tcparen }
   "["      { L _ Tobrack }
   "]"      { L _ Tcbrack }
-  -- "::"     { L _ Tdcolon }
   "{"      { L _ Tocurly }
   "}"      { L _ Tccurly }
   "/\\"    { L _ Ttlam }
@@ -166,7 +165,7 @@ import :: { ReadImport }
 ------------------------------------------------------------------------
 
 type :: { ReadType }
-  : "forall" typarams "." type  { foldr Forall (Forall (unLoc $ last $2) $4) (map unLoc $ init $2) }
+  : "forall" ctyparams "." type  { foldr Forall (Forall (unLoc $ last $2) $4) (map unLoc $ init $2) }
   | monotype                     { $1 }
 
 types :: { [ReadType] }
@@ -219,34 +218,69 @@ record_type_fields_rev :: { [(Label, ReadType)] }
 record_type_field :: { (Label, ReadType) }
   : label ":" type                                { ($1, $3) }
 
-typaram :: { LReadId }
-  : UPPER_IDENT                    { toString $1 `withLoc` $1 }
-  | UPPER_IDENT "*" type           { toString $1 `withLoc` $1 }
+{-------------------------------------------------------------------------------
+        Type parameters
+-------------------------------------------------------------------------------}
 
-typarams :: { [LReadId] }
+typaram :: { Located ReadId }
+  : UPPER_IDENT                    { toString $1 `withLoc` $1 }
+
+typarams :: { [Located ReadId] }
   : {- empty -}                    { []    }
   | typaram typarams             { $1:$2 }
 
-typarams1 :: { [LReadId] }
+typarams1 :: { [Located ReadId] }
   : typaram typarams             { $1:$2 }
 
-typaram_list :: { [LReadId] }
+typaram_list :: { [Located ReadId] }
   : "[" comma_typarams1 "]"       { $2 }
 
-typaram_list_or_empty :: { [LReadId] }
+typaram_list_or_empty :: { [Located ReadId] }
   : typaram_list                  { $1 }
   | {- empty -}                    { [] }
 
-comma_typarams1 :: { [LReadId] }
+comma_typarams1 :: { [Located ReadId] }
   : typaram                       { [$1]  }
   | typaram "," comma_typarams1  { $1:$3 }
+
+{-------------------------------------------------------------------------------
+        constrainable type parameters
+-------------------------------------------------------------------------------}
+
+ctyparam :: { Located (ReadId, Maybe Type) }
+  : UPPER_IDENT              { (toString $1, Nothing) `withLoc` $1 }
+  | UPPER_IDENT "*" type     { (toString $1, Just $3) `withLoc` $1 }
+  | "(" ctyparam ")"         { $2 }
+
+comma_ctyparams1 :: { [Located (ReadId, Maybe Type)] }
+  : ctyparam                            { [$1]  }
+  | ctyparam "," comma_ctyparams1  { $1:$3 }
+
+ctyparam_list :: { [Located (ReadId, Maybe Type)] }
+  : "[" comma_ctyparams1 "]"       { $2 }
+
+ctyparam_list_or_empty :: { [Located (ReadId, Maybe Type)] }
+  : ctyparam_list                  { $1 }
+  | {- empty -}                    { [] }
+
+
+paren_ctyparam :: { Located (ReadId, Maybe Type) }
+  : UPPER_IDENT                     { (toString $1, Nothing) `withLoc` $1 }
+  | "(" UPPER_IDENT "*" type ")"    { (toString $2, Just $4) `withLoc` $1 }
+
+ctyparams :: { [Located (ReadId, Maybe Type)] }
+  : {- empty -}                     { []    }
+  | paren_ctyparam ctyparams        { $1:$2 }
+
+ctyparams1 :: { [Located (ReadId, Maybe Type)] }
+  : paren_ctyparam ctyparams        { $1:$2 }
 
 ------------------------------------------------------------------------
 -- Expressions
 ------------------------------------------------------------------------
 
 expr :: { ReadExpr }
-    : "/\\" typarams1 "->" expr          { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
+    : "/\\" ctyparams1 "->" expr          { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "\\" params1 "->" expr             { foldr (\x acc -> Lam (unLoc x) acc `withLoc` x) (Lam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "let" recflag and_binds ";"  expr  { LetIn $2 $3 $5 `withLoc` $1 }
     | "let" recflag and_binds "in"  expr { LetIn $2 $3 $5 `withLoc` $1 }
@@ -393,7 +427,7 @@ record_construct_field :: { (Label, ReadExpr) }
   : label "=" expr                                          { ($1, $3) }
 
 bind :: { ReadBind }
-  : bind_lhs typaram_list_or_empty params maybe_ty_ascription "=" expr
+  : bind_lhs ctyparam_list_or_empty params maybe_ty_ascription "=" expr
   { Bind { bindId       = toString $1
          , bindTyParams = map unLoc $2
          , bindParams   = map unLoc $3
