@@ -120,6 +120,9 @@ epi t b = Pi (bind (mkTele t) b)
 earr :: Expr -> Expr -> Expr
 earr t1 = epi [(string2Name "_", t1)]
 
+esum :: Expr -> Expr -> Expr
+esum e1 e2 = Sum (bind (s2n "_", embed e1) e2)
+
 estar :: Expr
 estar = Star
 
@@ -181,11 +184,10 @@ core2New = transExpr
     transExpr (C.If e1 e2 e3) = If <$> (transExpr e1) <*> (transExpr e2) <*> (transExpr e3)
     transExpr (C.PrimOp e1 op e2) = PrimOp op <$> (transExpr e1) <*> (transExpr e2)
     transExpr (C.JNew name args) = JNew name <$> (mapM transExpr args)
-    transExpr (C.JMethod rcv mname args cname) =
-      do
-        args' <- mapM transExpr args
-        rcv' <- transRecv rcv
-        return (JMethod rcv' mname args' cname)
+    transExpr (C.JMethod rcv mname args cname) = do
+      args' <- mapM transExpr args
+      rcv' <- transRecv rcv
+      return (JMethod rcv' mname args' cname)
     transExpr (C.JField rcv fname t) =
       do
         rcv' <- transRecv rcv

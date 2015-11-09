@@ -47,13 +47,10 @@ library
                         BackEnd
                         BaseTransCFJava
                         BaseTrans
-                        BaseTransCFJavaNew
                         Checker
                         ClosureF
-                        ClosureFNew
                         Config
                         Core
-                        CoreNew
                         Desugar
                         Environment
                         FileIO

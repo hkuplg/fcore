@@ -30,9 +30,7 @@ import           ApplyTransCFJava
 import qualified BaseTrans as NB
 import qualified BaseTransCFJava as OB
 import qualified ClosureF
-import qualified ClosureFNew
 import qualified Core
-import qualified CoreNew
 import           Inheritance
 import           Inliner
 import           JavaUtils (ClassName)
