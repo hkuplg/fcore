@@ -208,11 +208,11 @@ core2New = transExpr
         trans C.Null = return DefNull
         trans (C.Def fname ty e def) = do
           e' <- transExpr e
-          fname' <- fresh (string2Name fname)
+          let fname' = string2Name fname -- Note: don't generate fresh name here
           def' <- trans (def fname')
           return $ edef (fname', ty) e' def'
         trans (C.DefRec names tys es defs) = do
-          names' <- mapM (fresh . s2n) names
+          let names' = map s2n names
           let t1' = map fst tys
           t2' <- mapM (transType . snd) tys
           es' <- mapM transExpr (es names')

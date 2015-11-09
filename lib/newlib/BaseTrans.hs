@@ -436,14 +436,14 @@ javaType ty =
 transDefs' this defs =
   case defs of
     Def bnd -> do
-      ((fname, Embed srcTyp, Embed expr), otherDef) <- unbind bnd
+      ((fname', Embed srcTyp, Embed expr), otherDef) <- unbind bnd
       (bs, e, t) <- translateM this expr
-      otherDefStmts <- (extendCtx (mkTele [(fname, t)])) $ transDefs this otherDef
+      otherDefStmts <- (extendCtx (mkTele [(fname', t)])) $ transDefs this otherDef
       let typ = javaType t
       -- HACK
-      let s = show fname
-      let anno = normalAnno s s (show srcTyp)
-      let xDecl = localVarWithAnno anno typ (varDecl s $ unwrap e)
+      let fname = show fname'
+      let anno = normalAnno fname fname (show srcTyp)
+      let xDecl = localVarWithAnno anno typ (varDecl fname $ unwrap e)
       return (bs ++ [xDecl] ++ otherDefStmts)
     DefRec bnd ->
       do
@@ -457,10 +457,10 @@ transDefs' this defs =
                                                         exprs)
         bodyStmts <- (extendCtx newBindings) $ transDefs this body
         let bindtyps = map javaType tBinds
-        let nameStrs = map show names
-        let annos = map (\(fname, srcTyp) -> normalAnno fname fname srcTyp)
-                      (zip nameStrs (map show stypes))
-        let assm = map (\(anno, s, typ, e) -> localVarWithAnno anno typ (varDecl s $ unwrap e))
-                     (zip4 annos nameStrs bindtyps bindExprs)
+        -- Note: `name2string` return original name
+        let annos = map (\(fname, srcTyp) -> normalAnno (name2String fname) (show fname) srcTyp)
+                      (zip names (map show stypes))
+        let assm = map (\(anno, fname, typ, e) -> localVarWithAnno anno typ (varDecl (show fname) $ unwrap e))
+                     (zip4 annos names bindtyps bindExprs)
         return (concatMap (\(a, b) -> a ++ [b]) (bindStmts `zip` assm) ++ bodyStmts)
     DefNull -> return []
