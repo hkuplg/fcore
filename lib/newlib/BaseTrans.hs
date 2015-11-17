@@ -41,10 +41,14 @@ createWrap' this str expr = do
   (bs, e, t) <- translateM this expr
   let returnStmt = [bStmt $ J.Return $ Just (unwrap e)]
   let returnType = applyRetType t
-  let (javaCode, package) = case expr of (Module p _) -> (wrapperClass True str bs returnType moduleMainBody, p)
-                                         _ -> (wrapperClass False str (bs ++ returnStmt) returnType mainBody, Nothing)
-  return $ maybe (createCUB Nothing [javaCode])
-                 (\pname -> createCUB  (Just (J.PackageDecl (name [pname]))) [javaCode]) package
+  let (javaCode, package) =
+        case expr of
+          (Module p _) -> (wrapperClass True str bs returnType moduleMainBody, p)
+          _            -> (wrapperClass False str (bs ++ returnStmt) returnType mainBody, Nothing)
+  return $ maybe
+             (createCUB Nothing [javaCode])
+             (\pname -> createCUB (Just (J.PackageDecl (name [pname]))) [javaCode])
+             package
 
 createCUB :: Maybe J.PackageDecl -> [J.TypeDecl] -> J.CompilationUnit
 createCUB package compDef = cu
@@ -117,7 +121,7 @@ translateM' this e =
       ((x, Embed e), b) <- unbind bnd
       let x' = show x
       (s1, j1, t1) <- translateM this e
-      -- types do need to generate code
+      -- FIXME: types do need to generate code
       if (aeq t1 estar)
         then translateM this (subst x e b)
         else do
