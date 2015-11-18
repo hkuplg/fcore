@@ -114,14 +114,16 @@ getModuleInfo h (p, m) = do
 extractModuleInfo :: Connection
                   -> (Maybe Src.PackageName, ModuleName)
                   -> IO (Maybe ([ModuleInfo], ModuleName))
--- Also automatically compile imported modules
+-- Compile imported modules if not compiled already
 extractModuleInfo h (p, m) = do
   currDir <- getCurrentDirectory
-  let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
-  res <- (try . system_ $ "f2j -m newcore --compile --silent " ++ moduleDir </> m ++ ".sf") :: IO (Either SomeException ())
-  if (isLeft res)  -- should catch IO exception if any
-    then return Nothing
-    else getModuleInfo h (p, m)
+  maybeExistClass <- getModuleInfo h (p, m)
+  case maybeExistClass of
+    Nothing -> do
+      let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
+      res <- (try . system_ $ "f2j --compile --silent " ++ moduleDir </> m ++ ".sf") :: IO (Either SomeException ())
+      either (const (return Nothing)) (const (getModuleInfo h (p, m))) res
+    _ -> return maybeExistClass
 
 -- Tests inteneded to be run by `runhaskell`
 
