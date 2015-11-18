@@ -55,12 +55,12 @@ import Text.PrettyPrint.ANSI.Leijen
 
 import Prelude hiding (pred, (<$>))
 
-typeCheck :: ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
-typeCheck e = JvmTypeQuery.withConnection
-                (\conn -> do
-                   let module_ctxt = Map.fromList $(getPredefInfoTH)
-                   (evalIOEnv (mkInitCheckerState module_ctxt conn) . runExceptT . checkExpr) e)
-                False
+typeCheck :: String -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
+typeCheck m e = JvmTypeQuery.withConnection
+                  (\conn -> do
+                     let module_ctxt = Map.fromList $(getPredefInfoTH)
+                     (evalIOEnv (mkInitCheckerState m module_ctxt conn) . runExceptT . checkExpr) e)
+                  False
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
@@ -728,7 +728,8 @@ checkModuleFunction :: Import ModuleName -> Checker [(ReadId, ModuleMapInfo)]
 checkModuleFunction (Import m) =
   do
     typeserver <- getTypeServer
-    res <- liftIO (JvmTypeQuery.extractModuleInfo typeserver (pName, moduleName))
+    methods <- getCompilationMethods
+    res <- liftIO (JvmTypeQuery.extractModuleInfo typeserver methods (pName, moduleName))
     case res of
       Nothing  -> throwError (noExpr $ ImportFail m)
       Just ret -> return (map flatInfo (fst ret))
