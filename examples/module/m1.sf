@@ -5,4 +5,6 @@ module
 import util.m3;        -- fact impoted
 import util.simple.m4; -- sub imported
 
-main = {print "The Fibonacci number of 3 - 1 is even? "; even (fact (sub 3 1))}
+add (n : Int) (m : Int) = n + m;
+
+main = {print "The Fibonacci number of 3 - 1 is even? "; even (fact (sub (add 2 1) 1))}

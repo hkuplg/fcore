@@ -2,4 +2,6 @@ package util.simple
 
 module
 
-sub (a: Int) (b: Int): Int = a - b
+sub (a: Int) (b: Int): Int = a - b;
+
+main = sub 3 1
