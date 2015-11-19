@@ -43,8 +43,13 @@ createWrap' this str expr = do
   let returnType = applyRetType t
   let (javaCode, package) =
         case expr of
-          (Module p _) -> (wrapperClass True str bs returnType moduleMainBody, p)
-          _            -> (wrapperClass False str (bs ++ returnStmt) returnType mainBody, Nothing)
+          (Module p _) ->
+            -- FIXME: hack for main
+            let mainStmt = extractStmt (last bs)
+            in if null mainStmt
+                 then (wrapperClass True str bs returnType mainModule, p)
+                 else (wrapperClass True str (init bs) returnType (moduleMainBody mainStmt), p)
+          _ -> (wrapperClass False str (bs ++ returnStmt) returnType mainBody, Nothing)
   return $ maybe
              (createCUB Nothing [javaCode])
              (\pname -> createCUB (Just (J.PackageDecl (name [pname]))) [javaCode])
@@ -349,9 +354,8 @@ translateScopeTy' this b (ostmts, oexpr, t1) n = transScopeTy' b
       let xf = initClass (javaType t1) (show x1) accessField
 
       (body', xe) <- case b of
-                       Empty -> return (ostmts, oexpr)
-                       Cons b' ->
-                         transScopeTy' b
+                       Empty   -> return (ostmts, oexpr)
+                       Cons b' -> transScopeTy' b
 
       let fstmt = localVar closureType (varDecl cx1 (funInstCreate cx1))
 
@@ -445,9 +449,15 @@ transDefs' this defs =
       otherDefStmts <- (extendCtx (mkTele [(fname, t)])) $ transDefs this otherDef
       let typ = javaType t
       -- Note: `name2string` return original name
-      let anno = normalAnno (name2String fname) (show fname) (show srcTyp)
+      let originalName = name2String fname
+      let anno = normalAnno originalName (show fname) (show srcTyp)
       let xDecl = localVarWithAnno anno typ (varDecl (show fname) $ unwrap e)
-      return (bs ++ [xDecl] ++ otherDefStmts)
+
+      case otherDef of
+        -- FIXME: hack to group translations of main method
+        DefNull
+          | originalName == "main" -> return ([groupStmt (bs ++ (mainPrint (unwrap e)))])
+        _ -> return (bs ++ [xDecl] ++ otherDefStmts)
     DefRec bnd ->
       do
         (defList, body) <- unbind bnd

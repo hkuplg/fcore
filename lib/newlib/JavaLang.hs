@@ -66,6 +66,14 @@ block = Block
 bStmt :: Stmt -> BlockStmt
 bStmt = BlockStmt
 
+groupStmt :: [BlockStmt] -> BlockStmt
+groupStmt = BlockStmt . StmtBlock . Block
+
+extractStmt :: BlockStmt -> [BlockStmt]
+extractStmt b = case b of
+  BlockStmt (StmtBlock (Block bs)) -> bs
+  _ -> []
+
 expToBlockStmt :: Exp -> BlockStmt
 expToBlockStmt = BlockStmt . ExpStmt
 
@@ -245,14 +253,17 @@ mainArgType :: [FormalParam]
 mainArgType = [paramDecl (arrayTy $ classTy "String") "args"]
 
 mainBody :: Maybe Block
-mainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
-                                                "println"
-                                                [left $ var "apply()"]])
+mainBody = Just (block (mainPrint (left $ var "apply()")))
 
-moduleMainBody :: Maybe Block
-moduleMainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
-                                                "println"
-                                                [Lit (String "Module generated")]])
+mainModule :: Maybe Block
+mainModule = Just (block (mainPrint (Lit (String "Module generated"))))
+
+mainPrint :: Exp -> [BlockStmt]
+mainPrint s = [bStmt $ classMethodCall (left $ var "System.out") "println" [s]]
+
+moduleMainBody :: [BlockStmt] -> Maybe Block
+moduleMainBody bs = Just (block bs)
+
 
 wrapperClass :: Bool -> String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
 wrapperClass isModule className stmts returnType mainbodyDef =
