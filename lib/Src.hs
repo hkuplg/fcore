@@ -9,7 +9,7 @@ Portability :  portable
 -}
 
 
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards, TemplateHaskell #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, RecordWildCards, TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
@@ -67,6 +67,7 @@ import           Data.List (intersperse, findIndex, nub)
 import qualified Data.Map as Map
 import           Data.Maybe (fromJust)
 import qualified Data.Set as Set
+import           GHC.Generics (Generic)
 import           Language.Haskell.TH.Lift
 import qualified Language.Java.Syntax as J (Op(..))
 import           Prelude hiding ((<$>))
@@ -113,7 +114,7 @@ data Type
   -- Warning: If you ever add a case to this, you MUST also define the binary
   -- relations on your new case. Namely, add cases for your data constructor in
   -- `compatible` and `subtype` below.
-  deriving (Eq, Show, Data, Typeable, Read)
+  deriving (Eq, Show, Data, Typeable, Read, Generic)
 
 type ReadType = Type
 
@@ -199,9 +200,9 @@ data Lit -- Data constructor names match Haskell types
   | Bool Bool
   | Char Char
   | UnitLit
-  deriving (Eq, Show)
+  deriving (Eq, Show, Generic)
 
-data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show)
+data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show, Generic, Typeable)
 
 
 data Bind id ty = Bind

@@ -53,7 +53,7 @@ whileApplyLoop this flag ctemp tempOut outType ctempCastTyp = do
   nextName <- nextClass (up this)
   let doWhileStmts = [localVar closureType' (varDeclNoInit ctemp),
                       localVar outType (varDecl tempOut (case outType of
-                                                          J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: could be bug
+                                                          J.PrimType J.IntT -> J.Lit (J.Int 0) -- TODO: better choice?
                                                           _ -> J.Lit J.Null)),
                       bStmt (J.Do (J.StmtBlock (block [bsAssign (name [ctemp]) (J.ExpName $ name [nextName, "next"])
                                                       ,bsAssign (name [nextName, "next"]) (J.Lit J.Null)

@@ -200,22 +200,22 @@ joinType  Unit            = Unit
 joinType (Datatype n ts ns)  = Datatype n (map joinType ts) ns
 
 tVar :: t -> Type t
-tVar = TVar "_"
+tVar = TVar "tv"
 
 forall :: (t -> Type t) -> Type t
-forall f = Forall "_" f
+forall f = Forall "f" f
 
 var :: e -> Expr t e
-var = Var "_"
+var = Var "v"
 
 lam :: Type t -> (e -> Expr t e) -> Expr t e
-lam = Lam "_"
+lam = Lam "x"
 
 fix :: (e -> e -> Expr t e) -> Type t -> Type t -> Expr t e
-fix = Fix "_" "_"
+fix = Fix "f" "x"
 
 bLam :: (t -> Expr t e) -> Expr t e
-bLam = BLam "_"
+bLam = BLam "X"
 
 -- instance Show (Type Index) where
 --   show = show . pretty

@@ -47,7 +47,7 @@ testConcreteSyn inP outP compilation (name, filePath) =
                          "The integration test file should start with '-->', \
                          \followed by the expected output")
        Just expectedOutput ->
-         do ast <- runIO (source2core NoDump (filePath, source))
+         do ast <- runIO (source2core NoDump "" (filePath, source))
             testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput)
 
 abstractCases =
