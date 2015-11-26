@@ -1,0 +1,42 @@
+1. Declaration by providing a body
+
+trait T(x1: t1, ..., xn: tn) { x0: t →
+  m(...) = e
+  ...
+}
+
+~>
+
+T = λ(x1: t1, ..., xn: tn) (x0: () → t) → {
+  m = λ(...) → [x0 () / x0] e
+  ...
+}
+
+2. Declaration via composition
+
+trait T(param_list_0) = x0: t → T1(param_list_1) & ... & Tn(param_list_n)
+
+∀ i ∈ {1, ..., n}. param_list_i ⊆ param_list_0
+
+~>
+
+T = λ(param_list_0) (x0: () → t) → |T1| (param_list_1) self ,, ... ,, |Tn| (param_list_n) self
+
+3. Instantiation
+
+new [t] (T1(...) & ... & Tn(...))
+
+~>
+
+let rec self : () → t = λ(_: ()) →
+  (|T1| (...) self) ,, ... ,, (|Tn| (...) self)
+in
+self ()
+
+4. Trait type
+
+Trait[t]
+
+~>
+
+(() → t) → t
