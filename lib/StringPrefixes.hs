@@ -8,6 +8,14 @@ namespace = "f2j."
 ifoClass :: String
 ifoClass = namespace ++ "Closure"
 
+closureClass = namespace ++ "Closure"
+
+typeHouse :: String
+typeHouse = namespace ++ "TypeHouse"
+
+typeField :: String
+typeField = "typeOf"
+
 closureTransName :: String
 closureTransName = "F"
 

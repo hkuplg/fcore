@@ -48,6 +48,7 @@ data Options = Options
 data TransMethod = Apply
                  | Naive
                  | Stack
+                 | NewCore
                  -- | Unbox
                  -- | StackAU1
                  -- | StackAU2
@@ -59,7 +60,7 @@ data TransMethod = Apply
                  -- | BenchSAI2
                  deriving (Eq, Show, Ord)
 
-transOpts = Map.fromList [("apply", Apply), ("naive", Naive), ("stack", Stack)]
+transOpts = Map.fromList [("apply", Apply), ("naive", Naive), ("stack", Stack), ("newcore", NewCore)]
 
 dumpOpts = Map.fromList
              [ ("parsed", Parsed)
@@ -116,8 +117,9 @@ main = do
 
   forM_ optSourceFiles (\source_path ->
     do let output_path      = inferOutputPath source_path
-           translate_method = optTransMethod
-           method = Set.insert Naive (Set.fromList translate_method)
+           translate_method = if null optTransMethod then [Naive] else optTransMethod
+           method = Set.fromList translate_method
+           rawMethods = concatMap (\m -> " -m " ++ show m) translate_method
        let opts = getOpt method
 
        unless optSilent $
@@ -125,8 +127,10 @@ main = do
             putStrLn ("Compiling to Java source code ( " ++ output_path ++ " )")
 
        source     <- readFile source_path
-       coreExpr   <- source2core optDump (source_path, source)
-       javaSource <- core2java False optInline optDump opts (inferClassName output_path) coreExpr
+       coreExpr   <- source2core optDump rawMethods (source_path, source)
+       javaSource <- if translate_method == [NewCore]
+                     then picore2java optDump compileN2 (inferClassName output_path) coreExpr
+                     else core2java False optInline optDump opts (inferClassName output_path) coreExpr
        writeFile output_path javaSource
 
        when (optCompile || optCompileAndRun) $
@@ -138,7 +142,7 @@ main = do
 
 getOpt :: Set.Set TransMethod -> Compilation
 getOpt translate_method
-       | translate_method == Set.fromList [Apply, Naive] = compileAO
-       | translate_method == Set.fromList [Apply, Naive, Stack] = compileS
-       | translate_method == Set.fromList [Naive, Stack] = compileSN
-       | otherwise = compileN
+  | translate_method == Set.fromList [Apply] = compileAO
+  | translate_method == Set.fromList [Apply, Stack] = compileS
+  | translate_method == Set.fromList [Stack] = compileSN
+  | otherwise = compileN

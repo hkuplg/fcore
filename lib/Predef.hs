@@ -1,5 +1,4 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# OPTIONS_GHC -fforce-recomp #-}
 
 module Predef (getPredefInfoTH) where
 

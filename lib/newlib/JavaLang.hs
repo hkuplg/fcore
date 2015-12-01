@@ -1,6 +1,4 @@
--- | EDSL for Language-Java
-
-module JavaEDSL where
+module JavaLang where
 
 import Language.Java.Syntax
 import StringPrefixes
@@ -67,6 +65,14 @@ block = Block
 
 bStmt :: Stmt -> BlockStmt
 bStmt = BlockStmt
+
+groupStmt :: [BlockStmt] -> BlockStmt
+groupStmt = BlockStmt . StmtBlock . Block
+
+extractStmt :: BlockStmt -> [BlockStmt]
+extractStmt b = case b of
+  BlockStmt (StmtBlock (Block bs)) -> bs
+  _ -> []
 
 expToBlockStmt :: Exp -> BlockStmt
 expToBlockStmt = BlockStmt . ExpStmt
@@ -148,18 +154,11 @@ memberDecl = MemberDecl
 classBody :: [Decl] -> ClassBody
 classBody = ClassBody
 
-closureBodyGen :: [Decl] -> [BlockStmt] -> Int -> Bool -> Type -> ClassBody
-closureBodyGen initDecls body idCF generateClone className = classBody $ initDecls ++ [applyMethod] ++ [cloneMethod | generateClone]
+closureBodyGen :: [Decl] -> [BlockStmt] -> ClassBody
+closureBodyGen initDecls body = classBody $ initDecls ++ [applyMethod]
   where
     applyMethod = MemberDecl $ methodDecl [Public] Nothing "apply" [] (Just (Block body))
-    cloneMethod = MemberDecl $ methodDecl [Public] (Just className) "clone" [] (Just cloneBody)
-    cloneBody = block
-                  [ localVar className (varDecl "c" (funInstCreate idCF))
-                  ,
-                  -- ,assign (name ["c", closureInput]) (ExpName $ name ["this", closureInput])
-                  -- ,bStmt $ (applyMethodCall (left . var $ "c"))
-                  bStmt (Return (Just (cast className (left $ var "c"))))
-                  ]
+
 
 -- class decl
 localClassDecl :: String -> String -> ClassBody -> BlockStmt
@@ -203,9 +202,9 @@ fieldAccExp expr str = PrimaryFieldAccess expr (Ident str)
 instCreat :: ClassType -> [Argument] -> Exp
 instCreat cls args = InstanceCreation [] cls args Nothing
 
-funInstCreate :: Int -> Exp
+funInstCreate :: String -> Exp
 funInstCreate i = instCreat fun []
-  where fun = ClassType [(Ident (closureTransName ++ show i),[])]
+  where fun = ClassType [(Ident (closureTransName ++ i),[])]
 
 typeHouseCreate :: Exp
 typeHouseCreate = instCreat fun []
@@ -254,14 +253,17 @@ mainArgType :: [FormalParam]
 mainArgType = [paramDecl (arrayTy $ classTy "String") "args"]
 
 mainBody :: Maybe Block
-mainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
-                                                "println"
-                                                [left $ var "apply()"]])
+mainBody = Just (block (mainPrint (left $ var "apply()")))
 
-moduleMainBody :: Maybe Block
-moduleMainBody = Just (block [bStmt $ classMethodCall (left $ var "System.out")
-                                                "println"
-                                                [Lit (String "Module generated")]])
+mainModule :: Maybe Block
+mainModule = Just (block (mainPrint (Lit (String "Module generated"))))
+
+mainPrint :: Exp -> [BlockStmt]
+mainPrint s = [bStmt $ classMethodCall (left $ var "System.out") "println" [s]]
+
+moduleMainBody :: [BlockStmt] -> Maybe Block
+moduleMainBody bs = Just (block bs)
+
 
 wrapperClass :: Bool -> String -> [BlockStmt] -> Maybe Type -> Maybe Block -> TypeDecl
 wrapperClass isModule className stmts returnType mainbodyDef =

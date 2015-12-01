@@ -57,7 +57,7 @@ wrap (inP, outP) receMsg opt flagC flagS name = do
 
 source2java :: Bool -> Bool -> DumpOption -> Compilation -> String -> (FilePath, String) -> IO String
 source2java supernaive optInline optDump compilation className  (filePath, source) =
-  do coreExpr <- source2core optDump (filePath, source)
+  do coreExpr <- source2core optDump "" (filePath, source)
      core2java supernaive optInline optDump compilation className coreExpr
 
 send :: Handle -> CompileOpt -> Bool -> Bool -> FilePath -> IO Bool

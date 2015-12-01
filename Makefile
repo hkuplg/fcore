@@ -42,7 +42,7 @@ compiler : runtime
 
 .PHONY : test
 test : whitespace_test runtime
-	stack build --test
+	stack build fcore --test
 
 .PHONY : whitespace_test
 whitespace_test :

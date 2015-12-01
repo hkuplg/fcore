@@ -59,7 +59,7 @@ $ f2j --run m1.sf
 The Fibonacci number of 3 - 1 is even? true
 ```
 
-## Program File and Module File ##
+## Module File ##
 
 A module file is a `.sf` file where we can define a module like this:
 
@@ -78,13 +78,8 @@ defined as `rec f ... and g ...;`.
 The scope of a definition extends from where it is being defined to
 the end of a module.
 
-Any other file is a program file (as in `m1.sf`), which is like a main
-method in Java.
-
-**Beware**, normally we shouldn't try to run a module file, which may
-or may not work. To test a module, just write a program file, and
-import the module you want to test.
-
+To run a module file, we can define a `main` function, which must be
+the last definition (see the example in `examples/module`).
 
 ## Importing ##
 
