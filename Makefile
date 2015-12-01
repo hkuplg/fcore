@@ -70,5 +70,6 @@ clean :
 	rm -rf dist
 	rm -f *.class *.jar Main.java
 	rm -f $(TEST_DIR)/tests/run-pass/*.java
+	stack clean
 	cd lib; make clean
 	cd runtime; ant clean
