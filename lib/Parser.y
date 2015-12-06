@@ -78,7 +78,6 @@ import Control.Monad.State
   JAVACLASS { L _ (Tjavaclass _) }
   "new"     { L _ Tnew }
 
-  "module"  { L _ Tmodule }
   "import"  { L _ Timport }
 
   INT      { L _ (Tint _) }
@@ -142,14 +141,14 @@ packageIdent :: { String }
   | ident "." packageIdent { unLoc $1 ++ "." ++ $3 }
 
 module :: { ReadModule }
-  : "module" imports semi_binds  { Module (map unLoc $2) $3 `withLoc` $1 }
+  : imports semi_binds  { Module (map unLoc $1) $2 }
 
 -- module_name :: { LReaderId }
 --   : UPPER_IDENT  { toString $1 `withLoc` $1 }
 
 imports :: { [ReadImport] }
-  :                    { [] }
-  | import ";" imports { $1:$3 }
+  :                { [] }
+  | import imports { $1:$2 }
 
 import :: { ReadImport }
   : "import" packageIdent  { Import $2 `withLoc` $1 }

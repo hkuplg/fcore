@@ -85,7 +85,7 @@ data ModuleBind id ty = BindNonRec (Bind id ty)
                       | BindRec [Bind id ty] deriving (Eq, Show)
 data Module id ty = Module [Import id] [ModuleBind id ty] deriving (Eq, Show)
 
-type ReadModule = Located (Module Name Type)
+type ReadModule = Module Name Type
 type ReadModuleBind = ModuleBind Name Type
 data Import id = Import id deriving (Eq, Show)
 type ReadImport = Located (Import Name)
