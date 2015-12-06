@@ -6,9 +6,9 @@ import StringPrefixes (namespace)
 import System.IO      (Handle, hSetBuffering, BufferMode(..))
 import System.Process
 
-withRuntimeProcess :: String -> BufferMode -> ((Handle,Handle) -> IO a) -> Bool -> IO a
-withRuntimeProcess class_name buffer_mode do_this loadPrelude
-  = do cp <- if loadPrelude then return "runtime/runtime.jar" else getClassPath
+withRuntimeProcess :: String -> BufferMode -> ((Handle,Handle) -> IO a) -> IO a
+withRuntimeProcess class_name buffer_mode do_this
+  = do cp <- getClassPath
        let p = (proc "java" ["-cp", cp, namespace ++ class_name, cp])
                   {std_in = CreatePipe, std_out = CreatePipe}
        (Just inP, Just outP, _, proch) <- createProcess p

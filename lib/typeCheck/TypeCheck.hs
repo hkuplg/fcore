@@ -60,12 +60,11 @@ typeCheck :: String -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr)
 typeCheck m e = JvmTypeQuery.withConnection
                   (\conn -> do
                      (evalIOEnv (mkInitCheckerState m conn) . runExceptT . checkExpr) e)
-                  False
 
 -- Temporary hack for REPL
 typeCheckWithEnv :: ValueContext -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 typeCheckWithEnv value_ctxt e = JvmTypeQuery.withConnection (\conn ->
-  (evalIOEnv (mkInitCheckerStateWithEnv value_ctxt conn) . runExceptT . checkExpr) e) False
+  (evalIOEnv (mkInitCheckerStateWithEnv value_ctxt conn) . runExceptT . checkExpr) e)
 
 
 disjoint :: TypeContext -> Type -> Type -> Bool

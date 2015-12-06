@@ -2,8 +2,6 @@
 
 SRC_DIR := lib
 TEST_DIR := testsuite
-PREDEF_DIR := lib/predef
-PRELUDE_DIR := runtime/src/f2j/prelude
 OBJ_FILE := $(wildcard $(PREDEF_DIR)/*.java)
 SF_FILES := $(wildcard $(PREDEF_DIR)/*.sf)
 FLAGS := -m naive
@@ -13,24 +11,12 @@ all : compiler
 
 # Hack for first time install
 .PHONY : new
-new : compiler prelude
+new : compiler
 	make compiler
-
-# for rebuild prelude module
-.PHONY : prelude
-prelude : prerequisite mkprelude runtime compiler
 
 .PHONY : prerequisite
 prerequisite :
-	mkdir -p $(PRELUDE_DIR)
-	rm -f $(PRELUDE_DIR)/*.java
 	cd runtime; ant clean
-
-.PHONY : mkprelude
-mkprelude : $(SF_FILES)
-	f2j $(FLAGS) $^
-	cp $(PREDEF_DIR)/*.java $(PRELUDE_DIR)
-	rm -f $(PREDEF_DIR)/*.java
 
 .PHONY : compiler
 compiler : runtime

@@ -40,7 +40,6 @@ data ModuleInfo = ModuleInfo {
   minfoSignature :: Type } deriving (Show)
 
 withConnection :: (Connection -> IO a)
-               -> Bool -- True for loading prelude
                -> IO a
 withConnection action
   = withRuntimeProcess "TypeServer" NoBuffering (\(toHandle, fromHandle) ->
@@ -138,4 +137,4 @@ main = withConnection (\conn ->
      findMethodReturnType conn "java.lang.String" (False, "length") [] >>= print
      findMethodReturnType conn "java.lang.String" (True, "valueOf") ["java.lang.Integer"] >>= print
      findMethodReturnType conn "java.lang.String" (True, "valueOf") ["Foo"] >>= print
-  ) False
+  )
