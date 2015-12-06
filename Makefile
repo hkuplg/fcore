@@ -2,17 +2,10 @@
 
 SRC_DIR := lib
 TEST_DIR := testsuite
-OBJ_FILE := $(wildcard $(PREDEF_DIR)/*.java)
-SF_FILES := $(wildcard $(PREDEF_DIR)/*.sf)
 FLAGS := -m naive
 
 
 all : compiler
-
-# Hack for first time install
-.PHONY : new
-new : compiler
-	make compiler
 
 .PHONY : prerequisite
 prerequisite :
