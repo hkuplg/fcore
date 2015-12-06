@@ -9,10 +9,10 @@ let rec countLeaves[A,B] (tree: BTree[A,B]): Int =
         Leaf a -> 1
       | Node l b r -> countLeaves[A,B] l + countLeaves[A,B] r
       in
-#   1
-#  / \
-# 2   3
-#    / \
-#   4   5
+--   1
+--  / \
+-- 2   3
+--    / \
+--   4   5
 let tree = Node[Int,Int] (Leaf[Int,Int] 2) 1 (Node[Int,Int] (Leaf[Int,Int] 4) 3 (Leaf[Int,Int] 5)) in
 countLeaves[Int,Int] tree

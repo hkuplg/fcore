@@ -50,9 +50,7 @@ $hexdig     = [0-9A-Fa-f]
 tokens :-
 
     <0, strexp> $white+ ;
-    <0> "#".*       ;
     <0> "--".*      ;
-    <0> "//".*      ;
     <0> "{-"        { nested_comment }
     <0> \"          { start_string `andBegin` str }
     <str> (@charEscape | $printable # [\" \\] | \\\{) { save_string }
