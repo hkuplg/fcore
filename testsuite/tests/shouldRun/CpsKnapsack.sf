@@ -5,33 +5,33 @@ data List [A] = Nil | Cons A (List [A]);
 let head [A] (x:List[A]):A =
 case x of
      Nil -> error [A] "head: empty list"
-   | Cons x _ -> x;
+   | Cons x _ -> x in
 
 let tail [A] (x:List[A]):List[A] =
 case x of
      Nil -> error [List[A]] "tail: empty list"
-   | Cons _ y -> y;
+   | Cons _ y -> y in
 
 let null [A] (x:List[A]): Bool =
 case x of
      Nil -> True
-   | Cons _ _ -> False;
+   | Cons _ _ -> False in
 
 let rec length [A] (x:List[A]): Int =
 case x of
      Nil -> 0
-   | Cons _ _ -> 1 + length [A] (tail [A] x);
+   | Cons _ _ -> 1 + length [A] (tail [A] x) in
 
 
 let max (x : Int) (y : Int) : Int =
   if x > y then x else y
-;
+in
 let rec
   at[A] (n:Int) (x:List[A]): A =
     if (n==0)
     then head [A] x
     else at[A] (n-1) (tail [A] x)
-;
+in
 let maxValue (values : List[Int]) (weights : List[Int]) (totalWeight : Int) : Int = (
   let rec maxValue' (k : Int -> Int) (i : Int) (w : Int) : Int =
     if i == 0 || w == 0 then (k 0)
@@ -44,8 +44,8 @@ let maxValue (values : List[Int]) (weights : List[Int]) (totalWeight : Int) : In
                                (w - ( at (i-1) weights ))))
         (i - 1)
         w
-  ;
+  in
   maxValue' (\(x : Int) -> x) (length [Int] values) totalWeight
 )
-;
+in
 maxValue L[9,3,4] L[2,5,8] 10

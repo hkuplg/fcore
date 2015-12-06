@@ -1,6 +1,3 @@
-
-
-
 data Color = Red | Black;
 
 data Tree1 = Tempty | Node Color Tree1 Int Tree1;
@@ -12,7 +9,7 @@ data OptionInt = None | Some Int;
 let rec size (t: Tree1) : Int =
         case t of
              Tempty       -> 0
-           | Node _ l v r -> size l + 1 + size r;
+           | Node _ l v r -> size l + 1 + size r in
 
 
 let isBlack(t: Tree1) : Bool =
@@ -20,7 +17,7 @@ let isBlack(t: Tree1) : Bool =
        Tempty       -> True
      | Node c _ _ _ -> (case c of
                            Black -> True
-                         | Red   -> False) ;
+                         | Red   -> False) in
 
 
 let rec redNodesHaveBlackChildren(t: Tree1) : Bool =
@@ -29,30 +26,30 @@ let rec redNodesHaveBlackChildren(t: Tree1) : Bool =
         | Node c l _ r -> (case c of
                             Black -> redNodesHaveBlackChildren l && redNodesHaveBlackChildren r
                           | Red   -> isBlack l && isBlack r &&
-                                redNodesHaveBlackChildren l && redNodesHaveBlackChildren r) ;
+                                redNodesHaveBlackChildren l && redNodesHaveBlackChildren r) in
 
 
 let rec redDescHaveBlackChildren(t: Tree1) : Bool =
        case t of
           Tempty       -> True
-        | Node _ l _ r -> redNodesHaveBlackChildren l && redNodesHaveBlackChildren r ;
+        | Node _ l _ r -> redNodesHaveBlackChildren l && redNodesHaveBlackChildren r in
 
 let rec blackHeight(t: Tree1) : Int =
       case t of
           Tempty       -> 1
         | Node c l _ _ -> (case c of
                              Black -> (blackHeight l) + 1
-                           | Red   -> blackHeight l) ;
+                           | Red   -> blackHeight l) in
 
 let rec blackBalanced(t: Tree1) : Bool =
     case t of
         Node _ l _ r -> blackBalanced l && blackBalanced r && blackHeight l == blackHeight r
-      | Tempty       -> True ;
+      | Tempty       -> True in
 
 
 {-
 let balance(c: Color) (a: Tree1) (x: Int) (b: Tree1): Tree1 =
-    let t = Node c a x b;
+    let t = Node c a x b in
     case t of
         Node Black (Node Red (Node Red a xV b) yV c) zV d ->
               Node Red (Node Black a xV b) yV (Node Black c zV d)
@@ -62,8 +59,8 @@ let balance(c: Color) (a: Tree1) (x: Int) (b: Tree1): Tree1 =
               Node Red (Node Black a xV b) yV (Node Black c zV d)
       | Node Black a xV (Node Red b yV (Node Red c zV d)) ->
               Node Red (Node Black a xV b) yV (Node Black c zV d)
-      | Node c a xV b -> Node c a xV b ;
-     -- | Tempty -> Tempty;
+      | Node c a xV b -> Node c a xV b in
+     -- | Tempty -> Tempty in
 -}
 
 
@@ -123,17 +120,17 @@ let balance(c: Color) (a: Tree1) (v: Int) (b: Tree1): Tree1 =
                                                                                                   | Node rrrc rrra rrrv rrrb -> (case rrrc of
                                                                                                        Black -> Node c a v b
                                                                                                      | Red -> Node Red (Node Black a v ra) rv (Node Black rrra rrrv rrrb) ))
-                                                                                      | Red -> Node Red (Node Black a v rra) rrv (Node Black rrb v b) )))));
+                                                                                      | Red -> Node Red (Node Black a v rra) rrv (Node Black rrb v b) ))))) in
 
 
 {-
 -- (* unexhausted problem*)
 let prop_balance (c: Color) (a: Tree1) (x: Int) (b: Tree1): Bool =
-     let t = (Node c a x b);
-    content t == content (balance c a x b);
+     let t = (Node c a x b) in
+    content t == content (balance c a x b) in
 
 let buggyBalance(c: Color) (a: Tree1) (x: Int) (b: Tree1): Tree1 =
-     let t = Node c a x b;
+     let t = Node c a x b in
      case t of
         Node Black (Node Red (Node Red a xV b) yV c) zV d ->
               Node Red (Node Black a xV b) yV (Node Black c zV d)
@@ -142,10 +139,10 @@ let buggyBalance(c: Color) (a: Tree1) (x: Int) (b: Tree1): Tree1 =
       | Node Black a xV (Node Red (Node Red b yV c) zV d) ->
               Node Red (Node Black a xV b) yV (Node Black c zV d)
       | Node Black a xV (Node Red b yV (Node Red c zV d)) ->
-              Node Red (Node Black a xV b) yV (Node Black c zV d);
+              Node Red (Node Black a xV b) yV (Node Black c zV d) in
 
 let prop_buggyBalance (c: Color) (a: Tree1) (x: Int) (b: Tree1): Bool =
-     content (Node c a x b) == content (buggyBalance c a x b);
+     content (Node c a x b) == content (buggyBalance c a x b) in
 
 -}
 
@@ -159,12 +156,12 @@ let rec ins (x: Int) (t: Tree1) : Tree1 =
                            then balance c (ins x a) y b
                            else if x ==y
                                 then Node c a y b
-                                else balance c a y (ins x b);
-     -- else error [Tree1] "The Input is not a RedBlackTree" ;
+                                else balance c a y (ins x b) in
+     -- else error [Tree1] "The Input is not a RedBlackTree" in
 
 
 let prop_ins (x: Int) (t: Tree1) : Bool =
-      let res = ins x t;
+      let res = ins x t in
    --   content res == union (content t) (singleton x) &&
 
     if redNodesHaveBlackChildren t && blackBalanced t
@@ -172,7 +169,7 @@ let prop_ins (x: Int) (t: Tree1) : Bool =
          size res <= size t + 1 &&
          redDescHaveBlackChildren res &&
          blackBalanced res
-    else True;
+    else True in
 
 
 
@@ -183,38 +180,38 @@ let makeBlack (n: Tree1) : Tree1 =
            Node c l v r -> (case c of
                              Red   -> Node Black l v r
                            | Black -> n)
-         | Tempty       -> Tempty;
-     --else error [Tree1] "The Input is not a RedBlackTree" ;
+         | Tempty       -> Tempty in
+     --else error [Tree1] "The Input is not a RedBlackTree" in
 
 let prop_makeBlack (n: Tree1) : Bool =
-    let res = makeBlack n;
-    redNodesHaveBlackChildren res && blackBalanced res;
+    let res = makeBlack n in
+    redNodesHaveBlackChildren res && blackBalanced res in
 
 
 let add(x: Int) (t: Tree1) : Tree1 =
   --  if redDescHaveBlackChildren t && blackBalanced t
-      makeBlack (ins x t);
-   --  else error [Tree1] "The Input is not a RedBlackTree" ;
+      makeBlack (ins x t) in
+   --  else error [Tree1] "The Input is not a RedBlackTree" in
 
 let prop_add (x: Int) (t: Tree1) : Bool =
     if redDescHaveBlackChildren t && blackBalanced t
-     then let res = add x t;
+     then let res = add x t in
       --    content res == union (content t) (singleton x) &&
           redNodesHaveBlackChildren res && blackBalanced res
-     else True ;
+     else True in
 
 
 let buggyAdd (x: Int) (t: Tree1) : Tree1 =
   --  if redDescHaveBlackChildren t
-     ins x t;
-  --   else error [Tree1] "aha! Get you!";
+     ins x t in
+  --   else error [Tree1] "aha! Get you!" in
 
 let prop_buggyAdd (x: Int) (t: Tree1) : Bool =
     if redDescHaveBlackChildren t
-     then let res = buggyAdd x t;
+     then let res = buggyAdd x t in
       --    content res == union (content t) (singleton x) &&
           redNodesHaveBlackChildren res
-     else True ;
+     else True in
 
 prop_ins
 --prop_makeBlack

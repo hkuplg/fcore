@@ -1,4 +1,4 @@
 let rec f (x:Int) : Int = g x
 and     g (x:Int)       = f x
-;
+in
 1

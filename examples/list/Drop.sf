@@ -2,6 +2,6 @@ let rec
   drop [A] (n:Int) (xs:List[A]) :List[A] =
     if( null [A] xs || n<=0)
     then xs
-    else drop [A] (n-1) (tail [A] xs);
+    else drop [A] (n-1) (tail [A] xs) in
 
 head [Int] (drop [Int] 2 L[1,2,3,4])

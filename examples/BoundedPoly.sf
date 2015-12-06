@@ -1,8 +1,8 @@
-let user = { name = "George", admin = True };
-let id1 (user: { name: String }) = user;
-let id2 [A] (user: A & { name: String }) = user;
+let user = { name = "George", admin = True } in
+let id1 (user: { name: String }) = user in
+let id2 [A] (user: A & { name: String }) = user in
 -- This encodes bounded polymorphism:
--- let id2 [A <: { name: String }] (user: A) = user;
+-- let id2 [A <: { name: String }] (user: A) = user in
 
 (id2 [{ admin: Bool }] user).admin
 

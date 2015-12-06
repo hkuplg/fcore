@@ -13,17 +13,17 @@ let rec equal (l1: PList) (l2: PList) : Bool =
                   | Cons _ _ -> False)
         | Cons x xs -> (case l2 of
                          Nil -> False
-                       | Cons y ys -> if x == y then equal xs ys else False);
+                       | Cons y ys -> if x == y then equal xs ys else False) in
 
 let rec size (l : PList) : Int =
        case l of
           Nil       -> 0
-        | Cons _ xs -> 1 + size xs;
+        | Cons _ xs -> 1 + size xs in
 
 let rec iplSize(l: IntPairPList) : Int =
        case l of
           IPNil       -> 0
-        | IPCons _ xs -> 1 + iplSize xs;
+        | IPCons _ xs -> 1 + iplSize xs in
 
 let rec zip (l1: PList) (l2: PList) : IntPairPList =
     if size l1 == size l2
@@ -32,93 +32,93 @@ let rec zip (l1: PList) (l2: PList) : IntPairPList =
          | Cons x xs -> ( case l2 of
                              Cons y ys -> IPCons (IP x y) (zip xs ys)
                            | Nil       -> IPNil )
-    else IPNil; --error [IntPairPList] "The length of two PList is not equal." ;
+    else IPNil in --error [IntPairPList] "The length of two PList is not equal." in
 
 let prop_zip (l1: PList) (l2: PList) : Bool =
     if size l1 == size l2
      then iplSize (zip l1 l2) == size l1
-     else True;
+     else True in
 
 let rec sizeTailRecAcc(l: PList) (acc: Int) : Int =
        if acc >= 0
         then case l of
                 Nil -> acc
               | Cons _ xs -> sizeTailRecAcc xs (acc + 1)
-        else 0; -- error [Int] "acc should be larger than 0!";
+        else 0 in -- error [Int] "acc should be larger than 0!" in
 
 let prop_sizeTailRecAcc (l: PList) (acc: Int) : Bool =
     if acc >= 0
      then sizeTailRecAcc l acc == (size l) + acc
-     else True;
+     else True in
 
-let sizeTailRec(l: PList) : Int = sizeTailRecAcc l 0 ;
+let sizeTailRec(l: PList) : Int = sizeTailRecAcc l 0 in
 
 
-let prop_sizeAreEquiv (l: PList) : Bool = size l == sizeTailRec l ;
+let prop_sizeAreEquiv (l: PList) : Bool = size l == sizeTailRec l in
 
 
 --let rec content(l: PList) : Set =
  --   case l of
  --      Nil       -> (new java.util.HashSet( ))
- --    | Cons x xs -> union (singleton x) (content xs) ;
+ --    | Cons x xs -> union (singleton x) (content xs) in
 
 
 let rec drunk(l: PList) : PList =
        case l of
            Nil       -> Nil
-         | Cons x l1 -> Cons x (Cons x (drunk l1));
+         | Cons x l1 -> Cons x (Cons x (drunk l1)) in
 
-let prop_drunk (l: PList) : Bool = size (drunk l) == 2 * (size l);
+let prop_drunk (l: PList) : Bool = size (drunk l) == 2 * (size l) in
 
 let rec reverse0 (l1: PList) (l2: PList) : PList =
         case l1 of
             Nil       -> l2
-          | Cons x xs -> reverse0 xs (Cons x l2);
+          | Cons x xs -> reverse0 xs (Cons x l2) in
 
 --let prop_reverse0 (l1: PList) (l2: PList) : Bool =
-  --   content (reverse0 l1 l2) == union (content l1) (content l2);
+  --   content (reverse0 l1 l2) == union (content l1) (content l2) in
 
-let reverse (l: PList) : PList = reverse0 l Nil;
+let reverse (l: PList) : PList = reverse0 l Nil in
 
---let prop_reverse (l: PList) : Bool = content (reverse l) == content l;
+--let prop_reverse (l: PList) : Bool = content (reverse l) == content l in
 
 
 let rec append (l1: PList) (l2: PList) : PList =
        case l1 of
            Nil       -> l2
-         | Cons x xs -> Cons x (append xs l2);
+         | Cons x xs -> Cons x (append xs l2) in
 
 --let prop_append (l1: PList) (l2: PList) : Bool =
-  --   content (append l1 l2) == union (content l1) (content l2);
+  --   content (append l1 l2) == union (content l1) (content l2) in
 
-let prop_nilAppend (l: PList) : Bool = append l Nil == l;
+let prop_nilAppend (l: PList) : Bool = append l Nil == l in
 
 let prop_appendAssoc (xs: PList) (ys: PList) (zs: PList) : Bool =
-    append (append xs ys) zs == append xs (append ys zs);
+    append (append xs ys) zs == append xs (append ys zs) in
 
 let prop_revAuxBroken (l1: PList) (e: Int) (l2: PList) : Bool =
-    equal (append (reverse l1) (Cons e l2))  (reverse0 l1 l2) ;
+    equal (append (reverse l1) (Cons e l2))  (reverse0 l1 l2) in
 
 let prop_sizeAppend (l1: PList) (l2: PList) : Bool =
-    size (append l1 l2) == size l1 + size l2 ;
+    size (append l1 l2) == size l1 + size l2 in
 
 let rec concat0 (l1: PList) (l2: PList) (l3: PList) : PList =
        case l1 of
           Nil -> (case l2 of
                      Nil -> reverse l3
                    | Cons y ys -> concat0 Nil ys (Cons y l3) )
-        | Cons x xs -> concat0 xs l2 (Cons x l3) ;
+        | Cons x xs -> concat0 xs l2 (Cons x l3) in
 
 --let prop_concat0 (l1: PList) (l2: PList) (l3: PList) : Bool =
  --   content (concat0 l1 l2 l3) ==
-  --  union (union (content l1) (content l2)) (content l3) ;
+  --  union (union (content l1) (content l2)) (content l3) in
 
 
 
-let concat (l1: PList) (l2: PList) : PList = concat0 l1 l2 Nil;
+let concat (l1: PList) (l2: PList) : PList = concat0 l1 l2 Nil in
 
 --let prop_concat (l1: PList) (l2: PList) : Bool =
-  --  content (concat l1 l2) == union (content l1) (content l2);
+  --  content (concat l1 l2) == union (content l1) (content l2) in
 
 
 
@@ -135,4 +135,3 @@ prop_revAuxBroken
 --prop_sizeAppend
 ---prop_concat0
 ---prop_concat
-

@@ -1,4 +1,4 @@
 type ToInt[A] = Int;
 type Hide = { test : forall A. ToInt[A] -> Int };
-let f (x : Hide) = x.test [ToInt[String]] 5;
+let f (x : Hide) = x.test [ToInt[String]] 5 in
 0

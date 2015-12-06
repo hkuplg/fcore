@@ -2,8 +2,8 @@ let rec
   map [A, B] (f:A->B) (xs:List[A]):List[B] =
     if(null [A] xs)
     then Nil [B]
-    else Cons [B] (f (head [A] xs)) (map [A, B] f (tail [A] xs));
+    else Cons [B] (f (head [A] xs)) (map [A, B] f (tail [A] xs)) in
 
-let f(x:Int):Int = x+1;
+let f(x:Int):Int = x+1 in
 
 head [Int] (map [Int, Int] f L[2,3])

@@ -1,4 +1,4 @@
-let idString (x: String): String = x;
+let idString (x: String): String = x in
 
 type T = Int
 \(x: T) -> {

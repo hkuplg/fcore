@@ -7,8 +7,8 @@ let rec
     then
         Cons [A] (head [A] xs) (filter [A] f (tail [A] xs))
     else
-        filter [A] f (tail [A] xs);
+        filter [A] f (tail [A] xs) in
 
-let  f(x:Int):Bool = x >0;
+let  f(x:Int):Bool = x >0 in
 
 head [Int] (filter [Int] f (L[-1,0,1,2,3]))

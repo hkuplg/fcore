@@ -1,12 +1,12 @@
 let max (x : Int) (y : Int) : Int =
   if x > y then x else y
-;
+in
 let rec
   at[A] (n:Int) (x:List[A]): A =
     if (n==0)
     then head [A] x
     else at[A] (n-1) (tail [A] x)
-;
+in
 let maxValue (values : List[Int]) (weights : List[Int]) (totalWeight : Int) : Int = (
   let rec maxValue' (k : Int -> Int) (i : Int) (w : Int) : Int =
     if i == 0 || w == 0 then (k 0)
@@ -19,9 +19,8 @@ let maxValue (values : List[Int]) (weights : List[Int]) (totalWeight : Int) : In
                                (w - ( at (i-1) weights ))))
         (i - 1)
         w
-  ;
+  in
   maxValue' (\(x : Int) -> x) (length [Int] values) totalWeight
 )
-;
+in
 maxValue L[9,3,4] L[2,5,8] 10
-

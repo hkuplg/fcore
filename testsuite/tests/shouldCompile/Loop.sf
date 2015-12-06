@@ -1,2 +1,2 @@
-let rec loop[A]: A = loop[A];
+let rec loop[A]: A = loop[A] in
 loop[String]

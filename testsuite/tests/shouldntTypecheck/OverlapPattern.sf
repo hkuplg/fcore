@@ -9,6 +9,6 @@ let children [A,B] (x:BTree [A,B]) =
       | Node _ _ (Leaf _) -> 1
       | Node (Leaf _) _ (Leaf _) -> 0
       | Node _ _ _ -> 2
-;
+in
 
 children

@@ -21,12 +21,13 @@ Dir[*where].each do |path|
 
       checklist.each do |pat, replacement|
         if line.match(pat)
-          bad_line = true; test_failed = true
+          bad_line = true
+          test_failed = true
           line.gsub!(pat, replacement)
         end
       end
 
-      puts "#{path}:#{line_number}: #{line}" if bad_line
+      puts "#{path}:#{line_number}:\n#{line}" if bad_line
     end
   end
 end

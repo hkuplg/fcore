@@ -1,4 +1,3 @@
-
 data PList = Nil | Cons Int PList;
 
 
@@ -7,33 +6,33 @@ let rec max (l: PList) : Int =
          Nil      -> 0
        | Cons x c -> case c of
                          Nil        -> x
-                       | Cons y ys  -> let m2 = max c;
-                                       if m2 > x then m2 else x;
+                       | Cons y ys  -> let m2 = max c in
+                                       if m2 > x then m2 else x in
 
 let rec sum (l: PList) : Int =
      case l of
          Nil       -> 0
-       | Cons x xs -> x + sum xs;
+       | Cons x xs -> x + sum xs in
 
 let rec size (l : PList) : Int =
        case l of
           Nil       -> 0
-        | Cons _ xs -> 1 + size xs;
+        | Cons _ xs -> 1 + size xs in
 
-let prop_size (l : PList) : Bool = size l >= 0;
+let prop_size (l : PList) : Bool = size l >= 0 in
 
 let rec allPos (l: PList) : Bool =
      case l of
         Nil       -> True
-      | Cons x xs -> x >= 0 && (allPos xs) ;
+      | Cons x xs -> x >= 0 && (allPos xs) in
 
 let prop0 (l: PList) : Bool =
     if l != Nil
      then (if allPos l then False else True) || (max l >= 0)
-     else True ;
+     else True in
 
 let property (l: PList) : Bool =
-    sum l <= (size l) * (if l == Nil then 0 else max l);
+    sum l <= (size l) * (if l == Nil then 0 else max l) in
 
 --prop_size
 --prop0

@@ -1,4 +1,3 @@
-
 data Formula = And Formula Formula
              | Or Formula Formula
              | Implies Formula Formula
@@ -11,7 +10,7 @@ let rec simplify (f: Formula): Formula =
            | Or l r      -> Or (simplify l) (simplify r)
            | Implies l r -> Or (Not (simplify l)) (simplify r)
            | Not f       -> Not (simplify f)
-           | Literal _   -> f ;
+           | Literal _   -> f in
 
 let rec isSimplified(f: Formula): Bool =
          case f of
@@ -19,10 +18,10 @@ let rec isSimplified(f: Formula): Bool =
            | Or l r      -> isSimplified l && isSimplified r
            | Implies _ _ -> False
            | Not f       -> isSimplified f
-           | Literal _   -> True ;
+           | Literal _   -> True in
 
 -- (* property simplify*)
-let prop_simplify (f: Formula): Bool = isSimplified (simplify f);
+let prop_simplify (f: Formula): Bool = isSimplified (simplify f) in
 
 
 let rec nnf (f: Formula): Formula =
@@ -36,7 +35,7 @@ let rec nnf (f: Formula): Formula =
                               | Implies l r -> And (nnf l) (nnf (Not r))
                               | Not ff      -> nnf ff
                               | Literal ff  -> Not (Literal ff) )
-            | Literal _   -> f ;
+            | Literal _   -> f in
 
 
 let rec isNNF (f: Formula): Bool =
@@ -50,30 +49,30 @@ let rec isNNF (f: Formula): Bool =
                               | Or _ _      -> False
                               | Implies _ _ -> False
                               | Not _       -> False )
-           | Literal _    -> True ;
+           | Literal _    -> True in
 
 -- (* Property nnf*)
-let prop_nnf (f: Formula): Bool = isNNF (nnf f);
+let prop_nnf (f: Formula): Bool = isNNF (nnf f) in
 
 
 
 
 -- (*eval*)
-let evalLit (id : Int) : Bool = id == 42 ;
+let evalLit (id : Int) : Bool = id == 42 in
 
 let rec eval (f: Formula) : Bool =
         case f of
            And l r     -> eval l && eval r
          | Or l r      -> eval l || eval r
-         | Implies l r -> let not = if eval l then False else True; not || eval r
-         | Not f       -> let not = if eval f then False else True; not
-         | Literal id  -> evalLit id ;
+         | Implies l r -> let not = if eval l then False else True in not || eval r
+         | Not f       -> let not = if eval f then False else True in not
+         | Literal id  -> evalLit id in
 
 
 -- (*Property *)
 
 let prop_simplifySemantics(f: Formula) : Bool =
-      eval f == eval (simplify f);
+      eval f == eval (simplify f) in
 
 
 --let rec vars (f: Formula) : Set =
@@ -84,25 +83,25 @@ let prop_simplifySemantics(f: Formula) : Bool =
  --    | Not (Literal i) -> singleton i
  --    | Literal i       -> singleton i
  --    | _               -> error [Set] "the fromula should be nnf"
- --  else error [Set] "the fromula should be nnf" ;
+ --  else error [Set] "the fromula should be nnf" in
 
---let fv(f: Formula) : Set = vars (nnf f);
+--let fv(f: Formula) : Set = vars (nnf f) in
 
 let prop_wrongCommutative(f: Formula) : Bool =
-     nnf (simplify f) == simplify (nnf f);
+     nnf (simplify f) == simplify (nnf f) in
 
 let prop_simplifyPreservesNNF(f: Formula) : Bool =
     if isNNF f then isNNF (simplify f)
-               else True ;
+               else True in
 
 
 let prop_nnfIsStable(f: Formula) : Bool =
     if isNNF f then nnf f == f
-               else True ;
+               else True in
 
 let prop_simplifyIsStable(f: Formula) : Bool =
     if isSimplified f then simplify f == f
-                      else True ;
+                      else True in
 
 
 prop_simplifyIsStable

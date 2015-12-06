@@ -2,5 +2,5 @@
 data P [A,B] = P A B;
 let fst[A,B] (pair: P[B,A]): B =
     case pair of
-      P x y -> x;
+      P x y -> x in
 fst[Char,Int] (P[Int,Char] 1 'a')

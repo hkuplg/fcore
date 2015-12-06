@@ -5,6 +5,6 @@ data PolyList [A] = Nil | Cons A PolyList[A];
 let rec first [A] (l : PolyList[A]) : Int =
     case l of
         Nil         ->  0
-     |  Cons _ xs   ->  _;
+     |  Cons _ xs   ->  _ in
 
 first[Int] (Cons[Int] 5 (Nil[Int]))

@@ -3,18 +3,18 @@
 
 data PList = Nil | Cons Int PList ;
 data Option = None | Some Int ;
-let openPar : Int = 1 ;
-let closePar : Int = 2 ;
+let openPar : Int = 1 in
+let closePar : Int = 2 in
 
 data Pair = Pair Int Int;
 
-let fst (p : Pair) : Int = case p of Pair p1 p2 -> p1;
-let snd (p : Pair) : Int = case p of Pair p1 p2 -> p2;
+let fst (p : Pair) : Int = case p of Pair p1 p2 -> p1 in
+let snd (p : Pair) : Int = case p of Pair p1 p2 -> p2 in
 
 let rec size (xs : PList) : Int =
    case xs of
        Nil -> 0
-     | Cons y ys -> 1 + size ys ;
+     | Cons y ys -> 1 + size ys in
 
 -- (* balanced *)
 let rec balanced (l : PList) (counter : Int) : Bool =
@@ -25,7 +25,7 @@ let rec balanced (l : PList) (counter : Int) : Bool =
                                                    then counter + 1
                                                    else if h == closePar
                                                         then counter - 1
-                                                        else counter; balanced t counter ;
+                                                        else counter in balanced t counter in
 
 -- (* balanced_nonEarly *)
 let rec balanced_nonEarly (l : PList) (counter : Int) : Bool =
@@ -37,10 +37,10 @@ let rec balanced_nonEarly (l : PList) (counter : Int) : Bool =
                                      then counter + 1
                                      else if h == closePar
                                           then counter - 1
-                                          else counter ; balanced_nonEarly t c ;
+                                          else counter in balanced_nonEarly t c in
 
 let prop_balanced_nonEarly (l : PList) (co : Int) : Bool =
-     balanced_nonEarly l co == balanced l co;
+     balanced_nonEarly l co == balanced l co in
 
 
 
@@ -54,83 +54,83 @@ let rec balanced_withFailure (l : PList) (counter : Int) (failed : Bool) : Bool 
                                 then counter + 1
                                 else if h == closePar
                                      then counter - 1
-                                     else counter ; balanced_withFailure t c (failed || (c < 0))
-      else False; --error [Bool] "counter should be larger than 0 or failed";
+                                     else counter in balanced_withFailure t c (failed || (c < 0))
+      else False in --error [Bool] "counter should be larger than 0 or failed" in
 
 let prop_balanced_withFailure (l : PList) (co : Int) (fal : Bool) : Bool =
      if fal then balanced_withFailure l co fal == balanced_nonEarly l (-1)
-            else balanced_withFailure l co fal == balanced_nonEarly l co ;
+            else balanced_withFailure l co fal == balanced_nonEarly l co in
 
 
 -- (*reduce *)
 let reduce (p1: Pair) (p2: Pair) : Pair =
      if fst p1 >= snd p2 then Pair (fst p1 - snd p2 + fst p2) (snd p1)
-                       else Pair (fst p2) (snd p2 - fst p1 + snd p1);
+                       else Pair (fst p2) (snd p2 - fst p1 + snd p1) in
 -- (* parPair *)
 let parPair (x: Int) : Pair =
      if x == openPar then Pair 1 0
-                     else if x == closePar then Pair 0 1 else Pair 0 0;
+                     else if x == closePar then Pair 0 1 else Pair 0 0 in
 
 
 --(* foldLeft*)
 let rec foldLeft [A] (xs : PList) (v : A) (f : A -> Int -> A) : A =
     case xs of
          Nil -> v
-       | Cons h t -> foldLeft [A] t (f v h) f;
+       | Cons h t -> foldLeft [A] t (f v h) f in
 
 -- (* balanced_withReduce*)
 let rec balanced_withReduce (l : PList) (p : Pair) : Bool =
     if fst p >= 0 && snd p >= 0
     then case l of
            Nil      -> fst p == 0 && snd p == 0
-         | Cons h t -> let p2 = reduce p (parPair h) ; balanced_withReduce t p2
-    else False; --error [Bool] "the element of p should be larger than 0 respectively";
+         | Cons h t -> let p2 = reduce p (parPair h) in balanced_withReduce t p2
+    else False in --error [Bool] "the element of p should be larger than 0 respectively" in
 
 
 -- (* Property  balanced_foldLeft_equivalence*)
 let rec prop_balanced_foldLeft_equivalence (l: PList) (p: Pair) : Bool =
-     let p1 = fst p ; let p22 = snd p ;
+     let p1 = fst p in let p22 = snd p in
      if (p1 >= 0) && (p22 >= 0)
-     then let f = (\(s: Pair) (x: Int) -> reduce s (parPair x));
+     then let f = (\(s: Pair) (x: Int) -> reduce s (parPair x)) in
           ((foldLeft [Pair] l p f) == (Pair 0 0)) == balanced_withReduce l p &&
           (case l of
                 Nil -> True
-              | Cons h t -> let p2 = f p h ; prop_balanced_foldLeft_equivalence t p2)
-     else True; --error [Bool] "the element of p should be larger than 0 respectively" ;
+              | Cons h t -> let p2 = f p h in prop_balanced_foldLeft_equivalence t p2)
+     else True in --error [Bool] "the element of p should be larger than 0 respectively" in
 
 
 -- (* Property  reduce_associative *)
 let prop_reduce_associative (p1: Pair) (p2: Pair) (p3: Pair) : Bool =
-    reduce p1 (reduce p2 p3) == reduce (reduce p1 p2) p3 ;
+    reduce p1 (reduce p2 p3) == reduce (reduce p1 p2) p3 in
 
 --(* swap*)
-let swap (p: Pair) : Pair = Pair (snd p) (fst p) ;
+let swap (p: Pair) : Pair = Pair (snd p) (fst p) in
 
 --(* Property  reduce_inverse*)
 let prop_reduce_inverse (p1: Pair) (p2: Pair) : Bool =
-    reduce p1 p2 == swap (reduce (swap p2) (swap p1)) ;
+    reduce p1 p2 == swap (reduce (swap p2) (swap p1)) in
 
 --(* Property reduce_associative_inverse*)
 let prop_reduce_associative_inverse (p1: Pair) (p2: Pair) (p3: Pair) : Bool =
-    reduce p1 (reduce p2 p3) == swap (reduce (reduce (swap p3) (swap p2)) (swap p1)) ;
+    reduce p1 (reduce p2 p3) == swap (reduce (reduce (swap p3) (swap p2)) (swap p1)) in
 
 --(* Property reduce_associative_inverse2*)
 let prop_reduce_associative_inverse2 (p1: Pair) (p2: Pair) (p3: Pair) : Bool =
-    reduce p1 (reduce p2 p3) == swap (reduce (swap p3) (reduce (swap p2) (swap p1))) ;
+    reduce p1 (reduce p2 p3) == swap (reduce (swap p3) (reduce (swap p2) (swap p1))) in
 
 
 --(* headOption & lastOption*)
 let headOption (l: PList) : Option =
     case l of
          Nil      -> None
-       | Cons h t -> Some h ;
+       | Cons h t -> Some h in
 
 let rec lastOption (l: PList) : Option =
          case l of
               Cons h t -> (case t of
                              Nil      -> Some h
                            | Cons _ _ -> lastOption t)
-            | Nil        -> None ;
+            | Nil        -> None in
 
 -- (* init & ttail*)
 let rec init (l: PList) : PList =
@@ -138,42 +138,42 @@ let rec init (l: PList) : PList =
               Cons h t -> (case t of
                               Nil      -> Nil
                             | Cons _ _ -> Cons h (init t) )
-            | Nil        -> Nil ;
+            | Nil        -> Nil in
 
 let ttail (l: PList) : PList =
      case l of
           Cons h t -> t
-        | Nil      -> Nil ;
+        | Nil      -> Nil in
 
 -- (* addLast *)
 let rec addLast (l: PList) (x: Int) : PList =
         case l of
              Cons h t -> Cons h (addLast t x)
-           | Nil      -> Cons x Nil ;
+           | Nil      -> Cons x Nil in
 
 let prop_addLast (l: PList) (x: Int) : Bool =
-    let res = addLast l x; lastOption res == Some x && init res == l ;
+    let res = addLast l x in lastOption res == Some x && init res == l in
 
 
 --(* reverse *)
 let rec reverse (l: PList): PList =
          case l of
               Cons h t -> addLast (reverse t) h
-            | Nil      -> Nil ;
+            | Nil      -> Nil in
 
 let prop_reverse (l: PList): Bool =
-     let res = reverse l; lastOption res == headOption l &&
-                             lastOption l == headOption res ;
+     let res = reverse l in lastOption res == headOption l &&
+                             lastOption l == headOption res in
 
 -- (*Property reverse_ttail_equivalence ... *)
 let prop_reverse_ttail_equivalence (l: PList) : Bool =
-    reverse (ttail l) == init (reverse l) ;
+    reverse (ttail l) == init (reverse l) in
 
 let rec prop_reverse_init_equivalence (l: PList) : Bool =
         reverse (init l) == ttail (reverse l) &&
         (case l of
               Cons h t -> prop_reverse_init_equivalence t
-            | Nil      -> True );
+            | Nil      -> True ) in
 
 
 let rec prop_reverse_equality_equivalence (l1: PList) (l2: PList) : Bool =
@@ -182,18 +182,18 @@ let rec prop_reverse_equality_equivalence (l1: PList) (l2: PList) : Bool =
              Cons h1 t1 -> (case l2 of
                                 Cons h2 t2 -> prop_reverse_equality_equivalence t1 t2
                               | Nil        -> True )
-           | Nil        -> True );
+           | Nil        -> True ) in
 
 
 let rec prop_reverse_reverse_equivalence (l: PList) : Bool =
         reverse (reverse l) == l &&
-        ( let lr = reverse l;
+        ( let lr = reverse l in
            case l of
              Cons h t -> (case lr of
                                 Cons hr tr -> (prop_reverse_reverse_equivalence t &&
                                                prop_reverse_reverse_equivalence tr)
                               | Nil        -> True )
-           | Nil        -> True ) ;
+           | Nil        -> True ) in
 
 
 

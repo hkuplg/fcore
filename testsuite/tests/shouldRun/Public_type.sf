@@ -2,6 +2,6 @@
 
 type StringBuffer = java.lang.StringBuffer;
 let appendTo (c : Char) (buf : StringBuffer) : StringBuffer =
-buf.append(c);
+buf.append(c) in
 
 'a' `appendTo` (new java.lang.StringBuffer( ))

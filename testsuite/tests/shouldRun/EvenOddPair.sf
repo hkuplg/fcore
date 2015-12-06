@@ -9,5 +9,5 @@ evenOdd : (Int -> Bool, Int -> Bool)
                      then False
                      else evenOdd._1 (n - 1)
     )
-;
+in
 evenOdd._2 7

@@ -10,7 +10,7 @@ type Point = {
   z: Int
 };
 
-let black  = { red = 0, green = 0, blue = 0 };
-let origin = { x = 0, y = 0, z = 0 };
+let black  = { red = 0, green = 0, blue = 0 } in
+let origin = { x = 0, y = 0, z = 0 } in
 
 "The origin is at (\{origin.x},\{origin.y},\{origin.z})"

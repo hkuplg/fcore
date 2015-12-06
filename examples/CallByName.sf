@@ -4,21 +4,21 @@
 let something (x: Unit) = {
   println("something called");
   1
-};
+} in
 
 let callByValue (x: Int) = {
   println(x);
   println(x);
   println(x);
   "Leaving callByValue"
-};
+} in
 
 let callByName (x: Int) = {
   println(x);
   println(x);
   println(x);
   "Leaving callByName"
-};
+} in
 
 {
   println("* callByValue *");

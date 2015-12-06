@@ -1,4 +1,3 @@
-
 type Ide = Int;
 
 data TermL = Var Ide | App TermL TermL | Abs Ide TermL;
@@ -18,13 +17,13 @@ data MTermLlist = MNil | MCons MaybeTermL MTermLlist;
 let rec mergeI (l1: Idelist) (l2: Idelist) : Idelist =
          case l2 of
            INil -> l1
-         | ICons i is -> mergeI (ICons i l1) is ;
+         | ICons i is -> mergeI (ICons i l1) is in
 
 let rec deleteI (i: Int) (l: Idelist) : Idelist =
       case l of
         INil -> INil
       | ICons x xs -> if i == x then (deleteI i xs)
-                                else ICons x (deleteI i xs);
+                                else ICons x (deleteI i xs) in
 
 let rec rmDup (l: Idelist) : Idelist =
       case l of
@@ -33,50 +32,50 @@ let rec rmDup (l: Idelist) : Idelist =
                          INil -> l
                        | ICons y ys -> if x == y
                                        then rmDup xs
-                                       else ICons x (rmDup xs));
+                                       else ICons x (rmDup xs)) in
 
 
 let rec freeVars (t: TermL) : Idelist =
           case t of
              Var x -> ICons x INil
            | App t1 t2 -> rmDup (mergeI (freeVars t1) (freeVars t2))
-           | Abs x t   -> deleteI x (freeVars t);
+           | Abs x t   -> deleteI x (freeVars t) in
 
 
-let unionI (l1: Idelist) (l2: Idelist) : Idelist = rmDup (mergeI l1 l2);
+let unionI (l1: Idelist) (l2: Idelist) : Idelist = rmDup (mergeI l1 l2) in
 
 let rec notMemberI (i: Int) (l: Idelist) : Bool =
        case l of
          INil -> True
        | ICons x xs -> if x == i then False
-                                 else (notMemberI i xs);
+                                 else (notMemberI i xs) in
 
 let context = ICons 1 (ICons 2 (ICons 3 (ICons 4 (ICons 5 (ICons 6
-             (ICons 7 (ICons 8 (ICons 9 (ICons 10 (ICons 11 (ICons 12 INil)))))))))));
+             (ICons 7 (ICons 8 (ICons 9 (ICons 10 (ICons 11 (ICons 12 INil))))))))))) in
 
 let rec helper (l: Idelist) (c: Idelist) : Int =
         case c of
           INil -> 0
-        | ICons x xs -> if (notMemberI x l) then x else helper l xs;
+        | ICons x xs -> if (notMemberI x l) then x else helper l xs in
 
-let genNewIde (l:Idelist) : Int = (helper l context) ;
+let genNewIde (l:Idelist) : Int = (helper l context) in
 
 let isClosed (t: TermL) : Bool =
-        if (freeVars t) == INil then True else False;
+        if (freeVars t) == INil then True else False in
 
 let rec subst (n: TermL) (x: Int) (m: TermL) : TermL =
         case m of
           Var y   -> if x == y then n else m
         | App p q -> App (subst n x p) (subst n x q)
-        | Abs y p -> let freeP = freeVars p;
-                     let freeN = freeVars n;
-                     let freeNP = unionI freeP freeN;
-                     let z      = genNewIde freeNP;
+        | Abs y p -> let freeP = freeVars p in
+                     let freeN = freeVars n in
+                     let freeNP = unionI freeP freeN in
+                     let z      = genNewIde freeNP in
                      if x == y then m
                      else if notMemberI x freeP then m
                           else if notMemberI y freeN
                                then Abs y (subst n x p)
-                               else Abs z (subst n x (subst (Var z) y p));
+                               else Abs z (subst n x (subst (Var z) y p)) in
 
 --prop_subst
 
@@ -93,23 +92,23 @@ let rec alphaCongruent (t1: TermL) (t2: TermL) : Bool =
       | Abs x tx -> (case t2 of
                        Var y -> False
                      | App x2 y2 -> False
-                     | Abs y ty -> let z = genNewIde (unionI (freeVars tx) (freeVars ty));
+                     | Abs y ty -> let z = genNewIde (unionI (freeVars tx) (freeVars ty)) in
                                    if x==y then alphaCongruent tx ty
-                                   else alphaCongruent (subst (Var z) x tx) (subst (Var z) y ty));
+                                   else alphaCongruent (subst (Var z) x tx) (subst (Var z) y ty)) in
 
 
 --property---
-let prop_alpha_ref (t: TermL) : Bool = alphaCongruent t t;
+let prop_alpha_ref (t: TermL) : Bool = alphaCongruent t t in
 
 let prop_alpha_tra (t1: TermL) (t2: TermL) (t3: TermL) : Bool =
      if (alphaCongruent t1 t2) && (alphaCongruent t2 t3)
      then alphaCongruent t1 t3
-     else True;
+     else True in
 
 let prop_alpha_sym (t1: TermL) (t2: TermL) : Bool =
      if alphaCongruent t1 t2
      then alphaCongruent t2 t1
-     else True;
+     else True in
 -----
 
 let rec loReduce (t: TermL) : MaybeTermL =
@@ -129,21 +128,21 @@ let rec loReduce (t: TermL) : MaybeTermL =
                                                                         | Nothing -> Nothing)))
       | Abs x tt -> (case (loReduce tt) of
                               Just t' -> Just (Abs x t')
-                            | Nothing -> Nothing);
+                            | Nothing -> Nothing) in
 
 
 let rec lgh (t: TermL) : Int =
       case t of
          Var x -> 1
        | App t1 t2 -> (lgh t1) + (lgh t2)
-       | Abs x tx  -> 1 + lgh tx;
+       | Abs x tx  -> 1 + lgh tx in
 
 
 let rec takeWhileJust (l: MTermLlist) : MTermLlist =
       case l of
         MNil -> MNil
       | MCons l1 ls -> if l1 != Nothing then MCons l1 (takeWhileJust ls)
-                                        else MNil;
+                                        else MNil in
 
 
 let rec mapJust (l: MTermLlist) : TermLlist =
@@ -151,37 +150,30 @@ let rec mapJust (l: MTermLlist) : TermLlist =
            MNil -> LNil
          | MCons m ms -> (case m of
                              Nothing -> LCons (Var 0) (mapJust ms)
-                           | Just x  -> LCons x (mapJust ms)) ;
+                           | Just x  -> LCons x (mapJust ms)) in
 
 let rec toList (i: Int) : Idelist =
        if i == 0 then INil
-       else (ICons i (toList (i-1)));
+       else (ICons i (toList (i-1))) in
 
 let rmMaybe (m: MaybeTermL) : TermL =
       case m of
         Nothing -> Var 0
-      | Just x  -> x;
+      | Just x  -> x in
 
 let rec reduce (s: Int) (t: TermL) : MaybeTermL =
        if s == 0 then Just t
-       else reduce (s-1) (rmMaybe (loReduce t));
+       else reduce (s-1) (rmMaybe (loReduce t)) in
 
 let rec mapReduce (l: Idelist) (t: TermL) : MTermLlist =
-       let s = (lgh t)*2 ;
+       let s = (lgh t)*2 in
        case l of
           INil -> MNil
-        | ICons i is -> MCons (reduce (s-i) t) (mapReduce is t);
+        | ICons i is -> MCons (reduce (s-i) t) (mapReduce is t) in
 
 let limitedReduce (t: TermL) : TermLlist =
-       let steps = (lgh t)*2 ;
-       mapJust (takeWhileJust (mapReduce (toList steps) t));
+       let steps = (lgh t)*2 in
+       mapJust (takeWhileJust (mapReduce (toList steps) t)) in
 
 
 prop_alpha_tra
-
-
-
-
-
-
-

@@ -3,5 +3,5 @@
 let rec comb(n : java.lang.Integer) (m : java.lang.Integer) : java.lang.Integer =
     if m == 0 || m == n then 1
     else comb(n-1)(m-1) + comb(n-1)(m)
-;
+in
 comb 12 3

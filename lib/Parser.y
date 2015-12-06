@@ -282,7 +282,6 @@ ctyparams1 :: { [Located (ReadId, Maybe Type)] }
 expr :: { ReadExpr }
     : "/\\" ctyparams1 "->" expr          { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "\\" params1 "->" expr             { foldr (\x acc -> Lam (unLoc x) acc `withLoc` x) (Lam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
-    | "let" recflag and_binds ";"  expr  { LetIn $2 $3 $5 `withLoc` $1 }
     | "let" recflag and_binds "in"  expr { LetIn $2 $3 $5 `withLoc` $1 }
     | "type" UPPER_IDENT typaram_list_or_empty "=" type ";"  expr  { Type (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "type" UPPER_IDENT typaram_list_or_empty "=" type expr       { Type (toString $2) (map unLoc $3) $5 $6 `withLoc` $1 }

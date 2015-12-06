@@ -1,4 +1,4 @@
 --> 5
 
-let point = { x = 4, y = 5, z = 0 };
+let point = { x = 4, y = 5, z = 0 } in
 (point with { x = 0, y = point.y }).y

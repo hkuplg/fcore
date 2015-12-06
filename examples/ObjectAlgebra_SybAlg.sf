@@ -8,9 +8,9 @@ type MyList [A] = {
 let sumListAlg : ListAlg[Int, Int] = {
   nil = 0,
   con = \(x : Int) (y : Int) -> x + y
-};
+} in
 let sumList (l : MyList[Int]) : Int =
-  l.accept [Int] sumListAlg;
+  l.accept [Int] sumListAlg in
 type SybAlg[Company, Dept, SubUnit, Employee, Person, Salary] = {
   goC  : MyList[Dept] ->  Company,
   goD  : String       ->  Employee  ->  MyList[SubUnit] ->  Dept,
@@ -32,7 +32,7 @@ let genCom [C, D, SU, E, P, SA] (alg : SybAlg[C, D, SU, E, P, SA]) : C =
     (f.con
         (alg.goD "Strategy" (alg.goE (alg.goP "Blair" "London") (alg.goS 100000))
       { accept = /\ LN -> \ (fn : ListAlg[SU, LN]) -> fn.nil }) f.nil
-    ) };
+    ) } in
 type QueryInt = SybAlg[Int, Int, Int, Int, Int, Int];
 let salaryBill : QueryInt = {
   goC  = \(l : MyList[Int]) -> sumList l,
@@ -42,7 +42,7 @@ let salaryBill : QueryInt = {
   goE  = \(x : Int) (y : Int) -> x + y,
   goP  = \(x : String) (y : String) -> 0,
   goS  = \(x : Int) -> x
-};
+} in
 let incSalary[C, D, SU, E, P, SA] (alg : SybAlg[C, D, SU, E, P, SA]) : SybAlg[C, D, SU, E, P, SA] = {
   goC  = \(l : MyList[D]) -> alg.goC l,
   goD  = \(x : String) (y : E) (l : MyList[SU]) -> alg.goD x y l,
@@ -51,8 +51,8 @@ let incSalary[C, D, SU, E, P, SA] (alg : SybAlg[C, D, SU, E, P, SA]) : SybAlg[C,
   goE  = \(x : P) (y : SA) -> alg.goE x y,
   goP  = \(x : String) (y : String) -> alg.goP x y,
   goS  = \(x : Int) -> alg.goS (2 * x)
-};
-let before = genCom [Int, Int, Int, Int, Int, Int] salaryBill;
+} in
+let before = genCom [Int, Int, Int, Int, Int, Int] salaryBill in
 let after  = genCom [Int, Int, Int, Int, Int, Int]
-             (incSalary [Int, Int, Int, Int, Int, Int] salaryBill);
+             (incSalary [Int, Int, Int, Int, Int, Int] salaryBill) in
 "before = \{before}, after = \{after}"

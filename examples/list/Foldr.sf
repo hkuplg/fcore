@@ -2,8 +2,8 @@ let rec
   foldr [A, B] (f:A->B->B) (x:B) (xs:List[A]) :B =
     if(null [A] xs)
     then x
-    else f (head [A] xs) (foldr [A, B] f x (tail [A] xs));
+    else f (head [A] xs) (foldr [A, B] f x (tail [A] xs)) in
 
-let  f (x:Int) (y:Int) :Int = x+y;
+let  f (x:Int) (y:Int) :Int = x+y in
 
 foldr [Int, Int] f 0 L[-1,0,1,2,3]

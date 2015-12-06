@@ -8,6 +8,6 @@ let rec removeDuplicates [A] (x:PolyList[A]): PolyList[A] =
       | Cons x (Cons y z) ->
             if x == y then Cons [A] x (removeDuplicates [A] z)
             else Cons [A] x (Cons [A] y (removeDuplicates [A] z))
-;
+in
 
 removeDuplicates

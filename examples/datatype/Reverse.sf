@@ -8,25 +8,25 @@ let rec eq [A] (xs: PolyList [A]) (ys: PolyList [A]) : Bool =
         | Cons _ _ -> False)
    | Cons a as -> (case ys of
                    Nil -> False
-       | Cons b bs -> (a == b) && (eq [A] as bs)) ;
+       | Cons b bs -> (a == b) && (eq [A] as bs)) in
 let rec append [A] (xs : PolyList [A]) (ys : PolyList [A]) : PolyList [A] =
   case xs of
       Nil       -> ys
-    | Cons z zs -> Cons [A] z (append [A] zs ys);
+    | Cons z zs -> Cons [A] z (append [A] zs ys) in
 
 let rec reverse [A] (xs: PolyList [A]) : PolyList [A] =
     case xs of
       Nil -> Nil [A]
-      | Cons y ys -> append [A] (reverse [A] ys) (Cons [A] y (Nil [A]));
+      | Cons y ys -> append [A] (reverse [A] ys) (Cons [A] y (Nil [A])) in
 
-let prop_reverse [A] (xs: PolyList [A]) : Bool = eq [A] (reverse [A] (reverse [A] xs)) xs;
+let prop_reverse [A] (xs: PolyList [A]) : Bool = eq [A] (reverse [A] (reverse [A] xs)) xs in
 
 -- type IntList = PolyList[Int];
--- let showInt (x: Int) : String = x.toString();
+-- let showInt (x: Int) : String = x.toString() in
 -- let rec show (xs: IntList) : String =
 --     case xs of
 --          Nil -> ""
---       |  Cons y ys -> (showInt y).concat(show ys);
--- let xs = Cons [Int] 5 (Cons [Int] 4 (Nil [Int]));
+--       |  Cons y ys -> (showInt y).concat(show ys) in
+-- let xs = Cons [Int] 5 (Cons [Int] 4 (Nil [Int])) in
 -- show (reverse [Int] xs)
 prop_reverse

@@ -1,4 +1,4 @@
 --> 12
 
-let id[A] (x : A) = x; let pair = (id 1, id "2");
+let id[A] (x : A) = x in let pair = (id 1, id "2") in
 pair._1.toString().concat(pair._2)

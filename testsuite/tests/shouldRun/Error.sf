@@ -2,6 +2,5 @@
 
 let positive(x:Int) =
     if x > 0 then x
-    else error [Int] "param must be a postivie";
-
+    else error [Int] "param must be a postivie" in
 positive(4) + 5

@@ -12,7 +12,7 @@ and
   count_nil_forest [A] (x:Forest[A]):Int =
     case x of
        NilF -> 1
-     | ConsF x y -> (count_nil_tree [A] x) + (count_nil_forest [A] y);
+     | ConsF x y -> (count_nil_tree [A] x) + (count_nil_forest [A] y) in
 
 let test = ConsF [Int]
      (NodeT [Int] 1
@@ -24,6 +24,5 @@ let test = ConsF [Int]
                                (NilF [Int])
                   )
                   (NilF [Int])
-     );
+     ) in
 count_nil_forest [Int] test
-

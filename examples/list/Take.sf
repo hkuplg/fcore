@@ -2,6 +2,6 @@ let rec
   take [A] (n:Int) (xs:List[A]) :List[A] =
     if(null [A] xs || n<=0)
     then Nil [A]
-    else Cons [A] (head [A] xs) (take [A] (n-1) (tail [A] xs));
+    else Cons [A] (head [A] xs) (take [A] (n-1) (tail [A] xs)) in
 
 head [Int] (take [Int] 3 L[-1,0,1,2,3,4])

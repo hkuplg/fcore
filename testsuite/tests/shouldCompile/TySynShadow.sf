@@ -1,4 +1,4 @@
-let idInt (x: Int): Int = x;
+let idInt (x: Int): Int = x in
 
 type T = Int
 \(x: T) -> {

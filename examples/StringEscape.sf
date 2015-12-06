@@ -1,7 +1,7 @@
 let print (s: String) = {
   print(s);
   "\"Escaped string tests done!\""
-};
+} in
 
 {
   print("\"Hello, world\"\n");
