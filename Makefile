@@ -7,10 +7,6 @@ FLAGS := -m naive
 
 all : compiler
 
-.PHONY : prerequisite
-prerequisite :
-	cd runtime; ant clean
-
 .PHONY : compiler
 compiler : runtime
 	stack build --copy-bins
