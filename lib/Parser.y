@@ -84,8 +84,6 @@ import Control.Monad.State
   SCHAR    { L _ (Tschar _) }
   BOOL     { L _ (Tbool _) }
   CHAR     { L _ (Tchar _) }
-  "Empty"    { L _ Temptytree }
-  "Fork"     { L _ Tnonemptytree }
   "()"     { L _ Tunitlit }
   "Unit"   { L _ Tunit }
   "error"  { L _ Terror}
@@ -355,8 +353,6 @@ aexpr :: { ReadExpr }
 
 javaexpr :: { ReadExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew (toString $2) $4 `withLoc` $1 }
-    | "Empty"                                       { JNew "f2j.FunctionalTree" [] `withLoc` $1 }
-    | "Fork" "(" comma_exprs0 ")"                   { JNew "f2j.FunctionalTree" $3`withLoc` $1 }
 
     | JAVACLASS "." LOWER_IDENT "(" comma_exprs0 ")"  { JMethod (Static $ toString $1) (toString $3) $5 undefined `withLoc` $1 }
     | JAVACLASS "." LOWER_IDENT "()"                  { JMethod (Static $ toString $1) (toString $3) [] undefined `withLoc` $1 }

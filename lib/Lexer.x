@@ -91,7 +91,6 @@ tokens :-
     Char        { locate (\_ _ -> Tjavaclass "java.lang.Character") }
     Float       { locate (\_ _ -> Tjavaclass "java.lang.Float") }
     Double      { locate (\_ _ -> Tjavaclass "java.lang.Double") }
-    Tree        { locate (\_ _ -> Tjavaclass "f2j.FunctionalTree") }
     if          { locate (\_ _ -> Tif) }
     then        { locate (\_ _ -> Tthen) }
     else        { locate (\_ _ -> Telse) }
@@ -111,8 +110,6 @@ tokens :-
     \'(@charEscape | $printable # [\' \\])\'  { convChar False }
     True                   { locate (\_ s -> Tbool True) }
     False                  { locate (\_ s -> Tbool False) }
-    Empty                  { locate (\_ _ -> Temptytree) }
-    Fork                   { locate (\_ _ -> Tnonemptytree ) }
     \(\)                   { locate (\_ _ -> Tunitlit ) }
     Unit                   { locate (\_ _ -> Tunit) }
     L\[                    { locate (\_ _ -> Tlistbegin)}
@@ -158,7 +155,6 @@ data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Tprimop J.Op
            | Tobrack | Tcbrack | Tdcolon
            | Timport
-           | Temptytree | Tnonemptytree
            | Tlistbegin
            | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
            | Teof | Tschar Char | Tstrl | Tstrr | Tstrexpl | Tstrexpr
