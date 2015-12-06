@@ -80,7 +80,6 @@ import Control.Monad.State
 
   "module"  { L _ Tmodule }
   "import"  { L _ Timport }
-  "package"  { L _ TPackage }
 
   INT      { L _ (Tint _) }
   SCHAR    { L _ (Tschar _) }
@@ -137,10 +136,6 @@ import Control.Monad.State
 ------------------------------------------------------------------------
 -- Modules
 ------------------------------------------------------------------------
-
-package :: { Maybe PackageName }
-  : "package" packageIdent       { Just $2 }
-  |                              { Nothing }
 
 packageIdent :: { String }
   : ident    { unLoc $1 }
