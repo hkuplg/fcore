@@ -28,9 +28,6 @@ getTypeContext = liftM checkerTypeContext getCheckerState
 getValueContext :: Checker ValueContext
 getValueContext = liftM checkerValueContext getCheckerState
 
-getModuleContext :: Checker ModuleContext
-getModuleContext = liftM checkerModuleContext getCheckerState
-
 getTypeServer :: Checker JvmTypeQuery.Connection
 getTypeServer = liftM checkerTypeServer getCheckerState
 
@@ -90,34 +87,20 @@ withLocalVars vars do_this
        setCheckerState CheckerState { checkerValueContext = gamma, ..}
        return r
 
-withLocalMVars :: [(ReadId, ModuleMapInfo)]-> Checker a -> Checker a
-withLocalMVars vars do_this
-  = do sigma <- getModuleContext
-       let sigma' = addModuleInfo vars sigma
-       CheckerState {..} <- getCheckerState
-       setCheckerState CheckerState { checkerModuleContext = sigma', ..}
-       r <- do_this
-       CheckerState {..} <- getCheckerState
-       setCheckerState CheckerState { checkerModuleContext = sigma, ..}
-       return r
-
-
 data CheckerState
   = CheckerState
   { checkerTypeContext  :: TypeContext
   , checkerValueContext :: ValueContext
-  , checkerModuleContext :: ModuleContext
   , checkerTypeServer   :: JvmTypeQuery.Connection
   , checkerMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
   , compilationMethods :: String
   }
 
-mkInitCheckerState :: String -> ModuleContext -> JvmTypeQuery.Connection -> CheckerState
-mkInitCheckerState m module_ctxt type_server
+mkInitCheckerState :: String -> JvmTypeQuery.Connection -> CheckerState
+mkInitCheckerState m type_server
   = CheckerState
   { checkerTypeContext     = Map.empty
   , checkerValueContext    = Map.empty
-  , checkerModuleContext    = module_ctxt
   , checkerTypeServer   = type_server
   , checkerMemoizedJavaClasses = Set.empty
   , compilationMethods = m
@@ -129,7 +112,6 @@ mkInitCheckerStateWithEnv value_ctxt type_server
   = CheckerState
   { checkerTypeContext     = Map.empty
   , checkerValueContext    = value_ctxt
-  , checkerModuleContext    = Map.empty
   , checkerTypeServer   = type_server
   , checkerMemoizedJavaClasses = Set.empty
   , compilationMethods = ""
@@ -139,11 +121,6 @@ lookupVar :: Name -> Checker (Maybe Type)
 lookupVar x
   = do valueCtxt <- getValueContext
        return (Map.lookup x valueCtxt)
-
-lookupModuleVar :: Name -> Checker (Maybe ModuleMapInfo)
-lookupModuleVar x
-  = do moduleCtxt <- getModuleContext
-       return (Map.lookup x moduleCtxt)
 
 lookupTVarKind :: Name -> Checker (Maybe Kind)
 lookupTVarKind a

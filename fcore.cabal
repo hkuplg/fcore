@@ -73,7 +73,6 @@ library
                         ParseCMD
                         Parser
                         PartialEvaluator
-                        Predef
                         PrettyUtils
                         Problem
                         RuntimeProcessManager

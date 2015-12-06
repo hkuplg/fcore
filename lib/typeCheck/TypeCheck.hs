@@ -37,7 +37,6 @@ import IOEnv
 import JavaUtils
 import qualified JvmTypeQuery
 import Panic
-import Predef
 import PrettyUtils
 import Src hiding (subtype)
 import qualified Src (subtype)
@@ -60,8 +59,7 @@ import Prelude hiding (pred, (<$>))
 typeCheck :: String -> ReadExpr -> IO (Either LTypeErrorExpr (Type, CheckedExpr))
 typeCheck m e = JvmTypeQuery.withConnection
                   (\conn -> do
-                     let module_ctxt = Map.fromList $(getPredefInfoTH)
-                     (evalIOEnv (mkInitCheckerState m module_ctxt conn) . runExceptT . checkExpr) e)
+                     (evalIOEnv (mkInitCheckerState m conn) . runExceptT . checkExpr) e)
                   False
 
 -- Temporary hack for REPL
@@ -156,12 +154,7 @@ checkExpr e@(L loc (Var name)) = do
   resVar <- lookupVar name
   case resVar of
     Just t -> return (t, L loc $ Var (name, t))
-    Nothing -> do
-      resMVar <- lookupModuleVar name
-      case resMVar of
-        Just (p, t, g, m) -> return
-                               (t, L loc $ JField (Static $ (maybe "" (++ ".") p) ++ m ++ "$") g t)
-        Nothing -> throwError (NotInScope name `withExpr` e)
+    Nothing -> throwError (NotInScope name `withExpr` e)
 
 checkExpr (L loc (Lit lit)) = return (srcLitType lit, L loc $ Lit lit)
 
@@ -271,28 +264,6 @@ checkExpr (L loc (LetIn rec_flag binds e)) =
      return (t, L loc $ LetOut rec_flag binds' e')
 
 checkExpr (L _ LetOut{}) = panic "TypeCheck.checkExpr: LetOut"
-
-
-checkExpr (L loc (EModule pname (Module imps binds) _)) =
-  do
-    infoBinds <- collectModuleInfos imps
-    checkDupNames (concatMap getBindId binds)
-    binds' <- withLocalMVars infoBinds (normalizeBindAndAccum binds)
-    return (Unit, L loc $ EModuleOut pname binds')
-
-  where
-    collectModuleInfos [] = return []
-    collectModuleInfos (imp:imps) = do
-      info <- checkModuleFunction imp
-      fmap (++ info) (collectModuleInfos imps)
-    getBindId (BindNonRec b) = [bindId b]
-    getBindId (BindRec bs) = map bindId bs
-
-checkExpr (L loc (EModuleOut{})) = panic "TypeCheck.infer: EModuleOut"
-
-checkExpr (L loc (EImport imp e)) =
-  do infoBinds <- checkModuleFunction imp
-     withLocalMVars infoBinds (checkExpr e)
 
 --  Case           Possible interpretations
 --  ---------------------------------------

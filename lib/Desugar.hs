@@ -148,9 +148,6 @@ variable renaming. An example:
                            fs
                            [1..length bs]
 
-    go (L _ EModule{})                 = panic "desugarExpr: Module"
-
-
 {-
    let f : forall A1...An. t1 -> t2 = e@(\(x : t1). peeled_e) in body
                                       ^
@@ -199,8 +196,6 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                                     _ -> b2'
             in
             go (noLoc $ If emptytest b1 b2'')
-
-    go (L _ (EModuleOut pname binds)) = F.Module pname (desugarBindsToDefs (d, g) binds)
 
 
 desugarBindsToDefs :: (TVarMap t, VarMap t e) -> [Definition] -> F.Definition t e

@@ -153,10 +153,6 @@ data Expr id ty
   | RecordCon [(Label, LExpr id ty)]
   | RecordProj (LExpr id ty) Label
   | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
-  | EModule (Maybe PackageName) (Module id ty) (Expr id ty)
-  | EModuleOut (Maybe PackageName) [Definition]  -- Post typecheck only
-  | EImport (Import id) (LExpr id ty)
-  -- | ModuleAccess Name Name
   | Type -- type T A1 .. An = t in e
       Name         -- T         -- Name of type constructor
       [Name]       -- A1 ... An -- Type parameters
@@ -532,8 +528,6 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Case e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (CaseString e alts) = hang 2 (text "case" <+> pretty e <+> text "of" <$> text " " <+> intersperseBar (map pretty alts))
   pretty (ConstrOut c es) = parens $ hsep $ text (constrName c) : map pretty es
-  pretty (EModule pname modu e) = maybe empty ((text "package" <+>) . pretty) pname <$> pretty modu <$> pretty e
-  pretty (EImport imp e) = pretty imp <$> pretty e
   pretty e = text (show e)
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where

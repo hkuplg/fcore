@@ -290,8 +290,6 @@ expr :: { ReadExpr }
     | "data" recflag and_databinds ";" expr        { Data $2 $3 $5 `withLoc` $1 }
     | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
-    | package module                      { EModule $1 (unLoc $2) (Lit UnitLit) `withLoc` $2 }
-    | import ";" expr                     { EImport (unLoc $1) $3 `withLoc` $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
 
 semi_exprs :: { [ReadExpr] }

@@ -20,7 +20,6 @@ import StringUtils
 
 import Control.Exception
 import Data.Char (isSpace, toLower)
-import Data.Either
 import Data.List
 import Data.List.Split
 import Data.Maybe (listToMaybe)
