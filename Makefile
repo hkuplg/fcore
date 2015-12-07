@@ -1,6 +1,6 @@
 # General project-wide tasks
 
-SRC_DIR := lib
+PARSERS_DIR := frontend/parse
 TEST_DIR := testsuite
 FLAGS := -m naive
 
@@ -29,11 +29,11 @@ whitespace_test :
 
 .PHONY : runtime
 runtime :
-	cd runtime ; ant
+	cd runtime && ant
 
 .PHONY : parsers
 parsers :
-	cd $(SRC_DIR) ; make
+	cd $(PARSERS_DIR) && make
 
 # .PHONY : guard
 # guard :
@@ -46,5 +46,5 @@ clean :
 	rm -f *.class *.jar Main.java
 	rm -f $(TEST_DIR)/tests/run-pass/*.java
 	stack clean
-	cd lib; make clean
-	cd runtime; ant clean
+	cd $(PARSERS_DIR) && make clean
+	cd runtime && ant clean

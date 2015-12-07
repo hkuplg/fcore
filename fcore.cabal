@@ -39,10 +39,14 @@ library
                       , unbound-generics == 0.2
   build-tools:          alex == 3.1.*,
                         happy == 1.19.*
-  hs-source-dirs:       lib,lib/services
-                      , lib/typeCheck
-                      , lib/simplify,repl
-                      , lib/newlib
+  hs-source-dirs:       frontend
+                      , frontend/parse
+                      , frontend/services
+                      , frontend/simplify
+                      , frontend/typecheck
+                      , backend
+                      , backend/newlib
+                      , repl
   exposed-modules:      ApplyTransCFJava
                         BackEnd
                         BaseTransCFJava
