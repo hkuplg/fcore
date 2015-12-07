@@ -110,17 +110,16 @@ getModuleInfo h (p, m) = do
 
 
 extractModuleInfo :: Connection
-                  -> String
                   -> (Maybe Src.PackageName, ModuleName)
                   -> IO (Maybe ([ModuleInfo], ModuleName))
 -- Compile imported modules if not compiled already
-extractModuleInfo h methods (p, m) = do
+extractModuleInfo h (p, m) = do
   currDir <- getCurrentDirectory
   maybeExistClass <- getModuleInfo h (p, m)
   case maybeExistClass of
     Nothing -> do
       let moduleDir = maybe "" (\name -> currDir </> intercalate [pathSeparator] (splitOn "." name)) p
-      res <- (try . system_ $ "f2j" ++ methods ++ " --compile --silent " ++ moduleDir </> m ++ ".sf") :: IO (Either SomeException ())
+      res <- (try . system_ $ "f2j --compile --silent " ++ moduleDir </> m ++ ".sf") :: IO (Either SomeException ())
       either (const (return Nothing)) (const (getModuleInfo h (p, m))) res
     _ -> return maybeExistClass
 

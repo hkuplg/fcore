@@ -386,7 +386,7 @@ src2fi fname = do
      string <- readFile (path ++ "/" ++ fname)
      case reader string of
        POk expr -> do
-         result <- typeCheck "" expr
+         result <- typeCheck expr
          case result of
            Left typeError -> error $ show typeError
            Right (_, tcheckedSrc) ->

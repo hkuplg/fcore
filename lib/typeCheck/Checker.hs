@@ -34,9 +34,6 @@ getTypeServer = liftM checkerTypeServer getCheckerState
 getMemoizedJavaClasses :: Checker (Set.Set ClassName)
 getMemoizedJavaClasses = liftM checkerMemoizedJavaClasses getCheckerState
 
-getCompilationMethods :: Checker String
-getCompilationMethods = liftM compilationMethods getCheckerState
-
 memoizeJavaClass :: ClassName -> Checker ()
 memoizeJavaClass c
   = do CheckerState{..} <- getCheckerState
@@ -93,17 +90,15 @@ data CheckerState
   , checkerValueContext :: ValueContext
   , checkerTypeServer   :: JvmTypeQuery.Connection
   , checkerMemoizedJavaClasses :: Set.Set ClassName -- Memoized Java class names
-  , compilationMethods :: String
   }
 
-mkInitCheckerState :: String -> JvmTypeQuery.Connection -> CheckerState
-mkInitCheckerState m type_server
+mkInitCheckerState :: JvmTypeQuery.Connection -> CheckerState
+mkInitCheckerState type_server
   = CheckerState
   { checkerTypeContext     = Map.empty
   , checkerValueContext    = Map.empty
   , checkerTypeServer   = type_server
   , checkerMemoizedJavaClasses = Set.empty
-  , compilationMethods = m
   }
 
 -- Temporary hack for REPL
@@ -114,7 +109,6 @@ mkInitCheckerStateWithEnv value_ctxt type_server
   , checkerValueContext    = value_ctxt
   , checkerTypeServer   = type_server
   , checkerMemoizedJavaClasses = Set.empty
-  , compilationMethods = ""
   }
 
 lookupVar :: Name -> Checker (Maybe Type)

@@ -25,14 +25,14 @@ makeProblem (filePath, source) (L loc (err, _maybeExpr))
     , problemDescription = pretty err
     }
 
-source2core :: DumpOption -> String -> (FilePath, String) -> IO OptiUtils.Exp
-source2core optDump rawMethods (filePath, source)
+source2core :: DumpOption -> (FilePath, String) -> IO OptiUtils.Exp
+source2core optDump (filePath, source)
   = case reader source of
       PError msg -> do putStrLn msg
                        exitFailure
       POk parsed -> do
         when (optDump == Parsed) $ print (pretty parsed)
-        result <- typeCheck rawMethods parsed
+        result <- typeCheck parsed
         case result of
           Left typeError ->
             do print (prettyProblems [makeProblem (filePath, source) typeError])

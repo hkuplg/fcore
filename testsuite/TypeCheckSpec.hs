@@ -30,6 +30,6 @@ tcSpec = do
          do source <- runIO (readFile filePath)
             it ("should reject " ++ name) $
               let POk parsed = reader source
-              in typeCheck "" parsed >>= ((`shouldSatisfy` hasError)))
+              in typeCheck parsed >>= ((`shouldSatisfy` hasError)))
 
   runIO (setCurrentDirectory curr)
