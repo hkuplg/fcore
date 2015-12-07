@@ -32,7 +32,7 @@ before_install:
   - export PATH=/opt/happy/1.19.5/bin:/opt/alex/3.1.4/bin:$PATH
 
 install:
-  - make new
+  - make
 
 script:
   - make test
