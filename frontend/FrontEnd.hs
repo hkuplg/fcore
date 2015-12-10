@@ -8,7 +8,7 @@ import           Problem
 import           Simplify (simplify)
 import           SrcLoc
 import qualified SystemFI as FI (FExp(HideF), prettyExpr)
-import           TypeCheck (typeCheck)
+import           TypeCheck (checkExpr)
 import           TypeErrors
 
 import           Control.Monad (when)
@@ -28,11 +28,11 @@ makeProblem (filePath, source) (L loc (err, _maybeExpr))
 source2core :: DumpOption -> (FilePath, String) -> IO OptiUtils.Exp
 source2core optDump (filePath, source)
   = case parseExpr source of
-      PError msg -> do putStrLn msg
-                       exitFailure
-      POk parsed -> do
+      ParseError msg -> do putStrLn msg
+                           exitFailure
+      ParseOk parsed -> do
         when (optDump == Parsed) $ print (pretty parsed)
-        result <- typeCheck parsed
+        result <- checkExpr parsed
         case result of
           Left typeError ->
             do print (prettyProblems [makeProblem (filePath, source) typeError])

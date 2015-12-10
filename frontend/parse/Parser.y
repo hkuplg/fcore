@@ -535,12 +535,12 @@ label :: { Label }
 
 {
 -- The monadic parser
-data P a = POk a | PError String deriving (Show)
+data P a = ParseOk a | ParseError String deriving (Show)
 
 instance Monad P where
-    POk x      >>= f = f x
-    PError msg >>= f = PError msg
-    return x         = POk x
+    ParseOk x      >>= f = f x
+    ParseError msg >>= f = ParseError msg
+    return x         = ParseOk x
 
 instance Functor P where
   fmap  = liftM
@@ -554,7 +554,7 @@ parseError (L loc _) = alexError ("Parse error at " ++ show (line loc) ++ ":" ++
 
 fromHappyParser happyParser source
   = case (runAlex source happyParser) of
-      Left  message -> PError message
+      Left  message -> ParseError message
       Right result  -> return result
 
 parseProgram = fromHappyParser happyParseProgram

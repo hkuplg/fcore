@@ -216,13 +216,13 @@ data Lit -- Data constructor names match Haskell types
 
 data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show, Generic, Typeable)
 
-
+-- f[A1,...,An](x1: t1, ..., xn: tn): t = e
 data Bind id ty = Bind
-  { bindName       :: id             -- Identifier
-  , bindTyParams :: [(Name, Maybe Type)]         -- Type arguments
-  , bindParams   :: [(Name, Type)] -- Arguments, each annotated with a type
-  , bindRhs      :: LExpr id ty     -- RHS to the "="
-  , bindRhsTyAscription :: Maybe Type  -- Type annotation for the RHS
+  { bindName     :: id                   -- f
+  , bindTyParams :: [(Name, Maybe Type)] -- A1, ..., An
+  , bindParams   :: [(Name, Type)]       -- x1: t1, ..., xn: tn
+  , bindRhs      :: LExpr id ty          -- e
+  , bindRhsTyAscription :: Maybe Type    -- t
   } deriving (Eq, Show)
 
 type ReadBind = Bind Name Type

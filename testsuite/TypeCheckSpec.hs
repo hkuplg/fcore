@@ -7,7 +7,7 @@ import Test.Tasty.Hspec
 
 import Parser (parseExpr, P(..))
 import SpecHelper
-import TypeCheck (typeCheck)
+import TypeCheck (checkExpr)
 
 
 hasError :: Either a b -> Bool
@@ -29,7 +29,7 @@ tcSpec = do
       (\(name, filePath) -> do
          do source <- runIO (readFile filePath)
             it ("should reject " ++ name) $
-              let POk parsed = parseExpr source
-              in typeCheck parsed >>= ((`shouldSatisfy` hasError)))
+              let ParseOk parsed = parseExpr source
+              in checkExpr parsed >>= ((`shouldSatisfy` hasError)))
 
   runIO (setCurrentDirectory curr)

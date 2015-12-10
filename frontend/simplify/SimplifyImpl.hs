@@ -240,7 +240,7 @@ subst g ts@((FI.Product _):_)     = FI.Product ts'
     transpose :: [[a]] -> [[a]]
     transpose [] = []
     transpose xs = (map head xs):(transpose . map tail $ xs)
-subst g ((FI.Unit):_)             = FI.Unit
+subst g (FI.Unit:_)             = FI.Unit
 subst g ts@((FI.And _ _):_)       = FI.And (subst g ts1) (subst g ts2)
   where (ts1, ts2) = unzip . map (\x -> let FI.And t1 t2 = x in (t1, t2)) $ ts
 subst g ts@((FI.RecordType (l, _)):_) = FI.RecordType (l, t')

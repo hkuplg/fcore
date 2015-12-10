@@ -190,9 +190,9 @@ Conclusion: this rewriting cannot allow type variables in the RHS of the binding
                 [ConstrAlt _ b1, ConstrAlt (PConstr _ [sub1, sub2]) b2] = alts
                 headfetch = noLoc $ JMethod (NonStatic e) "charAt" [noLoc $ Lit (Int 0)] "java.lang.Character"
                 tailfetch = noLoc $ JMethod (NonStatic e) "substring" [noLoc $ Lit (Int 1)] "java.lang.String"
-                b2'  = case sub1 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, (JClass "java.lang.Character"), headfetch)] b2
+                b2'  = case sub1 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, JClass "java.lang.Character", headfetch)] b2
                                     _ -> b2
-                b2'' = case sub2 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, (JClass "java.lang.String"), tailfetch)] b2'
+                b2'' = case sub2 of PVar nam _ -> noLoc $ LetOut NonRec [(nam, JClass "java.lang.String", tailfetch)] b2'
                                     _ -> b2'
             in
             go (noLoc $ If emptytest b1 b2'')

@@ -5,13 +5,13 @@ import qualified ClosureF as C
 import           Core
 import           Desugar (desugar)
 import qualified OptiUtils (Exp(Hide))
-import           Parser (reader, P(..))
+import           Parser (parseExpr, P(..))
 import           PartialEvaluator
 import           Simplify (simplify)
 import qualified Src as S
 import           System.Exit
 import qualified SystemFI as FI
-import           TypeCheck (typeCheck)
+import           TypeCheck (checkExpr)
 
 import qualified Language.Java.Syntax as J (Op(..))
 import           Language.Java.Pretty (prettyPrint)
@@ -114,11 +114,11 @@ add (n : Int) (m : Int) = n + m
 
 s2c :: String -> IO ()
 s2c source
-  = case reader source of
-      PError msg -> do putStrLn msg
-                       exitFailure
-      POk parsed -> do
-        result <- typeCheck parsed
+  = case parseExpr source of
+      ParseError msg -> do putStrLn msg
+                           exitFailure
+      ParseOk parsed -> do
+        result <- checkExpr parsed
         case result of
           Left typeError -> exitFailure
           Right (_, checked) ->

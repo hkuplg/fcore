@@ -87,8 +87,8 @@ runCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num msg
                                            flagC flagH flagT flagS num line
           Nothing   -> do
                 case parseExpr msg of
-                  POk readSrc -> do
-                    result <- liftIO (typeCheckWithEnv val_ctx readSrc)
+                  ParseOk readSrc -> do
+                    result <- liftIO (checkExprWithEnv val_ctx readSrc)
                     case result of
                       Left typeErr        -> do
                         outputStrLn (show typeErr)
@@ -107,7 +107,7 @@ runCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num msg
                                        flagC flagH flagT flagS (num+1)
                           else loop handle opt val_ctx env hist histOld index
                                     flagC flagH flagT flagS (num+1)
-                  PError msg -> do
+                  ParseError msg -> do
                     outputStrLn msg
                     loop handle opt val_ctx env hist histOld index
                          flagC flagH flagT flagS num
@@ -197,8 +197,8 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                     else do
                       let (var, exp) = Env.createPair xs
                       case parseExpr exp of
-                        POk readSrc -> do
-                          result <- liftIO (typeCheckWithEnv val_ctx readSrc)
+                        ParseOk readSrc -> do
+                          result <- liftIO (checkExprWithEnv val_ctx readSrc)
                           case result of
                             Left  typeErr     -> do
                               outputStrLn (show typeErr)
@@ -209,7 +209,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                               let envNew = Env.insert (var, exp) env
                               loop handle opt val_ctx_new envNew hist histOld index
                                    flagC flagH flagT flagS num
-                        PError msg -> do
+                        ParseError msg -> do
                           outputStrLn msg
                           loop handle opt val_ctx env hist histOld index
                                flagC flagH flagT flagS num
@@ -336,7 +336,7 @@ wrapFlag handle opt flagC flagT flagS filename = case flagT of
 {-checkType :: ValueContext -> String -> IO (Either TypeError (ReadType, CheckedExpr))
 checkType val_ctx s =
   do let parsed = parseExpr s
-     typeCheckWithEnv val_ctx parsed
+     checkExprWithEnv val_ctx parsed
        -}
 
 printHelp :: IO ()
@@ -385,10 +385,10 @@ src2fi fname = do
      path <- getCurrentDirectory
      string <- readFile (path ++ "/" ++ fname)
      case parseExpr string of
-       POk expr -> do
-         result <- typeCheck expr
+       ParseOk expr -> do
+         result <- checkExpr expr
          case result of
            Left typeError -> error $ show typeError
            Right (_, tcheckedSrc) ->
                  return . desugar $ tcheckedSrc
-       PError msg -> error msg
+       ParseError msg -> error msg

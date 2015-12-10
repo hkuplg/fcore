@@ -22,7 +22,7 @@ p = Core.pprExpr basePrec (0,0)
 rep :: String -> IO ()
 rep s =
   do let parsed = reader s
-     r <- typeCheck parsed
+     r <- checkExpr parsed
      case r of
        Left typeError       -> print typeError
        Right (tchecked, _t) -> do
