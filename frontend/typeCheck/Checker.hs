@@ -40,7 +40,7 @@ memoizeJavaClass c
        memoized_java_classes <- getMemoizedJavaClasses
        setCheckerState CheckerState{ checkerMemoizedJavaClasses = c `Set.insert` memoized_java_classes, ..}
 
-withLocalTVars :: [(ReadId, Kind)] -> Checker a -> Checker a
+withLocalTVars :: [(Name, Kind)] -> Checker a -> Checker a
 withLocalTVars tvars do_this
   = do delta <- getTypeContext
        let delta' = addTVarToContext tvars delta
@@ -51,7 +51,7 @@ withLocalTVars tvars do_this
        setCheckerState CheckerState { checkerTypeContext = delta, ..}
        return r
 
-withLocalConstrainedTVars :: [(ReadId, Maybe Type)] -> Checker a -> Checker a
+withLocalConstrainedTVars :: [(Name, Maybe Type)] -> Checker a -> Checker a
 withLocalConstrainedTVars tvars do_this
  = do delta <- getTypeContext
       let delta' = addConstrainedTVarToContext tvars delta
@@ -62,7 +62,7 @@ withLocalConstrainedTVars tvars do_this
       setCheckerState CheckerState { checkerTypeContext = delta, ..}
       return r
 
-withTypeSynonym :: [(ReadId, Type, Kind)] -> Checker a -> Checker a
+withTypeSynonym :: [(Name, Type, Kind)] -> Checker a -> Checker a
 withTypeSynonym tvars do_this
   = do delta <- getTypeContext
        let delta' = addTypeSynonym tvars delta
@@ -73,7 +73,7 @@ withTypeSynonym tvars do_this
        setCheckerState CheckerState { checkerTypeContext = delta, ..}
        return r
 
-withLocalVars :: [(ReadId, Type)]-> Checker a -> Checker a
+withLocalVars :: [(Name, Type)]-> Checker a -> Checker a
 withLocalVars vars do_this
   = do gamma <- getValueContext
        let gamma' = addVarToContext vars gamma

@@ -49,14 +49,14 @@ import           Text.PrettyPrint.ANSI.Leijen
 type Type t = Expr t
 
 data Expr e
-  = Var Src.ReadId e
+  = Var Src.Name e
   | Lit Src.Lit
 
   -- Binders we have: λ, μ, Π
-  | Lam Src.ReadId (Type e) (e -> Expr e)
-  | Pi Src.ReadId (Type e) (e -> Type e) -- Pi (x : t) . e
-  | Mu Src.ReadId (Type e) (e -> Expr e) -- mu (x : t) . e
-  | Let Src.ReadId (Expr e) (e -> Expr e)
+  | Lam Src.Name (Type e) (e -> Expr e)
+  | Pi Src.Name (Type e) (e -> Type e) -- Pi (x : t) . e
+  | Mu Src.Name (Type e) (e -> Expr e) -- mu (x : t) . e
+  | Let Src.Name (Expr e) (e -> Expr e)
   | App (Expr e) (Expr e)
 
   | If (Expr e) (Expr e) (Expr e)
@@ -135,7 +135,7 @@ alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq
 alphaEq _  Unit         Unit        = True
 alphaEq _  _            _           = False
 
-mapVar :: (Src.ReadId -> e -> Expr e) -> (Type e -> Type e) -> Expr e -> Expr e
+mapVar :: (Src.Name -> e -> Expr e) -> (Type e -> Type e) -> Expr e -> Expr e
 mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)

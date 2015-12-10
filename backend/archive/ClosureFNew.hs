@@ -33,13 +33,13 @@ data Scope e =
 type Type t = Expr t
 
 data Expr e =
-     Var S.ReadId e
+     Var S.Name e
    | Lit S.Lit
 
-   | Lam S.ReadId (Scope e)
-   | Pi S.ReadId (Scope e)
-   | Mu S.ReadId (Scope e)
-   | Let S.ReadId (Expr e) (e -> Expr e)
+   | Lam S.Name (Scope e)
+   | Pi S.Name (Scope e)
+   | Mu S.Name (Scope e)
+   | Let S.Name (Expr e) (e -> Expr e)
    | App (Expr e) (Expr e)
 
    | If (Expr e) (Expr e) (Expr e)
@@ -254,4 +254,3 @@ prettyExpr _ i (JField name f _) = fieldStr name <> dot <> text f
 prettyExpr p i (Error _ str) = text "error:" <+> prettyExpr p i str
 
 prettyExpr p i (SeqExprs l) = semiBraces (map (prettyExpr p i) l)
-

@@ -66,8 +66,8 @@ generateFreshVar g0 = try g0 1
 desugar :: CheckedExpr -> F.Expr t e
 desugar = desugarExpr (Map.empty, Map.empty)
 
-type TVarMap t  = Map.Map ReadId t
-type VarMap t e = Map.Map ReadId (F.Expr t e)
+type TVarMap t  = Map.Map Name t
+type VarMap t e = Map.Map Name (F.Expr t e)
 
 transType :: TVarMap t -> ReadType -> F.Type t
 transType d (TVar a)     = F.TVar a (fromMaybe (panic ("transType: " ++ show (TVar a))) (Map.lookup a d))
@@ -353,8 +353,8 @@ decisionTree (d,g) = go
                                              (zip3 pats branches binds)
                        in [F.Default $ go (tail exprs) pats' branches' binds']
 
-addToVarMap :: [(ReadId, F.Expr t e)] -> VarMap t e -> VarMap t e
+addToVarMap :: [(Name, F.Expr t e)] -> VarMap t e -> VarMap t e
 addToVarMap xs var_map = foldr (\(x,x') acc -> Map.insert x x' acc) var_map xs
 
-addToTVarMap :: [(ReadId, t)] -> TVarMap t -> TVarMap t
+addToTVarMap :: [(Name, t)] -> TVarMap t -> TVarMap t
 addToTVarMap xs tvar_map = foldr (\(x,x') acc -> Map.insert x x' acc) tvar_map xs

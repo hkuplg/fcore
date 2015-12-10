@@ -22,7 +22,7 @@ module Src
   , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReadBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JReceiver(..), Label
-  , Name, ReadId, CheckedId, LReadId, PackageName
+  , Name, CheckedId, PackageName
   , TypeValue(..), TypeContext, ValueContext, ModuleContext, ModuleMapInfo
   , DataBind(..)
   , groupForall
@@ -75,10 +75,8 @@ import           Text.PrettyPrint.ANSI.Leijen
 
 -- Names and identifiers.
 type Name      = String
-type ReadId  = Name
-type LReadId = Located ReadId
-type CheckedId = (ReadId, Type)
-type Label      = Name
+type CheckedId = (Name, Type)
+type Label     = Name
 
 -- Modules.
 data ModuleBind id ty = BindNonRec (Bind id ty)
@@ -230,44 +228,44 @@ data TypeValue
     -- Non-terminal types, i.e. type synoyms. `Type` holds the RHS to the
     -- equal sign of type synonym definitions.
 
-type TypeContext  = Map.Map ReadId ( Kind
+type TypeContext  = Map.Map Name ( Kind
                                    , Maybe Type -- Constraint
                                    , TypeValue
                                    ) -- Delta
-type ValueContext = Map.Map ReadId Type              -- Gamma
-type ModuleMapInfo = (Maybe PackageName, Type, ReadId, ReadId)
-type ModuleContext = Map.Map ReadId ModuleMapInfo -- Sigma
+type ValueContext = Map.Map Name Type              -- Gamma
+type ModuleMapInfo = (Maybe PackageName, Type, Name, Name)
+type ModuleContext = Map.Map Name ModuleMapInfo -- Sigma
 
-addTVarToContext :: [(ReadId, Kind)] -> TypeContext -> TypeContext
+addTVarToContext :: [(Name, Kind)] -> TypeContext -> TypeContext
 addTVarToContext tvars d =
   let tvars' = map (\(id, kd) -> (id, (kd, Nothing, TerminalType))) tvars
   in Map.fromList tvars' `Map.union` d
          -- `Map.fromList` is right-biased and `Map.union` is left-biased.
 
-addConstrainedTVarToContext :: [(ReadId, Maybe Type)] -> TypeContext -> TypeContext
+addConstrainedTVarToContext :: [(Name, Maybe Type)] -> TypeContext -> TypeContext
 addConstrainedTVarToContext tvars d
   = let tvars' = map (\(id, constraint) -> (id, (Star, constraint, TerminalType))) tvars
     in Map.fromList tvars' `Map.union` d
            -- `Map.fromList` is right-biased and `Map.union` is left-biased.
 
-addTypeSynonym :: [(ReadId, Type, Kind)] -> TypeContext -> TypeContext
+addTypeSynonym :: [(Name, Type, Kind)] -> TypeContext -> TypeContext
 addTypeSynonym tvars d =
   let tvars' = map (\(id, ty, kd) -> (id, (kd, Nothing, NonTerminalType ty))) tvars
   in  Map.fromList tvars' `Map.union` d
 
-addVarToContext :: [(ReadId, Type)] -> ValueContext -> ValueContext
+addVarToContext :: [(Name, Type)] -> ValueContext -> ValueContext
 addVarToContext vars d = Map.fromList vars `Map.union` d
 
-addModuleInfo ::  [(ReadId, ModuleMapInfo)] -> ModuleContext -> ModuleContext
+addModuleInfo ::  [(Name, ModuleMapInfo)] -> ModuleContext -> ModuleContext
 addModuleInfo info m = Map.fromList info `Map.union` m
 
-lookupTVarConstraint :: TypeContext -> ReadId -> Maybe Type
+lookupTVarConstraint :: TypeContext -> Name -> Maybe Type
 lookupTVarConstraint d id
   = case Map.lookup id d of
       Nothing      -> Nothing
       Just (_,c,_) -> c
 
-lookupVarType :: ReadId -> ValueContext -> Maybe Type
+lookupVarType :: Name -> ValueContext -> Maybe Type
 lookupVarType id d = Map.lookup id d
 
 -- | Recursively expand all type synonyms. The given type must be well-kinded.

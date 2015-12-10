@@ -731,7 +731,7 @@ checkFieldAccess receiver f
     where
        (is_static, c) = unwrapJReceiver receiver
 
-checkModuleFunction :: Import ModuleName -> Checker [(ReadId, ModuleMapInfo)]
+checkModuleFunction :: Import ModuleName -> Checker [(Name, ModuleMapInfo)]
 checkModuleFunction (Import m) =
   do
     typeserver <- getTypeServer
@@ -790,7 +790,7 @@ withExpr :: TypeError -> ReadExpr -> LTypeErrorExpr
 withExpr err expr = (err, Just expr) `withLoc` expr
 
 ---- find the arity of a constructor
-ctrArity :: Map.Map Name Type -> ReadId -> Int
+ctrArity :: Map.Map Name Type -> Name -> Int
 ctrArity value_ctxt name =
     length (removeForall t) - 1
     where Just t =  lookupVarType name value_ctxt

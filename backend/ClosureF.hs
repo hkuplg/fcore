@@ -48,16 +48,16 @@ data Type t =
     | CFCharacter
     | TupleType [Type t]
     | ListType (Type t)
-    | Datatype S.ReadId [Type t] [S.ReadId]
+    | Datatype S.Name [Type t] [S.Name]
 
 data Definition t e = Def S.Name S.Type (Expr t e) (e -> Definition t e)
                     | DefRec [S.Name] [(S.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
                     | Null
 
 data Expr t e =
-     Var S.ReadId e
+     Var S.Name e
    | FVar Int
-   | Lam S.ReadId (EScope t e)
+   | Lam S.Name (EScope t e)
    | App (Expr t e) (Expr t e)
    | TApp (Expr t e) (Type t)
    | PrimOp (Expr t e) S.Operator (Expr t e)
@@ -65,10 +65,10 @@ data Expr t e =
    | If (Expr t e) (Expr t e) (Expr t e)
    | Tuple [Expr t e]
    | Proj Int (Expr t e)
-   | Let S.ReadId (Expr t e) (e -> Expr t e)
+   | Let S.Name (Expr t e) (e -> Expr t e)
    -- fixpoints
-   | LetRec [S.ReadId] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
-   | Fix S.ReadId S.ReadId (Type t) (e -> EScope t e)
+   | LetRec [S.Name] [Type t] ([e] -> [Expr t e]) ([e] -> Expr t e)
+   | Fix S.Name S.Name (Type t) (e -> EScope t e)
    -- Module
    | Module (Maybe S.PackageName) (Definition t e)
    -- Java
@@ -81,8 +81,8 @@ data Expr t e =
    | Case (Expr t e) [Alt t e]
    | Error (Type t) (Expr t e)
 
-data DataBind t = DataBind S.ReadId [S.ReadId] ([t] -> [Constructor t])
-data Constructor t = Constructor {constrName :: S.ReadId, constrParams :: [Type t]}
+data DataBind t = DataBind S.Name [S.Name] ([t] -> [Constructor t])
+data Constructor t = Constructor {constrName :: S.Name, constrParams :: [Type t]}
 data Alt t e = ConstrAlt (Constructor t) (Expr t e)
              | Default (Expr t e)
 

@@ -215,24 +215,24 @@ record_type_field :: { (Label, ReadType) }
         Type parameters
 -------------------------------------------------------------------------------}
 
-typaram :: { Located ReadId }
+typaram :: { Located Name }
   : UPPER_IDENT                    { toString $1 `withLoc` $1 }
 
-typarams :: { [Located ReadId] }
+typarams :: { [Located Name] }
   : {- empty -}                    { []    }
   | typaram typarams             { $1:$2 }
 
-typarams1 :: { [Located ReadId] }
+typarams1 :: { [Located Name] }
   : typaram typarams             { $1:$2 }
 
-typaram_list :: { [Located ReadId] }
+typaram_list :: { [Located Name] }
   : "[" comma_typarams1 "]"       { $2 }
 
-typaram_list_or_empty :: { [Located ReadId] }
+typaram_list_or_empty :: { [Located Name] }
   : typaram_list                  { $1 }
   | {- empty -}                    { [] }
 
-comma_typarams1 :: { [Located ReadId] }
+comma_typarams1 :: { [Located Name] }
   : typaram                       { [$1]  }
   | typaram "," comma_typarams1  { $1:$3 }
 
@@ -240,32 +240,32 @@ comma_typarams1 :: { [Located ReadId] }
         constrainable type parameters
 -------------------------------------------------------------------------------}
 
-ctyparam :: { Located (ReadId, Maybe Type) }
+ctyparam :: { Located (Name, Maybe Type) }
   : UPPER_IDENT              { (toString $1, Nothing) `withLoc` $1 }
   | UPPER_IDENT "*" type     { (toString $1, Just $3) `withLoc` $1 }
   | "(" ctyparam ")"         { $2 }
 
-comma_ctyparams1 :: { [Located (ReadId, Maybe Type)] }
+comma_ctyparams1 :: { [Located (Name, Maybe Type)] }
   : ctyparam                            { [$1]  }
   | ctyparam "," comma_ctyparams1  { $1:$3 }
 
-ctyparam_list :: { [Located (ReadId, Maybe Type)] }
+ctyparam_list :: { [Located (Name, Maybe Type)] }
   : "[" comma_ctyparams1 "]"       { $2 }
 
-ctyparam_list_or_empty :: { [Located (ReadId, Maybe Type)] }
+ctyparam_list_or_empty :: { [Located (Name, Maybe Type)] }
   : ctyparam_list                  { $1 }
   | {- empty -}                    { [] }
 
 
-paren_ctyparam :: { Located (ReadId, Maybe Type) }
+paren_ctyparam :: { Located (Name, Maybe Type) }
   : UPPER_IDENT                     { (toString $1, Nothing) `withLoc` $1 }
   | "(" UPPER_IDENT "*" type ")"    { (toString $2, Just $4) `withLoc` $1 }
 
-ctyparams :: { [Located (ReadId, Maybe Type)] }
+ctyparams :: { [Located (Name, Maybe Type)] }
   : {- empty -}                     { []    }
   | paren_ctyparam ctyparams        { $1:$2 }
 
-ctyparams1 :: { [Located (ReadId, Maybe Type)] }
+ctyparams1 :: { [Located (Name, Maybe Type)] }
   : paren_ctyparam ctyparams        { $1:$2 }
 
 ------------------------------------------------------------------------
@@ -462,14 +462,14 @@ constrs_decl :: { [Constructor] }
 constr_decl :: { Constructor }
     : constr_name types  { Constructor (unLoc $1) $2 }
 
-constr_name :: { LReadId }
+constr_name :: { Located Name }
     : UPPER_IDENT  { toString $1 `withLoc` $1 }
 
-alts :: { [Alt ReadId Type] }
+alts :: { [Alt Name Type] }
     : alt               { [$1] }
     | alt "|" alts      { $1:$3 }
 
-alt :: { Alt ReadId Type}
+alt :: { Alt Name Type}
     : pattern "->" expr               { ConstrAlt $1 $3 }
     | "[" "]" "->" expr               { ConstrAlt ( PConstr (Constructor "empty" []) [] ) $4}
     | pat_var ":" pat_var "->" expr   { ConstrAlt ( PConstr (Constructor "cons" []) [$1,$3]) $5}
@@ -491,21 +491,21 @@ pat_var :: { Pattern }
     : LOWER_IDENT              { PVar (toString $1) undefined }
     | "_"                      { PWildcard }
 
-param :: { Located (ReadId, ReadType) }
+param :: { Located (Name, ReadType) }
   : LOWER_IDENT ":" type          { (toString $1, $3) `withLoc` $1 }
 
-params :: { [Located (ReadId, ReadType)] }
+params :: { [Located (Name, ReadType)] }
   : {- empty -}                   { []    }
   | "(" param ")" params          { $2:$4 }
 
-params1 :: { [Located (ReadId, ReadType)] }
+params1 :: { [Located (Name, ReadType)] }
   : "(" param ")" params          { $2:$4 }
 
 ------------------------------------------------------------------------
 -- Misc
 ------------------------------------------------------------------------
 
-ident :: { LReadId }
+ident :: { Located Name }
   : UPPER_IDENT  { toString $1 `withLoc` $1 }
   | LOWER_IDENT  { toString $1 `withLoc` $1 }
 

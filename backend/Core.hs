@@ -53,37 +53,37 @@ import           Prelude hiding ((<$>))
 import           Text.PrettyPrint.ANSI.Leijen
 
 data Type t
-  = TVar Src.ReadId t                -- a
+  = TVar Src.Name t                -- a
   | JClass ClassName                   -- C
   | Fun (Type t) (Type t)              -- t1 -> t2
-  | Forall Src.ReadId (t -> Type t)  -- forall a. t
+  | Forall Src.Name (t -> Type t)  -- forall a. t
   | Product [Type t]                   -- (t1, ..., tn)
   | Unit
-  | Datatype Src.ReadId [Type t] [Src.ReadId]
+  | Datatype Src.Name [Type t] [Src.Name]
 
 data Definition t e = Def Src.Name Src.Type (Expr t e) (e -> Definition t e)
                     | DefRec [Src.Name] [(Src.Type, Type t)] ([e] -> [Expr t e]) ([e] -> Definition t e)
                     | Null
 
 data Expr t e
-  = Var Src.ReadId e
+  = Var Src.Name e
   | Lit Src.Lit
 
   -- Binders we have: λ, fix, letrec, and Λ
-  | Lam Src.ReadId (Type t) (e -> Expr t e)
-  | Fix Src.ReadId Src.ReadId
+  | Lam Src.Name (Type t) (e -> Expr t e)
+  | Fix Src.Name Src.Name
         (e -> e -> Expr t e)
         (Type t)  -- t1
         (Type t)  -- t
       -- fix x (x1 : t1) : t. e     Syntax in the tal-toplas paper
       -- fix (x : t1 -> t). \x1. e  Alternative syntax, which is arguably clear
       -- <name>: Fix funcName paraName func paraType returnType
-  | Let Src.ReadId (Expr t e) (e -> Expr t e)
-  | LetRec [Src.ReadId]       -- Names
+  | Let Src.Name (Expr t e) (e -> Expr t e)
+  | LetRec [Src.Name]       -- Names
            [Type t]             -- Signatures
            ([e] -> [Expr t e])  -- Bindings
            ([e] -> Expr t e)    -- Body
-  | BLam Src.ReadId (t -> Expr t e)
+  | BLam Src.Name (t -> Expr t e)
 
   | App  (Expr t e) (Expr t e)
   | TApp (Expr t e) (Type t)
@@ -113,12 +113,12 @@ data Expr t e
 
   | Error (Type t) (Expr t e)
 
-data DataBind t = DataBind Src.ReadId [Src.ReadId] ([t] -> [Constructor t])
+data DataBind t = DataBind Src.Name [Src.Name] ([t] -> [Constructor t])
 
 data Alt t e = ConstrAlt (Constructor t) (Expr t e)
              | Default (Expr t e)
 
-data Constructor t = Constructor {constrName :: Src.ReadId, constrParams :: [Type t]}
+data Constructor t = Constructor {constrName :: Src.Name, constrParams :: [Type t]}
 
 type TypeContext t    = Set.Set t
 type ValueContext t e = Map.Map e (Type t)
@@ -134,7 +134,7 @@ alphaEq i (Product ss) (Product ts) = length ss == length ts && uncurry (alphaEq
 alphaEq _  Unit         Unit        = True
 alphaEq _  _            _           = False
 
-mapTVar :: (Src.ReadId -> t -> Type t) -> Type t -> Type t
+mapTVar :: (Src.Name -> t -> Type t) -> Type t -> Type t
 mapTVar g (TVar n a)     = g n a
 mapTVar _ (JClass c)     = JClass c
 mapTVar g (Fun t1 t2)    = Fun (mapTVar g t1) (mapTVar g t2)
@@ -143,7 +143,7 @@ mapTVar g (Product ts)   = Product (map (mapTVar g) ts)
 mapTVar _  Unit          = Unit
 mapTVar g (Datatype n ts ns)  = Datatype n (map (mapTVar g) ts) ns
 
-mapVar :: (Src.ReadId -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
+mapVar :: (Src.Name -> e -> Expr t e) -> (Type t -> Type t) -> Expr t e -> Expr t e
 mapVar g _ (Var n a)                 = g n a
 mapVar _ _ (Lit n)                   = Lit n
 mapVar g h (Lam n t f)               = Lam n (h t) (mapVar g h . f)

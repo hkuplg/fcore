@@ -32,7 +32,7 @@ instance Show (Expr t e) where
 
 data Value = VInt Integer
            | VBool Bool
-           | VConstr S.ReadId [Value]
+           | VConstr S.Name [Value]
            | VFun (Value -> Value)
 
 -- big-step interpreter
@@ -92,26 +92,26 @@ eval (Case e alts) =
     where table = map (\(ConstrAlt c _ f) -> (constrName c, f)) alts
 eval e = panic $ show e ++ " Can not be evaled"
 
-data SConstructor = SConstructor {sconstrName :: S.ReadId, sconstrParams :: [SymType], sconstrDatatype :: SymType}
+data SConstructor = SConstructor {sconstrName :: S.Name, sconstrParams :: [SymType], sconstrDatatype :: SymType}
 
 data ExecutionTree = Exp SymValue
                    -- | Fork ExecutionTree SymValue ExecutionTree
-                   | Fork SymValue (Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.ReadId], [ExecutionTree] -> ExecutionTree)])
+                   | Fork SymValue (Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.Name], [ExecutionTree] -> ExecutionTree)])
                    | NewSymVar Int SymType ExecutionTree
 
 data SymType = TInt
              | TBool
              | TFun [SymType] SymType
-             | TData S.ReadId
-             | TAny S.ReadId
+             | TData S.Name
+             | TAny S.Name
                deriving Eq
 
-data SymValue = SVar S.ReadId Int SymType -- free variables
+data SymValue = SVar S.Name Int SymType -- free variables
               | SInt Integer
               | SBool Bool
               | SApp SymValue SymValue
               | SOp Op SymValue SymValue
-              | SFun S.ReadId (ExecutionTree -> ExecutionTree) SymType
+              | SFun S.Name (ExecutionTree -> ExecutionTree) SymType
               | SConstr SConstructor [SymValue]
 
 data Op = ADD
@@ -190,7 +190,7 @@ transConstructor (Constructor n ts) = SConstructor n (init ts') (last ts')
     where ts' = map transType ts
 
 propagate :: ExecutionTree ->
-             Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.ReadId], [ExecutionTree] -> ExecutionTree)] ->
+             Either (ExecutionTree, ExecutionTree) [(SConstructor, [S.Name], [ExecutionTree] -> ExecutionTree)] ->
              ExecutionTree
 propagate (Exp e) ts = Fork e ts
 propagate (Fork e (Left (l,r))) ts' = Fork e (Left (propagate l ts', propagate r ts'))
@@ -337,7 +337,7 @@ prettyTree (Fork e (Right ts)) s stop =
        ts
 prettyTree (NewSymVar _ _ t) s stop = prettyTree t s stop
 
-supply :: [S.ReadId] -> [Int] -> [ExecutionTree]
+supply :: [S.Name] -> [Int] -> [ExecutionTree]
 supply ns ids = zipWith (\i n -> Exp $ SVar n i TInt) ids ns
 
 -- genVars n = map (text . ("x"++) . show) [1..n]

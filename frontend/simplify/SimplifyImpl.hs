@@ -226,7 +226,7 @@ putter i j this@(FI.And t1 t2) l e =
                      Nothing     -> Nothing
 putter _ _ _ _ _ = Nothing
 
-subst :: (S.ReadId -> Index -> FI.Type Index) -> [FI.Type Index] -> FI.Type Index
+subst :: (S.Name -> Index -> FI.Type Index) -> [FI.Type Index] -> FI.Type Index
 subst g ts@((FI.TVar n a):_)      = if constr then g n a else FI.TVar n a
   where constr = all (== a) . map (\x -> let FI.TVar _ y = x in y) $ ts
 subst g ((FI.JClass c):_)         = FI.JClass c
@@ -327,4 +327,3 @@ dedeBruE i as j xs (Data recflag databinds e)     = Data recflag (map dedeBruijn
                                                                          (ctrs [i..length ns+i-1]) )
 
 dedeBruE i as j xs (Error ty str)                 = Error (dedeBruT i as ty) (dedeBruE i as j xs str)
-
