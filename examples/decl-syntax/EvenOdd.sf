@@ -1,0 +1,9 @@
+import Predef
+
+def main() = println (odd 42)
+
+type Int = Nat
+
+def even(n: Nat): Nat = if n == 0 then True else False
+
+def odd(n: Nat): Nat = if n == 0 then False else True
