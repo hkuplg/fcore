@@ -25,7 +25,8 @@ import JavaUtils
 import Control.Monad.State
 }
 
-%name parseExpr expr
+%name happyParseExpr expr
+
 %tokentype { Located Token }
 %monad     { Alex }
 %lexer     { lexer } { L _ Teof }
@@ -530,8 +531,8 @@ instance Applicative P where
 parseError :: Located Token -> Alex a
 parseError (L loc _) = alexError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))
 
-reader :: String -> P ReadExpr
-reader src = case (runAlex src parseExpr) of
+parseExpr :: String -> P ReadExpr
+parseExpr src = case (runAlex src happyParseExpr) of
                Left msg -> PError msg
                Right x  -> return x
 

@@ -3,7 +3,7 @@ module FrontEnd (source2core) where
 import           BackEnd (DumpOption(..))
 import           Desugar (desugar)
 import qualified OptiUtils (Exp(Hide))
-import           Parser (reader, P(..))
+import           Parser (parseExpr, P(..))
 import           Problem
 import           Simplify (simplify)
 import           SrcLoc
@@ -27,7 +27,7 @@ makeProblem (filePath, source) (L loc (err, _maybeExpr))
 
 source2core :: DumpOption -> (FilePath, String) -> IO OptiUtils.Exp
 source2core optDump (filePath, source)
-  = case reader source of
+  = case parseExpr source of
       PError msg -> do putStrLn msg
                        exitFailure
       POk parsed -> do

@@ -5,7 +5,7 @@ import System.Directory
 import System.FilePath
 import Test.Tasty.Hspec
 
-import Parser (reader, P(..))
+import Parser (parseExpr, P(..))
 import SpecHelper
 import TypeCheck (typeCheck)
 
@@ -29,7 +29,7 @@ tcSpec = do
       (\(name, filePath) -> do
          do source <- runIO (readFile filePath)
             it ("should reject " ++ name) $
-              let POk parsed = reader source
+              let POk parsed = parseExpr source
               in typeCheck parsed >>= ((`shouldSatisfy` hasError)))
 
   runIO (setCurrentDirectory curr)

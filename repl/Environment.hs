@@ -25,7 +25,7 @@ empty = []
 
 insert :: (String, String) -> Env -> Env
 insert (var, exp) env =
-  case Parser.reader exp of
+  case Parser.parseExpr exp of
     POk expr     -> (var, (exp, expr)) : env
     PError error -> env
 

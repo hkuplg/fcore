@@ -86,7 +86,7 @@ runCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num msg
                   Right line -> processCMD handle opt val_ctx env hist histOld index
                                            flagC flagH flagT flagS num line
           Nothing   -> do
-                case reader msg of
+                case parseExpr msg of
                   POk readSrc -> do
                     result <- liftIO (typeCheckWithEnv val_ctx readSrc)
                     case result of
@@ -196,7 +196,7 @@ processCMD handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                       loop handle opt val_ctx env hist histOld index flagC flagH flagT flagS num
                     else do
                       let (var, exp) = Env.createPair xs
-                      case reader exp of
+                      case parseExpr exp of
                         POk readSrc -> do
                           result <- liftIO (typeCheckWithEnv val_ctx readSrc)
                           case result of
@@ -335,7 +335,7 @@ wrapFlag handle opt flagC flagT flagS filename = case flagT of
 
 {-checkType :: ValueContext -> String -> IO (Either TypeError (ReadType, CheckedExpr))
 checkType val_ctx s =
-  do let parsed = reader s
+  do let parsed = parseExpr s
      typeCheckWithEnv val_ctx parsed
        -}
 
@@ -384,7 +384,7 @@ src2fi :: String -> IO (FI.Expr t e)
 src2fi fname = do
      path <- getCurrentDirectory
      string <- readFile (path ++ "/" ++ fname)
-     case reader string of
+     case parseExpr string of
        POk expr -> do
          result <- typeCheck expr
          case result of
