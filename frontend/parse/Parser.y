@@ -50,6 +50,7 @@ import Control.Monad.State
   "&"      { L _ Tandtype }
   ",,"     { L _ Tmerge }
   "with"   { L _ Twith }
+  "def"    { L _ Tdef }
   "type"   { L _ Ttype }
   "let"    { L _ Tlet }
   "rec"    { L _ Trec }

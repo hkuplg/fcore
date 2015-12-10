@@ -79,6 +79,7 @@ tokens :-
     \'          { locate (\_ _ -> Tquote) }
     -- this     { locate (\_ _ -> Tthis) }
     -- super    { locate (\_ _ -> Tsuper) }
+    def         { locate (\_ _ -> Tdef) }
     type        { locate (\_ _ -> Ttype) }
     let         { locate (\_ _ -> Tlet) }
     rec         { locate (\_ _ -> Trec) }
@@ -145,7 +146,7 @@ tokens :-
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tbackquote
            -- | Tthis | Tsuper
-           | Ttype | Tlet | Trec | Tin | Teq | Tand
+           | Tdef | Ttype | Tlet | Trec | Tin | Teq | Tand
            | Tjavaclass String
            | Tnew
            | Tif | Tthen | Telse
