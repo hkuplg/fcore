@@ -15,7 +15,8 @@ Portability :  portable
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
 
 module Src
-  ( Module(..), ReadModule, Import(..), ReadImport, ModuleBind(..), ReadModuleBind, Definition(..), CheckedBind
+  ( Program(..), Declaration(..)
+  , Module(..), ModulePath, ReadModule, Import(..), PoorMensImport(..), ReadImport, ModuleBind(..), ReadModuleBind, Definition(..), CheckedBind
   , Kind(..)
   , Type(..), ReadType
   , Expr(..), ReadExpr, CheckedExpr, LExpr
@@ -25,6 +26,7 @@ module Src
   , Name, CheckedId, PackageName
   , TypeValue(..), TypeContext, ValueContext, ModuleContext, ModuleMapInfo
   , DataBind(..)
+  , liftExprToDecl
   , groupForall
   , expandType
 
@@ -78,15 +80,31 @@ type Name      = String
 type CheckedId = (Name, Type)
 type Label     = Name
 
+
+data Program = Program
+  { pgmImports :: [Import]
+  , pgmDecls   :: [Declaration]
+  } deriving (Show)
+
+data Declaration
+  = DefDecl ReadBind
+  deriving (Show)
+
+data Import = Import
+  { importModulePath :: Located ModulePath
+  } deriving (Show)
+
+type ModulePath = String
+
 -- Modules.
 data ModuleBind id ty = BindNonRec (Bind id ty)
                       | BindRec [Bind id ty] deriving (Eq, Show)
-data Module id ty = Module [Import id] [ModuleBind id ty] deriving (Eq, Show)
+data Module id ty = Module [PoorMensImport id] [ModuleBind id ty] deriving (Eq, Show)
 
 type ReadModule = Module Name Type
 type ReadModuleBind = ModuleBind Name Type
-data Import id = Import id deriving (Eq, Show)
-type ReadImport = Located (Import Name)
+data PoorMensImport id = PoorMensImport id deriving (Eq, Show)
+type ReadImport = Located (PoorMensImport Name)
 
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
@@ -200,7 +218,7 @@ data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show, Gener
 
 
 data Bind id ty = Bind
-  { bindId       :: id             -- Identifier
+  { bindName       :: id             -- Identifier
   , bindTyParams :: [(Name, Maybe Type)]         -- Type arguments
   , bindParams   :: [(Name, Type)] -- Arguments, each annotated with a type
   , bindRhs      :: LExpr id ty     -- RHS to the "="
@@ -235,6 +253,17 @@ type TypeContext  = Map.Map Name ( Kind
 type ValueContext = Map.Map Name Type              -- Gamma
 type ModuleMapInfo = (Maybe PackageName, Type, Name, Name)
 type ModuleContext = Map.Map Name ModuleMapInfo -- Sigma
+
+
+liftExprToDecl :: Name -> ReadExpr -> Declaration
+liftExprToDecl name expr = DefDecl bind
+  where
+    bind = Bind { bindName     = name
+                , bindTyParams = []
+                , bindParams   = [] -- should be () as in `main()`
+                , bindRhs      = expr
+                , bindRhsTyAscription = Nothing
+                }
 
 addTVarToContext :: [(Name, Kind)] -> TypeContext -> TypeContext
 addTVarToContext tvars d =
@@ -442,8 +471,8 @@ instance (Pretty id, Show id, Pretty ty, Show ty) => Pretty (Module id ty) where
                                               vcat (map pretty imps) <$>
                                               vcat (map pretty bs) <$> text "}"
 
-instance (Pretty id) => Pretty (Import id) where
-    pretty (Import id) = text "import" <+> pretty id
+instance (Pretty id) => Pretty (PoorMensImport id) where
+    pretty (PoorMensImport id) = text "import" <+> pretty id
 
 instance Pretty Type where
   pretty (TVar a)     = text a
@@ -530,7 +559,7 @@ instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Bind id ty) where
   pretty Bind{..} =
-    pretty bindId <+>
+    pretty bindName <+>
     hsep (map pretty bindTyParams) <+>
     hsep (map (\(x,t) -> parens (pretty x <+> colon <+> pretty t)) bindParams) <+>
     case bindRhsTyAscription of { Nothing -> empty; Just t -> colon <+> pretty t } <+>

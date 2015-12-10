@@ -25,7 +25,8 @@ import JavaUtils
 import Control.Monad.State
 }
 
-%name happyParseExpr expr
+%name happyParseProgram program
+%name happyParseExpr    expr
 
 %tokentype { Located Token }
 %monad     { Alex }
@@ -125,33 +126,53 @@ import Control.Monad.State
 
 %%
 
--- Note: There are times when it is more convenient to parse a more general
--- language than that which is actually intended, and check it later.
+{-
+*Note:* There are times when it is more convenient to parse a more general
+language than that which is actually intended, and check it later.
 
--- Parsers of different languages:
--- Haskell (GHC):  https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y.pp#L1453
--- Rust:           https://github.com/rust-lang/rust/blob/master/src/grammar/parser-lalr.y
+Parsers of other languages:
+* Haskell (GHC):  https://github.com/ghc/ghc/blob/master/compiler/parser/Parser.y
+* Rust:           https://github.com/rust-lang/rust/blob/master/src/grammar/parser-lalr.y
+-}
+
+program :: { Program }
+  : imports declarations { Program { pgmImports = $1, pgmDecls = $2 } }
+
+  -- Backward compatibility for the expression language before:
+  -- Wrap the whole expression in `def main() = { ... }`
+  | imports expr         { Program { pgmImports = $1, pgmDecls = [liftExprToDecl "main" $2] } }
+
+imports :: { [Import] }
+  : {- empty -}    { [] }
+  | import imports { $1:$2 }
+
+import :: { Import }
+  : "import" module_path { Import { importModulePath = $2 } }
+
+declarations :: { [Declaration] }
+  : {- empty -}              { [] }
+  | declaration declarations { $1:$2 }
+
+declaration :: { Declaration }
+  : "def" bind { DefDecl $2 }
 
 ------------------------------------------------------------------------
 -- Modules
 ------------------------------------------------------------------------
 
-packageIdent :: { String }
-  : ident    { unLoc $1 }
-  | ident "." packageIdent { unLoc $1 ++ "." ++ $3 }
+module_path :: { Located ModulePath }
+  : ident                 { $1 }
+  | ident "." module_path { (unLoc $1 ++ "." ++ unLoc $3) `withLoc` $1 }
 
 module :: { ReadModule }
-  : imports semi_binds  { Module (map unLoc $1) $2 }
+  : poormens_imports semi_binds  { Module (map unLoc $1) $2 }
 
--- module_name :: { LReaderId }
---   : UPPER_IDENT  { toString $1 `withLoc` $1 }
-
-imports :: { [ReadImport] }
+poormens_imports :: { [ReadImport] }
   :                { [] }
-  | import imports { $1:$2 }
+  | poormens_import poormens_imports { $1:$2 }
 
-import :: { ReadImport }
-  : "import" packageIdent  { Import $2 `withLoc` $1 }
+poormens_import :: { ReadImport }
+  : "import" module_path  { PoorMensImport (unLoc $2) `withLoc` $1 }
 
 
 ------------------------------------------------------------------------
@@ -416,7 +437,7 @@ record_construct_field :: { (Label, ReadExpr) }
 
 bind :: { ReadBind }
   : bind_lhs ctyparam_list_or_empty params maybe_ty_ascription "=" expr
-  { Bind { bindId       = toString $1
+  { Bind { bindName       = toString $1
          , bindTyParams = map unLoc $2
          , bindParams   = map unLoc $3
          , bindRhsTyAscription = $4
@@ -514,7 +535,7 @@ label :: { Label }
 
 {
 -- The monadic parser
-data P a = POk a | PError String
+data P a = POk a | PError String deriving (Show)
 
 instance Monad P where
     POk x      >>= f = f x
@@ -531,10 +552,13 @@ instance Applicative P where
 parseError :: Located Token -> Alex a
 parseError (L loc _) = alexError ("Parse error at " ++ show (line loc) ++ ":" ++ show (column loc))
 
-parseExpr :: String -> P ReadExpr
-parseExpr src = case (runAlex src happyParseExpr) of
-               Left msg -> PError msg
-               Right x  -> return x
+fromHappyParser happyParser source
+  = case (runAlex source happyParser) of
+      Left  message -> PError message
+      Right result  -> return result
+
+parseProgram = fromHappyParser happyParseProgram
+parseExpr    = fromHappyParser happyParseExpr
 
 -- Helper functions to extract located token value
 toInt (L _ (Tint x)) = x

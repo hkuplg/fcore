@@ -253,7 +253,7 @@ checkExpr (L loc (If e1 e2 e3))
     message = "checkExpr: least upper bound of types of two branches does not exist"
 
 checkExpr (L loc (LetIn rec_flag binds e)) =
-  do checkDupNames (map bindId binds)
+  do checkDupNames (map bindName binds)
      binds' <- case rec_flag of
                  NonRec -> mapM normalizeBind binds
                  Rec    -> do sigs <- collectBindIdSigs binds
@@ -400,7 +400,7 @@ checkExpr (L loc (RecordUpdate e fs)) =
 
 -- Well, I know the desugaring is too early to happen here...
 -- checkExpr (L loc (LetModule (Module m binds) e)) =
---   do let fs = map bindId binds
+--   do let fs = map bindName binds
 --      let letrec = L loc $ Let Rec binds (L loc $ RecordCon (map (\f -> (f, noLoc $ Var f)) fs))
 --      checkExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
 -- checkExpr (L loc (ModuleAccess m f)) = checkExpr (L loc $ RecordProj (L loc $ Var m) f)
@@ -604,7 +604,7 @@ normalizeBind bind
                                   do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindParams bind')
                                      withLocalVars expandedBindArgs (checkExpr (bindRhs bind'))
        case bindRhsTyAscription bind' of
-         Nothing -> return ( bindId bind'
+         Nothing -> return ( bindName bind'
                            , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                            , wrap (\x acc -> BLam x acc `withLoc` acc) (bindTyParams bind') (wrap (\x acc -> Lam x acc `withLoc` acc) (bindParams bind') bindRhs'))
          Just ty_ascription ->
@@ -613,7 +613,7 @@ normalizeBind bind
                 d <- getTypeContext
                 let ty_ascription' = expandType d ty_ascription
                 if compatible d ty_ascription' bindRhsTy
-                   then return (bindId bind'
+                   then return (bindName bind'
                                , wrap Forall (bindTyParams bind') (wrap Fun (map snd (bindParams bind')) bindRhsTy)
                                , wrap (\x acc -> BLam x acc `withLoc` acc) (bindTyParams bind') (wrap (\x acc -> Lam x acc `withLoc` acc) (bindParams bind') bindRhs'))
                    else throwError $ TypeMismatch (expandType d ty_ascription') bindRhsTy `withExpr` bindRhs bind
@@ -637,11 +637,11 @@ collectBindIdSigs :: [ReadBind] -> Checker [(Name, Type)]
 collectBindIdSigs
   = mapM (\ Bind{..} ->
             case bindRhsTyAscription of
-              Nothing    -> throwError (noExpr $ MissingTyAscription bindId)
+              Nothing    -> throwError (noExpr $ MissingTyAscription bindName)
               Just tyAscription ->
                 do d <- getTypeContext
                    let d' = foldr (\(a,_) acc -> addTVarToContext [(a, Star)] acc) d bindTyParams -- TODO: Issue: #addconstrainttocontext
-                   return (bindId,
+                   return (bindName,
                            wrap Forall bindTyParams $
                            wrap Fun [expandType d' ty |  (_,ty) <- bindParams] $
                            expandType d' tyAscription))
@@ -731,8 +731,8 @@ checkFieldAccess receiver f
     where
        (is_static, c) = unwrapJReceiver receiver
 
-checkModuleFunction :: Import ModuleName -> Checker [(Name, ModuleMapInfo)]
-checkModuleFunction (Import m) =
+checkModuleFunction :: PoorMensImport ModuleName -> Checker [(Name, ModuleMapInfo)]
+checkModuleFunction (PoorMensImport m) =
   do
     typeserver <- getTypeServer
     res <- liftIO (JvmTypeQuery.extractModuleInfo typeserver (pName, moduleName))
