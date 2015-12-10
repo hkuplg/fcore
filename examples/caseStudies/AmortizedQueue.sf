@@ -1,13 +1,13 @@
 
 
-data PList = Nil | Cons Int PList;
+data PList = Nil | Cons Int PList in
 
-data AbsQueue = Queue PList PList;
+data AbsQueue = Queue PList PList in
 
 
 {-
 ------- define for set ---------------------------------------
-type Set = java.util.HashSet;
+type Set = java.util.HashSet in
 
 let singleton(v: Int) : Set = let l = (new java.util.HashSet( )) in
       if l.add(v)

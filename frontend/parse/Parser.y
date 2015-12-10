@@ -276,10 +276,9 @@ expr :: { ReadExpr }
     : "/\\" ctyparams1 "->" expr          { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "\\" params1 "->" expr             { foldr (\x acc -> Lam (unLoc x) acc `withLoc` x) (Lam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "let" recflag and_binds "in"  expr { LetIn $2 $3 $5 `withLoc` $1 }
-    | "type" UPPER_IDENT typaram_list_or_empty "=" type ";"  expr  { Type (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
-    | "type" UPPER_IDENT typaram_list_or_empty "=" type expr       { Type (toString $2) (map unLoc $3) $5 $6 `withLoc` $1 }
+    | "type" UPPER_IDENT typaram_list_or_empty "=" type "in"  expr  { Type (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
-    | "data" recflag and_databinds ";" expr        { Data $2 $3 $5 `withLoc` $1 }
+    | "data" recflag and_databinds "in" expr        { Data $2 $3 $5 `withLoc` $1 }
     | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }

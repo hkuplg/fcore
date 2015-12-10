@@ -1,10 +1,10 @@
 type ListAlg [A, L] = {
   nil : L,
   con : A -> L -> L
-};
+} in
 type MyList [A] = {
   accept : forall L. ListAlg[A, L] -> L
-};
+} in
 let sumListAlg : ListAlg[Int, Int] = {
   nil = 0,
   con = \(x : Int) (y : Int) -> x + y
@@ -19,7 +19,7 @@ type SybAlg[Company, Dept, SubUnit, Employee, Person, Salary] = {
   goE  : Person       ->  Salary    ->  Employee,
   goP  : String       ->  String    ->  Person,
   goS  : Int          ->  Salary
-};
+} in
 let genCom [C, D, SU, E, P, SA] (alg : SybAlg[C, D, SU, E, P, SA]) : C =
   alg.goC
    { accept = /\L -> \ (f : ListAlg[D, L]) -> f.con
@@ -33,7 +33,7 @@ let genCom [C, D, SU, E, P, SA] (alg : SybAlg[C, D, SU, E, P, SA]) : C =
         (alg.goD "Strategy" (alg.goE (alg.goP "Blair" "London") (alg.goS 100000))
       { accept = /\ LN -> \ (fn : ListAlg[SU, LN]) -> fn.nil }) f.nil
     ) } in
-type QueryInt = SybAlg[Int, Int, Int, Int, Int, Int];
+type QueryInt = SybAlg[Int, Int, Int, Int, Int, Int] in
 let salaryBill : QueryInt = {
   goC  = \(l : MyList[Int]) -> sumList l,
   goD  = \(x : String) (y : Int) (l : MyList[Int]) -> y + sumList l,

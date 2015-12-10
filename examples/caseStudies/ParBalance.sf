@@ -1,12 +1,12 @@
 
 -- (*data definition*)
 
-data PList = Nil | Cons Int PList ;
-data Option = None | Some Int ;
+data PList = Nil | Cons Int PList  in
+data Option = None | Some Int  in
 let openPar : Int = 1 in
 let closePar : Int = 2 in
 
-data Pair = Pair Int Int;
+data Pair = Pair Int Int in
 
 let fst (p : Pair) : Int = case p of Pair p1 p2 -> p1 in
 let snd (p : Pair) : Int = case p of Pair p1 p2 -> p2 in

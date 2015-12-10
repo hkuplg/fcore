@@ -2,7 +2,7 @@ data Formula = And Formula Formula
              | Or Formula Formula
              | Implies Formula Formula
              | Not Formula
-             | Literal Int ;
+             | Literal Int  in
 
 let rec simplify (f: Formula): Formula =
          case f of

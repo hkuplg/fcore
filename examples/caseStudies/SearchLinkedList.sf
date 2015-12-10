@@ -1,4 +1,4 @@
-data PList = Nil | Cons Int PList;
+data PList = Nil | Cons Int PList in
 
 
 let rec size (l : PList) : Int =

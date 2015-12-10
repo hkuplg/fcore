@@ -1,7 +1,7 @@
 --> x + y + 5 -> z + y + 5
 
-type ExpAlg[E] = { var : String -> E, lit : Int -> E, add : E -> E -> E };
-type IPrint   = { print : String };
+type ExpAlg[E] = { var : String -> E, lit : Int -> E, add : E -> E -> E } in
+type IPrint   = { print : String } in
 let prettyPrint : ExpAlg[IPrint] = {
   var = \(x : String) -> { print = x },
   lit = \(x : Int) -> { print = x.toString() },

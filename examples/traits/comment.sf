@@ -1,9 +1,9 @@
-type Comment = { content: Unit -> String };
+type Comment = { content: Unit -> String } in
 let comment (content: String) (self: Unit -> Comment) = {
   content = \(d: Unit) -> content
 } in
 
-type Up = { upvotes: Unit -> Int };
+type Up = { upvotes: Unit -> Int } in
 let up (upvotes: Int) (self: Unit -> Up) = {
   upvotes = \(d: Unit) -> upvotes
 } in

@@ -1,7 +1,7 @@
 data rec
   TreeT [A] = EmptyT | NodeT A (Forest [A])
 and
-  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]);
+  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]) in
 
 let rec
   size_tree [A] (x:TreeT[A]):Int =

@@ -1,9 +1,9 @@
 
-data PList = Nil | Cons Int PList;
+data PList = Nil | Cons Int PList in
 
-data IntPair = IP Int Int;
+data IntPair = IP Int Int in
 
-data IntPairPList = IPNil | IPCons IntPair IntPairPList;
+data IntPairPList = IPNil | IPCons IntPair IntPairPList in
 
 
 let rec equal (l1: PList) (l2: PList) : Bool =

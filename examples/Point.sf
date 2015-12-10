@@ -2,13 +2,13 @@ type Color = {
   red: Int,
   green: Int,
   blue: Int
-};
+} in
 
 type Point = {
   x: Int,
   y: Int,
   z: Int
-};
+} in
 
 let black  = { red = 0, green = 0, blue = 0 } in
 let origin = { x = 0, y = 0, z = 0 } in

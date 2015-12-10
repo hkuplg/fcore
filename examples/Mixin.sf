@@ -1,4 +1,4 @@
-type Mixin[S] = (Unit -> S) -> (Unit -> S) -> S;
+type Mixin[S] = (Unit -> S) -> (Unit -> S) -> S in
 let zero[S] (super: Unit -> S) (this: Unit -> S): S = super in
 let rec mixin[S] (f: Mixin[S]): S = let m = mixin[S] in f (\(d: Unit) -> m f) (\(d: Unit) -> m f) in
 let extends[S] (f: Mixin[S]) (g: Mixin[S]) : Mixin[S]

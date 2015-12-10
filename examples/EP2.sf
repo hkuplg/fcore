@@ -1,7 +1,7 @@
-type Exp = { eval : Int };
+type Exp = { eval : Int } in
 let lit (n:Int) = { eval = n } in
 let add (e1:Exp) (e2:Exp) = { eval = e1.eval + e2.eval } in
-type ExpExt = Exp & { print : String };
+type ExpExt = Exp & { print : String } in
 let litExt (n:Int) = lit n ,, { print = n.toString() } in
 let addExt (e1:ExpExt) (e2:ExpExt) = add e1 e2 ,, { print = e1.print.concat(" + ").concat(e2.print) } in
 let e1 = addExt (litExt 2) (litExt 3) in

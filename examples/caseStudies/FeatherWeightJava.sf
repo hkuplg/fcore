@@ -1,14 +1,14 @@
 
 --------------------definition--------------------
-type Classname = Int;
-type Superclass = Int;
-type Fieldname = Int;
-type Variable = Int;
-type Methodname = Int;
+type Classname = Int in
+type Superclass = Int in
+type Fieldname = Int in
+type Variable = Int in
+type Methodname = Int in
 
 
-data Field = Fd Classname Fieldname;
-data Fieldlist = FNil | FCons Field Fieldlist;
+data Field = Fd Classname Fieldname in
+data Fieldlist = FNil | FCons Field Fieldlist in
 
 data rec Term = Var Variable
               | FieAcc Term Fieldname
@@ -16,24 +16,24 @@ data rec Term = Var Variable
               | New Classname Termlist
               | Cast Classname Term
  and
-Termlist = TNil | TCons Term Termlist;
+Termlist = TNil | TCons Term Termlist in
 
-data Constructor = Mkcon Classname Fieldlist;
-data Method = Mkmtd Classname Methodname Fieldlist Term;
-data Methodlist = MNil | MCons Method Methodlist;
-data CL = Class Classname Superclass Fieldlist Constructor Methodlist ;
+data Constructor = Mkcon Classname Fieldlist in
+data Method = Mkmtd Classname Methodname Fieldlist Term in
+data Methodlist = MNil | MCons Method Methodlist in
+data CL = Class Classname Superclass Fieldlist Constructor Methodlist  in
 
-data PairC = Pc Classname CL;
-data CT = PNil | PCons PairC CT;
-data Ilist = INil | ICons Int Ilist;
-data Boolist = BNil | BCons Bool Boolist;
-data PairF = Pf Ilist Term;
+data PairC = Pc Classname CL in
+data CT = PNil | PCons PairC CT in
+data Ilist = INil | ICons Int Ilist in
+data Boolist = BNil | BCons Bool Boolist in
+data PairF = Pf Ilist Term in
 
-data PairM = Pm Methodname Method;
-data PairMlist = PMNil | PMCons PairM PairMlist;
+data PairM = Pm Methodname Method in
+data PairMlist = PMNil | PMCons PairM PairMlist in
 
-data PairT = Pt Term Term;
-data PairTlist = PTNil | PTCons PairT PairTlist;
+data PairT = Pt Term Term in
+data PairTlist = PTNil | PTCons PairT PairTlist in
 ---------------------------------------
 
 ------------some pre tries------------------

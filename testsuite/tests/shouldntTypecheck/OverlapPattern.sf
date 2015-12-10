@@ -1,6 +1,6 @@
 data BTree [A,B] = Leaf A
                  | Node BTree[A,B] B BTree[A,B]
-                 ;
+                  in
 
 let children [A,B] (x:BTree [A,B]) =
     case x of

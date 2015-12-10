@@ -1,7 +1,7 @@
 
-data PList = Nil | Cons Int PList;
+data PList = Nil | Cons Int PList in
 
-data OptInt = None | Some Int;
+data OptInt = None | Some Int in
 
 let rec size (l : PList) : Int =
        case l of

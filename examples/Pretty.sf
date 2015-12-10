@@ -3,7 +3,7 @@ type Doc[A] = {
   concat : A -> A -> A,
   nil    : A,
   text   : String -> A
-};
+} in
 let printAlg: Doc[String] = {
   concat = \(x: String) (y: String) -> x.concat(y),
   nil    = "",

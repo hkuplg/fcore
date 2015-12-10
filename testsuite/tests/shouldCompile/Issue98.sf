@@ -1,15 +1,15 @@
 -- List definition
 
 data PolyList [A] = Nil
-                  | Cons A (PolyList[A]);
+                  | Cons A (PolyList[A]) in
 
 -- String definition
 
-type PolyString = PolyList[Char];
+type PolyString = PolyList[Char] in
 
 -- Parser type definition
 
-type Parser [A] = PolyString -> PolyList[(A, PolyString)];
+type Parser [A] = PolyString -> PolyList[(A, PolyString)] in
 
 -- Utilities
 

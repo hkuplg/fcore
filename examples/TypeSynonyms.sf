@@ -1,8 +1,8 @@
-type Pair[A, B] = (A, B);
-type PairInt[A] = Pair[(Int, A)];
+type Pair[A, B] = (A, B) in
+type PairInt[A] = Pair[(Int, A)] in
 
-type Point2D[A] = { x : A, y : A };
-type Point3D[A] = { x : A, y : A, z : A };
+type Point2D[A] = { x : A, y : A } in
+type Point3D[A] = { x : A, y : A, z : A } in
 
 let diff (p : Point2D[Int]) (q : Point2D[Int]) = (q.x - p.x, q.y - p.y) in
 

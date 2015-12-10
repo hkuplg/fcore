@@ -1,6 +1,6 @@
 --> 5
 
-data List [A] = Nil | Cons A (List [A]);
+data List [A] = Nil | Cons A (List [A]) in
 
 let head [A] (x:List[A]):A =
 case x of

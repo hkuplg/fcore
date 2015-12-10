@@ -1,7 +1,7 @@
 data rec
   TreeT [A] = EmptyT | NodeT A (Forest [A])
 and
-  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]);
+  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]) in
 
 let rec
   map_tree [A,B] (f:A->B) (x:TreeT[A]):TreeT[B] =
@@ -16,8 +16,8 @@ and
 
 let succ (x:Int) = x+1 in
 
-type IntTreeT = TreeT [Int];
-type IntForest = Forest [Int];
+type IntTreeT = TreeT [Int] in
+type IntForest = Forest [Int] in
 let rec
   sum_tree (x:IntTreeT):Int =
     case x of

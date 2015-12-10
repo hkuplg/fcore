@@ -1,6 +1,6 @@
-data PList = Nil | Cons Int PList;
+data PList = Nil | Cons Int PList in
 
-data Option = None | Some Int;
+data Option = None | Some Int in
 
 let rec foldRight [A] (xs : PList) (v : A) (f : A -> Int -> A) : A =
     case xs of

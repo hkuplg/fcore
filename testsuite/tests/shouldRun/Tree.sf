@@ -2,7 +2,7 @@
 
 data BTree [A,B] = Leaf A
                  | Node BTree[A,B] B BTree[A,B]
-                 ;
+                  in
 
 let rec countLeaves[A,B] (tree: BTree[A,B]): Int =
     case tree of

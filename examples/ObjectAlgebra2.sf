@@ -1,13 +1,13 @@
 -- OA with OO-like interfaces (IEval, IPrint)
 
-type IEval  = { eval : Int };
-type IPrint = { print : String };
-type ExpAlg[E] = { lit : Int -> E, add : E -> E -> E };
+type IEval  = { eval : Int } in
+type IPrint = { print : String } in
+type ExpAlg[E] = { lit : Int -> E, add : E -> E -> E } in
 let evalAlg = {
   lit = \(x : Int) -> { eval = x },
   add = \(x : IEval) (y : IEval) -> { eval = x.eval + y.eval }
 } in
-type SubExpAlg[E] = (ExpAlg[E]) & { sub : E -> E -> E };
+type SubExpAlg[E] = (ExpAlg[E]) & { sub : E -> E -> E } in
 let subEvalAlg = evalAlg ,, { sub = \(x : IEval) (y : IEval) -> { eval = x.eval - y.eval } } in
 let printAlg = {
   lit = \(x : Int) -> { print = x.toString() },

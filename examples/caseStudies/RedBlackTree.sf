@@ -1,8 +1,8 @@
-data Color = Red | Black;
+data Color = Red | Black in
 
-data Tree1 = Tempty | Node Color Tree1 Int Tree1;
+data Tree1 = Tempty | Node Color Tree1 Int Tree1 in
 
-data OptionInt = None | Some Int;
+data OptionInt = None | Some Int in
 
 
 

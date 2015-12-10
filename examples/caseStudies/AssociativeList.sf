@@ -1,15 +1,15 @@
 
-data KeyValuePairAbs = KeyValuePair Int Int;
+data KeyValuePairAbs = KeyValuePair Int Int in
 
-data PList = Nil | Cons KeyValuePairAbs PList ;
+data PList = Nil | Cons KeyValuePairAbs PList  in
 
-data OptionInt = None | Some Int;
+data OptionInt = None | Some Int in
 
 {-
 ------- define for set ---------------------------------------
-type Set = java.util.HashSet;
+type Set = java.util.HashSet in
 
-let singleton(v: Int) : Set = let l = (new java.util.HashSet( ));
+let singleton(v: Int) : Set = let l = (new java.util.HashSet( )) in
       if l.add(v)
       then l
       else l in

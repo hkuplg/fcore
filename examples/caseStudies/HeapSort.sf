@@ -1,7 +1,7 @@
 --type definition
-data PList = Nil | Cons Int PList;
+data PList = Nil | Cons Int PList in
 
-data Heap = Leaf | Node Int Int Heap Heap;
+data Heap = Leaf | Node Int Int Heap Heap in
 
 
 -----------equal & notEqual function for Heap-----------------

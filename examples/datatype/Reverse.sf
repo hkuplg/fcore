@@ -1,6 +1,6 @@
 data PolyList [A] = Nil
                 | Cons A (PolyList[A])
-                ;
+                 in
 let rec eq [A] (xs: PolyList [A]) (ys: PolyList [A]) : Bool =
   case xs of
      Nil -> (case ys of
@@ -21,7 +21,7 @@ let rec reverse [A] (xs: PolyList [A]) : PolyList [A] =
 
 let prop_reverse [A] (xs: PolyList [A]) : Bool = eq [A] (reverse [A] (reverse [A] xs)) xs in
 
--- type IntList = PolyList[Int];
+-- type IntList = PolyList[Int] in
 -- let showInt (x: Int) : String = x.toString() in
 -- let rec show (xs: IntList) : String =
 --     case xs of

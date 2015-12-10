@@ -1,10 +1,10 @@
-type Point = { x: Unit -> Int, y: Unit -> Int };
+type Point = { x: Unit -> Int, y: Unit -> Int } in
 let point (x: Int) (y: Int) (self: Unit -> Point) = {
   x = \(d: Unit) -> x,
   y = \(d: Unit) -> y
 } in
 
-type Norm = { norm: Unit -> Int };
+type Norm = { norm: Unit -> Int } in
 -- x + y
 let manhattanNorm (self: Unit -> Point) = {
   norm = \(d: Unit) -> (self ()).x() + (self()).y()

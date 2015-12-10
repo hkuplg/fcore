@@ -1,5 +1,5 @@
-data BTree = Leaf | Node Int BTree BTree;
-data Lst = Nil | Cons Int Lst;
+data BTree = Leaf | Node Int BTree BTree in
+data Lst = Nil | Cons Int Lst in
 
 let not (b: Bool): Bool = if b then False else True in
 let null (xs: Lst): Bool =

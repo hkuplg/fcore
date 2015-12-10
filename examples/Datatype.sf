@@ -1,7 +1,7 @@
 --> 2
 data MList = Nil
          | Cons Int MList
-     ;
+      in
 let rec size (xs : MList) : Int =
    case xs of
        Nil -> 0

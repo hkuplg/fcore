@@ -1,10 +1,10 @@
 let not (b: Bool) : Bool = if b then False else True in
 
-type Pre = Int;
-type Ide = Int;
-type Cos = Int;
+type Pre = Int in
+type Ide = Int in
+type Cos = Int in
 
-data Term = Var Ide | Con Cos;
+data Term = Var Ide | Con Cos in
 
 let getConT(c: Term) : Cos = case c of
                               Con cos -> cos
@@ -17,19 +17,19 @@ data FOrmula = Prd Int Term
                | Implies FOrmula FOrmula
                | Not FOrmula
                | E Ide FOrmula
-               | A Ide FOrmula ;
+               | A Ide FOrmula  in
 
 
-data Assigment = Asg Ide Cos;
-data Valuation = VNil | VCons Assigment Valuation ;
+data Assigment = Asg Ide Cos in
+data Valuation = VNil | VCons Assigment Valuation  in
 
-data Coslist = CNil | CCons Cos Coslist;
-data Idelist = INil | ICons Ide Idelist;
-data Prelist = PNil | PCons Pre Prelist;
-data Boolist = BoNil | BoCons Bool Boolist;
-data Bind = Prop Pre Coslist;
-data Context = BNil | BCons Bind Context;
-data ListofValuation = VANil | VACons Valuation ListofValuation;
+data Coslist = CNil | CCons Cos Coslist in
+data Idelist = INil | ICons Ide Idelist in
+data Prelist = PNil | PCons Pre Prelist in
+data Boolist = BoNil | BoCons Bool Boolist in
+data Bind = Prop Pre Coslist in
+data Context = BNil | BCons Bind Context in
+data ListofValuation = VANil | VACons Valuation ListofValuation in
 
 
 let predicate = PCons 1 (PCons 2 (PCons 3 (PCons 4 (PCons 5 (PCons 6

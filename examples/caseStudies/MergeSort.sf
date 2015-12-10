@@ -1,8 +1,8 @@
-data PList = Nil | Cons Int PList;
+data PList = Nil | Cons Int PList in
 
-data LPList = LNil | LCons PList LPList;
+data LPList = LNil | LCons PList LPList in
 
-data PairPList = Pair PList PList;
+data PairPList = Pair PList PList in
 
 
 --let rec lContent(ll : LPList) : Set =

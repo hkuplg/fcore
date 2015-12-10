@@ -1,17 +1,17 @@
-type Ide = Int;
+type Ide = Int in
 
-data TermL = Var Ide | App TermL TermL | Abs Ide TermL;
+data TermL = Var Ide | App TermL TermL | Abs Ide TermL in
 
-data TermA = Asg Ide TermL;
+data TermA = Asg Ide TermL in
 
---data LambdaCalculus = TermL | TermA; -- danger
+--data LambdaCalculus = TermL | TermA in -- danger
 
-data Idelist = INil | ICons Ide Idelist;
-data TermLlist = LNil | LCons TermL TermLlist;
+data Idelist = INil | ICons Ide Idelist in
+data TermLlist = LNil | LCons TermL TermLlist in
 
-data MaybeTermL = Nothing | Just TermL;
+data MaybeTermL = Nothing | Just TermL in
 
-data MTermLlist = MNil | MCons MaybeTermL MTermLlist;
+data MTermLlist = MNil | MCons MaybeTermL MTermLlist in
 
 
 let rec mergeI (l1: Idelist) (l2: Idelist) : Idelist =
