@@ -58,7 +58,40 @@ tokens :-
     <str> \"        { end_string `andBegin` 0 }
 
     <0> \}          { locate (\_ _ -> Tccurly) }
+
     <0, strexp>     {
+
+    -----------
+    -- Keywords
+    -----------
+
+    Bool        { locate (\_ _ -> Tjavaclass "java.lang.Boolean") }
+    Char        { locate (\_ _ -> Tjavaclass "java.lang.Character") }
+    Double      { locate (\_ _ -> Tjavaclass "java.lang.Double") }
+    False       { locate (\_ _ -> Tbool False) }
+    Float       { locate (\_ _ -> Tjavaclass "java.lang.Float") }
+    Int         { locate (\_ _ -> Tjavaclass "java.lang.Integer") }
+    String      { locate (\_ _ -> Tjavaclass "java.lang.String") }
+    True        { locate (\_ _ -> Tbool True) }
+    Unit        { locate (\_ _ -> Tunit) }
+    and         { locate (\_ _ -> Tand) }
+    case        { locate (\_ _ -> Tcase) }
+    data        { locate (\_ _ -> Tdata) }
+    def         { locate (\_ _ -> Tdef) }
+    else        { locate (\_ _ -> Telse) }
+    error       { locate (\_ _ -> Terror)}
+    forall      { locate (\_ _ -> Tforall) }
+    if          { locate (\_ _ -> Tif) }
+    import      { locate (\_ _ -> Timport) }
+    in          { locate (\_ _ -> Tin) }
+    let         { locate (\_ _ -> Tlet) }
+    new         { locate (\_ _ -> Tnew) }
+    of          { locate (\_ _ -> Tof) }
+    rec         { locate (\_ _ -> Trec) }
+    then        { locate (\_ _ -> Tthen) }
+    type        { locate (\_ _ -> Ttype) }
+    with        { locate (\_ _ -> Twith) }
+
 
     \(          { locate (\_ _ -> Toparen) }
     \)          { locate (\_ _ -> Tcparen) }
@@ -70,49 +103,21 @@ tokens :-
     \\          { locate (\_ _ -> Tlam) }
     \:          { locate (\_ _ -> Tcolon) }
     \;          { locate (\_ _ -> Tsemi) }
-    forall      { locate (\_ _ -> Tforall) }
     \-\>        { locate (\_ _ -> Tarrow) }
     \.          { locate (\_ _ -> Tdot) }
     \&          { locate (\_ _ -> Tandtype) }
     \,\,        { locate (\_ _ -> Tmerge) }
-    with        { locate (\_ _ -> Twith) }
     \'          { locate (\_ _ -> Tquote) }
-    -- this     { locate (\_ _ -> Tthis) }
-    -- super    { locate (\_ _ -> Tsuper) }
-    def         { locate (\_ _ -> Tdef) }
-    type        { locate (\_ _ -> Ttype) }
-    let         { locate (\_ _ -> Tlet) }
-    rec         { locate (\_ _ -> Trec) }
-    in          { locate (\_ _ -> Tin) }
     \=          { locate (\_ _ -> Teq) }
-    and         { locate (\_ _ -> Tand) }
-    Int         { locate (\_ _ -> Tjavaclass "java.lang.Integer") }
-    String      { locate (\_ _ -> Tjavaclass "java.lang.String") }
-    Bool        { locate (\_ _ -> Tjavaclass "java.lang.Boolean") }
-    Char        { locate (\_ _ -> Tjavaclass "java.lang.Character") }
-    Float       { locate (\_ _ -> Tjavaclass "java.lang.Float") }
-    Double      { locate (\_ _ -> Tjavaclass "java.lang.Double") }
-    if          { locate (\_ _ -> Tif) }
-    then        { locate (\_ _ -> Tthen) }
-    else        { locate (\_ _ -> Telse) }
     \,          { locate (\_ _ -> Tcomma) }
-    new         { locate (\_ _ -> Tnew) }
-    import      { locate (\_ _ -> Timport) }
-    data        { locate (\_ _ -> Tdata) }
     \|          { locate (\_ _ -> Tbar) }
-    case        { locate (\_ _ -> Tcase) }
-    of          { locate (\_ _ -> Tof) }
     \_          { locate (\_ _ -> Tunderscore) }
     \`          { locate (\_ _ -> Tbackquote) }
-    error       { locate (\_ _ -> Terror)}
 
     -- Literals
     $digit+                { locate (\_ s -> Tint (read s)) }
     \'(@charEscape | $printable # [\' \\])\'  { convChar False }
-    True                   { locate (\_ s -> Tbool True) }
-    False                  { locate (\_ s -> Tbool False) }
     \(\)                   { locate (\_ _ -> Tunitlit ) }
-    Unit                   { locate (\_ _ -> Tunit) }
     L\[                    { locate (\_ _ -> Tlistbegin)}
 
     -- java.package.path.Classname
@@ -145,7 +150,6 @@ tokens :-
 {
 data Token = Toparen | Tcparen | Tocurly | Tccurly
            | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tbackquote
-           -- | Tthis | Tsuper
            | Tdef | Ttype | Tlet | Trec | Tin | Teq | Tand
            | Tjavaclass String
            | Tnew
