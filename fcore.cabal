@@ -90,7 +90,6 @@ library
                         StringPrefixes
                         StringUtils
                         SystemFI
-                        TestInh
                         TransEnvironment
                         TypeCheck
                         TypeErrors
