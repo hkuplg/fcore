@@ -333,7 +333,7 @@ wrapFlag handle opt flagC flagT flagS filename = case flagT of
         False -> do error <- wrap handle receiveMsg opt flagC flagS filename
                     return ()
 
-{-checkType :: ValueContext -> String -> IO (Either TypeError (ReadType, CheckedExpr))
+{-checkType :: ValueContext -> String -> IO (Either TypeError (Type, CheckedExpr))
 checkType val_ctx s =
   do let parsed = parseExpr s
      checkExprWithEnv val_ctx parsed

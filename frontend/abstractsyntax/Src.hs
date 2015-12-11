@@ -18,7 +18,7 @@ module Src
   ( Program(..), Declaration(..)
   , Module(..), ModulePath, ReadModule, Import(..), PoorMensImport(..), ReadImport, ModuleBind(..), ReadModuleBind, Definition(..), CheckedBind
   , Kind(..)
-  , Type(..), ReadType
+  , Type(..)
   , Expr(..), ReadExpr, CheckedExpr, LExpr
   , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReadBind
@@ -132,15 +132,13 @@ data Type
   -- `compatible` and `subtype` below.
   deriving (Eq, Show, Data, Typeable, Read, Generic)
 
-type ReadType = Type
-
 type LExpr id ty = Located (Expr id ty)
 
 -- Expressions.
 data Expr id ty
   = Var id                                    -- Variable
   | Lit Lit                                   -- Literals
-  | Lam (Name, ty) (LExpr id ty)             -- Lambda
+  | Lam (Located Name, ty) (LExpr id ty) -- Lambda
   | App (LExpr id ty) (LExpr id ty)            -- Application
   | BLam (Name, Maybe Type) (LExpr id ty)                    -- Big lambda
   | TApp (LExpr id ty) ty                    -- Type application
@@ -220,7 +218,7 @@ data Operator = Arith J.Op | Compare J.Op | Logic J.Op deriving (Eq, Show, Gener
 data Bind id ty = Bind
   { bindName     :: id                   -- f
   , bindTyParams :: [(Name, Maybe Type)] -- A1, ..., An
-  , bindParams   :: [(Name, Type)]       -- x1: t1, ..., xn: tn
+  , bindParams   :: [(Located Name, Type)] -- x1: t1, ..., xn: tn
   , bindRhs      :: LExpr id ty          -- e
   , bindRhsTyAscription :: Maybe Type    -- t
   } deriving (Eq, Show)
@@ -499,8 +497,9 @@ groupForall :: Type -> ([(Name, Maybe Type)], Type)
 groupForall (Forall (a,c) t) = let (as, t') = groupForall t in ((a,c):as, t')
 groupForall t            = ([], t)
 
-instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Located (Expr id ty)) where
-    pretty (L _ e) = pretty e
+-- Location can be ignored when pretty printing.
+instance (Pretty a) => (Pretty (Located a)) where
+  pretty (L _ x) = pretty x
 
 instance (Show id, Pretty id, Show ty, Pretty ty) => Pretty (Expr id ty) where
   pretty (Var x) = pretty x

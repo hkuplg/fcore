@@ -154,12 +154,12 @@ inferExpr e@(L loc (Var name)) = do
 
 inferExpr (L loc (Lit lit)) = return (srcLitType lit, L loc $ Lit lit)
 
-inferExpr (L loc (Lam (x1,t1) e))
+inferExpr (L loc (Lam (L loc_x1 x1, t1) e))
   = do checkType t1
        d <- getTypeContext
        let t1' = expandType d t1
        (t', e') <- withLocalVars [(x1,t1')] (inferExpr e)
-       return (Fun t1' t', L loc $ Lam (x1,t1') e')
+       return (Fun t1' t', L loc $ Lam (L loc_x1 x1, t1') e')
 
 inferExpr (L _ (App e1 e2)) =
   do (t1, e1') <- inferExpr e1
@@ -598,7 +598,7 @@ normalizeBind :: ReadBind -> Checker CheckedBind
 normalizeBind bind
   = do bind' <- checkBindLHS bind
        (bindRhsTy, bindRhs') <- withLocalConstrainedTVars (bindTyParams bind') $ -- TODO: Issue: #addconstrainttocontext
-                                  do expandedBindArgs <- mapM (\(x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindParams bind')
+                                  do expandedBindArgs <- mapM (\(L _ x,t) -> do { d <- getTypeContext; return (x,expandType d t) }) (bindParams bind')
                                      withLocalVars expandedBindArgs (inferExpr (bindRhs bind'))
        case bindRhsTyAscription bind' of
          Nothing -> return ( bindName bind'
@@ -621,7 +621,7 @@ normalizeBind bind
 checkBindLHS :: ReadBind -> Checker ReadBind
 checkBindLHS Bind{..}
   = do checkDupNames (map fst bindTyParams)
-       checkDupNames (map fst bindParams)
+       checkDupNames (map (unLoc . fst) bindParams)
        bindParams' <- withLocalConstrainedTVars bindTyParams $ -- TODO: Issue: #addconstrainttocontext
                     -- Restriction: type params have kind *
                     do d <- getTypeContext

@@ -69,7 +69,7 @@ desugar = desugarExpr (Map.empty, Map.empty)
 type TVarMap t  = Map.Map Name t
 type VarMap t e = Map.Map Name (F.Expr t e)
 
-transType :: TVarMap t -> ReadType -> F.Type t
+transType :: TVarMap t -> Type -> F.Type t
 transType d (TVar a)     = F.TVar a (fromMaybe (panic ("transType: " ++ show (TVar a))) (Map.lookup a d))
 transType _ (JClass c)   = F.JClass c
 transType d (Fun t1 t2)  = F.Fun (transType d t1) (transType d t2)
@@ -96,7 +96,7 @@ desugarExpr (d, g) = go
     go (L _ (TupleProj e i))   = F.Proj i (go e)
     go (L _ (PrimOp e1 op e2)) = F.PrimOp (go e1) op (go e2)
     go (L _ (If e1 e2 e3))     = F.If (go e1) (go e2) (go e3)
-    go (L _ (Lam (x, t) e))    = F.Lam x
+    go (L _ (Lam (L _ x, t) e)) = F.Lam x
                                  (transType d t)
                                  (\x' -> desugarExpr (d, Map.insert x (F.Var x x') g) e)
     go (L _ (BLam (a,_) e))    = F.BLam a (\a' -> desugarExpr (Map.insert a a' d, g) e)
@@ -226,7 +226,7 @@ desugarLetRecToFix (d,g) (L _ (LetOut Rec [(f,t,e)] body)) =
             addToEnv binds g0 = foldr (\(x,x') acc -> Map.insert x x' acc) g0 binds -- TODO: subsumed
             (Just (x1, t1), t2, peeled_e) = peel Nothing (unLoc e,t)
               where
-                peel Nothing (Lam param b, Fun _ ret_ty) = (Just param, ret_ty, b)
+                peel Nothing (Lam (L _ x0, t0) b, Fun _ ret_ty) = (Just (x0,t0), ret_ty, b)
                 peel _ (e,t) = prettyPanic "desugarLetRecToFix: not a function" (text (show e))
 desugarLetRecToFix _ _ = panic "desugarLetRecToFix"
 

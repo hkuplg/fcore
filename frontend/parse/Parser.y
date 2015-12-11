@@ -179,37 +179,37 @@ poormens_import :: { ReadImport }
 -- Types
 ------------------------------------------------------------------------
 
-type :: { ReadType }
+type :: { Type }
   : "forall" ctyparams "." type  { foldr Forall (Forall (unLoc $ last $2) $4) (map unLoc $ init $2) }
   | monotype                     { $1 }
 
-types :: { [ReadType] }
+types :: { [Type] }
   : {- empty -}              { [] }
   | ftype types              { $1:$2 }
 
-type_list :: { [ReadType] }
+type_list :: { [Type] }
   : "[" comma_types1 "]"     { $2 }
 
-comma_types1 :: { [ReadType] }
+comma_types1 :: { [Type] }
   : type                   { [$1]  }
   | type "," comma_types1  { $1:$3 }
 
-comma_types2 :: { [ReadType] }
+comma_types2 :: { [Type] }
   : type "," comma_types1     { $1:$3   }
 
-monotype :: { ReadType }
+monotype :: { Type }
   : intertype "->" monotype  { Fun $1 $3 }
   | intertype                { $1 }
 
-intertype :: { ReadType }
+intertype :: { Type }
   : ftype "&" intertype      { And $1 $3 }
   | ftype                    { $1 }
 
-ftype :: { ReadType }
+ftype :: { Type }
   : ftype type_list  { foldl OpApp (OpApp $1 (head $2)) (tail $2) }
   | atype            { $1 }
 
-atype :: { ReadType }
+atype :: { Type }
   : UPPER_IDENT              { TVar $ toString $1 }
   | JAVACLASS                { JClass $ toString $1 }
   | "Unit"                   { Unit }
@@ -218,7 +218,7 @@ atype :: { ReadType }
   | "(" type ")"             { $2 }
 
 -- record types
-record_type :: { ReadType }
+record_type :: { Type }
   -- TODO: desugaring might be too early. But the benefit is avoid a traversal of the type structure later.
   : "{" record_type_fields_rev "}"      { foldl (\acc (l,t) -> And acc (RecordType [(l,t)])) (RecordType [(head (reverse $2))]) (tail (reverse $2)) }
   | "{" record_type_fields_rev "," "}"  { foldl (\acc (l,t) -> And acc (RecordType [(l,t)])) (RecordType [(head (reverse $2))]) (tail (reverse $2)) }
@@ -226,11 +226,11 @@ record_type :: { ReadType }
 -- Allowing an extra "," before "}" will introduce a shift-reduce conflict;
 -- but using left-recursion will solve it. :)
 -- And Happy is more efficient at parsing left-recursive rules!
-record_type_fields_rev :: { [(Label, ReadType)] }
+record_type_fields_rev :: { [(Label, Type)] }
   : record_type_field                             { [$1]  }
   | record_type_fields_rev "," record_type_field  { $3:$1 }
 
-record_type_field :: { (Label, ReadType) }
+record_type_field :: { (Label, Type) }
   : label ":" type                                { ($1, $3) }
 
 {-------------------------------------------------------------------------------
@@ -296,7 +296,7 @@ ctyparams1 :: { [Located (Name, Maybe Type)] }
 
 expr :: { ReadExpr }
     : "/\\" ctyparams1 "->" expr          { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
-    | "\\" params1 "->" expr             { foldr (\x acc -> Lam (unLoc x) acc `withLoc` x) (Lam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
+| "\\" params1 "->" expr { foldr (\x acc -> Lam x acc `withLoc` (fst x)) (Lam (last $2) $4 `withLoc` (fst (last $2))) (init $2) }
     | "let" recflag and_binds "in"  expr { LetIn $2 $3 $5 `withLoc` $1 }
     | "type" UPPER_IDENT typaram_list_or_empty "=" type "in"  expr  { Type (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
@@ -439,7 +439,7 @@ bind :: { ReadBind }
   : bind_lhs ctyparam_list_or_empty params maybe_ty_ascription "=" expr
   { Bind { bindName       = toString $1
          , bindTyParams = map unLoc $2
-         , bindParams   = map unLoc $3
+         , bindParams   = $3
          , bindRhsTyAscription = $4
          , bindRhs      = $6
          }
@@ -468,7 +468,7 @@ modulebind :: { ReadModuleBind }
     : bind              { BindNonRec $1 }
     | "rec" and_binds   { BindRec $2 }
 
-maybe_ty_ascription :: { Maybe ReadType }
+maybe_ty_ascription :: { Maybe Type }
   : ":" type     { Just $2 }
   | {- empty -} { Nothing }
 
@@ -512,15 +512,15 @@ pat_var :: { Pattern }
     : LOWER_IDENT              { PVar (toString $1) undefined }
     | "_"                      { PWildcard }
 
-param :: { Located (Name, ReadType) }
-  : LOWER_IDENT ":" type          { (toString $1, $3) `withLoc` $1 }
+param :: { (Located Name, Type) }
+  : "(" LOWER_IDENT ":" type ")" { (toString $2 `withLoc` $2, $4) }
 
-params :: { [Located (Name, ReadType)] }
-  : {- empty -}                   { []    }
-  | "(" param ")" params          { $2:$4 }
+params :: { [(Located Name, Type)] }
+  : {- empty -}  { []    }
+  | param params { $1:$2 }
 
-params1 :: { [Located (Name, ReadType)] }
-  : "(" param ")" params          { $2:$4 }
+params1 :: { [(Located Name, Type)] }
+  : param params { $1:$2 }
 
 ------------------------------------------------------------------------
 -- Misc

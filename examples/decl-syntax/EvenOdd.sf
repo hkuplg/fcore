@@ -1,7 +1,0 @@
-import Predef
-
-def main() = println (odd 42)
-
-def even(n: Int): Int = if n == 0 then True else False
-
-def odd(n: Int): Int = if n == 0 then False else True
