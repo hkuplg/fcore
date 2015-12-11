@@ -1,7 +1,0 @@
-import Hello.World
-
-def main() = println (odd 42)
-
-def even(n: Int): Bool = if n == 0 then True else odd (n - 1)
-
-def odd(n: Int): Bool = if n == 0 then False else even (n - 1)
