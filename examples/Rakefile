@@ -5,5 +5,5 @@ end
 
 desc "Remove Java source files"
 task :clean do
-  system("rm *.java")
+  system("rm **/*$.java")
 end
