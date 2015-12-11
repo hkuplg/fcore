@@ -35,6 +35,28 @@ import Control.Monad.State
 
 %token
 
+  -- Keywords
+
+  "Unit"   { L _ Tunit }
+  "and"    { L _ Tand }
+  "case"   { L _ Tcase }
+  "data"   { L _ Tdata }
+  "def"    { L _ Tdef }
+  "else"   { L _ Telse }
+  "error"  { L _ Terror}
+  "forall" { L _ Tforall }
+  "if"     { L _ Tif }
+  "import" { L _ Timport }
+  "in"     { L _ Tin }
+  "let"    { L _ Tlet }
+  "new"    { L _ Tnew }
+  "of"     { L _ Tof }
+  "rec"    { L _ Trec }
+  "then"   { L _ Tthen }
+  "type"   { L _ Ttype }
+  "with"   { L _ Twith }
+  BOOL     { L _ (Tbool _) }
+
   "("      { L _ Toparen }
   ")"      { L _ Tcparen }
   "["      { L _ Tobrack }
@@ -45,27 +67,13 @@ import Control.Monad.State
   "\\"     { L _ Tlam }
   ":"      { L _ Tcolon }
   ";"      { L _ Tsemi }
-  "forall" { L _ Tforall }
   "->"     { L _ Tarrow }
   "."      { L _ Tdot }
   "&"      { L _ Tandtype }
   ",,"     { L _ Tmerge }
-  "with"   { L _ Twith }
-  "def"    { L _ Tdef }
-  "type"   { L _ Ttype }
-  "let"    { L _ Tlet }
-  "rec"    { L _ Trec }
-  "in"     { L _ Tin }
   "="      { L _ Teq }
-  "and"    { L _ Tand }
-  "if"     { L _ Tif }
-  "then"   { L _ Tthen }
-  "else"   { L _ Telse }
   ","      { L _ Tcomma }
-  "data"   { L _ Tdata }
-  "case"   { L _ Tcase }
   "|"      { L _ Tbar }
-  "of"     { L _ Tof }
   "_"      { L _ Tunderscore }
   "`"      { L _ Tbackquote }
   STRL     { L _ Tstrl }
@@ -79,17 +87,11 @@ import Control.Monad.State
   SYMBOL_IDENT { L _ (Tsymbolid _) }
 
   JAVACLASS { L _ (Tjavaclass _) }
-  "new"     { L _ Tnew }
-
-  "import"  { L _ Timport }
 
   INT      { L _ (Tint _) }
   SCHAR    { L _ (Tschar _) }
-  BOOL     { L _ (Tbool _) }
   CHAR     { L _ (Tchar _) }
   "()"     { L _ Tunitlit }
-  "Unit"   { L _ Tunit }
-  "error"  { L _ Terror}
   "L["     { L _ Tlistbegin}
 
   "*"      { L _ (Tprimop J.Mult)   }
@@ -295,8 +297,8 @@ ctyparams1 :: { [Located (Name, Maybe Type)] }
 ------------------------------------------------------------------------
 
 expr :: { ReadExpr }
-    : "/\\" ctyparams1 "->" expr          { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
-| "\\" params1 "->" expr { foldr (\x acc -> Lam x acc `withLoc` (fst x)) (Lam (last $2) $4 `withLoc` (fst (last $2))) (init $2) }
+    : "/\\" ctyparams1 "->" expr  { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
+    | "\\"  param_list1 "->" expr { foldr (\x acc -> Lam x acc `withLoc` (fst x)) (Lam (last $2) $4 `withLoc` (fst (last $2))) (init $2) }
     | "let" recflag and_binds "in"  expr { LetIn $2 $3 $5 `withLoc` $1 }
     | "type" UPPER_IDENT typaram_list_or_empty "=" type "in"  expr  { Type (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
@@ -436,7 +438,7 @@ record_construct_field :: { (Label, ReadExpr) }
   : label "=" expr                                          { ($1, $3) }
 
 bind :: { ReadBind }
-  : bind_lhs ctyparam_list_or_empty params maybe_ty_ascription "=" expr
+  : bind_lhs ctyparam_list_or_empty param_list maybe_ty_ascription "=" expr
   { Bind { bindName       = toString $1
          , bindTyParams = map unLoc $2
          , bindParams   = $3
@@ -512,8 +514,21 @@ pat_var :: { Pattern }
     : LOWER_IDENT              { PVar (toString $1) undefined }
     | "_"                      { PWildcard }
 
+
+param_list :: { [(Located Name, Type)] }
+  : singleton_unit_param_list { $1 }
+  | params                    { $1 }
+
+param_list1 :: { [(Located Name, Type)] }
+  : singleton_unit_param_list { $1 }
+  | params1                   { $1 }
+
 param :: { (Located Name, Type) }
   : "(" LOWER_IDENT ":" type ")" { (toString $2 `withLoc` $2, $4) }
+
+singleton_unit_param_list :: { [(Located Name, Type)] }
+  : "()"    { [("_" `withLoc` $1, Unit)] }
+  | "(" ")" { [("_" `withLoc` $1, Unit)] }
 
 params :: { [(Located Name, Type)] }
   : {- empty -}  { []    }
@@ -521,6 +536,7 @@ params :: { [(Located Name, Type)] }
 
 params1 :: { [(Located Name, Type)] }
   : param params { $1:$2 }
+
 
 ------------------------------------------------------------------------
 -- Misc

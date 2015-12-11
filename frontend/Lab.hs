@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures -fno-warn-unused-imports -fno-warn-unused-matches #-}
 
-module Test where
+module Lab where
 
 import qualified Src
 import qualified Core

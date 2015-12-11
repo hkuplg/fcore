@@ -1,6 +1,6 @@
-import Predef
+import Hello.World
 
-def main(args: List[String]) = println (odd 42)
+def main() = println (odd 42)
 
 def even(n: Nat): Bool = if n == 0 then True else odd (n - 1)
 

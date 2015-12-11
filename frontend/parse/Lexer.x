@@ -51,7 +51,7 @@ tokens :-
 
     <0, strexp> $white+ ;
     <0> "--".*      ;
-    <0> "{-"        { nested_comment }
+    <0> "{-"        { nestedComment }
     <0> \"          { start_string `andBegin` str }
     <str> (@charEscape | $printable # [\" \\] | \\\{) { save_string }
     <strexp> \}     { end_strexp `andBegin` str }
@@ -61,9 +61,7 @@ tokens :-
 
     <0, strexp>     {
 
-    -----------
     -- Keywords
-    -----------
 
     Bool        { locate (\_ _ -> Tjavaclass "java.lang.Boolean") }
     Char        { locate (\_ _ -> Tjavaclass "java.lang.Character") }
@@ -91,7 +89,6 @@ tokens :-
     then        { locate (\_ _ -> Tthen) }
     type        { locate (\_ _ -> Ttype) }
     with        { locate (\_ _ -> Twith) }
-
 
     \(          { locate (\_ _ -> Toparen) }
     \)          { locate (\_ _ -> Tcparen) }
@@ -148,22 +145,63 @@ tokens :-
     } -- end of start code scope
 
 {
-data Token = Toparen | Tcparen | Tocurly | Tccurly
-           | Ttlam | Tlam | Tcolon | Tforall | Tarrow | Tdot | Tandtype | Tmerge | Twith | Tquote | Tbackquote
-           | Tdef | Ttype | Tlet | Trec | Tin | Teq | Tand
-           | Tjavaclass String
-           | Tnew
-           | Tif | Tthen | Telse
-           | Tcomma | Tsemi
-           | Tupperid String | Tlowerid String | Tunderid Int | Tsymbolid String
-           | Tint Integer | Tbool Bool | Tchar Char | Tunitlit | Tunit
-           | Tprimop J.Op
-           | Tobrack | Tcbrack | Tdcolon
-           | Timport
-           | Tlistbegin
-           | Tdata | Tcase | Tbar | Tof | Tto | Tunderscore
-           | Teof | Tschar Char | Tstrl | Tstrr | Tstrexpl | Tstrexpr
+data Token = Tand
+           | Tandtype
+           | Tarrow
+           | Tbackquote
+           | Tbar
+           | Tbool Bool
+           | Tcase
+           | Tcbrack
+           | Tccurly
+           | Tchar Char
+           | Tcolon
+           | Tcomma
+           | Tcparen
+           | Tdata
+           | Tdcolon
+           | Tdef
+           | Tdot
+           | Telse
+           | Teof
+           | Teq
            | Terror
+           | Tforall
+           | Tif
+           | Timport
+           | Tin
+           | Tint Integer
+           | Tjavaclass String
+           | Tlam
+           | Tlet
+           | Tlistbegin
+           | Tlowerid String
+           | Tmerge
+           | Tnew
+           | Tobrack
+           | Tocurly
+           | Tof
+           | Toparen
+           | Tprimop J.Op
+           | Tquote
+           | Trec
+           | Tschar Char
+           | Tsemi
+           | Tstrexpl
+           | Tstrexpr
+           | Tstrl
+           | Tstrr
+           | Tsymbolid String
+           | Tthen
+           | Ttlam
+           | Tto
+           | Ttype
+           | Tunderid Int
+           | Tunderscore
+           | Tunit
+           | Tunitlit
+           | Tupperid String
+           | Twith
            deriving (Eq, Show)
 
 -- Modify a normal rule inside { ... } so that it returns a *located* token.
@@ -191,8 +229,8 @@ lexError s = do
                      else " at end of file"))
 
 -- Nested comment block
-nested_comment :: AlexInput -> Int -> Alex (Located Token)
-nested_comment _ _ = do
+nestedComment :: AlexInput -> Int -> Alex (Located Token)
+nestedComment _ _ = do
   input <- alexGetInput
   go 1 input
   where go 0 input = do alexSetInput input; alexMonadScan
