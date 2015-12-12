@@ -35,7 +35,7 @@ data Loc = Loc { line :: !Int, column :: !Int }
            deriving (Eq, Ord, Show)
 
 instance Pretty Loc where
-    pretty (Loc l c) = int (l - Config.lineNumberOffset) <> colon <> int c <> colon
+    pretty (Loc l c) = int l <> colon <> int c <> colon
     pretty NoLoc = empty
 
 unLoc :: Located a -> a

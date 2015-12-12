@@ -19,6 +19,3 @@ data IntersectionBias = LeftBiased | RightBiased
 -- the simplifier.
 intersectionBias :: IntersectionBias
 intersectionBias = LeftBiased
-
-lineNumberOffset :: Int
-lineNumberOffset = 24
