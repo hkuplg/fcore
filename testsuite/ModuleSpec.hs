@@ -14,7 +14,7 @@ import System.Process
 import Test.Tasty.Hspec
 
 
-testCasesPath = "testsuite/tests/shouldRun/module"
+testCasesPath = "testsuite/tests/should_run/module"
 
 moduleSpec :: Spec
 moduleSpec =

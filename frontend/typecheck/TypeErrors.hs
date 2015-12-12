@@ -1,10 +1,10 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+
 module TypeErrors where
 
 import JavaUtils
 import PrettyUtils
 import Src
-import SrcLoc
 
 import Prelude hiding ((<$>))
 import Text.PrettyPrint.ANSI.Leijen
@@ -13,12 +13,10 @@ data TypeError
   = General Doc
   | DuplicateParam Name
   | ExpectJClass
-  | IndexTooLarge
   | TypeMismatch Type Type
   | KindMismatch Kind Kind Type
   | MissingTyAscription Name
   | NotInScope Name
-  | ProjectionOfNonProduct
   | NotWellKinded Type
   | NotMember Name Type
   | NotAFunction Type
@@ -30,16 +28,6 @@ data TypeError
   | NoSuchField       (JReceiver ClassName) FieldName
   | ImportFail        ModuleName
   deriving (Show)
-
-type LTypeErrorExpr = Located (TypeError, Maybe ReadExpr)
-
--- instance Error LTypeErrorExpr where
-
-prettyTypeError :: FilePath -> LTypeErrorExpr -> Doc
-prettyTypeError filePath (L loc (err, expr)) =
-    case expr of
-      Nothing -> pretty loc <> pretty err
-      Just expr -> text filePath <> colon <> pretty loc <> pretty err <$> text "In the expression" <> colon <+> pretty expr
 
 instance Pretty TypeError where
   pretty (General doc)      = doc
@@ -82,6 +70,3 @@ instance Pretty TypeError where
     text "needs type ascription for the right-hand side"
 
   pretty e = text (show e)
-
--- instance Error TypeError where
-  -- strMsg

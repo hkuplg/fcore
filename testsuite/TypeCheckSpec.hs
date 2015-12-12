@@ -15,7 +15,7 @@ hasError (Left _)  = True
 hasError (Right _) = False
 
 
-testCasesPath = "testsuite/tests/shouldntTypecheck"
+testCasesPath = "testsuite/tests/shouldnt_typecheck"
 
 tcSpec :: Spec
 tcSpec = do

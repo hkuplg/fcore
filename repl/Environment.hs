@@ -18,7 +18,7 @@ import Src
 import Text.PrettyPrint.ANSI.Leijen
 
 type Env = [(String, Exp)]
-type Exp = (String, Src.ReadExpr)
+type Exp = (String, Src.ParsedExpr)
 
 empty :: Env
 empty = []
