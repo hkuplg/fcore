@@ -9,7 +9,7 @@ Portability :  portable
 -}
 
 
-{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, RecordWildCards, TemplateHaskell #-}
+{-# LANGUAGE DeriveDataTypeable, DeriveGeneric, RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
@@ -70,7 +70,6 @@ import qualified Data.Map as Map
 import           Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import           GHC.Generics (Generic)
-import           Language.Haskell.TH.Lift
 import qualified Language.Java.Syntax as J (Op(..))
 import           Prelude hiding ((<$>))
 import           Text.PrettyPrint.ANSI.Leijen
@@ -666,6 +665,3 @@ specializedMatrix ctr pats =
 defaultMatrix :: [[Pattern]] -> [[Pattern]]
 defaultMatrix pats =
     [tail list1 | list1 <- pats, isWildcardOrVar . head $ list1]
-
--- Make some instances of TH
-$(deriveLift ''Type)
