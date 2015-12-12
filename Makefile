@@ -9,6 +9,11 @@ all : compiler
 
 .PHONY : compiler
 compiler : runtime
+        # Must remove generated Lexer.hs and Parser.hs before `make`
+        # Otherwise Stack will choose, for example, Parser.hs instead of
+        # Parser.y, and the Parser.hs can be outdated compared to Parser.y
+	cd $(PARSERS_DIR) && make clean && cd ..
+
 	stack build --copy-bins
 
 # .PHONY : smt
