@@ -16,8 +16,8 @@ import           Data.List.Split (splitOn)
 import           System.Exit (exitFailure)
 import           Text.PrettyPrint.ANSI.Leijen hiding (line, column)
 
-makeProblem :: (FilePath, String) -> LTypeErrorExpr -> Problem
-makeProblem (filePath, source) (L loc (err, _maybeExpr))
+makeProblem :: (FilePath, String) -> Located TypeError -> Problem
+makeProblem (filePath, source) (L loc err)
   = Problem
     { problemLevel    = Error
     , problemLocation = (filePath, line loc, column loc)
@@ -32,8 +32,8 @@ source2core optDump (filePath, source)
                            exitFailure
       ParseOk parsed -> do
         when (optDump == Parsed) $ print (pretty parsed)
-        result <- checkExpr parsed
-        case result of
+        typeCheckResult <- checkExpr parsed
+        case typeCheckResult of
           Left typeError ->
             do print (prettyProblems [makeProblem (filePath, source) typeError])
                exitFailure

@@ -8,13 +8,14 @@ import           IOEnv
 import           JavaUtils
 import qualified JvmTypeQuery
 import           Src
+import           SrcLoc
 import           TypeErrors
 
 import           Control.Monad.Except
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-type Checker a = ExceptT LTypeErrorExpr (IOEnv CheckerState) a
+type Checker a = ExceptT (Located TypeError) (IOEnv CheckerState) a
 
 getCheckerState :: Checker CheckerState
 getCheckerState = lift getEnv

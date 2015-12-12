@@ -19,7 +19,7 @@ import System.Process
 import Test.Tasty.Hspec
 
 
-testCasesPath = "testsuite/tests/shouldRun"
+testCasesPath = "testsuite/tests/should_run"
 
 fetchResult :: Handle -> IO String
 fetchResult outP = do
@@ -83,4 +83,3 @@ transSpec =
               forM_ concreteCases (testConcreteSyn inP outP compilation))
 
      runIO (setCurrentDirectory curr)
-

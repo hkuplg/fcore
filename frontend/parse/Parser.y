@@ -251,9 +251,6 @@ typarams1 :: { [Located Name] }
 
 typaram_list :: { [Located Name] }
   : "[" comma_typarams1 "]"       { $2 }
-
-typaram_list_or_empty :: { [Located Name] }
-  : typaram_list                  { $1 }
   | {- empty -}                    { [] }
 
 comma_typarams1 :: { [Located Name] }
@@ -275,9 +272,6 @@ comma_ctyparams1 :: { [Located (Name, Maybe Type)] }
 
 ctyparam_list :: { [Located (Name, Maybe Type)] }
   : "[" comma_ctyparams1 "]"       { $2 }
-
-ctyparam_list_or_empty :: { [Located (Name, Maybe Type)] }
-  : ctyparam_list                  { $1 }
   | {- empty -}                    { [] }
 
 
@@ -296,38 +290,38 @@ ctyparams1 :: { [Located (Name, Maybe Type)] }
 -- Expressions
 ------------------------------------------------------------------------
 
-expr :: { ReadExpr }
+expr :: { ParsedExpr }
     : "/\\" ctyparams1 "->" expr  { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "\\"  param_list1 "->" expr { foldr (\x acc -> Lam x acc `withLoc` (fst x)) (Lam (last $2) $4 `withLoc` (fst (last $2))) (init $2) }
-    | "let" recflag and_binds "in"  expr { LetIn $2 $3 $5 `withLoc` $1 }
-    | "type" UPPER_IDENT typaram_list_or_empty "=" type "in"  expr  { Type (toString $2) (map unLoc $3) $5 $7 `withLoc` $1 }
+    | "let" recflag and_binds "in" expr { LetIn $2 $3 $5 `withLoc` $1 }
+    | "type" typebind "in" expr  { LocalType $2 $4 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
     | "data" recflag and_databinds "in" expr        { Data $2 $3 $5 `withLoc` $1 }
     | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
     | infixexpr0                          { $1 }
     | "-" fexpr %prec NEG                 { PrimOp (Lit (Int 0) `withLoc` $1) (Arith J.Sub) $2 `withLoc` $1 }
 
-semi_exprs :: { [ReadExpr] }
+semi_exprs :: { [ParsedExpr] }
            : expr                { [$1] }
            | expr ";" semi_exprs { $1:$3 }
 
-comma_exprs0 :: { [ReadExpr] }
+comma_exprs0 :: { [ParsedExpr] }
     : {- empty -}             { []    }
     | comma_exprs1            { $1    }
 
-comma_exprs1 :: { [ReadExpr] }
+comma_exprs1 :: { [ParsedExpr] }
     : expr                    { [$1]  }
     | expr "," comma_exprs1   { $1:$3 }
 
-comma_exprs2 :: { [ReadExpr] }
+comma_exprs2 :: { [ParsedExpr] }
     : expr "," expr           { [$1,$3]  }
     | expr "," comma_exprs2   { $1:$3    }
 
-infixexpr0 :: { ReadExpr }
+infixexpr0 :: { ParsedExpr }
            : infixexpr                                  { $1 }
            | infixexpr0 infix_func infixexpr            { App (App $2 $1 `withLoc` $2) $3 `withLoc` $1 }
 
-infix_func :: { ReadExpr }
+infix_func :: { ParsedExpr }
            : SYMBOL_IDENT                   { Var (toString $1) `withLoc` $1 }
            | SYMBOL_IDENT type_list         { foldl (\acc t -> TApp acc t `withLoc` acc)
                                                     (TApp (Var (toString $1) `withLoc` $1) (head $2) `withLoc` $1)
@@ -337,7 +331,7 @@ infix_func :: { ReadExpr }
                                                     (TApp (Var (toString $2) `withLoc` $2) (head $3) `withLoc` $2)
                                                     (tail $3) }
 
-infixexpr :: { ReadExpr }
+infixexpr :: { ParsedExpr }
     : infixexpr "*"  infixexpr  { PrimOp $1 (Arith J.Mult)   $3 `withLoc` $1 }
     | infixexpr "/"  infixexpr  { PrimOp $1 (Arith J.Div)    $3 `withLoc` $1 }
     | infixexpr "%"  infixexpr  { PrimOp $1 (Arith J.Rem)    $3 `withLoc` $1 }
@@ -354,13 +348,13 @@ infixexpr :: { ReadExpr }
     | infixexpr ",," infixexpr  { Merge $1 $3 `withLoc` $1 }
     | fexpr                     { $1 }
 
-fexpr :: { ReadExpr }
+fexpr :: { ParsedExpr }
     : fexpr aexpr      { App  $1 $2 `withLoc` $1 }
     | fexpr type_list  { foldl (\acc t -> TApp acc t `withLoc` acc) (TApp $1 (head $2) `withLoc` $1) (tail $2) }
     | aexpr            { $1 }
     | "error" "[" type "]" aexpr { Error $3 $5 `withLoc` $1}
 
-aexpr :: { ReadExpr }
+aexpr :: { ParsedExpr }
     : LOWER_IDENT               { Var (toString $1) `withLoc` $1 }
     | "(" SYMBOL_IDENT ")"      { Var (toString $2) `withLoc` $2 }
     | lit                       { $1 }
@@ -375,7 +369,7 @@ aexpr :: { ReadExpr }
     | "(" expr ")"              { $2 }
     | "L[" comma_exprs1 "]"     { PolyList $2 `withLoc` $1}
 
-javaexpr :: { ReadExpr }
+javaexpr :: { ParsedExpr }
     : "new" JAVACLASS "(" comma_exprs0 ")"        { JNew (toString $2) $4 `withLoc` $1 }
 
     | JAVACLASS "." LOWER_IDENT "(" comma_exprs0 ")"  { JMethod (Static $ toString $1) (toString $3) $5 undefined `withLoc` $1 }
@@ -404,18 +398,18 @@ javaexpr :: { ReadExpr }
     -- Is this possible?
     -- | aexpr "." UPPER_IDENT                    { Dot $1 $3 Nothing `withLoc` $1 }
 
-strlit :: { ReadExpr }
+strlit :: { ParsedExpr }
     : {- empty -}               { Lit (String []) `withLoc` (L (Loc 0 0) undefined) }
     | SCHAR strlit              { Lit (String (toSChar $1:unpackstr $2)) `withLoc` $1 }
 
-interp :: { ReadExpr }
+interp :: { ParsedExpr }
     : STREXPL expr STREXPR      { JMethod (Static "java.lang.String") "valueOf" [$2] undefined `withLoc` $1 }
 
-interps :: { ReadExpr }
+interps :: { ParsedExpr }
     : strlit                    { $1 }
     | strlit interp interps     { jconcat $1 (jconcat $2 $3) }
 
-lit :: { ReadExpr }
+lit :: { ParsedExpr }
     : INT                       { Lit (Int $ toInt $1)       `withLoc` $1 }
     | STRL interps STRR         { unLoc $2                   `withLoc` $1 }
     | BOOL                      { Lit (Bool $ toBool $1)     `withLoc` $1 }
@@ -423,22 +417,22 @@ lit :: { ReadExpr }
     | "()"                      { Lit UnitLit                `withLoc` $1 }
 
 -- record-construction expr
-record_construct :: { ReadExpr }
+record_construct :: { ParsedExpr }
   : "{" record_construct_fields_rev "}"                     { RecordCon (reverse $2) `withLoc` $1 }
   | "{" record_construct_fields_rev "," "}"                 { RecordCon (reverse $2) `withLoc` $1 }
 
 -- Allowing an extra "," before "}" will introduce a shift-reduce conflict;
 -- but using left-recursion will solve it. :)
 -- And Happy is more efficient at parsing left-recursive rules!
-record_construct_fields_rev :: { [(Label, ReadExpr)] }
+record_construct_fields_rev :: { [(Label, ParsedExpr)] }
   : record_construct_field                                  { [$1]  }
   | record_construct_fields_rev "," record_construct_field  { $3:$1 }
 
-record_construct_field :: { (Label, ReadExpr) }
+record_construct_field :: { (Label, ParsedExpr) }
   : label "=" expr                                          { ($1, $3) }
 
 bind :: { ReadBind }
-  : bind_lhs ctyparam_list_or_empty param_list maybe_ty_ascription "=" expr
+  : bind_lhs ctyparam_list param_list maybe_ty_ascription "=" expr
   { Bind { bindName       = toString $1
          , bindTyParams = map unLoc $2
          , bindParams   = $3
@@ -459,8 +453,11 @@ and_databinds :: { [DataBind]}
     : databind                       { [$1] }
     | databind "and" and_databinds   { $1:$3 }
 
+typebind :: { TypeBind }
+    : UPPER_IDENT typaram_list "=" type { TypeBind (toString $1) (map unLoc $2) $4 }
+
 databind :: { DataBind }
-    : UPPER_IDENT typaram_list_or_empty "=" constrs_decl { DataBind (toString $1) (map unLoc $2) $4 }
+    : UPPER_IDENT typaram_list "=" constrs_decl { DataBind (toString $1) (map unLoc $2) $4 }
 
 semi_binds :: { [ReadModuleBind] }
     : modulebind                      { [$1]  }

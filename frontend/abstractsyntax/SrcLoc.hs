@@ -42,7 +42,7 @@ unLoc :: Located a -> a
 unLoc (L _ x) = x
 
 withLoc :: b -> Located a -> Located b
-x `withLoc` (L l _) = L l x
+x `withLoc` (L loc _) = L loc x
 
 noLoc :: a -> Located a
 noLoc = L NoLoc

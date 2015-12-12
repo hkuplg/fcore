@@ -53,6 +53,12 @@ auto-save-list
 tramp
 .\#*
 
+
+# Flycheck
+##########
+flycheck*
+
+
 .hdevtools.sock
 
 *.log

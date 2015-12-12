@@ -19,13 +19,13 @@ module Src
   , Module(..), ModulePath, ReadModule, Import(..), PoorMensImport(..), ReadImport, ModuleBind(..), ReadModuleBind, Definition(..), CheckedBind
   , Kind(..)
   , Type(..)
-  , Expr(..), ReadExpr, CheckedExpr, LExpr
+  , Expr(..), ParsedExpr, CheckedExpr, LExpr
   , Constructor(..), Alt(..), Pattern(..)
   , Bind(..), ReadBind
   , RecFlag(..), Lit(..), Operator(..), UnitPossibility(..), JReceiver(..), Label
   , Name, CheckedId, PackageName
   , TypeValue(..), TypeContext, ValueContext, ModuleContext, ModuleMapInfo
-  , DataBind(..)
+  , TypeBind(..), DataBind(..)
   , liftExprToDecl
   , groupForall
   , expandType
@@ -167,11 +167,7 @@ data Expr id ty
   | RecordCon [(Label, LExpr id ty)]
   | RecordProj (LExpr id ty) Label
   | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
-  | Type -- type T A1 .. An = t in e
-      Name         -- T         -- Name of type constructor
-      [Name]       -- A1 ... An -- Type parameters
-      Type   -- t         -- RHS of the equal sign
-      (LExpr id ty) -- e         -- The rest of the expression
+  | LocalType TypeBind (LExpr id ty)
   | Data RecFlag [DataBind] (LExpr id ty)
   | Case (LExpr id ty) [Alt id ty]
   | CaseString (LExpr id ty) [Alt id ty] --pattern match on string
@@ -184,6 +180,13 @@ data Expr id ty
 type PackageName = Name
 type CheckedBind = (Name, Type, CheckedExpr)
 data Definition = Def CheckedBind | DefRec [CheckedBind] deriving (Eq, Show)
+
+-- type T[A1, ..., An] = t
+data TypeBind = TypeBind
+  { typeBindName   :: Name   -- T
+  , typeBindParams :: [Name] -- A1, ..., An
+  , typeBindRhs    :: Type   -- t
+  } deriving (Eq, Show)
 
 data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
 data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
@@ -199,7 +202,7 @@ data Pattern = PConstr Constructor [Pattern]
              deriving (Eq, Show)
 
 -- type RdrExpr = Expr Name
-type ReadExpr  = LExpr Name Type
+type ParsedExpr  = LExpr Name Type
 type CheckedExpr = LExpr CheckedId Type
 -- type TcExpr  = Expr TcId
 -- type TcBinds = [(Name, Type, Expr TcId)] -- f1 : t1 = e1 and ... and fn : tn = en
@@ -253,12 +256,12 @@ type ModuleMapInfo = (Maybe PackageName, Type, Name, Name)
 type ModuleContext = Map.Map Name ModuleMapInfo -- Sigma
 
 
-liftExprToDecl :: Name -> ReadExpr -> Declaration
+liftExprToDecl :: Name -> ParsedExpr -> Declaration
 liftExprToDecl name expr = DefDecl bind
   where
     bind = Bind { bindName     = name
                 , bindTyParams = []
-                , bindParams   = [] -- should be () as in `main()`
+                , bindParams   = [] -- TODO: should be a () as in `main()`
                 , bindRhs      = expr
                 , bindRhsTyAscription = Nothing
                 }
@@ -446,7 +449,7 @@ freeTVars (JClass {})  = Set.empty
 freeTVars Unit         = Set.empty
 freeTVars (Fun t1 t2)  = freeTVars t1 `Set.union` freeTVars t2
 freeTVars (Forall (a,Nothing) t) = Set.delete a (freeTVars t)
-freeTVars (Forall (a,Just c) t) = freeTVars c `Set.union` (Set.delete a (freeTVars t))
+freeTVars (Forall (a,Just c) t) = freeTVars c `Set.union` Set.delete a (freeTVars t)
 freeTVars (TupleType ts) = Set.unions (map freeTVars ts)
 freeTVars (RecordType fs)  = Set.unions (map (\(_l,t) -> freeTVars t) fs)
 freeTVars (And t1 t2)  = Set.union (freeTVars t1) (freeTVars t2)
