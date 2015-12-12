@@ -1,0 +1,25 @@
+-- Full object algebra example
+-- http://i.cs.hku.hk/~bruno/papers/FOPOA.pdf
+
+type ExpAlg[E] = { lit : Int -> E, add : E -> E -> E } in
+let evalAlg = { lit = \(x : Int) -> x, add = \(x : Int) (y : Int) -> x + y } in
+let printAlg = {
+lit = \(x : Int) -> x.toString(),
+add = \(x : String) (y : String) -> "\{x} + \{y}",
+sub = \(x : String) (y : String) -> "\{x} - \{y}"
+} in
+type SubExpAlg[E] = (ExpAlg[E]) & { sub : E -> E -> E } in
+let subEvalAlg = evalAlg ,, { sub = \(x : Int) (y : Int) -> x - y } in
+
+let exp1 [E] (f : ExpAlg[E])    = f.add (f.lit 6) (f.lit 6) in
+let exp2 [E] (f : SubExpAlg[E]) = f.sub (exp1 [E] f) (f.lit 2) in
+
+exp2 [Int] subEvalAlg
+-- exp2 [String] printAlg
+
+-- let merge [A, B] (alg1 : ExpAlg[A]) (alg2 : ExpAlg[B]) = {
+--   lit = \(x : Int) -> alg1.lit x ,, alg2.lit x,
+--   add = \(x : A & B) (y : A & B) -> alg1.add x y ,, alg2.add x y
+-- } in
+-- let newAlg = merge [Int, String] subEvalAlg printAlg in
+-- (\(x: String) -> x) (exp1 [Int & String] newAlg)

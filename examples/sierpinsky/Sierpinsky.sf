@@ -1,4 +1,4 @@
-let dist : Int = 8 and level = 4;
+let dist : Int = 8 and level = 4 in
 let rec
     sierpA (level : Int) : Bool =
         if level > 0 then {
@@ -50,7 +50,7 @@ and
             sierpD (level - 1);
             True
         }
-        else False;
+        else False in
 {
     lib.DrawFrame.create(level, dist);
     sierpA(level);

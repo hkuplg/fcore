@@ -1,0 +1,4 @@
+--> -70
+
+let ten : Int = 10 in
+7 * (-ten)

@@ -1,3 +1,3 @@
-let getTwo [A, B] (x : A) : A = x;
-let getThree [A, B, C] (y : B) : B = getTwo [B, C] y;
+let getTwo [A, B] (x : A) : A = x in
+let getThree [A, B, C] (y : B) : B = getTwo [B, C] y in
 getThree [Int, String, Int] "abc"

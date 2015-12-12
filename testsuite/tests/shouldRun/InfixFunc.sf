@@ -1,4 +1,0 @@
---> -4
-
-let sub (a:Int) (b:Int) : Int = a - b;
-1 `sub` 2 `sub` 3

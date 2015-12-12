@@ -1,16 +1,14 @@
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 
 import Test.Tasty
-import Test.Tasty.HUnit
+import Test.Tasty.Hspec
 
-import SrcTests
+import ModuleSpec
+import TransCFSpec (transSpec)
+import TypeCheckSpec (tcSpec)
 
-main = defaultMain tests
-
-tests :: TestTree
-tests = testGroup "Tests" [dummyTests, srcTests]
-
-dummyTests = testGroup "Dummy tests"
-  [ testCase "List comparison (different length)" $
-      [1, 2, 3] `compare` [1,2] @?= GT
-  ]
+main :: IO ()
+main = do
+  tcTests <- testSpec "Typecheck" tcSpec
+  transTests <- testSpec "Translations" transSpec
+  let tests = testGroup "fcore tests" [tcTests, transTests]
+  defaultMain tests

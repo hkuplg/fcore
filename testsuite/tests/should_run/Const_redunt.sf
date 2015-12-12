@@ -1,0 +1,6 @@
+--> 3
+
+let const = /\A -> /\B -> \ (x : A) -> \ (y : B) -> x in
+let const2 = const [Int, Bool] in
+let const3 = const2 in
+const2 3 False

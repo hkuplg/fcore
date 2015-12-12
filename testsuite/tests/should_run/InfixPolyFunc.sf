@@ -1,0 +1,4 @@
+--> 6
+
+let theSecond[A,B] (a:A) (b:B) = b in
+1 `theSecond[Int,String]` "abc" `theSecond[String,Int]` 6

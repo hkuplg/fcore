@@ -1,0 +1,141 @@
+
+
+data PList = Nil | Cons Int PList in
+
+data AbsQueue = Queue PList PList in
+
+
+{-
+------- define for set ---------------------------------------
+type Set = java.util.HashSet in
+
+let singleton(v: Int) : Set = let l = (new java.util.HashSet( )) in
+      if l.add(v)
+      then l
+      else l in
+
+let union(s1: Set) (s2: Set) : Set =
+    if s1.addAll(s2)
+    then s1
+    else s1 in
+
+--------------------------------------------------------------
+-}
+
+
+let not (b: Bool) : Bool = if b then False else True in
+
+--let rec content(l: PList) : Set =
+--    case l of
+--       Nil       -> (new java.util.HashSet( ))
+--     | Cons x xs -> union (singleton x) (content xs) in
+
+let rec size (l : PList) : Int =
+       case l of
+          Nil -> 0
+        | Cons _ xs -> 1 + size xs in
+
+let rec concat (l1: PList) (l2: PList) : PList =
+        case l1 of
+             Nil -> l2
+           | Cons x xs -> Cons x (concat xs l2) in
+
+let prop_concat (l1: PList) (l2: PList) : Bool =
+     let res = concat l1 l2 in
+     size res == size l1 + size l2 in
+    -- content res == union (content l1) (content l2) in
+
+let rec reverse (l : PList) : PList =
+        case l of
+            Nil       -> Nil
+          | Cons x xs -> concat (reverse xs) (Cons x Nil) in
+
+--let rec prop_reverse (l: PList) : Bool = content (reverse l) == content l in
+
+let asPList (q : AbsQueue) : PList =
+     case q of
+        Queue f r -> concat f (reverse r) in
+
+let isAmortized(q : AbsQueue) : Bool =
+    case q of
+       Queue f r -> size f >= size r in
+
+let isEmpty(q : AbsQueue) : Bool =
+     case q of
+       Queue l r -> (case l of
+                       Nil      -> (case r of
+                                       Nil      -> True
+                                     | Cons _ _ -> False)
+                     | Cons _ _ -> False) in
+
+
+let amortizedQueue(front : PList) (rear : PList) : AbsQueue =
+     if size rear <= size front
+      then Queue front rear
+      else Queue (concat front (reverse rear)) Nil in
+
+let prop_amortizedQueue(f : PList) (r : PList) : Bool =
+     isAmortized (amortizedQueue f r) in
+
+let enqueue (q: AbsQueue) (e: Int) : AbsQueue =
+     case q of
+        Queue f r -> amortizedQueue f (Cons e r) in
+
+let prop_aenqueue(q: AbsQueue) (e: Int) : Bool = isAmortized (enqueue q e) in
+
+let ptail(q: AbsQueue) : AbsQueue =
+     if (isAmortized q && (not (isEmpty q)))
+     then (case q of
+              Queue l r -> case l of
+                            Cons f fs -> amortizedQueue fs r
+                          | Nil       -> error [AbsQueue] "absqueue is not amortized or is empty.")
+      else error [AbsQueue] "The absqueue is not amortized or is empty." in --this should not be an error
+
+let prop_ptail (q: AbsQueue) : Bool =
+    if isAmortized q && (if isEmpty q then False else True)
+     then isAmortized (ptail q)
+     else True in
+
+let front (q : AbsQueue) : Int =
+     if  (isAmortized q && (not (isEmpty q)))
+     then case q of
+             Queue l r -> case l of
+                           Cons f _ -> f
+                         | Nil      -> error [Int] "The absqueue is not amortized or is empty."
+     else error [Int] "The absqueue is not amortized or is empty." in
+
+let prop_front (q: AbsQueue) (l: PList) (elem: Int) : Bool =
+    if isAmortized q && (if isEmpty q then False else True)
+    then if asPList q == l
+         then case l of Cons x _ -> front q == x
+                      | Nil        -> True
+         else True
+    else True in
+
+
+let prop_enqueueAndFront (q: AbsQueue) (e: Int) : Bool =
+    if isEmpty q then front (enqueue q e) == e
+                 else True in
+
+
+let prop_enqueueDequeueThrice (q: AbsQueue) (e1: Int) (e2: Int) (e3: Int) : Bool =
+   if isEmpty q
+   then let q1      = enqueue q e1 in
+        let q2      = enqueue q1 e2 in
+        let q3      = enqueue q2 e3 in
+        let e1prime = front q3 in
+        let q4      = ptail q3 in
+        let e2prime = front q4 in
+        let q5      = ptail q4 in
+        let e3prime = front q5 in
+        e1 == e1prime && e2 ==e2prime && e3 ==e3prime
+   else True in
+
+prop_concat
+--prop_reverse
+--prop_amortizedQueue
+--prop_aenqueue
+--prop_ptail
+--prop_front
+--prop_enqueueAndFront
+--prop_enqueueDequeueThrice

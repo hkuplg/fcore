@@ -1,0 +1,4 @@
+--> -4
+
+let sub (a:Int) (b:Int) : Int = a - b in
+1 `sub` 2 `sub` 3

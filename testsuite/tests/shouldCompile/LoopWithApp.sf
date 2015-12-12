@@ -1,2 +1,0 @@
-let rec loop[A] (x: A): A = loop[A] x;
-loop[String] "⊥"

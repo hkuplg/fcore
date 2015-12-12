@@ -1,5 +1,0 @@
---> 35
-
-let bob = { age = 30, name = "Bob", language = "Haskell" } with {age = 35}
-;
-(bob.name, bob.age, bob.language)._2

@@ -1,6 +1,0 @@
---> bc
-
-let getsubstr(s : String) (from : Int) (to : Int) : String =
-    s.substring(from, to)
-;
-getsubstr "abcde"  1 3

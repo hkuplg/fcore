@@ -1,0 +1,74 @@
+let rec append [T] (l1: List[T]) (l2: List[T]) : List[T] =
+       case l1 of
+          Cons h t -> Cons [T] h (append [T] t l2)
+        | Nil      -> l2 in
+
+
+let prop_append [T] (l1: List[T]) (l2: List[T]) : Bool =
+    let res = append [T] l1 l2 in
+    res == l1 || res != Nil[T] in
+
+let rec flatMap[T, U] (l : List[T]) (f: T -> List[U]) : List[U] =
+    case l of
+       Cons h t -> append [U] (f h) (flatMap [T, U] t f)
+     | Nil      -> Nil[U] in
+
+let associative_lemma[T,U,V] (l: List[T]) (f: T -> List[U]) (g: U -> List[V]) : Bool =
+   flatMap [U,V] (flatMap [T,U] l f) g == flatMap[T,V] l (\(x:T) -> flatMap[U,V] (f x) g) in
+
+let rec prop_associative_lemma_induct[T,U,V] (l: List[T]) (fl: List[U]) (gl: List[V])
+                                         (f: T -> List[U]) (g: U -> List[V]) : Bool =
+     associative_lemma[T,U,V] l f g
+  --&& ((append[V,V] gl (flatMap[U,V] (append[U,U] fl (flatMap[T,U] l f)) g)) ==
+ --   (append[V,V] (append[V,V] gl (flatMap[U,V] fl g)) (flapMap[T,V] l (\(x:T) -> faltMap[U,V] (f x) g))))
+  && (case gl of
+         Cons gh gt -> prop_associative_lemma_induct[T,U,V] l fl gt f g
+       | Nil  -> (case fl of
+                  Cons fh ft -> prop_associative_lemma_induct[T,U,V] l ft (g fh) f g
+                | Nil -> (case l of
+                          Cons h t -> prop_associative_lemma_induct[T,U,V] t (f h) (Nil[V]) f g
+                        | Nil -> True))) in
+
+
+--Property
+
+let left_unit_law[T,U] (x: T) (f: T -> List[U]) : Bool =
+     flatMap[T,U] (Cons[T] x (Nil[T])) f == f x in
+
+let right_unit_law[T] (l: List[T]) : Bool =
+    flatMap[T,T] l (\(x:T) -> Cons[T] x (Nil[T])) == l in
+
+
+let rec right_unit_induct[T,U] (l: List[T]) : Bool =
+       right_unit_law[T] l && (case l of
+                              Cons h t -> right_unit_induct[T,U] t
+                            | Nil      -> True) in
+
+let flatMap_zero_law[T,U] (f: T -> List[U]) : Bool =
+    flatMap[T,U] (Nil[T]) f == (Nil[U]) in
+
+let flatMap_to_zero_law[T] (l: List[T]) : Bool =
+    flatMap[T,T] l (\(x:T) -> (Nil[T])) == (Nil[T]) in
+
+let rec flatMap_to_zero_induct[T,U] (l: List[T]) : Bool =
+      (flatMap_to_zero_law[T] l) && (case l of
+                                     Cons h t -> flatMap_to_zero_induct[T] t
+                                   | Nil      -> True) in
+
+
+let add_zero_law[T] (l: List[T]) : Bool = (append[T] l (Nil[T])) == l in
+
+let zero_add_law[T] (l: List[T]) : Bool = (append[T] (Nil[T]) l) == l in
+
+
+
+--prop_append
+--prop_associative_lemma_induct
+--left_unit_law
+--right_unit_law
+--right_unit_induct
+--flatMap_zero_law
+--flatMap_to_zero_law
+--flatMap_to_zero_induct
+--add_zero_law
+zero_add_law

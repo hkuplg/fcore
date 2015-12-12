@@ -1,0 +1,10 @@
+--> 1
+
+data PolyList [A] = Nil | Cons A PolyList[A] in
+
+let rec _len [A] (l : PolyList[A]) : Int =
+    case l of
+        Nil         ->  0
+     |  Cons _ _xs   ->  1 + _len[A] _xs in
+
+_len[Int] (Cons [Int] 5 (Nil[Int]))

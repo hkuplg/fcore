@@ -1,5 +1,0 @@
---> I'm here!
-
-let force[A] (f : Unit -> A) = f ();
-let myThunk (dum : Unit) = "I'm here!";
-force[String] myThunk

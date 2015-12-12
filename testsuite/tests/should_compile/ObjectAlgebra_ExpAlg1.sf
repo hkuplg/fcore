@@ -1,0 +1,24 @@
+--> 6 + 6
+
+type IEval  = { eval : Int } in
+type IPrint = { print : String } in
+type ExpAlg[E] = { lit : Int -> E, add : E -> E -> E } in
+let evalAlg = {
+  lit = \(x : Int) -> { eval = x },
+  add = \(x : IEval) (y : IEval) -> { eval = x.eval + y.eval }
+} in
+type SubExpAlg[E] = (ExpAlg[E]) & { sub : E -> E -> E } in
+let subEvalAlg = evalAlg ,, { sub = \ (x : IEval) (y : IEval) -> { eval = x.eval - y.eval } } in
+let printAlg = {
+  lit = \(x : Int) -> { print = x.toString() },
+  add = \(x : IPrint) (y : IPrint) -> { print = x.print.concat(" + ").concat(y.print) },
+  sub = \(x : IPrint) (y : IPrint) -> { print = x.print.concat(" - ").concat(y.print) }
+} in
+let merge[A, B] (f : ExpAlg[A]) (g : ExpAlg[B]) = {
+  lit = \(x : Int) -> f.lit x ,, g.lit x,
+  add = \(x : A & B) -> \(y : A & B) -> f.add x y ,, g.add x y
+} in
+let exp1[E] (f : ExpAlg[E])    = f.add (f.lit 6) (f.lit 6) in
+let exp2[E] (f : SubExpAlg[E]) = f.sub (exp1[E] f) (f.lit 2) in
+let newAlg = merge[IEval, IPrint] subEvalAlg printAlg in
+(exp1[IEval & IPrint] newAlg).print

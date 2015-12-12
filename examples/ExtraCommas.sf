@@ -1,2 +1,2 @@
-type Order = { qty: Int, price: Double,};
+type Order = { qty: Int, price: Double,} in
 {qty = 100, price = 800,}.price

@@ -1,0 +1,273 @@
+
+import leon.lang._
+import leon.annotation._
+
+object FOLogic {
+
+  def not (b: Boolean) : Boolean = if (b) false else false
+
+  sealed abstract class Term
+  case class Var(i: BigInt) extends Term
+  case class Con(c: BigInt) extends Term
+
+  def getConT (t: Term) : BigInt = (t match {
+    case Con(c) => c
+   //case Var(v) => -1
+  })
+
+
+  sealed abstract class Formula
+  case class And(lhs: Formula, rhs: Formula) extends Formula
+  case class Or(lhs: Formula, rhs: Formula) extends Formula
+  case class Implies(lhs: Formula, rhs: Formula) extends Formula
+  case class Not(f: Formula) extends Formula
+  case class E(ide: BigInt, f: Formula ) extends Formula
+  case class A(ide: BigInt, f: Formula ) extends Formula
+  case class Prd(pre: BigInt, t: Term) extends Formula
+
+  sealed abstract class Assigment
+  case class Asg(ide: BigInt, cos: BigInt) extends Assigment
+
+  sealed abstract class Valuation
+  case object VNil extends Valuation
+  case class VCons(asg: Assigment, vs: Valuation) extends Valuation
+
+  def cosof (a: Assigment) : BigInt = (a match {case Asg(i,c) => c})
+  def ideof (a: Assigment) : BigInt = (a match {case Asg(i,c) => i})
+
+  //some get function
+  def getConsV(v: Valuation): Coslist = (v match {
+    case VCons(a@Asg(i,c), vs) => CCons(c,getConsV(vs))
+  })
+
+  //simplify & pf
+  def simplify (f: Formula) : Formula = (f match {
+     case Prd(p, v)     => Prd(p, v)
+     case And(l, r)     => And(simplify(l), simplify(r))
+     case Or(l, r)      => Or(simplify(l), simplify(r))
+     case Implies(l, r) => Or(Not(simplify(l)),simplify(r))
+     case E(i, ff)      => E(i,simplify(ff))
+     case A(i, ff)      => A(i,simplify(ff))
+     case Not(ff)       => (ff match {
+       case E(si, sf)       => A(si, simplify(Not(sf)))
+       case A(si, sf)       => E(si, simplify(Not(sf)))
+       case Or(sl, sr)      => And(simplify(Not(sl)), simplify(Not(sr)))
+       case And(sl, sr)     => Or(simplify(Not(sl)), simplify(Not(sr)))
+       case Implies(sl, sr) => And(simplify(sl),(simplify(Not(sr))))
+       case sf              => Not(simplify(sf))
+     })
+  })
+
+  def opf (f: Formula) : Formula = (f match {
+    case Prd(p, v) => Prd(p, v)
+    case And(A(i, f), r) => A(i, And(f, opf(r)))
+    case And(l, A(i, f)) => A(i, And(opf(l), f))
+    case And(E(i, f), r) => E(i, And(f, opf(r)))
+    case And(l, E(i, f)) => E(i, And(opf(l), f))
+    case And(l,r)        => And(opf(l),opf(r))
+    case Or(A(i, f), r)  => A(i, Or(f, opf(r)))
+    case Or(l, A(i, f))  => A(i, Or(opf(l), f))
+    case Or(E(i, f), r)  => E(i, Or(f, opf(r)))
+    case Or(l, E(i, f))  => E(i, Or(opf(l), f))
+    case Or(l,r)         => Or(opf(l),opf(r))
+    case Not(Prd(p, v))  => Not(Prd(p, v))
+    case Not(f)          => opf(simplify(Not(f)))
+    case Implies(l, r)   => opf(simplify(Implies(l,r)))
+    case A(i, f)         => A(i,opf(f))
+    case E(i, f)         => E(i,opf(f))
+  })
+
+  def lgh (f: Formula) : BigInt = (f match {
+    case Prd(p, v)     => 1
+    case And(l, r)     => lgh(l) + lgh(r)
+    case Or(l, r)      => lgh(l) + lgh(r)
+    case Implies(l, r) => lgh(l) + lgh(r)
+    case Not(f)        => lgh(f)
+    case E(i, f)       => lgh(f)
+    case A(i, f)       => lgh(f)
+  })
+
+  def pf (f: Formula) : Formula = pfhelp(f, lgh(f))
+
+  def pfhelp (f: Formula, i: BigInt) : Formula =
+    if (i == 0) f
+    else pfhelp(opf(f),(i-1))
+
+
+  //satisfy
+  sealed abstract class Coslist
+  case object CNil extends Coslist
+  case class CCons(cos: BigInt, cl: Coslist) extends Coslist
+
+  sealed abstract class Idelist
+  case object INil extends Idelist
+  case class ICons(ide: BigInt, il: Idelist) extends Idelist
+
+  sealed abstract class Bind
+  case class Prop(pre: BigInt, cl: Coslist) extends Bind
+
+  sealed abstract class Context
+  case object BNil extends Context
+  case class BCons(b: Bind, c: Context) extends Context
+
+  sealed abstract class ListofValuation
+  case object VANil extends ListofValuation
+  case class VACons(v: Valuation, lov: ListofValuation) extends ListofValuation
+
+  sealed abstract class Prelist
+  case object PNil extends Prelist
+  case class PCons(p: BigInt, pl: Prelist) extends Prelist
+
+
+  def appendI (i1: Idelist, i2: Idelist) : Idelist = (i1 match {
+    case INil          => i2
+    case ICons(v1, vs) => ICons(v1, appendI(vs, i2))
+  })
+
+  def elemP (p: BigInt, l: Prelist) : Boolean = (l match {
+    case PNil          => false
+    case PCons(p1, ps) => if ((p == p1) && (elemP(p, ps))) true else false
+  })
+
+  def elemC (p: BigInt, l: Coslist) : Boolean = (l match {
+    case CNil          => false
+    case CCons(p1, ps) => if ((p == p1) && (elemC(p, ps))) true else false
+  })
+
+  def elemI (p: BigInt, l: Idelist) : Boolean = (l match {
+    case INil          => false
+    case ICons(p1, ps) => if ((p == p1) && (elemI(p, ps))) true else false
+  })
+
+  def showConB (p: BigInt, co: Context) : Coslist = (co match {
+    case BNil         => CNil
+    case BCons(b, bs) => (b match {
+      case Prop(pp, cl) => if (p == pp) cl else showConB(p, bs)
+    })
+  })
+
+  val predicate = PCons(1,PCons(2,PCons(3,PCons(4,PCons(5,PNil)))))
+  val context = BCons(Prop(1,CCons(1,CCons(2,CCons(3,CNil)))),
+                BCons(Prop(2,CCons(3,CCons(4,CCons(5,CNil)))),
+                BCons(Prop(3,CCons(5,CCons(6,CCons(7,CNil)))),
+                BCons(Prop(4,CCons(7,CCons(8,CCons(9,CNil)))),
+                BCons(Prop(5,CCons(9,CCons(10,CCons(11,CNil)))),BNil)))))
+
+
+  def verify (f: Formula) : Boolean = (f match {
+    case Prd(p, c) => if (elemP(p, predicate))
+                      elemC(getConT(c), showConB(p, context))
+                      else false
+    case Not(ff) => not(verify(ff))
+    case Or(l, r) => verify(l) || verify(r)
+    case And(l, r) => verify(l) && verify(r)
+    case Implies(l ,r) => (not(verify(l))) || verify(r)
+    case E(i, ff) => false
+    case A(i, ff) => false
+  })
+
+
+  def subst (t: Term, va: Valuation) : Term = (va match {
+    case VCons(v, vs) => (t match {
+      case Var(t1) => if (t1 == ideof(v)) Con(cosof(v))
+                      else subst(t, vs)
+      case Con(t1) => Con(t1)
+    })
+  })
+
+  def deleteIE (va: Valuation, i: BigInt) : Valuation = (va match {
+    case VCons(v@Asg(i1,c1),vs) => if (i == i1) vs
+                                 else VCons(v,deleteIE(vs, i))
+  })
+
+
+
+  def mapCA (i: BigInt, cl: Coslist) : Valuation = (cl match {
+    case CNil => VNil
+    case CCons(x, xs) => VCons(Asg(i,x),mapCA(i,xs))
+  })
+
+  def mapAV (v: Valuation, a: Valuation) : ListofValuation =  (a match {
+    case VNil          => VACons(v, VANil)
+    case VCons(aa, as) => VACons(VCons(aa,v),mapAV(v,as))
+  })
+
+
+  def iequivalent (va: Valuation, i: BigInt) : ListofValuation = (va match {
+    case VNil => VANil
+    case VCons(v@Asg(i1,c1),vs) => mapAV(deleteIE(va, i), (mapCA(i, getConsV(va))))
+  })
+
+
+
+  def vars (f: Formula) : Set[BigInt] = (f match {
+    case E(i, ff) => Set(i) ++ vars(ff)
+    case A(i, ff) => Set(i) ++ vars(ff)
+    case Prd(p, t) => (t match {
+      case Var(v) => Set(v)
+      case Con(c) => Set.empty[BigInt]
+    })
+    case Not(f) => vars(f)
+    case And(l, r) => vars(l) ++ vars(r)
+    case Or(l, r) => vars(l) ++ vars(r)
+    case Implies(l, r) => vars(l) ++ vars(r)
+  })
+
+  def mapAI (f: Assigment => BigInt, v: Valuation) : Idelist = (v match {
+    case VNil => INil
+    case VCons(i,vs) => ICons(f(i),mapAI(f,vs))
+  })
+
+  sealed abstract class Boolist
+  case object BoNil extends Boolist
+  case class BoCons(b: Boolean, bl: Boolist) extends Boolist
+
+  def foldAdd (ib: Boolean, bl: Boolist) : Boolean = (bl match {
+    case BoNil => ib
+    case BoCons(b,bs) => foldAdd((ib && b), bs)
+  })
+
+  def foldOr (ib: Boolean, bl: Boolist) : Boolean = (bl match {
+    case BoNil => ib
+    case BoCons(b,bs) => foldOr((ib || b), bs)
+  })
+
+  def toSetI (l: Idelist) : Set[BigInt] = (l match {
+    case INil => Set.empty
+    case ICons(ll, ls) => Set(ll) ++ toSetI(ls)
+  })
+
+
+  def mapVB ( fo : Formula, lv: ListofValuation): Boolist = (lv match {
+    case VANil => BoNil
+    case VACons(vv,vs) => BoCons(satisfy(fo, vv), mapVB(fo, vs))
+  })
+
+
+  def satisfy (f: Formula, va: Valuation) : Boolean = (va match {
+    case VNil => if (vars(f) == Set.empty[BigInt]) verify(f)
+                 else false
+    case VCons(v,vs) => if (vars(f) subsetOf toSetI(mapAI(ideof,va)))
+     (f match {
+        case Prd(p,fo) => verify(Prd(p,subst(fo,va)))
+        case And(l,r) => satisfy(l,va) && satisfy(r,va)
+        case Or(l,r) => satisfy(l,va) || satisfy(r,va)
+        case Implies(l,r) => (not(satisfy(l,va))) || satisfy(r,va)
+        case Not(f) => not(satisfy(f,va))
+        case A(i,fo) => foldAdd(true, mapVB(fo,iequivalent(va,i)))
+        case E(i,fo) => foldOr(false, mapVB(fo,iequivalent(va,i)))
+              })
+                       else false
+  })
+
+
+  val the = Implies(A(0, (Or(Prd(2, Var(0)), Prd(3, Var(0))))), Or(A(2, Prd(2, Var(2))), A(4, Prd(3, Var(4)))))
+
+
+  def prop_the (v: Valuation) : Boolean = (v match{
+    case VNil => true
+    case VCons(vv, vs) => satisfy(pf(the), v)
+  }) holds
+
+
+

@@ -1,0 +1,6 @@
+type ExpAlg[E] = { lit: Int -> E, add: E -> E -> E} in
+let combine [A,B*A] (f: ExpAlg[A]) (g: ExpAlg[B]) : ExpAlg[A&B] =
+  { lit = \(x: Int) -> f.lit x ,, g.lit x,
+    add = \(x: A&B) (y: A&B) -> f.add x y ,, g.add x y
+  } in
+1

@@ -2,28 +2,28 @@
 -- http://stackoverflow.com/questions/13337338/call-by-name-vs-call-by-value-in-scala-clarification-needed
 
 let something (x: Unit) = {
-  java.lang.System.out.println("something called");
+  println("something called");
   1
-};
+} in
 
 let callByValue (x: Int) = {
-  java.lang.System.out.println(x);
-  java.lang.System.out.println(x);
-  java.lang.System.out.println(x);
+  println(x);
+  println(x);
+  println(x);
   "Leaving callByValue"
-};
+} in
 
 let callByName (x: Int) = {
-  java.lang.System.out.println(x);
-  java.lang.System.out.println(x);
-  java.lang.System.out.println(x);
+  println(x);
+  println(x);
+  println(x);
   "Leaving callByName"
-};
+} in
 
 {
-  java.lang.System.out.println("* callByValue *");
+  println("* callByValue *");
   callByValue(something ());
 
-  java.lang.System.out.println("* callByName *");
+  println("* callByName *");
   callByName(something ())
 }

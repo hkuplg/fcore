@@ -1,0 +1,6 @@
+--> 1
+data P [A,B] = P A B in
+let fst[A,B] (pair: P[B,A]): B =
+    case pair of
+      P x y -> x in
+fst[Char,Int] (P[Int,Char] 1 'a')

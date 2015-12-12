@@ -1,3 +1,0 @@
-type IntBumper = Int -> Int
-let rec loop: IntBumper = \(x: Int) -> loop x;
-1

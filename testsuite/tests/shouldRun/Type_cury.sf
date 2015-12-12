@@ -1,6 +1,0 @@
---> 3
-
-let const [A, B] (x : A) (y : B) : A = x;
-let const2 = const [Int];
-let const3 = const2 [Bool];
-const3 3 False

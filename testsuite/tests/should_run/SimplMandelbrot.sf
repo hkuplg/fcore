@@ -1,0 +1,8 @@
+--> 1
+
+let rec
+  foo (c : Int) : Int = 1
+and
+  bar (f : Int -> Int -> Int) (x : Int) (y : Int) : Int = bar f x y
+in
+1

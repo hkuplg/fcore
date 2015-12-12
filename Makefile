@@ -1,46 +1,50 @@
 # General project-wide tasks
 
-srcdir=lib
-testdir=testsuite
+PARSERS_DIR := frontend/parse
+TEST_DIR := testsuite
+FLAGS := -m naive
+
+
+all : compiler
 
 .PHONY : compiler
-compiler : dependencies runtime
-	$${CABAL=cabal}  install
+compiler : runtime
+	stack build --copy-bins
 
-.PHONY : smt
-smt : dependencies runtime
-	$${CABAL=cabal}  install -f Z3
+# .PHONY : smt
+# smt : runtime dependencies
+# 	$${CABAL=cabal}  install -f Z3
 
 .PHONY : test
-test : dependencies runtime
-	$${CABAL=cabal} configure --enable-tests && $${CABAL=cabal} build && $${CABAL=cabal} test
+test : whitespace_test runtime
+	stack build fcore --test
 
-.PHONY : test2
-test2 : dependencies runtime
-	make parsers
-	runhaskell -i$(srcdir):lib/typeCheck:lib/simplify $(testdir)/FileLoad.hs
+.PHONY : whitespace_test
+whitespace_test :
+	ruby $(TEST_DIR)/whitespace_check.rb
 
-.PHONY : dependencies
-dependencies : 
-	$${CABAL=cabal} install --only-dependencies --enable-tests
+# .PHONY : dependencies
+# dependencies :
+# 	stack --no-terminal build --only-snapshot
 
 .PHONY : runtime
 runtime :
-	cd runtime && ant && cd ..
+	cd runtime && ant
 
 .PHONY : parsers
 parsers :
-	cd $(srcdir) && make && cd ..
+	cd $(PARSERS_DIR) && make
 
-.PHONY : guard
-guard :
-	cabal install hspec
-	gem install guard-haskell
+# .PHONY : guard
+# guard :
+# 	cabal install hspec
+# 	gem install guard-haskell
 
 .PHONY : clean
 clean :
 	rm -rf dist
 	rm -f *.class *.jar Main.java
-	rm -f $(testdir)/tests/run-pass/*.java
-	cd lib; make clean
-	cd runtime; ant clean
+	rm -f $(TEST_DIR)/tests/run-pass/*.java
+	stack clean
+	cd $(PARSERS_DIR) && make clean
+	cd runtime && ant clean

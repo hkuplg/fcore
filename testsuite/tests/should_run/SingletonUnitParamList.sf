@@ -1,0 +1,4 @@
+--> hello
+
+let greet() = \() -> "hello" in
+greet()()

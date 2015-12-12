@@ -1,0 +1,123 @@
+data BTree = Leaf | Node Int BTree BTree in
+data Lst = Nil | Cons Int Lst in
+
+let not (b: Bool): Bool = if b then False else True in
+let null (xs: Lst): Bool =
+    case xs of
+         Cons _ _ -> False
+       | Nil -> True in
+let rec foldr[A] (f: Int -> A -> A) (acc: A) (xs: Lst): A =
+    case xs of
+         Nil -> acc
+       | Cons x xs' -> f x (foldr[A] f acc xs') in
+let maximal = foldr[Int] (\(x: Int) (y: Int) -> if x > y then x else y) 0 in
+let minimal = foldr[Int] (\(x: Int) (y: Int) -> if x < y then x else y) 0 in
+let all [A] (f: Int -> Bool) =
+    foldr[Bool] (\(x: Int) (acc: Bool) -> f x && acc) True in
+let isLeaf (t: BTree) =
+    case t of
+        Leaf -> True
+      | Node _ _ _ -> False in
+let rec append (xs: Lst) (ys: Lst): Lst =
+    case xs of
+        Nil -> ys
+      | Cons x xs' -> Cons x (xs' `append` ys) in
+let rec toList (t: BTree): Lst =
+    case t of
+        Leaf -> Nil
+      | Node i l r -> toList l `append` (Cons i Nil) `append` toList r in
+let max (a: Int) (b: Int): Int = if a > b then a else b in
+let rec height (t: BTree): Int =
+    case t of
+        Leaf -> 0
+      | Node _ l r -> 1 + height l `max` height r in
+let balanceFactor (t: BTree): Int =
+    case t of
+        Leaf -> 0
+      | Node _ l r -> height l - height r in
+let rotateLL (t: BTree): BTree =
+    case t of
+        Leaf -> t
+      | Node i l r -> (case l of
+                           Leaf -> t
+                         | Node i' l' r' -> Node i' l' (Node i r' r)) in
+let rotateRR (t: BTree): BTree =
+    case t of
+        Leaf -> t
+      | Node i l r -> (case r of
+                           Leaf -> t
+                         | Node i' l' r' -> Node i' (Node i l l') r') in
+
+let rotateLR (t: BTree): BTree =
+    case t of
+        Leaf -> t
+      | Node i l r -> (case l of
+                           Leaf -> t
+                         | Node i' l' r' -> (case r of
+                                                Leaf -> t
+                                              | Node i'' l'' r'' -> Node i'' (Node i' l' l'') (Node i r'' r))) in
+let rotateRL (t: BTree): BTree =
+    case t of
+        Leaf -> t
+      | Node i l r -> (case r of
+                           Leaf -> t
+                         | Node i' l' r' -> (case l of
+                                                Leaf -> t
+                                              | Node i'' l'' r'' -> Node i'' (Node i l' l'') (Node i r'' r'))) in
+let balance (t: BTree): BTree =
+    case t of
+        Leaf -> Leaf
+      | Node _ l r ->
+          let diff = balanceFactor t in
+          if diff > 1
+          then if balanceFactor l > 0
+               then rotateLL t
+               else rotateLR t
+          else if diff < (-1)
+               then if balanceFactor r < 0
+                    then rotateRR t
+                    else rotateRL t
+          else t in
+let rec insert (t: BTree) (i: Int): BTree =
+    case t of
+         Leaf -> Node i Leaf Leaf
+       | Node v l r -> if i > v
+                       then balance (Node v l (insert r i))
+                       else if i < v
+                            then balance (Node v (insert l i) r)
+                            else t in
+let rec rightMost (t: BTree): Int =
+    case t of
+        Leaf -> 0
+      | Node i _ r -> if isLeaf r
+                      then i
+                      else rightMost r in
+let leftMost (t: BTree): Int =
+    case t of
+        Leaf -> 0
+      | Node i l _ -> if isLeaf l
+                      then i
+                      else rightMost l in
+let rec fromList (xs: Lst): BTree =
+    case xs of
+         Nil -> Leaf
+       | Cons x xs' -> insert (fromList xs') x in
+let rec prop_balance (t: BTree): Bool =
+    case t of
+        Leaf -> True
+      | Node _ l r -> case l of
+                           Leaf -> (case r of
+                                        Leaf -> True
+                                      | Node _ l' r' -> isLeaf l' && isLeaf r')
+                         | Node _ l' r' -> (case r of
+                                                Leaf -> isLeaf l' && isLeaf r'
+                                              | Node _ _ _ -> prop_balance l && prop_balance r) in
+let prop (xs: Lst) : Bool =
+    prop_balance (fromList xs) in
+let prop_rightMost (xs: Lst) =
+    if not (null xs) && all (\(x: Int) -> x > 0) xs -- premise: not null and postive
+    then if rightMost (fromList xs) == maximal xs -- should be maximal
+         then True
+         else False
+    else True in
+prop_rightMost

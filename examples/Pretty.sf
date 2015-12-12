@@ -3,12 +3,12 @@ type Doc[A] = {
   concat : A -> A -> A,
   nil    : A,
   text   : String -> A
-};
+} in
 let printAlg: Doc[String] = {
   concat = \(x: String) (y: String) -> x.concat(y),
   nil    = "",
   text   = \(x: String) -> x
-};
-let parens [A] (f: Doc[A]) (doc: A) = f.concat (f.concat (f.text "(") doc) (f.text ")");
-let hello [A] (f: Doc[A]) = f.concat (f.text "Hello") (f.text ", world!");
+} in
+let parens [A] (f: Doc[A]) (doc: A) = f.concat (f.concat (f.text "(") doc) (f.text ")") in
+let hello [A] (f: Doc[A]) = f.concat (f.text "Hello") (f.text ", world!") in
 parens [String] printAlg (hello [String] printAlg) -- "(Hello, world)"

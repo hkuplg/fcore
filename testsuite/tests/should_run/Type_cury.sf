@@ -1,0 +1,6 @@
+--> 3
+
+let const [A, B] (x : A) (y : B) : A = x in
+let const2 = const [Int] in
+let const3 = const2 [Bool] in
+const3 3 False

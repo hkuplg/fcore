@@ -1,0 +1,503 @@
+let not (b: Bool) : Bool = if b then False else True in
+
+type Pre = Int in
+type Ide = Int in
+type Cos = Int in
+
+data Term = Var Ide | Con Cos in
+
+let getConT(c: Term) : Cos = case c of
+                              Con cos -> cos
+                            | Var ide -> 0 in --uh..
+
+
+data FOrmula = Prd Int Term
+               | And FOrmula FOrmula
+               | Or FOrmula FOrmula
+               | Implies FOrmula FOrmula
+               | Not FOrmula
+               | E Ide FOrmula
+               | A Ide FOrmula  in
+
+
+data Assigment = Asg Ide Cos in
+data Valuation = VNil | VCons Assigment Valuation  in
+
+data Coslist = CNil | CCons Cos Coslist in
+data Idelist = INil | ICons Ide Idelist in
+data Prelist = PNil | PCons Pre Prelist in
+data Boolist = BoNil | BoCons Bool Boolist in
+data Bind = Prop Pre Coslist in
+data Context = BNil | BCons Bind Context in
+data ListofValuation = VANil | VACons Valuation ListofValuation in
+
+
+let predicate = PCons 1 (PCons 2 (PCons 3 (PCons 4 (PCons 5 (PCons 6
+               (PCons 7 (PCons 8 (PCons 9 (PCons 10 (PCons 11 (PCons 12 PNil))))))))))) in
+let context = BCons (Prop 1 (CCons 12 (CCons 24 (CCons 36 CNil))))
+             (BCons (Prop 2 (CCons 1 (CCons 13 (CCons 25 CNil))))
+             (BCons (Prop 3 (CCons 2 (CCons 14 (CCons 26 CNil))))
+             (BCons (Prop 4 (CCons 3 (CCons 15 (CCons 27 CNil))))
+             (BCons (Prop 5 (CCons 4 (CCons 16 (CCons 28 CNil))))
+             (BCons (Prop 6 (CCons 5 (CCons 17 (CCons 29 CNil))))
+             (BCons (Prop 7 (CCons 6 (CCons 18 (CCons 30 CNil))))
+             (BCons (Prop 8 (CCons 7 (CCons 19 (CCons 31 CNil))))
+             (BCons (Prop 9 (CCons 8 (CCons 20 (CCons 32 CNil))))
+             (BCons (Prop 10 (CCons 9 (CCons 21 (CCons 33 CNil))))
+             (BCons (Prop 11 (CCons 10 (CCons 22 (CCons 34 CNil))))
+             (BCons (Prop 12 (CCons 11 (CCons 23 (CCons 35 CNil)))) BNil))))))))))) in
+
+
+----some get funtion of the datatype
+
+let rec getConsV (v: Valuation) : Coslist =
+    case v of
+      VNil       -> CNil
+    | VCons a vs -> (case a of Asg i c -> CCons c (getConsV vs)) in
+
+let rec getIdesV (v: Valuation) : Idelist =
+    case v of
+      VNil       -> INil
+    | VCons a vs -> (case a of Asg i c -> ICons i (getIdesV vs)) in
+
+let getCosA (a : Assigment): Cos = case a of Asg i c -> c in
+let getIdeA (a : Assigment): Ide = case a of Asg i c -> i in
+
+----------------------------------------
+
+
+-----------------------------define equal --------------------------------
+let tequal (t1: Term) (t2: Term) : Bool =
+    case t1 of
+        Var i1 -> (case t2 of
+                      Var i2 -> i1 == i2
+                    | Con _  -> False)
+      | Con c1 -> (case t2 of
+                      Con c2 -> c1 == c2
+                    | Var _  -> False) in
+
+
+let rec fequal (f1: FOrmula) (f2: FOrmula) : Bool =
+      case f1 of
+          Prd i1 t1 -> (case f2 of
+                          Prd i2 t2   -> i1 == i2 && tequal t1 t2
+                        | And _ _     -> False
+                        | Or _ _      -> False
+                        | Implies _ _ -> False
+                        | Not _       -> False
+                        | E _ _       -> False
+                        | A _ _       -> False)
+        | And l1 r1 -> (case f2 of
+                          And l2 r2   -> fequal l1 l2 && fequal r1 r2
+                        | Prd _ _     -> False
+                        | Or _ _      -> False
+                        | Implies _ _ -> False
+                        | Not _       -> False
+                        | E _ _       -> False
+                        | A _ _       -> False)
+        | Or l1 r1 -> (case f2 of
+                          Or l2 r2    -> fequal l1 l2 && fequal r1 r2
+                        | Prd _ _     -> False
+                        | And _ _     -> False
+                        | Implies _ _ -> False
+                        | Not _       -> False
+                        | E _ _       -> False
+                        | A _ _       -> False)
+        | Implies l1 r1 -> (case f2 of
+                          Implies l2 r2 -> fequal l1 l2 && fequal r1 r2
+                        | Prd _ _       -> False
+                        | And _ _       -> False
+                        | Or _ _        -> False
+                        | Not _         -> False
+                        | E _ _         -> False
+                        | A _ _         -> False)
+        | Not n1 -> (case f2 of
+                          Not n2      -> fequal n1 n2
+                        | Prd _ _     -> False
+                        | And _ _     -> False
+                        | Or _ _      -> False
+                        | Implies _ _ -> False
+                        | E _ _       -> False
+                        | A _ _       -> False)
+        | E i1 e1 -> (case f2 of
+                          E i2 e2     -> i1 == i2 && fequal e1 e2
+                        | Prd _ _     -> False
+                        | And _ _     -> False
+                        | Or _ _      -> False
+                        | Implies _ _ -> False
+                        | Not _       -> False
+                        | A _ _       -> False)
+        | A i1 e1 -> (case f2 of
+                          A i2 e2     -> i1 == i2 && fequal e1 e2
+                        | Prd _ _     -> False
+                        | And _ _     -> False
+                        | Or _ _      -> False
+                        | Implies _ _ -> False
+                        | Not _       -> False
+                        | E _ _       -> False) in
+
+let aequal (a1: Assigment) (a2: Assigment) : Bool =
+    case a1 of
+       Asg i1 c1 -> (case a2 of
+                       Asg i2 c2 -> (i1 == i2) && (c1 == c2)) in
+
+
+let rec vequal (v1: Valuation) (v2: Valuation) : Bool =
+    case v1 of
+      VNil -> (case v2 of
+                 VNil -> True
+               | VCons b1 b2 -> False)
+    | VCons a1 a2 -> (case v2 of
+                        VNil -> False
+                      | VCons b1 b2 -> (aequal a1 b1) && (vequal a2 b2) ) in
+
+
+---------------------------------------------------------------------------
+
+
+--------------------------- pf --------------------------------------------
+
+let rec simplify (f: FOrmula): FOrmula =
+      case f of
+        Prd p v     -> Prd p v
+      | And l r     -> And (simplify l) (simplify r)
+      | Or l r      -> Or (simplify l) (simplify r)
+      | Implies l r -> Or (Not (simplify l)) (simplify r)
+      | E i f       -> E i (simplify f)
+      | A i f       -> A i (simplify f)
+      | Not sf      -> (case sf of
+                          E i ssf       -> A i (simplify (Not ssf))
+                        | A i ssf       -> E i (simplify (Not ssf))
+                        | And sl sr     -> Or (simplify (Not sl)) (simplify (Not sr))
+                        | Or sl sr      -> And (simplify (Not sl)) (simplify (Not sr))
+                        | Implies sl sr -> And (simplify sl) (simplify (Not sr))
+                        | Not ssf       -> simplify ssf
+                        | Prd sp sv     -> f) in
+
+let rec opf (f: FOrmula): FOrmula =  ----one step of prenex formula manipulation
+     case f of
+        Prd p v  -> Prd p v
+      | A i sf   -> A i (opf sf)
+      | E i sf   -> E i (opf sf)
+      | Implies l r -> opf (simplify (Implies l r))
+      | Not sf   -> (case sf of
+                       Prd p v     -> f
+                     | Not ssf     -> opf (simplify f)
+                     | Or l r      -> opf (simplify f)
+                     | And l r     -> opf (simplify f)
+                     | Implies l r -> opf (simplify f)
+                     | E i ssf     -> opf (simplify f)
+                     | A i ssf     -> opf (simplify f))
+      | And l r -> (case l of
+                       Prd p v       -> (case r of
+                                            Prd p v       -> And (opf l) (opf r)
+                                          | Or ll rr      -> And (opf l) (opf r)
+                                          | And ll rr     -> And (opf l) (opf r)
+                                          | Implies ll rr -> And (opf l) (opf r)
+                                          | Not ff        -> And (opf l) (opf r)
+                                          | E ii ssf      -> E ii (And (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (And (opf l) (opf ssf)))
+                     | Not sf        -> (case r of
+                                            Prd p v       -> And (opf l) (opf r)
+                                          | Or ll rr      -> And (opf l) (opf r)
+                                          | And ll rr     -> And (opf l) (opf r)
+                                          | Implies ll rr -> And (opf l) (opf r)
+                                          | Not ff        -> And (opf l) (opf r)
+                                          | E ii ssf      -> E ii (And (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (And (opf l) (opf ssf)))
+                     | And ll rr     -> (case r of
+                                            Prd p v       -> And (opf l) (opf r)
+                                          | Or ll rr      -> And (opf l) (opf r)
+                                          | And ll rr     -> And (opf l) (opf r)
+                                          | Implies ll rr -> And (opf l) (opf r)
+                                          | Not ff        -> And (opf l) (opf r)
+                                          | E ii ssf      -> E ii (And (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (And (opf l) (opf ssf)))
+                     | Or ll rr      -> (case r of
+                                            Prd p v       -> And (opf l) (opf r)
+                                          | Or ll rr      -> And (opf l) (opf r)
+                                          | And ll rr     -> And (opf l) (opf r)
+                                          | Implies ll rr -> And (opf l) (opf r)
+                                          | Not ff        -> And (opf l) (opf r)
+                                          | E ii ssf      -> E ii (And (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (And (opf l) (opf ssf)))
+                     | Implies ll rr -> (case r of
+                                            Prd p v       -> And (opf l) (opf r)
+                                          | Or ll rr      -> And (opf l) (opf r)
+                                          | And ll rr     -> And (opf l) (opf r)
+                                          | Implies ll rr -> And (opf l) (opf r)
+                                          | Not ff        -> And (opf l) (opf r)
+                                          | E ii ssf      -> E ii (And (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (And (opf l) (opf ssf)))
+                     | A i sf -> (case r of
+                                    Prd p v       -> A i (And sf (opf r))
+                                  | Or ll rr      -> A i (And sf (opf r))
+                                  | And ll rr     -> A i (And sf (opf r))
+                                  | Implies ll rr -> A i (And sf (opf r))
+                                  | Not ff        -> A i (And sf (opf r))
+                                  | E ii ssf      -> A i (E ii (And (opf sf) (opf ssf)))
+                                  | A ii ssf      -> A i (A ii (And (opf sf) (opf ssf))))
+                     | E i sf -> (case r of
+                                    Prd p v       -> E i (And sf (opf r))
+                                  | Or ll rr      -> E i (And sf (opf r))
+                                  | And ll rr     -> E i (And sf (opf r))
+                                  | Implies ll rr -> E i (And sf (opf r))
+                                  | Not ff        -> E i (And sf (opf r))
+                                  | E ii ssf      -> E i (E ii (And (opf sf) (opf ssf)))
+                                  | A ii ssf      -> E i (A ii (And (opf sf) (opf ssf)))))
+      | Or l r -> (case l of
+                       Prd p v       -> (case r of
+                                            Prd p v       -> Or (opf l) (opf r)
+                                          | Or ll rr      -> Or (opf l) (opf r)
+                                          | And ll rr     -> Or (opf l) (opf r)
+                                          | Implies ll rr -> Or (opf l) (opf r)
+                                          | Not ff        -> Or (opf l) (opf r)
+                                          | E ii ssf      -> E ii (Or (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (Or (opf l) (opf ssf)))
+                     | Not sf        -> (case r of
+                                            Prd p v       -> Or (opf l) (opf r)
+                                          | Or ll rr      -> Or (opf l) (opf r)
+                                          | And ll rr     -> Or (opf l) (opf r)
+                                          | Implies ll rr -> Or (opf l) (opf r)
+                                          | Not ff        -> Or (opf l) (opf r)
+                                          | E ii ssf      -> E ii (Or (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (Or (opf l) (opf ssf)))
+                     | And ll rr     -> (case r of
+                                            Prd p v       -> Or (opf l) (opf r)
+                                          | Or ll rr      -> Or (opf l) (opf r)
+                                          | And ll rr     -> Or (opf l) (opf r)
+                                          | Implies ll rr -> Or (opf l) (opf r)
+                                          | Not ff        -> Or (opf l) (opf r)
+                                          | E ii ssf      -> E ii (Or (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (Or (opf l) (opf ssf)))
+                     | Or ll rr      -> (case r of
+                                            Prd p v       -> Or (opf l) (opf r)
+                                          | Or ll rr      -> Or (opf l) (opf r)
+                                          | And ll rr     -> Or (opf l) (opf r)
+                                          | Implies ll rr -> Or (opf l) (opf r)
+                                          | Not ff        -> Or (opf l) (opf r)
+                                          | E ii ssf      -> E ii (Or (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (Or (opf l) (opf ssf)))
+                     | Implies ll rr -> (case r of
+                                            Prd p v       -> Or (opf l) (opf r)
+                                          | Or ll rr      -> Or (opf l) (opf r)
+                                          | And ll rr     -> Or (opf l) (opf r)
+                                          | Implies ll rr -> Or (opf l) (opf r)
+                                          | Not ff        -> Or (opf l) (opf r)
+                                          | E ii ssf      -> E ii (Or (opf l) (opf ssf))
+                                          | A ii ssf      -> A ii (Or (opf l) (opf ssf)))
+                     | A i sf -> (case r of
+                                    Prd p v       -> A i (Or sf (opf r))
+                                  | Or ll rr      -> A i (Or sf (opf r))
+                                  | And ll rr     -> A i (Or sf (opf r))
+                                  | Implies ll rr -> A i (Or sf (opf r))
+                                  | Not ff        -> A i (Or sf (opf r))
+                                  | E ii ssf      -> A i (E ii (Or (opf sf) (opf ssf)))
+                                  | A ii ssf      -> A i (A ii (Or (opf sf) (opf ssf))))
+                     | E i sf -> (case r of
+                                    Prd p v       -> E i (Or sf (opf r))
+                                  | Or ll rr      -> E i (Or sf (opf r))
+                                  | And ll rr     -> E i (Or sf (opf r))
+                                  | Implies ll rr -> E i (Or sf (opf r))
+                                  | Not ff        -> E i (Or sf (opf r))
+                                  | E ii ssf      -> E i (E ii (Or (opf sf) (opf ssf)))
+                                  | A ii ssf      -> E i (A ii (Or (opf sf) (opf ssf))))) in
+
+
+let rec lgh (f: FOrmula) : Int = --somehow like the lenght of a formula
+       case f of
+           Prd p v -> 1
+         | And l r -> (lgh l) + (lgh r)
+         | Or l r  -> (lgh l) + (lgh r)
+         | Implies l r -> (lgh l) + (lgh r)
+         | Not ff -> lgh ff
+         | E i ff -> lgh ff
+         | A i ff -> lgh ff in
+
+let rec pfhelper (f: FOrmula) (i: Int) : FOrmula =
+      if i == 0 then f
+                else pfhelper (opf f) (i - 1) in
+
+let pf (f: FOrmula) : FOrmula = pfhelper f (lgh f) in
+
+-----------------------------------------------------------------------------
+
+
+
+----------------------------satisfy------------------------------------------
+
+-----------some help function: "append" or "elem" of the list
+let rec appendI (i1: Idelist) (i2: Idelist) : Idelist =
+        case i1 of
+          INil -> i2
+        | ICons v1 vs -> ICons v1 (appendI vs i2) in
+
+let rec elemP (p: Pre) (l: Prelist) : Bool =
+    case l of
+       PNil -> False
+     | PCons p1 ps -> if (p == p1) || (elemP p ps) then True else False in
+
+let rec elemC (p: Cos) (l: Coslist) : Bool =
+    case l of
+       CNil -> False
+     | CCons p1 ps -> if (p == p1) || (elemC p ps) then True else False in
+
+let rec elemI (p: Ide) (l: Idelist) : Bool =
+    case l of
+       INil -> False
+     | ICons p1 ps -> if (p == p1) || (elemI p ps) then True else False in
+
+let rec showConB (p: Pre) (co: Context) : Coslist =
+       case co of
+         BNil -> CNil
+       | BCons b bs -> (case b of Prop pp cl -> if p == pp then cl else (showConB p bs)) in
+-----------------------------------------------------------
+
+---Somehow like the "map" and "fold" function in Haskell
+let rec mapCA (i: Ide) (cl: Coslist) : Valuation =
+    case cl of
+       CNil       -> VNil
+     | CCons x xs -> VCons (Asg i x) (mapCA i xs) in
+
+let rec mapAV (f: Assigment -> Valuation) (a: Valuation) : ListofValuation =
+     case a of
+         VNil -> VANil
+       | VCons aa as -> VACons (f aa) (mapAV f as) in
+
+let rec mapAI (f: Assigment -> Ide) (v: Valuation) : Idelist =
+     case v of
+        VNil -> INil
+      | VCons i vs ->  ICons (f i) (mapAI f vs) in
+
+let rec mapVB (f: Valuation -> Bool) (v: ListofValuation) : Boolist =
+     case v of
+       VANil -> BoNil
+     | VACons vv vs -> BoCons (f vv) (mapVB f vs) in
+
+let rec foldAdd (ib: Bool) (bl: Boolist) : Bool =
+    case bl of
+       BoNil -> ib
+     | BoCons b bs -> foldAdd (ib && b) bs in
+
+let rec foldOr (ib: Bool) (bl: Boolist) : Bool =
+    case bl of
+       BoNil -> ib
+     | BoCons b bs -> foldAdd (ib || b) bs in
+
+------------------------------------------------
+
+--function "verify" verify a FOrmula without variables, with context
+let rec verify (f: FOrmula) : Bool =
+      case f of
+         Prd p c -> if (elemP p predicate) then elemC (getConT c) (showConB p context)
+                                          else False
+       | Not ff      -> not (verify ff)
+       | Or l r      -> verify l || verify r
+       | And l r     -> verify l && verify r
+       | Implies l r -> (not (verify l)) || verify r
+       | E i ff      -> False
+       | A i ff      -> False in
+
+
+--substitute a constant to a variable using valuationa
+let rec subst (t: Term) (va: Valuation) : Term =
+     case va of
+         VNil       -> t
+       | VCons v vs -> (case t of
+                           Var t1 -> if t1 == (getIdeA v) then Con (getCosA v) else subst t vs
+                         | Con t1 -> Con t1) in
+
+
+--help function of iequivalent
+let rec deleteIE (v: Valuation) (i: Ide) : Valuation =
+         case v of
+            VNil        -> VNil
+          | VCons va vs -> (case va of Asg i1 ci -> if i == i1 then vs
+                                                               else VCons va (deleteIE vs i)) in
+
+let rec reverseConV (v: Valuation) (a: Assigment) : Valuation = VCons a v in
+
+
+--function "iequivalent" give the list of i-equivalent valuation of a valuation
+let iequivalent (va: Valuation) (i: Ide) : ListofValuation =
+     case va of
+       VNil       -> VANil
+     | VCons v vs -> mapAV (reverseConV (deleteIE va i)) (mapCA i (getConsV va)) in
+
+
+--get the variables of a FOrmula
+let rec vars (f: FOrmula) : Idelist =
+       case f of
+         E i f       -> ICons i (vars f)
+       | A i f       -> ICons i (vars f)
+       | Prd p t     -> (case t of Var v -> ICons v INil | Con c -> INil)
+       | Not ff      -> vars ff
+       | And l r     -> appendI (vars l) (vars r)
+       | Or l r      -> appendI (vars l) (vars r)
+       | Implies l r -> appendI (vars l) (vars r) in
+
+
+
+-----some help function for satisfy
+let isEmptyI (l: Idelist) : Bool =
+     case l of
+       INil -> True
+     | ICons ll ls -> False in
+
+let rec isSubset (sl: Idelist) (bl: Idelist) : Bool =
+     case sl of
+       INil -> True
+     | ICons ll ls -> (elemI ll bl) && (isSubset ls bl) in
+
+
+--remove the repetition of Idelist
+let rec removeRepI (il: Idelist) : Idelist =
+     case il of
+       INil -> INil
+     | ICons i is -> if (elemI i is) then removeRepI is else ICons i (removeRepI is) in
+
+
+let rec satisfy (f: FOrmula) (va: Valuation) : Bool =
+      case va of
+         VNil -> if isEmptyI (vars f) then verify f else False -- non-exhuasted error
+       | VCons v vs ->
+              if  isSubset (removeRepI (vars f)) (mapAI getIdeA va)  then
+              case f of
+                Prd p fo    -> verify (Prd p (subst fo va))
+              | And l r     -> satisfy l va && satisfy r va
+              | Or l r      -> satisfy l va || satisfy r va
+              | Implies l r -> (not (satisfy l va)) || satisfy r va
+              | Not f       -> not (satisfy f va)
+              | A i fo      -> foldAdd True (mapVB (satisfy fo) (iequivalent va i))
+              | E i fo      -> foldOr False (mapVB (satisfy fo) (iequivalent va i))
+               else True in -- should be error
+
+
+----------------property----------------
+
+let the = Implies (A 0 (Or (Prd 2 (Var 0)) (Prd 3 (Var 0)))) (Or (A 2 (Prd 2 (Var 2))) (A 4 (Prd 3 (Var 4)))) in
+
+let well =And (E 1 (Prd 3 (Var 1))) (A 2 (Prd 4 (Var 2))) in
+
+let one = Not (E 1 (Prd 3 (Var 1))) in
+
+let theIde = ICons 0 (ICons 2 (ICons 4 INil)) in
+
+let counterExample = VCons (Asg 0 1) (VCons (Asg 2 1) (VCons (Asg 4 2) VNil)) in
+
+
+let prop_the (v: Valuation) : Bool =
+     case v of
+     VNil -> True
+   | VCons vv vs -> satisfy (pf the) v in
+
+
+let prop_well (v: Valuation) : Bool =
+     case v of
+     VNil -> True
+   | VCons vv vs -> satisfy (pf well) v in
+
+----------------------------------------
+
+--prop_the
+prop_well

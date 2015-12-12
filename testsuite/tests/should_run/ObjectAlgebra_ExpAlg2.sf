@@ -1,0 +1,19 @@
+--> x + y + 5 -> z + y + 5
+
+type ExpAlg[E] = { var : String -> E, lit : Int -> E, add : E -> E -> E } in
+type IPrint   = { print : String } in
+let prettyPrint : ExpAlg[IPrint] = {
+  var = \(x : String) -> { print = x },
+  lit = \(x : Int) -> { print = x.toString() },
+  add = \(x : IPrint) (y : IPrint) -> { print = x.print.concat(" + ").concat(y.print) }
+} in
+let substVar[E] (alg : ExpAlg[E]) (s : String) (e : E) : ExpAlg[E] = {
+  var = \(x : String) -> if x.equals(s) then e else alg.var x,
+  lit = \(x : Int) -> alg.lit x,
+  add = \(x : E) (y : E) -> alg.add x y
+} in
+let exp[E] (f: ExpAlg[E]) = f.add (f.add (f.var "x") (f.var "y")) (f.lit 5) in
+let before = exp[IPrint] prettyPrint in
+let subst  = substVar[IPrint] prettyPrint "x" (prettyPrint.var "z") in
+let after  = exp[IPrint] subst in
+before.print.concat(" -> ").concat(after.print)

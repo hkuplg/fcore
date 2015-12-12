@@ -1,7 +1,7 @@
 data rec
   TreeT [A] = EmptyT | NodeT A (Forest [A])
 and
-  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]);
+  Forest [A] = NilF | ConsF (TreeT [A]) (Forest [A]) in
 
 let rec
   size_tree [A] (x:TreeT[A]):Int =
@@ -12,7 +12,7 @@ and
   size_forest [A] (x:Forest[A]):Int =
     case x of
        NilF -> 0
-     | ConsF x y -> (size_tree [A] x) + (size_forest [A] y);
+     | ConsF x y -> (size_tree [A] x) + (size_forest [A] y) in
 
 let test = ConsF [Int]
      (NodeT [Int] 1
@@ -24,5 +24,5 @@ let test = ConsF [Int]
                                (NilF [Int])
                   )
                   (NilF [Int])
-     );
+     ) in
 size_forest [Int] test

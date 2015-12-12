@@ -64,11 +64,13 @@ Tuple projection: `(1,2,3)._1` (index starts with 1, just like in Scala)
 
 Tuple projection is type-safe: `(1,2)._3` won't compile.
 
-List construction: `new List[Int](1,2,3)`, `cons(1, new List[Int](2,3))`
+List construction: `Cons [Int] 1 (Cons [Int] 2 (Nil [Int]))`
 
-List can have no element: `new List[Int]()`
+A handy syntax sugar construction: `L[1,2,3]`, but empty list must be: `Nil [Int]`
 
-List support functions: `head(a)`, `tail(a)`, `isNil(a)`, `length(a)`
+List support functions: `head [Int] a`, `tail [Int] a`, `null [Int] a`, `length [Int] a`
+
+Throw an Error : `error [Int] "head: empty list"`
 
 Merge of two values: `1 ,, "hi"`
 
@@ -118,16 +120,4 @@ The value of the sequence takes the last item, in the above case, `3`.
 
 ## Modules
 
-```
-module M {
-
-};
-...
-```
-Link modules with source file:
-- f2ji: ```-l --module=MODULE```
-- f2j: ```:link <sourceFile> -m <module1> <module2> ...```
-
-F2ji:
-- ```:load M``` Load module M into REPL environment, allow user to use functions defined in M, say M.add
-- ```:import M``` Allow user to directly use add instead of M.add
+Refer to [here](spec/modules.md).

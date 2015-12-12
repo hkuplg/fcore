@@ -1,0 +1,2 @@
+let rec loop (n : Int) : Int = loop n in
+(loop 1, 2)._2

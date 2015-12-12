@@ -1,0 +1,5 @@
+--> ab
+
+let builder = new java.lang.StringBuilder( ) in
+let aa = builder.append('a') in
+aa.append('b')

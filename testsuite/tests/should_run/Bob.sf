@@ -1,0 +1,5 @@
+--> 35
+
+let bob = { age = 30, name = "Bob", language = "Haskell" } with {age = 35}
+in
+(bob.name, bob.age, bob.language)._2

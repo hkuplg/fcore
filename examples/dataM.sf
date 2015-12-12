@@ -1,7 +1,7 @@
 let null [A] (xs: M5.PolyList[A]): Bool =
     case xs of
        Nil -> True
-     | Cons y ys -> False;
+     | Cons y ys -> False in
 
 let headIs0 (xs : M5.IntList) : Bool =
    case xs of
@@ -10,6 +10,6 @@ let headIs0 (xs : M5.IntList) : Bool =
               else True -- unreachable
      | Cons y ys -> if null [Int] xs
                     then True -- unreachable
-                    else y == 0;
+                    else y == 0 in
 -- headIs0 (Cons [Int] 0 (Nil [Int]))
 headIs0

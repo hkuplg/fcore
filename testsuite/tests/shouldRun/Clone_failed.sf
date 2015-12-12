@@ -1,7 +1,0 @@
---> 5
-
-let func (acc : Int) (n : Int) : Int =
-    acc + n
-;
-let g (x : Int) (n : Int) : Int = func x n;
-(\ (f: Int -> Int -> Int) -> f 1 (g 2 2)) func

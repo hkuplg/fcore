@@ -1,0 +1,3 @@
+type IntBumper = Int -> Int
+let rec loop: IntBumper = \(x: Int) -> loop x in
+1

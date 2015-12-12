@@ -8,7 +8,7 @@ import Parser
 
 import qualified Language.Java.Syntax as J (Op(..))
 
-testCases :: [(String, ReaderExpr)]
+testCases :: [(String, ReadExpr)]
 testCases =
     [ ("((1,2),3)._0._1", Proj (Proj (Tuple [Tuple [Lit (Int 1), Lit (Int 2)], Lit (Int 3)]) 0) 1)
     , ("1 / 2 / (3 / 4)", PrimOp

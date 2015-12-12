@@ -1,40 +1,40 @@
 data PolyList [A] = Nil
-     	        | Cons A (PolyList [A])
-	        ;
+              | Cons A (PolyList [A])
+           in
 
 let rec eq [A] (xs: PolyList[A]) (ys: PolyList[A]) : Bool =
   case xs of
      Nil -> (case ys of
               Nil -> True
-	    | Cons _ _ -> False)
+      | Cons _ _ -> False)
    | Cons a as -> (case ys of
-     	       	     Nil -> False
-		   | Cons b bs -> (a == b) && eq [A] as bs);
+                   Nil -> False
+       | Cons b bs -> (a == b) && eq [A] as bs) in
 let rec filter [A] (p : A -> Bool) (xs : PolyList [A]) : PolyList[A] =
   case xs of
       Nil       -> Nil [A]
     | Cons y ys -> if p y
                    then Cons [A] y (filter [A] p ys)
-                   else filter [A] p ys;
+                   else filter [A] p ys in
 let rec append [A] (xs : PolyList[A]) (ys : PolyList[A]) : PolyList[A] =
   case xs of
       Nil       -> ys
-    | Cons z zs -> Cons [A] z (append [A] zs ys) ;
+    | Cons z zs -> Cons [A] z (append [A] zs ys) in
 let rec qsort [A] (xs : PolyList[A]) : PolyList[A] =
   case xs of
       Nil       -> Nil [A]
     | Cons y ys -> case ys of
                        Nil       -> Cons [A] y (Nil [A])
-                     | Cons _ _  -> append [A] (qsort [A] (filter [A] (\(a : A) -> a <= y) ys)) (Cons [A] y (qsort [A] (filter [A] (\(a : A) -> a > y) ys)));
+                     | Cons _ _  -> append [A] (qsort [A] (filter [A] (\(a : A) -> a <= y) ys)) (Cons [A] y (qsort [A] (filter [A] (\(a : A) -> a > y) ys))) in
 let rec insert [A] (x : A) (xs : PolyList[A]) : PolyList[A] =
     case xs of
         Nil -> Cons [A] x (Nil [A])
       | Cons y ys -> if x <= y
-      	       	     then Cons [A] x (Cons [A] y ys)
-		     else Cons [A] y (insert [A] x ys);
+                     then Cons [A] x (Cons [A] y ys)
+         else Cons [A] y (insert [A] x ys) in
 let rec isort [A] (xs : PolyList[A]) : PolyList[A] =
     case xs of
-    	Nil -> Nil [A]
-      | Cons x ys -> insert [A] x (isort [A] ys);
-let prop_sort [A] (xs : PolyList[A]) = eq [A] (qsort [A] xs) (isort [A] xs);
+      Nil -> Nil [A]
+      | Cons x ys -> insert [A] x (isort [A] ys) in
+let prop_sort [A] (xs : PolyList[A]) = eq [A] (qsort [A] xs) (isort [A] xs) in
 prop_sort

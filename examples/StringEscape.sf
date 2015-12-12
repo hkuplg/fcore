@@ -1,7 +1,7 @@
 let print (s: String) = {
-  java.lang.System.out.print(s);
+  print(s);
   "\"Escaped string tests done!\""
-};
+} in
 
 {
   print("\"Hello, world\"\n");

@@ -1,0 +1,7 @@
+package f2j.prelude
+
+module
+
+print(s: String)   = java.lang.System.out.print(s);
+
+println(s: String) = java.lang.System.out.println(s)

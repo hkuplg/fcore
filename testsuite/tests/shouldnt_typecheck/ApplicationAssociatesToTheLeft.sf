@@ -1,0 +1,3 @@
+let function (str : String) = str in
+let function2 (str : String) = str in
+function function2 "abc"

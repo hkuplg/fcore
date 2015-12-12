@@ -1,68 +1,44 @@
-{-# OPTIONS_GHC -fwarn-unused-imports #-}
-{-# LANGUAGE TemplateHaskell #-}
+module TransCFSpec (transSpec, testConcreteSyn) where
 
-module TransCFSpec where
-
-import Test.Hspec
+import BackEnd
+import FrontEnd (source2core)
+import JavaUtils (getClassPath)
+import MonadLib
+import OptiUtils (Exp(Hide))
+import PartialEvaluator (rewriteAndEval)
 import SpecHelper
+import StringPrefixes (namespace)
+import StringUtils (capitalize)
 import TestTerms
 
-import Parser       (reader)
-import TypeCheck    (typeCheck)
-import Desugar      (desugar)
-import Simplify     (simplify)
-import PartialEvaluator
-
-import Translations (compileN, compileAO, compileS)
-
-import MonadLib
-
-import Language.Java.Pretty
-
+import Language.Java.Pretty (prettyPrint)
 import System.Directory
-import System.Process
-import System.FilePath  ((</>), dropExtension, takeFileName)
+import System.FilePath
 import System.IO
+import System.Process
+import Test.Tasty.Hspec
 
-import Data.FileEmbed   (embedFile)
-import qualified Data.ByteString as B
-import JavaUtils
-import FileIO
-import StringPrefixes   (namespace)
 
-import qualified Data.List as List      (isSuffixOf)
+testCasesPath = "testsuite/tests/shouldRun"
 
-runtimeBytes :: B.ByteString
-runtimeBytes = $(embedFile "runtime/runtime.jar")
-
-writeRuntimeToTemp :: IO ()
-writeRuntimeToTemp = 
-  do tempdir <- getTemporaryDirectory
-     let tempFile = tempdir </> "runtime.jar"
-     B.writeFile tempFile runtimeBytes 
-
-testCasesPath = "testsuite/tests/run-pass"
+fetchResult :: Handle -> IO String
+fetchResult outP = do
+  msg <- hGetLine outP
+  if msg == "exit" then fetchResult outP else return msg
 
 -- java compilation + run
 compileAndRun inP outP name compileF exp =
-  do let source = prettyPrint (fst $ (compileF name exp))
+  do let source = prettyPrint (fst (compileF name (rewriteAndEval exp)))
      let jname = name ++ ".java"
-     sendMsg inP jname
-     sendFile inP (source ++ "\n" ++ "//end of file")
-     result <- receiveMsg3 outP 
-     return result
-
-esf2sf expr =
-  do res <- TypeCheck.typeCheck expr
-     case res of
-       Left typeError     -> error $ show ({- Text.PrettyPrint.ANSI.Leijen.pretty -} typeError)
-       Right (_t, tcExpr) -> return (rewriteAndEval (Hide ((simplify . desugar) tcExpr)))
+     hPutStrLn inP jname
+     hPutStrLn inP (source ++ "\n" ++ "//end of file")
+     fetchResult outP
 
 testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput) = do
-  let className = getClassName $ dropExtension (takeFileName filePath)
+  let className = capitalize $ dropExtension (takeFileName filePath)
   output <- runIO (compileAndRun inP outP className compilation ast)
   it ("should compile and run " ++ name ++ " and get \"" ++ expectedOutput ++ "\"") $
-     (return output) `shouldReturn` expectedOutput
+     return output `shouldReturn` expectedOutput
 
 testConcreteSyn inP outP compilation (name, filePath) =
   do source <- runIO (readFile filePath)
@@ -71,23 +47,26 @@ testConcreteSyn inP outP compilation (name, filePath) =
                          "The integration test file should start with '-->', \
                          \followed by the expected output")
        Just expectedOutput ->
-         do ast <- runIO (esf2sf (Parser.reader source))
+         do ast <- runIO (source2core NoDump (filePath, source))
             testAbstractSyn inP outP compilation (name, filePath, ast, expectedOutput)
 
 abstractCases =
-  [("factorial 10", "main_1", factApp, "3628800")
-  ,("fibonacci 10", "main_2", fiboApp, "55")
-  ,("idF Int 10", "main_3", idfNum, "10")
-  ,("const Int 10 20", "main_4", constNum, "10")
-  ,("program1 Int 5", "main_5", program1Num, "5")
-  ,("program2", "main_6", program2, "5")
-  ,("program4", "main_7", program4, "11")
+  [ ("factorial 10", "main_1", Hide factApp, "3628800")
+  , ("fibonacci 10", "main_2", Hide fiboApp, "55")
+  , ("idF Int 10", "main_3", Hide idfNum, "10")
+  , ("const Int 10 20", "main_4", Hide constNum, "10")
+  , ("program1 Int 5", "main_5", Hide program1Num, "5")
+  , ("program2", "main_6", Hide program2, "5")
+  , ("program4", "main_7", Hide program4, "11")
   ]
 
--- intappCase = \c -> it "Should infer type of intapp" $ "(forall (_ : java.lang.Integer) . java.lang.Integer)" `shouldBe` ( let (cu, t) = (c "Main" intapp) in show t)
-
-spec =
+transSpec =
   do concreteCases <- runIO (discoverTestCases testCasesPath)
+
+     -- change to testing directory for module testing
+     curr <- runIO (getCurrentDirectory)
+     runIO (setCurrentDirectory $ curr </> testCasesPath)
+
      forM_
        [("BaseTransCF" , compileN)
        ,("ApplyTransCF", compileAO)
@@ -95,14 +74,13 @@ spec =
        (\(name, compilation) ->
          describe name $
            do cp <- runIO getClassPath
-              let p = (proc "java" ["-cp", cp, (namespace ++ "FileServer"), cp])
+              let p = (proc "java" ["-cp", cp, namespace ++ "FileServer", cp])
                           {std_in = CreatePipe, std_out = CreatePipe}
               (Just inP, Just outP, _, proch) <- runIO $ createProcess p
               runIO $ hSetBuffering inP NoBuffering
               runIO $ hSetBuffering outP NoBuffering
               forM_ abstractCases (testAbstractSyn inP outP compilation)
               forM_ concreteCases (testConcreteSyn inP outP compilation))
-              --terminateProcess proch
 
-main :: IO ()
-main = hspec spec
+     runIO (setCurrentDirectory curr)
+
