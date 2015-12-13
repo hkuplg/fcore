@@ -405,7 +405,7 @@ inferExpr (L loc (RecordUpdate e fs)) =
 --      inferExpr (L loc $ Let NonRec [Bind m [] [] letrec Nothing] e)
 -- inferExpr (L loc (ModuleAccess m f)) = inferExpr (L loc $ RecordProj (L loc $ Var m) f)
 
-inferExpr this@(L _ (LocalType typeBind e))
+inferExpr this@(L _ (Type typeBind e))
   = do checkDupNames params
        typeContext <- getTypeContext
        maybe_kind <- liftIO $ kind typeContext pulledRight

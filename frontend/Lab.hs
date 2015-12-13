@@ -8,7 +8,7 @@ import Parser
 
 import System.Directory
 
-filePath = "examples/declsyntax/EvenOdd.sf"
+filePath = "examples/declaration_syntax/EvenOdd.sf"
 
 main = do source <- readFile filePath
           print (parseProgram source)

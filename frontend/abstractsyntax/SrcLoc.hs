@@ -15,8 +15,6 @@ Portability :  portable
 
 module SrcLoc where
 
-import qualified Config
-
 import Text.PrettyPrint.ANSI.Leijen
 
 type Located a = GenLocated Loc a

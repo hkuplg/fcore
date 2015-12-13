@@ -87,6 +87,8 @@ data Program = Program
 
 data Declaration
   = DefDecl ReadBind
+  | TypeDecl TypeBind
+  | DataDecl DataBind
   deriving (Show)
 
 data Import = Import
@@ -166,7 +168,7 @@ data Expr id ty
   | RecordCon [(Label, LExpr id ty)]
   | RecordProj (LExpr id ty) Label
   | RecordUpdate (LExpr id ty) [(Label, LExpr id ty)]
-  | LocalType TypeBind (LExpr id ty)
+  | Type TypeBind (LExpr id ty)
   | Data RecFlag [DataBind] (LExpr id ty)
   | Case (LExpr id ty) [Alt id ty]
   | CaseString (LExpr id ty) [Alt id ty] --pattern match on string

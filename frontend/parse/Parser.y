@@ -156,7 +156,9 @@ declarations :: { [Declaration] }
   | declaration declarations { $1:$2 }
 
 declaration :: { Declaration }
-  : "def" bind { DefDecl $2 }
+  : "def" bind      { DefDecl $2 }
+  | "type" typebind { TypeDecl $2 }
+  | "data" databind { DataDecl $2 }
 
 ------------------------------------------------------------------------
 -- Modules
@@ -294,7 +296,7 @@ expr :: { ParsedExpr }
     : "/\\" ctyparams1 "->" expr  { foldr (\t acc -> BLam (unLoc t) acc `withLoc` t) (BLam (unLoc $ last $2) $4 `withLoc` (last $2)) (init $2) }
     | "\\"  param_list1 "->" expr { foldr (\x acc -> Lam x acc `withLoc` (fst x)) (Lam (last $2) $4 `withLoc` (fst (last $2))) (init $2) }
     | "let" recflag and_binds "in" expr { LetIn $2 $3 $5 `withLoc` $1 }
-    | "type" typebind "in" expr  { LocalType $2 $4 `withLoc` $1 }
+    | "type" typebind "in" expr  { Type $2 $4 `withLoc` $1 }
     | "if" expr "then" expr "else" expr   { If $2 $4 $6 `withLoc` $1 }
     | "data" recflag and_databinds "in" expr        { Data $2 $3 $5 `withLoc` $1 }
     | "case" expr "of" alts               { Case $2 $4 `withLoc` $1 }
