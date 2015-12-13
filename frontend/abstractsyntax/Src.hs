@@ -110,6 +110,11 @@ type ReadImport = Located (PoorMensImport Name)
 -- Kinds k := * | k -> k
 data Kind = Star | KArrow Kind Kind deriving (Show)
 
+instance Eq Kind where
+  Star == Star             = True
+  KArrow a b == KArrow c d = a == c && c == d
+  _ == _                   = False
+
 -- Types.
 data Type
   = TVar Name
