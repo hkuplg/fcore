@@ -1,5 +1,5 @@
 all : sierpinsky.sf
-	cd lib; javac *.java
+	cd lib && javac *.java
 	f2j -r -m stack -m apply $^
 
 .PHONY : clean
