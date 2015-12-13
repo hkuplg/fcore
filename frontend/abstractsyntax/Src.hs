@@ -99,16 +99,16 @@ type ModulePath = String
 
 -- Modules.
 data ModuleBind id ty = BindNonRec (Bind id ty)
-                      | BindRec [Bind id ty] deriving (Eq, Show)
-data Module id ty = Module [PoorMensImport id] [ModuleBind id ty] deriving (Eq, Show)
+                      | BindRec [Bind id ty] deriving (Show)
+data Module id ty = Module [PoorMensImport id] [ModuleBind id ty] deriving (Show)
 
 type ReadModule = Module Name Type
 type ReadModuleBind = ModuleBind Name Type
-data PoorMensImport id = PoorMensImport id deriving (Eq, Show)
+data PoorMensImport id = PoorMensImport id deriving (Show)
 type ReadImport = Located (PoorMensImport Name)
 
 -- Kinds k := * | k -> k
-data Kind = Star | KArrow Kind Kind deriving (Eq, Show)
+data Kind = Star | KArrow Kind Kind deriving (Show)
 
 -- Types.
 data Type
@@ -176,31 +176,34 @@ data Expr id ty
   | ConstrOut Constructor [LExpr id ty] -- post typecheck only
                                      -- the last type in Constructor will always be the real type
   | Error Type (LExpr id ty)
-  deriving (Eq, Show)
+  deriving (Show)
 
 type PackageName = Name
 type CheckedBind = (Name, Type, CheckedExpr)
-data Definition = Def CheckedBind | DefRec [CheckedBind] deriving (Eq, Show)
+data Definition = Def CheckedBind | DefRec [CheckedBind] deriving (Show)
 
 -- type T[A1, ..., An] = t
 data TypeBind = TypeBind
   { typeBindName   :: Name   -- T
   , typeBindParams :: [Name] -- A1, ..., An
   , typeBindRhs    :: Type   -- t
-  } deriving (Eq, Show)
+  } deriving (Show)
 
-data DataBind = DataBind Name [Name] [Constructor] deriving (Eq, Show)
-data Constructor = Constructor {constrName :: Name, constrParams :: [Type]}
-                   deriving (Eq, Show)
+data DataBind = DataBind Name [Name] [Constructor] deriving (Show)
+data Constructor = Constructor { constrName :: Name, constrParams :: [Type] }
+                   deriving (Show)
+
+instance Eq Constructor where
+  c1 == c2 = constrName c1 == constrName c2
 
 data Alt id ty = ConstrAlt Pattern (LExpr id ty)
             -- | Default (Expr id)
-              deriving (Eq, Show)
+              deriving (Show)
 
 data Pattern = PConstr Constructor [Pattern]
              | PVar Name Type
              | PWildcard
-             deriving (Eq, Show)
+             deriving (Show)
 
 -- type RdrExpr = Expr Name
 type ParsedExpr  = LExpr Name Type
@@ -225,14 +228,14 @@ data Bind id ty = Bind
   , bindParams   :: [(Located Name, Type)] -- x1: t1, ..., xn: tn
   , bindRhs      :: LExpr id ty          -- e
   , bindRhsTyAscription :: Maybe Type    -- t
-  } deriving (Eq, Show)
+  } deriving (Show)
 
 type ReadBind = Bind Name Type
 
-data RecFlag = Rec | NonRec deriving (Eq, Show)
-data UnitPossibility = UnitPossible | UnitImpossible deriving (Eq, Show)
+data RecFlag = Rec | NonRec deriving (Show)
+data UnitPossibility = UnitPossible | UnitImpossible deriving (Show)
 
-data JReceiver e = Static ClassName | NonStatic e deriving (Eq, Show)
+data JReceiver e = Static ClassName | NonStatic e deriving (Show)
 
 instance Functor JReceiver where
   fmap _ (Static c)    = Static c
